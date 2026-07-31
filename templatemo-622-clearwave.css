@@ -939,10 +939,14 @@ Free for personal and commercial use
       .form-row { grid-template-columns: 1fr; }
       .modal-content { padding: 32px 24px; }
       .checkout-section { padding: 24px 0 96px; }
-      .checkout-grid { gap: 24px; }
+      .checkout-grid { display: flex; flex-direction: column; gap: 24px; }
+      .checkout-form { order: 2; }
+      .checkout-summary { order: 1; }
+      .checkout-summary-sticky { position: static; padding: 20px; }
       .checkout-card { padding: 20px; }
-      .checkout-summary-sticky { padding: 20px; }
       .payment-option { padding: 12px 14px; }
+      .payment-option-content { min-width: 0; overflow: hidden; }
+      .payment-option-content div { min-width: 0; overflow-wrap: break-word; word-break: break-word; }
       .mobile-checkout-bar { display: flex; }
       .whatsapp-float { bottom: 84px; }
     }
@@ -1348,17 +1352,12 @@ Free for personal and commercial use
       height: 18px;
       flex-shrink: 0;
     }
-    .payment-option-content {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex: 1;
-      cursor: pointer;
-    }
+    /* .payment-option-content — see consolidated block below */
     .payment-option-icon {
       font-size: 1.5rem;
       flex-shrink: 0;
       min-width: 28px;
+      max-width: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1367,6 +1366,21 @@ Free for personal and commercial use
       width: 28px;
       height: 28px;
       display: block;
+      max-width: 100%;
+    }
+    .payment-option-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .payment-option-content div {
+      min-width: 0;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
     .payment-option-content div strong {
       display: block;
