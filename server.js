@@ -14,7 +14,7 @@ const PUBLIC_DIR = __dirname;
 // Default configuration values (overridden by environment variables on Render)
 const defaults = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
-  WHATSAPP_ORDER_NUMBER: '2348123456789',
+  WHATSAPP_ORDER_NUMBER: '2348122104576',
   BANK_NAME: 'GTBank',
   BANK_ACCOUNT_NAME: 'UNN Socials',
   BANK_ACCOUNT_NUMBER: '0123456789',

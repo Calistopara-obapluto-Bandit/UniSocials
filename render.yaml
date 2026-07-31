@@ -10,7 +10,7 @@ services:
       - key: WHATSAPP_FLOAT_NUMBER
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER
-        value: 2348123456789
+        value: 2348122104576
       - key: BANK_NAME
         value: GTBank
       - key: BANK_ACCOUNT_NAME

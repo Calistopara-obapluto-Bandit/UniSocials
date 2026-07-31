@@ -399,7 +399,7 @@ if (nav) {
 
       // Redirect to WhatsApp with order details
       const cfg = window.SITE_CONFIG || {};
-      const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348123456789';
+      const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
       window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
 
       // Show success message
@@ -474,7 +474,7 @@ if (nav) {
     );
 
     const cfg = window.SITE_CONFIG || {};
-    const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348123456789';
+    const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
     window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
 
     // Show confirmation

@@ -13,7 +13,7 @@ window.SITE_CONFIG = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
 
   // WhatsApp number that receives ticket orders & contact form messages
-  WHATSAPP_ORDER_NUMBER: '2348123456789',
+  WHATSAPP_ORDER_NUMBER: '2348122104576',
 
   // Bank transfer payment details
   BANK_NAME: 'GTBank',
