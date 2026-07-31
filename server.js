@@ -77,8 +77,79 @@ const server = http.createServer((req, res) => {
       const indexPath = path.join(PUBLIC_DIR, urlPath, 'index.html');
       fs.stat(indexPath, (err2, stats2) => {
         if (err2 || !stats2.isFile()) {
-          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('404 Not Found');
+          // Graceful 404 page — handles Render free-tier cold start
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="refresh" content="3" />
+  <title>UNN Socials — Waking up...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a1a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #e0e0e0;
+      text-align: center;
+      padding: 24px;
+    }
+    .card {
+      background: linear-gradient(145deg, #0f2a0f, #1a3a1a);
+      border: 1px solid #2a5a2a;
+      border-radius: 24px;
+      padding: 48px 40px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+    .logo { font-size: 28px; font-weight: 700; margin-bottom: 24px; }
+    .logo span { color: #ffd700; }
+    .icon { font-size: 56px; margin-bottom: 16px; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 12px; color: #fff; }
+    p { font-size: 15px; line-height: 1.6; color: #a0c0a0; margin-bottom: 24px; }
+    .spinner {
+      display: inline-block;
+      width: 36px; height: 36px;
+      border: 3px solid #2a5a2a;
+      border-top-color: #ffd700;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn {
+      display: inline-block;
+      background: #ffd700;
+      color: #0a1a0a;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 12px 32px;
+      border-radius: 40px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #ffe44d; }
+    .hint { font-size: 13px; color: #608060; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">UNN <span>Socials</span></div>
+    <div class="icon">⚡</div>
+    <div class="spinner"></div>
+    <h1>Waking up the server…</h1>
+    <p>This page is hosted on a free service that sleeps after inactivity.<br>It should be ready in a moment.</p>
+    <a href="/" class="btn" onclick="location.reload()">⟳ Refresh Now</a>
+    <p class="hint">Auto-refreshing every 3 seconds &mdash; or tap the button above.</p>
+  </div>
+</body>
+</html>`);
           return;
         }
         const ext = path.extname(indexPath).toLowerCase();
