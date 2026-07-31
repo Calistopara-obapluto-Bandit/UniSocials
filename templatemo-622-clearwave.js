@@ -32,15 +32,15 @@ Free for personal and commercial use
     faqEmail.textContent = cfg.CONTACT_EMAIL || 'support.sbiamautos@gmail.com';
   }
 
-  // Contact form — FormSubmit key & redirect URL
+  // Contact form — FormSubmit email endpoint & redirect URL
   const contactForm = document.getElementById('contactForm');
   if (contactForm) {
-    const key = cfg.FORMSUBMIT_KEY || '8d51333da2a9cfabfb087ffb615b7963';
+    const key = cfg.FORMSUBMIT_KEY || 'support.sbiamautos@gmail.com';
     contactForm.setAttribute('action', 'https://formsubmit.co/' + key);
   }
   const formNext = document.getElementById('formNext');
   if (formNext) {
-    formNext.value = cfg.REDIRECT_URL || 'https://unnsocials.com/thank-you.html';
+    formNext.value = cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html';
   }
 })();
 
@@ -437,10 +437,9 @@ if (nav) {
   const contactForm = document.getElementById('contactForm');
   if (!contactForm) return;
 
-  const nameInput = document.getElementById('contactName');
-  const emailInput = document.getElementById('contactEmail');
-  const subjectInput = document.getElementById('contactSubject');
-  const messageInput = document.getElementById('contactMessage');
+  const nameInput = document.getElementById('name');
+  const emailInput = document.getElementById('email');
+  const messageInput = document.getElementById('message');
   const submitBtn = contactForm.querySelector('.btn-submit');
 
   function validateForm() {
@@ -455,35 +454,6 @@ if (nav) {
   if (nameInput) nameInput.addEventListener('input', validateForm);
   if (emailInput) emailInput.addEventListener('input', validateForm);
   if (messageInput) messageInput.addEventListener('input', validateForm);
-
-  contactForm.addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const name = nameInput ? nameInput.value.trim() : '';
-    const email = emailInput ? emailInput.value.trim() : '';
-    const subject = subjectInput ? subjectInput.value.trim() : 'General Inquiry';
-    const message = messageInput ? messageInput.value.trim() : '';
-
-    const msg = encodeURIComponent(
-      `📬 *New Contact Message*\n\n` +
-      `From: ${name}\n` +
-      `Email: ${email}\n` +
-      `Subject: ${subject}\n\n` +
-      `${message}\n\n` +
-      `Sent via UNN Socials Contact Form`
-    );
-
-    const cfg = window.SITE_CONFIG || {};
-    const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
-    window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
-
-    // Show confirmation
-    alert(`✅ Message sent!\n\nThank you, ${name}. We'll get back to you within 24 hours.`);
-
-    // Reset form
-    contactForm.reset();
-    if (submitBtn) submitBtn.disabled = true;
-  });
 })();
 
 /* ── TICKET QUANTITY ON INDEX ── */

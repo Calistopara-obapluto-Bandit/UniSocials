@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contact — UNN Socials</title>
+  <title>Thank You — UNN Socials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
@@ -37,7 +37,7 @@
         <li><a href="events.html">Events</a></li>
         <li><a href="tickets.html">Tickets</a></li>
         <li><a href="about.html">About</a></li>
-        <li><a href="contact.html" class="active">Contact</a></li>
+        <li><a href="contact.html">Contact</a></li>
         <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
@@ -52,73 +52,44 @@
   <!-- ── PAGE HEADER ── -->
   <section class="page-header">
     <div class="container">
-      <div class="section-label reveal">Contact</div>
-      <h1 class="section-title reveal reveal-delay-1">Get in <em>touch</em></h1>
-      <p class="section-sub reveal reveal-delay-2">Have a question or want to list your event? We'd love to hear from you.</p>
+      <div class="section-label reveal">Message Sent</div>
+      <h1 class="section-title reveal reveal-delay-1">Thank <em>you!</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Your message has been delivered to our team.</p>
     </div>
   </section>
 
-  <!-- ── CONTACT ── -->
-  <section class="contact-section">
+  <!-- ── SUCCESS ── -->
+  <section class="content-section">
     <div class="container">
-      <div class="contact-grid">
-        <div class="contact-info reveal">
-          <h3>How to reach us</h3>
-          <p>Whether you're a student looking for help with a ticket purchase, or a faculty association wanting to list an event — we're here to help.</p>
-
-<div class="contact-detail">
-            <div class="contact-detail-icon">📧</div>
-            <span>Contact us via WhatsApp below</span>
-          </div>
-<div class="contact-detail">
-            <div class="contact-detail-icon" style="background:#25D366;border-color:#25D366;">💬</div>
-            <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" style="color:var(--text-1);font-weight:600;" id="contactPhoneLink">+234 812 210 4576</a>
-          </div>
-          <div class="contact-detail">
-            <div class="contact-detail-icon">📍</div>
-            <span>University of Nigeria, Nsukka<br>Enugu State, Nigeria</span>
-          </div>
-          <div class="contact-detail">
-            <div class="contact-detail-icon">🕐</div>
-            <span>Mon–Fri: 9:00 AM – 5:00 PM (WAT)</span>
-          </div>
+      <div class="cta-inner reveal" style="max-width:640px;margin:0 auto;text-align:center;">
+        <div style="font-size:72px;line-height:1;margin-bottom:16px;">✅</div>
+        <h2 class="cta-title" style="margin-bottom:16px;">We've received your message</h2>
+        <p class="cta-sub" style="margin-bottom:32px;">Thanks for reaching out. Our team will get back to you within 24 hours. In the meantime, feel free to browse upcoming events or chat with us on WhatsApp for faster assistance.</p>
+        <div class="cta-actions" style="justify-content:center;">
+          <a href="events.html" class="btn-cta-primary">
+            Browse Events
+            <span>→</span>
+          </a>
+          <a href="contact.html" class="btn-cta-ghost">Send Another Message</a>
         </div>
+      </div>
+    </div>
+  </section>
 
-        <div class="contact-form reveal reveal-delay-1">
-          <form action="https://formsubmit.co/support.sbiamautos@gmail.com" method="POST" id="contactForm">
-            <input type="hidden" name="_subject" value="New Contact Form Submission from UNN Socials" />
-            <input type="hidden" name="_captcha" value="false" />
-            <input type="hidden" name="_template" value="table" />
-            <input type="hidden" name="_next" value="https://unisocials.onrender.com/thank-you.html" id="formNext" />
-            <div class="form-group">
-              <label for="name">Full Name</label>
-              <input type="text" id="name" name="Name" placeholder="Enter your full name" required />
-            </div>
-            <div class="form-group">
-              <label for="email">Email Address</label>
-              <input type="email" id="email" name="Email" placeholder="you@unn.edu.ng" required />
-            </div>
-            <div class="form-group">
-              <label for="phone">Phone Number</label>
-              <input type="tel" id="phone" name="Phone" placeholder="0812 345 6789" />
-            </div>
-            <div class="form-group">
-              <label for="subject">Subject</label>
-              <select id="subject" name="Subject" required>
-                <option value="">Select a topic...</option>
-                <option value="Ticket Purchase Issue">Ticket Purchase Issue</option>
-                <option value="List My Event">List My Event</option>
-                <option value="Partnership Inquiry">Partnership Inquiry</option>
-                <option value="Feedback / Suggestion">Feedback / Suggestion</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="message">Message</label>
-              <textarea id="message" name="Message" placeholder="Tell us how we can help..." required></textarea>
-            </div>
-            <button type="submit" class="btn-submit">Send Message</button>
-          </form>
+  <!-- ── CTA ── -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-inner reveal">
+        <div class="cta-content">
+          <h2 class="cta-title">Ready to join the next<br><em>big event?</em></h2>
+          <p class="cta-sub">Grab your tickets now before they sell out.</p>
+        </div>
+        <div class="cta-actions">
+          <a href="events.html" class="btn-cta-primary">
+            Get Tickets
+            <span>→</span>
+          </a>
+          <a href="faq.html" class="btn-cta-ghost">Visit FAQ</a>
         </div>
       </div>
     </div>
@@ -177,3 +148,4 @@
   <script src="templatemo-622-clearwave.js"></script>
 </body>
 </html>
+

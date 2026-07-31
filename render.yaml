@@ -22,7 +22,7 @@ services:
       - key: CONTACT_EMAIL
         value: support.sbiamautos@gmail.com
       - key: FORMSUBMIT_KEY
-        value: 8d51333da2a9cfabfb087ffb615b7963
+        value: support.sbiamautos@gmail.com
       - key: REDIRECT_URL
-        value: https://unnsocials.com/thank-you.html
+        value: https://unisocials.onrender.com/thank-you.html
 

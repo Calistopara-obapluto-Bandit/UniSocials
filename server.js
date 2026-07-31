@@ -20,8 +20,8 @@ const defaults = {
   BANK_ACCOUNT_NUMBER: '0123456789',
   USSD_CODE: '*123*456*',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
-  FORMSUBMIT_KEY: '8d51333da2a9cfabfb087ffb615b7963',
-  REDIRECT_URL: 'https://unnsocials.com/thank-you.html'
+  FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
+  REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'
 };
 
 function getConfig() {

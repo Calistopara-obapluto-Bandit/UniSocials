@@ -26,10 +26,10 @@ window.SITE_CONFIG = {
   // Contact / support email shown in FAQ
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
 
-  // FormSubmit.co email key for the contact form
-  FORMSUBMIT_KEY: '8d51333da2a9cfabfb087ffb615b7963',
+  // FormSubmit.co email endpoint for the contact form (messages land in the contact inbox)
+  FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
 
   // Redirect URL after contact form submission
-  REDIRECT_URL: 'https://unnsocials.com/thank-you.html'
+  REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'
 };
 
