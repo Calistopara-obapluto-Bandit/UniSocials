@@ -22,3 +22,9 @@
 - [x] 11. Commit and push to GitHub
 - [x] 12. Verify Render blueprint picks up web service
 
+## Phase 6: WhatsApp Number Update & Deploy
+- [x] 13. Update `WHATSAPP_ORDER_NUMBER` from `2348123456789` to `2348122104576` in `config.js`, `server.js`, `render.yaml`, `templatemo-622-clearwave.js`
+- [x] 14. Test server locally (verified config.js serves new number)
+- [x] 15. Commit & push to GitHub (commit `0423527`)
+- [x] 16. Verify live deployment on Render (https://unisocials.onrender.com) serves `WHATSAPP_ORDER_NUMBER: 2348122104576`
+
