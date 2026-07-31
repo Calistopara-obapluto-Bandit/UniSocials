@@ -34,3 +34,13 @@
 - [x] 19. Commit & push to GitHub
 - [x] 20. Verify live deployment on Render serves `CONTACT_EMAIL: support.sbiamautos@gmail.com`
 
+## Phase 8: FormSubmit Contact Form (Email Inbox) & Deploy
+- [x] 21. Create `thank-you.html` success page (styled to match site)
+- [x] 22. Set `FORMSUBMIT_KEY` to `support.sbiamautos@gmail.com` in `config.js`, `server.js`, `render.yaml`
+- [x] 23. Update `contact.html` form action to `https://formsubmit.co/support.sbiamautos@gmail.com` and `_next` to live Render thank-you URL
+- [x] 24. Fix `templatemo-622-clearwave.js` contact block: correct input IDs (`name`, `email`, `message`), remove WhatsApp interception so FormSubmit handles submission
+- [x] 25. Test server locally (verified config.js serves email endpoint + redirect URL)
+- [x] 26. Commit & push to GitHub (commit `44e3e3a`)
+- [x] 27. Verify live deployment on Render: config.js, contact.html form action, thank-you.html all serving correctly
+
+
