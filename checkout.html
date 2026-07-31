@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Get Tickets — UNN Socials</title>
+  <title>Checkout — UNN Socials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <!-- Flutterwave Inline Checkout -->
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
 </head>
 <body>
 
@@ -49,85 +51,122 @@
 
   <section class="page-header">
     <div class="container">
-      <div class="section-label reveal">Get Tickets</div>
-      <h1 class="section-title reveal reveal-delay-1">Pick your <em>event</em></h1>
-      <p class="section-sub reveal reveal-delay-2">Choose an event, tell us who's attending, then continue to secure your tickets.</p>
+      <div class="section-label reveal">Checkout</div>
+      <h1 class="section-title reveal reveal-delay-1">Review &amp; <em>pay</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Confirm your order details and choose a payment method to secure your ticket.</p>
     </div>
   </section>
 
   <div class="container">
     <div class="step-indicator reveal">
-      <div class="step active"><span>1</span> Select Event</div>
+      <div class="step"><span>1</span> Select Event</div>
       <div class="step-line"></div>
-      <div class="step"><span>2</span> Checkout &amp; Pay</div>
+      <div class="step active"><span>2</span> Checkout &amp; Pay</div>
     </div>
   </div>
 
   <section class="checkout-section">
     <div class="container">
-      <div class="checkout-form reveal" style="max-width:760px;margin:0 auto;">
-        <div class="checkout-card">
-          <h3 class="checkout-card-title">🎟️ Select Event</h3>
-          <div class="form-group">
-            <label for="eventSelect">Event</label>
-            <select id="eventSelect" onchange="updateEventDetails()">
-              <option value="">Choose an event...</option>
-              <option value="arts-cultural-night" data-price="2500" data-name="Faculty of Arts Cultural Night" data-date="March 10, 2025" data-time="4:00 PM" data-venue="Arts Theatre">Faculty of Arts Cultural Night — ₦2,500</option>
-              <option value="engineering-dinner" data-price="5000" data-name="Engineering Annual Dinner" data-date="March 15, 2025" data-time="5:00 PM" data-venue="Engineering Auditorium">Engineering Annual Dinner — ₦5,000</option>
-              <option value="entrepreneurship-summit" data-price="3000" data-name="Entrepreneurship Summit" data-date="March 22, 2025" data-time="10:00 AM" data-venue="Business School Hall">Entrepreneurship Summit — ₦3,000</option>
-              <option value="music-festival" data-price="4000" data-name="UNN Music Festival" data-date="March 29, 2025" data-time="6:00 PM" data-venue="UNN Sports Complex">UNN Music Festival — ₦4,000</option>
-              <option value="law-moot-court" data-price="1500" data-name="Faculty of Law Moot Court" data-date="April 5, 2025" data-time="9:00 AM" data-venue="Faculty of Law">Faculty of Law Moot Court — ₦1,500</option>
-              <option value="sports-day" data-price="1000" data-name="Inter-Faculty Sports Day" data-date="April 12, 2025" data-time="8:00 AM" data-venue="UNN Stadium">Inter-Faculty Sports Day — ₦1,000</option>
-            </select>
+      <div class="checkout-stacked">
+        <!-- ORDER SUMMARY (top) -->
+        <div class="checkout-summary-card reveal">
+          <h3>📋 Order Summary</h3>
+          <div class="summary-row">
+            <span>Event</span>
+            <span id="summaryEventName" style="color:var(--text-3);text-align:right;">Not selected</span>
           </div>
-          <div id="eventPreview" class="event-preview" style="display:none;">
-            <div class="event-preview-row"><span>📅</span> <span id="previewDate"></span></div>
-            <div class="event-preview-row"><span>📍</span> <span id="previewVenue"></span></div>
+          <div class="summary-row">
+            <span>Date</span>
+            <span id="summaryDate">—</span>
           </div>
-          <div class="form-group">
-            <label for="qtySelect">Quantity</label>
-            <select id="qtySelect">
-              <option value="1">1 ticket</option>
-              <option value="2">2 tickets</option>
-              <option value="3">3 tickets</option>
-              <option value="4">4 tickets</option>
-              <option value="5">5 tickets</option>
-            </select>
+          <div class="summary-row">
+            <span>Venue</span>
+            <span id="summaryVenue" style="text-align:right;">—</span>
           </div>
-        </div>
-
-        <div class="checkout-card">
-          <h3 class="checkout-card-title">👤 Buyer Information</h3>
-          <div class="form-group">
-            <label for="buyerName">Full Name</label>
-            <input type="text" id="buyerName" placeholder="e.g. Chidi Okonkwo" required />
+          <div class="summary-row">
+            <span>Quantity</span>
+            <span id="summaryQty">—</span>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="buyerEmail">Email Address</label>
-              <input type="email" id="buyerEmail" placeholder="chidi@unn.edu.ng" required />
-            </div>
-            <div class="form-group">
-              <label for="buyerPhone">Phone Number</label>
-              <input type="tel" id="buyerPhone" placeholder="0812 345 6789" required />
-            </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row">
+            <span>Unit Price</span>
+            <span id="summaryUnitPrice">—</span>
           </div>
-          <div class="form-group">
-            <label for="buyerFaculty">Faculty / Department</label>
-            <input type="text" id="buyerFaculty" placeholder="e.g. Faculty of Engineering" />
+          <div class="summary-row summary-total">
+            <span>Total</span>
+            <span id="summaryTotal">—</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row">
+            <span>Buyer</span>
+            <span id="summaryBuyer" style="text-align:right;">—</span>
+          </div>
+          <div class="summary-row">
+            <span>Email</span>
+            <span id="summaryEmail" style="text-align:right;">—</span>
           </div>
         </div>
 
-        <div class="checkout-card">
-          <button class="btn-submit btn-submit-lg" id="continueBtn" onclick="continueToCheckout()" disabled>
-            Continue to Checkout
-            <span style="margin-left:8px;">→</span>
+        <!-- PAYMENT METHOD (below summary) -->
+        <div class="checkout-card reveal reveal-delay-1">
+          <h3 class="checkout-card-title">💳 Payment Method</h3>
+          <div class="payment-methods">
+            <label class="payment-option">
+              <input type="radio" name="payment" value="flutterwave" checked onchange="updatePaymentNote()" />
+              <div class="payment-option-content">
+                <span class="payment-option-icon">
+                  <svg class="flw-logo" viewBox="0 0 64 64" aria-hidden="true"><path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z"/><path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z"/><path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z"/><path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z"/></svg>
+                </span>
+                <div>
+                  <strong>Flutterwave</strong>
+                  <small>Pay securely with card, bank transfer, USSD &amp; mobile money</small>
+                </div>
+              </div>
+            </label>
+          </div>
+          <div id="paymentNote" class="payment-note">
+            ⚡ <strong>Flutterwave:</strong> Pay securely by card, bank transfer, USSD, or mobile money. You will be redirected to Flutterwave to complete your payment.
+          </div>
+        </div>
+
+        <!-- PLACE ORDER -->
+        <div class="checkout-card reveal reveal-delay-2">
+          <button class="btn-submit btn-submit-lg" onclick="placeOrder()" id="placeOrderBtn">
+            🛒 Place Order — <span id="placeOrderTotal">₦0</span>
           </button>
-          <p class="summary-note" style="margin-top:14px;">You'll review your order and choose a payment method on the next page.</p>
+          <p class="summary-note">By placing this order, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</p>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- ── MOBILE STICKY CHECKOUT BAR ── -->
+  <div class="mobile-checkout-bar" id="mobileCheckoutBar">
+    <div class="mobile-checkout-total">
+      <small>Total</small>
+      <strong id="mobileBarTotal">—</strong>
+    </div>
+    <button class="btn-submit mobile-checkout-btn" onclick="placeOrder()" id="mobilePlaceOrderBtn">
+      🛒 Place Order
+    </button>
+  </div>
+
+  <!-- ── SUCCESS MODAL ── -->
+  <div class="modal-overlay" id="successModal" style="display:none;">
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      <div class="modal-icon">✅</div>
+      <h2>Order Placed Successfully!</h2>
+      <p>Your digital ticket(s) will be sent to your email and phone shortly.</p>
+      <div class="modal-details">
+        <div><strong>Order ID:</strong> <span id="orderId">UNN-2025-0001</span></div>
+        <div><strong>Event:</strong> <span id="orderEvent">—</span></div>
+        <div><strong>Total Paid:</strong> <span id="orderTotal">—</span></div>
+      </div>
+      <p class="modal-note">💡 Save your Order ID. You'll need it for entry.</p>
+      <a href="events.html" class="btn-primary">Browse More Events</a>
+    </div>
+  </div>
 
   <footer class="footer">
     <div class="container">

@@ -225,7 +225,7 @@ if (nav) {
 })();
 
 /* ══════════════════════════════════════════
-   TICKETS — CHECKOUT
+   TICKETS — TICKET SELECTION (Step 1)
    ══════════════════════════════════════════ */
 (function() {
   const eventSelect = document.getElementById('eventSelect');
@@ -234,56 +234,24 @@ if (nav) {
   const buyerEmail = document.getElementById('buyerEmail');
   const buyerPhone = document.getElementById('buyerPhone');
   const buyerFaculty = document.getElementById('buyerFaculty');
-  const placeOrderBtn = document.getElementById('placeOrderBtn');
-  const mobilePlaceOrderBtn = document.getElementById('mobilePlaceOrderBtn');
+  const continueBtn = document.getElementById('continueBtn');
 
-  if (!eventSelect) return; // Not on checkout page
+  if (!eventSelect) return; // Not on ticket selection page
 
-  // Summary elements
-  const summaryEventName = document.getElementById('summaryEventName');
-  const summaryQty = document.getElementById('summaryQty');
-  const summaryUnitPrice = document.getElementById('summaryUnitPrice');
-  const summaryTotal = document.getElementById('summaryTotal');
-  const summaryPayment = document.getElementById('summaryPayment');
-
-  // Mobile sticky bar elements
-  const mobileBarTotal = document.getElementById('mobileBarTotal');
-
-  // Preview elements
   const eventPreview = document.getElementById('eventPreview');
   const previewDate = document.getElementById('previewDate');
   const previewVenue = document.getElementById('previewVenue');
-
-  // Payment note
-  const paymentNote = document.getElementById('paymentNote');
-
-  // Success modal elements
-  const successModal = document.getElementById('successModal');
-  const modalClose = document.getElementById('modalClose');
-
-  function isFlutterwaveConfigured() {
-    const cfg = window.SITE_CONFIG || {};
-    const key = cfg.FLUTTERWAVE_PUBLIC_KEY || '';
-    return key.indexOf('FLWPUBK-') === 0 && key.indexOf('xxxx') === -1;
-  }
 
   function getSelectedOption() {
     return eventSelect.options[eventSelect.selectedIndex];
   }
 
-  function getPrice() {
-    const opt = getSelectedOption();
-    return parseFloat(opt.dataset.price || 0);
-  }
-
   function updateEventDetails() {
     const opt = getSelectedOption();
-    const name = opt.dataset.name || '';
     const date = opt.dataset.date || '';
     const time = opt.dataset.time || '';
     const venue = opt.dataset.venue || '';
 
-    // Show preview
     if (eventPreview && opt.value) {
       eventPreview.style.display = 'block';
       if (previewDate) previewDate.textContent = date + ' · ' + time;
@@ -291,86 +259,166 @@ if (nav) {
     } else if (eventPreview) {
       eventPreview.style.display = 'none';
     }
-
-    updateOrderSummary();
+    updateContinueBtn();
   }
 
-  function updateOrderSummary() {
+  function updateContinueBtn() {
     const opt = getSelectedOption();
-    const name = opt.dataset.name || '';
-    const price = getPrice();
-    const qty = parseInt(qtySelect ? qtySelect.value : 1);
-    const total = price * qty;
+    const name = buyerName ? buyerName.value.trim() : '';
+    const email = buyerEmail ? buyerEmail.value.trim() : '';
+    const phone = buyerPhone ? buyerPhone.value.trim() : '';
+    const canContinue = !!opt.value && name.length > 0 && email.length > 0 && phone.length > 0;
+    if (continueBtn) continueBtn.disabled = !canContinue;
+  }
 
-    if (summaryEventName) summaryEventName.textContent = name || 'Not selected';
-    if (summaryQty) summaryQty.textContent = opt.value ? qty + ' ticket' + (qty > 1 ? 's' : '') : '—';
-    if (summaryUnitPrice) summaryUnitPrice.textContent = price ? '₦' + price.toLocaleString() : '—';
-    if (summaryTotal) summaryTotal.textContent = total ? '₦' + total.toLocaleString() : '—';
+  window.continueToCheckout = function() {
+    const opt = getSelectedOption();
+    if (!opt.value) { alert('Please select an event.'); return; }
+    const name = buyerName ? buyerName.value.trim() : '';
+    const email = buyerEmail ? buyerEmail.value.trim() : '';
+    const phone = buyerPhone ? buyerPhone.value.trim() : '';
+    if (!name || !email || !phone) { alert('Please fill in your name, email, and phone number.'); return; }
 
-    // Sync mobile sticky bar total
-    if (mobileBarTotal) mobileBarTotal.textContent = total ? '₦' + total.toLocaleString() : '—';
+    // Save to sessionStorage
+    sessionStorage.setItem('checkoutData', JSON.stringify({
+      eventValue: opt.value,
+      eventName: opt.dataset.name,
+      eventDate: opt.dataset.date,
+      eventTime: opt.dataset.time,
+      eventVenue: opt.dataset.venue,
+      eventPrice: parseFloat(opt.dataset.price || 0),
+      qty: parseInt(qtySelect ? qtySelect.value : 1),
+      buyerName: name,
+      buyerEmail: email,
+      buyerPhone: phone,
+      buyerFaculty: buyerFaculty ? buyerFaculty.value.trim() : ''
+    }));
 
-    // Enable/disable order buttons
-    const hasEvent = !!opt.value;
-    const hasName = buyerName ? buyerName.value.trim().length > 0 : false;
-    const hasEmail = buyerEmail ? buyerEmail.value.trim().length > 0 : false;
-    const hasPhone = buyerPhone ? buyerPhone.value.trim().length > 0 : false;
-    const canOrder = hasEvent && hasName && hasEmail && hasPhone;
+    window.location.href = 'checkout.html';
+  };
 
-    if (placeOrderBtn) placeOrderBtn.disabled = !canOrder;
-    if (mobilePlaceOrderBtn) mobilePlaceOrderBtn.disabled = !canOrder;
+  function readUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const eventParam = params.get('event');
+    if (eventParam && eventSelect) {
+      for (const opt of eventSelect.options) {
+        if (opt.value === eventParam) { opt.selected = true; break; }
+      }
+    }
+    updateEventDetails();
+  }
+
+  if (eventSelect) eventSelect.addEventListener('change', updateEventDetails);
+  if (qtySelect) qtySelect.addEventListener('change', updateContinueBtn);
+  if (buyerName) buyerName.addEventListener('input', updateContinueBtn);
+  if (buyerEmail) buyerEmail.addEventListener('input', updateContinueBtn);
+  if (buyerPhone) buyerPhone.addEventListener('input', updateContinueBtn);
+
+  window.updateEventDetails = updateEventDetails;
+  readUrlParams();
+})();
+
+/* ══════════════════════════════════════════
+   CHECKOUT — PAYMENT (Step 2)
+   ══════════════════════════════════════════ */
+(function() {
+  const summaryEventName = document.getElementById('summaryEventName');
+  const summaryDate = document.getElementById('summaryDate');
+  const summaryVenue = document.getElementById('summaryVenue');
+  const summaryQty = document.getElementById('summaryQty');
+  const summaryUnitPrice = document.getElementById('summaryUnitPrice');
+  const summaryTotal = document.getElementById('summaryTotal');
+  const summaryPayment = document.getElementById('summaryPayment');
+  const summaryBuyer = document.getElementById('summaryBuyer');
+  const summaryEmail = document.getElementById('summaryEmail');
+  const placeOrderBtn = document.getElementById('placeOrderBtn');
+  const placeOrderTotal = document.getElementById('placeOrderTotal');
+  const mobilePlaceOrderBtn = document.getElementById('mobilePlaceOrderBtn');
+  const mobileBarTotal = document.getElementById('mobileBarTotal');
+  const paymentNote = document.getElementById('paymentNote');
+  const successModal = document.getElementById('successModal');
+  const modalClose = document.getElementById('modalClose');
+
+  // If no summary elements, we're not on checkout page
+  if (!summaryTotal) return;
+
+  // Read data from sessionStorage
+  let checkoutData = null;
+  try {
+    const raw = sessionStorage.getItem('checkoutData');
+    if (raw) checkoutData = JSON.parse(raw);
+  } catch(e) {}
+
+  if (!checkoutData) {
+    // No data — show error and a link back
+    if (summaryTotal) summaryTotal.textContent = '❌ No order data';
+    if (summaryEventName) summaryEventName.textContent = 'Session expired';
+    if (placeOrderBtn) placeOrderBtn.disabled = true;
+    if (mobilePlaceOrderBtn) mobilePlaceOrderBtn.disabled = true;
+    document.querySelectorAll('.checkout-form .checkout-card').forEach(function(card) {
+      const p = document.createElement('p');
+      p.style.textAlign = 'center';
+      p.style.padding = '20px 0';
+      p.innerHTML = '<a href="tickets.html" class="btn-primary" style="display:inline-flex;gap:8px;padding:12px 28px;">← Start Over</a>';
+      card.innerHTML = '';
+      card.appendChild(p);
+    });
+    return;
+  }
+
+  const total = checkoutData.eventPrice * checkoutData.qty;
+
+  // Populate summary
+  if (summaryEventName) summaryEventName.textContent = checkoutData.eventName || 'Not selected';
+  if (summaryDate) summaryDate.textContent = checkoutData.eventDate ? (checkoutData.eventDate + ' · ' + (checkoutData.eventTime || '')) : '—';
+  if (summaryVenue) summaryVenue.textContent = checkoutData.eventVenue || '—';
+  if (summaryQty) summaryQty.textContent = checkoutData.qty + ' ticket' + (checkoutData.qty > 1 ? 's' : '');
+  if (summaryUnitPrice) summaryUnitPrice.textContent = '₦' + (checkoutData.eventPrice || 0).toLocaleString();
+  if (summaryTotal) summaryTotal.textContent = '₦' + total.toLocaleString();
+  if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '—';
+  if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '—';
+  if (mobileBarTotal) mobileBarTotal.textContent = '₦' + total.toLocaleString();
+  if (placeOrderTotal) placeOrderTotal.textContent = '₦' + total.toLocaleString();
+
+  function isFlutterwaveConfigured() {
+    const cfg = window.SITE_CONFIG || {};
+    const key = (cfg.FLUTTERWAVE_PUBLIC_KEY || '').trim();
+    // Accept FLWPUBK- format or UUID format (both used by Flutterwave)
+    return key.length > 10 && key.indexOf('xxxx') === -1 && key !== 'your-flutterwave-public-key-here';
   }
 
   function updatePaymentNote() {
     const selected = document.querySelector('input[name="payment"]:checked');
     if (!selected) return;
     const val = selected.value;
-    const note = document.getElementById('paymentNote');
-    const summaryPay = document.getElementById('summaryPayment');
-    const cfg = window.SITE_CONFIG || {};
 
-    if (summaryPay) {
-      const labels = { 'bank-transfer': 'Bank Transfer', 'flutterwave': 'Flutterwave', 'ussd': 'USSD' };
-      summaryPay.textContent = labels[val] || 'Bank Transfer';
+    if (summaryPayment) {
+      const labels = { 'flutterwave': 'Flutterwave' };
+      summaryPayment.textContent = labels[val] || 'Flutterwave';
     }
 
-    if (note) {
-      const bankName = cfg.BANK_NAME || 'GTBank';
-      const acctName = cfg.BANK_ACCOUNT_NAME || 'UNN Socials';
-      const acctNum = cfg.BANK_ACCOUNT_NUMBER || '0123456789';
-      const ussd = cfg.USSD_CODE || '*123*456*';
-      const notes = {
-        'bank-transfer': '💰 <strong>Bank Transfer:</strong> Transfer to <strong>' + acctName + '</strong> — ' + bankName + ' <strong>' + acctNum + '</strong>. Use your Order ID as reference.',
-        'flutterwave': '⚡ <strong>Flutterwave:</strong> Pay securely by card, bank transfer, USSD, or mobile money. You will be redirected to Flutterwave to complete your payment.',
-        'ussd': '📱 <strong>USSD:</strong> Dial ' + ussd + '[OrderID]# on your registered mobile number to complete payment.'
-      };
-      note.innerHTML = notes[val] || notes['bank-transfer'];
+    if (paymentNote) {
+      const cfg = window.SITE_CONFIG || {};
+      const flwBank = cfg.FLUTTERWAVE_BANK_NAME || 'Flutterwave MfB';
+      const flwAcct = cfg.FLUTTERWAVE_ACCOUNT_NUMBER || '';
+      const flwNote = flwAcct
+        ? '🏦 <strong>Flutterwave Bank Transfer:</strong> You can pay directly to <strong>' + flwBank + '</strong> — <strong>' + flwAcct + '</strong>, or pay instantly with card / USSD / mobile money through the secure Flutterwave checkout.'
+        : '⚡ <strong>Flutterwave:</strong> Pay securely with your card, bank transfer, USSD, or mobile money. You will be redirected to Flutterwave to complete your payment.';
+      paymentNote.innerHTML = flwNote;
     }
   }
 
-  // Read URL params to pre-select event
-  function readUrlParams() {
-    const params = new URLSearchParams(window.location.search);
-    const eventParam = params.get('event');
-    if (eventParam && eventSelect) {
-      for (const opt of eventSelect.options) {
-        if (opt.value === eventParam) {
-          opt.selected = true;
-          break;
-        }
-      }
-    }
-    updateEventDetails();
+  function generateOrderId() {
+    return 'UNN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
-  // Open the success modal with order details
-  function showSuccessModal(orderId, eventName, total) {
+  function showSuccessModal(orderId, eventName, totalPaid) {
     const idEl = document.getElementById('orderId');
     const evEl = document.getElementById('orderEvent');
     const totalEl = document.getElementById('orderTotal');
     if (idEl) idEl.textContent = orderId;
     if (evEl) evEl.textContent = eventName;
-    if (totalEl) totalEl.textContent = '₦' + total.toLocaleString();
+    if (totalEl) totalEl.textContent = '₦' + totalPaid.toLocaleString();
     if (successModal) successModal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -380,14 +428,13 @@ if (nav) {
     document.body.style.overflow = '';
   }
 
-  // Send the order details to WhatsApp
-  function sendOrderToWhatsApp(orderId, eventName, qty, total, paymentLabel, name, email, phone) {
+  function sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, paymentLabel, name, email, phone) {
     const msg = encodeURIComponent(
       `🛒 *New Ticket Order!*\n\n` +
       `Order ID: ${orderId}\n` +
       `Event: ${eventName}\n` +
       `Qty: ${qty}\n` +
-      `Total: ₦${total.toLocaleString()}\n` +
+      `Total: ₦${totalPaid.toLocaleString()}\n` +
       `Payment: ${paymentLabel}\n\n` +
       `👤 ${name}\n` +
       `📧 ${email}\n` +
@@ -399,12 +446,6 @@ if (nav) {
     window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
   }
 
-  // Generate a unique transaction reference
-  function generateOrderId() {
-    return 'UNN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-  }
-
-  // Open the Flutterwave inline checkout
   function startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone) {
     const cfg = window.SITE_CONFIG || {};
     const publicKey = cfg.FLUTTERWAVE_PUBLIC_KEY || '';
@@ -436,9 +477,7 @@ if (nav) {
           alert('Payment was not completed. You can try again or choose another payment method.');
         }
       },
-      onclose: function() {
-        // User closed the modal without completing payment
-      }
+      onclose: function() {}
     };
 
     if (typeof window.FlutterwaveCheckout === 'function') {
@@ -448,93 +487,35 @@ if (nav) {
     }
   }
 
-  function placeOrder() {
-    const opt = getSelectedOption();
-    if (!opt.value) {
-      alert('Please select an event.');
-      return;
-    }
-    const name = buyerName ? buyerName.value.trim() : '';
-    const email = buyerEmail ? buyerEmail.value.trim() : '';
-    const phone = buyerPhone ? buyerPhone.value.trim() : '';
-
-    if (!name || !email || !phone) {
-      alert('Please fill in your name, email, and phone number.');
-      return;
-    }
-
-    // Generate order
+  window.placeOrder = function() {
     const orderId = generateOrderId();
-    const eventName = opt.dataset.name;
-    const qty = parseInt(qtySelect ? qtySelect.value : 1);
-    const price = getPrice();
-    const total = price * qty;
-    const payment = document.querySelector('input[name="payment"]:checked')?.value || 'bank-transfer';
+    const eventName = checkoutData.eventName;
+    const qty = checkoutData.qty;
+    const name = checkoutData.buyerName;
+    const email = checkoutData.buyerEmail;
+    const phone = checkoutData.buyerPhone;
 
-    const paymentLabels = { 'bank-transfer': 'Bank Transfer', 'flutterwave': 'Flutterwave', 'ussd': 'USSD' };
-    const paymentLabel = paymentLabels[payment] || 'Bank Transfer';
-
-    // Flutterwave path — launch the inline checkout modal
-    if (payment === 'flutterwave') {
-      if (!isFlutterwaveConfigured()) {
-        alert('Flutterwave is not configured yet. Please add your Flutterwave public key in config.js / Render env vars, or choose another payment method.');
-        return;
-      }
-      startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+    // Flutterwave is the only payment method
+    if (!isFlutterwaveConfigured()) {
+      // Graceful fallback: send order via WhatsApp instead of blocking
+      const confirmed = confirm(
+        '⚠️ Online payment is not configured yet.\n\nYour order will be sent via WhatsApp so our team can process it manually.\n\n' +
+        'Order ID: ' + orderId + '\n' +
+        'Event: ' + eventName + '\n' +
+        'Total: ₦' + total.toLocaleString() + '\n\n' +
+        'Proceed?'
+      );
+      if (!confirmed) return;
+      sendOrderToWhatsApp(orderId, eventName, qty, total, 'Flutterwave (manual)', name, email, phone);
+      showSuccessModal(orderId, eventName, total);
       return;
     }
 
-    // Build order summary
-    const summary = `
-      Order ID: ${orderId}
-      Event: ${eventName}
-      Quantity: ${qty}
-      Total: ₦${total.toLocaleString()}
-      Payment: ${paymentLabel}
-      Name: ${name}
-      Email: ${email}
-      Phone: ${phone}
-    `;
-
-    // Complete the order via WhatsApp + success modal (legacy confirm flow below is unreachable)
-    sendOrderToWhatsApp(orderId, eventName, qty, total, paymentLabel, name, email, phone);
-    showSuccessModal(orderId, eventName, total);
-    return;
-
-    // Show confirmation
-    if (confirm(`🛒 Confirm Order?\n\n${summary}\n\nProceed with payment?`)) {
-      const msg = encodeURIComponent(
-        `🛒 *New Ticket Order!*\n\n` +
-        `Order ID: ${orderId}\n` +
-        `Event: ${eventName}\n` +
-        `Qty: ${qty}\n` +
-        `Total: ₦${total.toLocaleString()}\n` +
-        `Payment: ${paymentLabels[payment]}\n\n` +
-        `👤 ${name}\n` +
-        `📧 ${email}\n` +
-        `📞 ${phone}\n\n` +
-        `Thank you for using UNN Socials! 🎉`
-      );
-
-      // Redirect to WhatsApp with order details
-      const cfg = window.SITE_CONFIG || {};
-      const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
-      window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
-
-      // Show success message
-      alert(`✅ Order placed successfully!\n\nOrder ID: ${orderId}\n\nA confirmation has been sent to your WhatsApp. Please complete payment to confirm your ticket.`);
-    }
-  }
+    startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+  };
 
   // Bind events
-  if (eventSelect) eventSelect.addEventListener('change', updateEventDetails);
-  if (qtySelect) qtySelect.addEventListener('change', updateOrderSummary);
-  if (buyerName) buyerName.addEventListener('input', updateOrderSummary);
-  if (buyerEmail) buyerEmail.addEventListener('input', updateOrderSummary);
-  if (buyerPhone) buyerPhone.addEventListener('input', updateOrderSummary);
-
-  // Payment radio listeners
-  document.querySelectorAll('input[name="payment"]').forEach(el => {
+  document.querySelectorAll('input[name="payment"]').forEach(function(el) {
     el.addEventListener('change', updatePaymentNote);
   });
 
@@ -549,14 +530,7 @@ if (nav) {
     if (e.key === 'Escape') closeSuccessModal();
   });
 
-  // Expose functions
-  window.updateEventDetails = updateEventDetails;
-  window.updateOrderSummary = updateOrderSummary;
   window.updatePaymentNote = updatePaymentNote;
-  window.placeOrder = placeOrder;
-
-  // Init
-  readUrlParams();
   updatePaymentNote();
 })();
 
@@ -599,3 +573,4 @@ document.querySelectorAll('.ticket-form').forEach(form => {
     });
   }
 });
+
