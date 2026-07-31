@@ -72,7 +72,7 @@
           </div>
 <div class="contact-detail">
             <div class="contact-detail-icon" style="background:#25D366;border-color:#25D366;">💬</div>
-            <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" style="color:var(--text-1);font-weight:600;">+234 812 210 4576</a>
+            <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" style="color:var(--text-1);font-weight:600;" id="contactPhoneLink">+234 812 210 4576</a>
           </div>
           <div class="contact-detail">
             <div class="contact-detail-icon">📍</div>
@@ -85,11 +85,11 @@
         </div>
 
         <div class="contact-form reveal reveal-delay-1">
-          <form action="https://formsubmit.co/8d51333da2a9cfabfb087ffb615b7963" method="POST">
+          <form action="https://formsubmit.co/8d51333da2a9cfabfb087ffb615b7963" method="POST" id="contactForm">
             <input type="hidden" name="_subject" value="New Contact Form Submission from UNN Socials" />
             <input type="hidden" name="_captcha" value="false" />
             <input type="hidden" name="_template" value="table" />
-            <input type="hidden" name="_next" value="https://unnsocials.com/thank-you.html" />
+            <input type="hidden" name="_next" value="https://unnsocials.com/thank-you.html" id="formNext" />
             <div class="form-group">
               <label for="name">Full Name</label>
               <input type="text" id="name" name="Name" placeholder="Enter your full name" required />
@@ -173,6 +173,7 @@
     </div>
   </footer>
 
+  <script src="config.js"></script>
   <script src="templatemo-622-clearwave.js"></script>
 </body>
 </html>

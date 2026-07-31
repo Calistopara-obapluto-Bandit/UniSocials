@@ -1,0 +1,22 @@
+{
+  "name": "unn-socials",
+  "version": "1.0.0",
+  "description": "UNN Socials — Event Ticket Selling Platform for University of Nigeria",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "unn",
+    "socials",
+    "tickets",
+    "events",
+    "static-site"
+  ],
+  "license": "MIT",
+  "dependencies": {}
+}
+

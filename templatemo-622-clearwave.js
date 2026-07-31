@@ -5,6 +5,45 @@ https://templatemo.com/tm-622-clearwave
 Free for personal and commercial use
 */
 
+/* ══════════════════════════════════════════
+   SITE CONFIGURATION — apply centralized values
+   ══════════════════════════════════════════ */
+(function() {
+  const cfg = window.SITE_CONFIG || {};
+
+  // WhatsApp floating buttons — update all wa.me links to the configured number
+  const floatNumber = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
+  document.querySelectorAll('.whatsapp-float').forEach(function(link) {
+    link.setAttribute('href', 'https://wa.me/' + floatNumber);
+  });
+
+  // Contact page — phone link
+  const contactPhoneLink = document.getElementById('contactPhoneLink');
+  if (contactPhoneLink) {
+    const num = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
+    contactPhoneLink.setAttribute('href', 'https://wa.me/' + num);
+    // Format display: +234 812 210 4576
+    contactPhoneLink.textContent = '+' + num.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
+  }
+
+  // FAQ — contact email
+  const faqEmail = document.getElementById('faqEmail');
+  if (faqEmail) {
+    faqEmail.textContent = cfg.CONTACT_EMAIL || 'events@unnsocials.com';
+  }
+
+  // Contact form — FormSubmit key & redirect URL
+  const contactForm = document.getElementById('contactForm');
+  if (contactForm) {
+    const key = cfg.FORMSUBMIT_KEY || '8d51333da2a9cfabfb087ffb615b7963';
+    contactForm.setAttribute('action', 'https://formsubmit.co/' + key);
+  }
+  const formNext = document.getElementById('formNext');
+  if (formNext) {
+    formNext.value = cfg.REDIRECT_URL || 'https://unnsocials.com/thank-you.html';
+  }
+})();
+
 /* ── MOBILE MENU ── */
 const hamburger = document.getElementById('hamburger');
 const mobileMenu = document.getElementById('mobileMenu');
@@ -270,6 +309,7 @@ if (nav) {
     const val = selected.value;
     const note = document.getElementById('paymentNote');
     const summaryPay = document.getElementById('summaryPayment');
+    const cfg = window.SITE_CONFIG || {};
 
     if (summaryPay) {
       const labels = { 'bank-transfer': 'Bank Transfer', 'card': 'Debit / Credit Card', 'ussd': 'USSD' };
@@ -277,10 +317,14 @@ if (nav) {
     }
 
     if (note) {
+      const bankName = cfg.BANK_NAME || 'GTBank';
+      const acctName = cfg.BANK_ACCOUNT_NAME || 'UNN Socials';
+      const acctNum = cfg.BANK_ACCOUNT_NUMBER || '0123456789';
+      const ussd = cfg.USSD_CODE || '*123*456*';
       const notes = {
-        'bank-transfer': '💰 <strong>Bank Transfer:</strong> Transfer to <strong>UNN Socials</strong> — GTBank <strong>0123456789</strong>. Use your Order ID as reference.',
+        'bank-transfer': '💰 <strong>Bank Transfer:</strong> Transfer to <strong>' + acctName + '</strong> — ' + bankName + ' <strong>' + acctNum + '</strong>. Use your Order ID as reference.',
         'card': '💳 <strong>Card Payment:</strong> You will be redirected to a secure payment page after placing your order.',
-        'ussd': '📱 <strong>USSD:</strong> Dial *123*456*[OrderID]# on your registered mobile number to complete payment.'
+        'ussd': '📱 <strong>USSD:</strong> Dial ' + ussd + '[OrderID]# on your registered mobile number to complete payment.'
       };
       note.innerHTML = notes[val] || notes['bank-transfer'];
     }
@@ -354,7 +398,9 @@ if (nav) {
       );
 
       // Redirect to WhatsApp with order details
-      window.open(`https://wa.me/2348123456789?text=${msg}`, '_blank');
+      const cfg = window.SITE_CONFIG || {};
+      const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348123456789';
+      window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
 
       // Show success message
       alert(`✅ Order placed successfully!\n\nOrder ID: ${orderId}\n\nA confirmation has been sent to your WhatsApp. Please complete payment to confirm your ticket.`);
@@ -427,7 +473,9 @@ if (nav) {
       `Sent via UNN Socials Contact Form`
     );
 
-    window.open(`https://wa.me/2348123456789?text=${msg}`, '_blank');
+    const cfg = window.SITE_CONFIG || {};
+    const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348123456789';
+    window.open(`https://wa.me/${waNumber}?text=${msg}`, '_blank');
 
     // Show confirmation
     alert(`✅ Message sent!\n\nThank you, ${name}. We'll get back to you within 24 hours.`);

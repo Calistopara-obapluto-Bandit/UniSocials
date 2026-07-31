@@ -1,35 +1,24 @@
-# UniSocials → UNN Socials (Rebranding Complete ✓)
+# Convert UNN Socials to Render Web Service with Centralized Config
 
-## Phase 1: Branding & Global Updates
-- [x] 1. Page title updated
-- [x] 2. Logo updated: `clear<span>wave</span>` → `uni<span>socials</span>`
-- [x] 3. Hero section rethemed for social/event platform
-- [x] 4. All brand references updated
-- [x] 5. Email updated to hello@unisocials.com
-- [x] 6. Copyright footer updated
+## Phase 1: Web Service Files
+- [x] 1. Create `package.json` (Node app with `npm start` script)
+- [x] 2. Create `server.js` (zero-dependency static file server + dynamic config.js from env vars)
+- [x] 3. Create `config.js` (static fallback defaults for local dev)
 
-## Phase 2: Content Re-theming
-- [x] 7. Features section rewritten for community/social focus
-- [x] 8. Testimonials rewritten for community context
-- [x] 9. FAQ rewritten for social/community platform
-- [x] 10. CTA section copy updated
-- [x] 11. Integrations list updated to social platforms
-- [x] 12. Pricing tiers copy updated for community plans
-- [x] 13. Logo ticker company names updated
+## Phase 2: Render Blueprint
+- [x] 4. Update `render.yaml` to web service (runtime: node, build: npm install, start: npm start) + env vars
 
-## Phase 3: CSS & JS
-- [x] 14. CSS headers updated
-- [x] 15. JS headers updated
-- [x] 16. Color palette adjusted (green theme + UNN gold accent)
-- [x] 17. Duplicate WhatsApp block removed
-- [x] 18. Success modal styles added
-- [x] 19. Page header theme variants added (events, tickets, about, contact, FAQ)
-- [x] 20. Breadcrumbs styles added
-- [x] 21. Safari backdrop-filter compatibility fixed
+## Phase 3: HTML Files
+- [x] 5. Load `config.js` in all pages (index, events, tickets, about, faq, contact)
+- [x] 6. Add IDs for dynamic values (contact phone, FAQ email, form action, redirect URL)
 
-## Phase 4: Final Check
-- [x] 22. All files verified
-- [x] 23. No duplicate CSS blocks
-- [x] 24. Consistent branding across all files
-</content>
+## Phase 4: JavaScript
+- [x] 7. Add SITE_CONFIG application section in `templatemo-622-clearwave.js`
+- [x] 8. Update `placeOrder()` and contact form handler to use config values
+- [x] 9. Update `updatePaymentNote()` to use config bank/USSD values
+
+## Phase 5: Test & Deploy
+- [x] 10. Test server locally (`npm start`)
+- [ ] 11. Commit and push to GitHub
+- [ ] 12. Verify Render blueprint picks up web service
 
