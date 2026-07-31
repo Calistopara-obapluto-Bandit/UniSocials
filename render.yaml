@@ -11,14 +11,6 @@ services:
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER
         value: 2348122104576
-      - key: BANK_NAME
-        value: GTBank
-      - key: BANK_ACCOUNT_NAME
-        value: UNN Socials
-      - key: BANK_ACCOUNT_NUMBER
-        value: 0123456789
-      - key: USSD_CODE
-        value: "*123*456*"
       - key: FLUTTERWAVE_PUBLIC_KEY
         value: FSTOU9su2xlF8UU8wU05kNvqEbI8v47S
       - key: FLUTTERWAVE_BANK_NAME

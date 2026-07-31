@@ -15,14 +15,6 @@ window.SITE_CONFIG = {
   // WhatsApp number that receives ticket orders & contact form messages
   WHATSAPP_ORDER_NUMBER: '2348122104576',
 
-  // Bank transfer payment details
-  BANK_NAME: 'GTBank',
-  BANK_ACCOUNT_NAME: 'UNN Socials',
-  BANK_ACCOUNT_NUMBER: '0123456789',
-
-  // USSD payment code
-  USSD_CODE: '*123*456*',
-
   // Flutterwave public / API key for inline checkout
   FLUTTERWAVE_PUBLIC_KEY: 'FSTOU9su2xlF8UU8wU05kNvqEbI8v47S',
 
