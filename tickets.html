@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout — UNN Socials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+</head>
+<body>
+
+  <!-- ── WHATSAPP FLOAT ── -->
+  <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" class="whatsapp-float" aria-label="Chat on WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    <span class="wa-tooltip">Chat with us</span>
+  </a>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="faq.html">FAQ</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">UNN <span>Socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html" class="active">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">Checkout</div>
+      <h1 class="section-title reveal reveal-delay-1">Complete your <em>purchase</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Fill in your details and choose a payment method to secure your ticket.</p>
+    </div>
+  </section>
+
+  <section class="checkout-section">
+    <div class="container">
+      <div class="checkout-grid">
+        <!-- LEFT: Order Form -->
+        <div class="checkout-form reveal">
+          <div class="checkout-card">
+            <h3 class="checkout-card-title">🎟️ Select Event</h3>
+            <div class="form-group">
+              <label for="eventSelect">Event</label>
+              <select id="eventSelect" onchange="updateEventDetails()">
+                <option value="">Choose an event...</option>
+                <option value="arts-cultural-night" data-price="2500" data-name="Faculty of Arts Cultural Night" data-date="March 10, 2025" data-time="4:00 PM" data-venue="Arts Theatre">Faculty of Arts Cultural Night — ₦2,500</option>
+                <option value="engineering-dinner" data-price="5000" data-name="Engineering Annual Dinner" data-date="March 15, 2025" data-time="5:00 PM" data-venue="Engineering Auditorium">Engineering Annual Dinner — ₦5,000</option>
+                <option value="entrepreneurship-summit" data-price="3000" data-name="Entrepreneurship Summit" data-date="March 22, 2025" data-time="10:00 AM" data-venue="Business School Hall">Entrepreneurship Summit — ₦3,000</option>
+                <option value="music-festival" data-price="4000" data-name="UNN Music Festival" data-date="March 29, 2025" data-time="6:00 PM" data-venue="UNN Sports Complex">UNN Music Festival — ₦4,000</option>
+                <option value="law-moot-court" data-price="1500" data-name="Faculty of Law Moot Court" data-date="April 5, 2025" data-time="9:00 AM" data-venue="Faculty of Law">Faculty of Law Moot Court — ₦1,500</option>
+                <option value="sports-day" data-price="1000" data-name="Inter-Faculty Sports Day" data-date="April 12, 2025" data-time="8:00 AM" data-venue="UNN Stadium">Inter-Faculty Sports Day — ₦1,000</option>
+              </select>
+            </div>
+            <div id="eventPreview" class="event-preview" style="display:none;">
+              <div class="event-preview-row"><span>📅</span> <span id="previewDate"></span></div>
+              <div class="event-preview-row"><span>📍</span> <span id="previewVenue"></span></div>
+            </div>
+            <div class="form-group">
+              <label for="qtySelect">Quantity</label>
+              <select id="qtySelect" onchange="updateOrderSummary()">
+                <option value="1">1 ticket</option>
+                <option value="2">2 tickets</option>
+                <option value="3">3 tickets</option>
+                <option value="4">4 tickets</option>
+                <option value="5">5 tickets</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="checkout-card">
+            <h3 class="checkout-card-title">👤 Buyer Information</h3>
+            <div class="form-group">
+              <label for="buyerName">Full Name</label>
+              <input type="text" id="buyerName" placeholder="e.g. Chidi Okonkwo" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="buyerEmail">Email Address</label>
+                <input type="email" id="buyerEmail" placeholder="chidi@unn.edu.ng" required />
+              </div>
+              <div class="form-group">
+                <label for="buyerPhone">Phone Number</label>
+                <input type="tel" id="buyerPhone" placeholder="0812 345 6789" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="buyerFaculty">Faculty / Department</label>
+              <input type="text" id="buyerFaculty" placeholder="e.g. Faculty of Engineering" />
+            </div>
+          </div>
+
+          <div class="checkout-card">
+            <h3 class="checkout-card-title">💳 Payment Method</h3>
+            <div class="payment-methods">
+              <label class="payment-option">
+                <input type="radio" name="payment" value="bank-transfer" checked onchange="updatePaymentNote()" />
+                <div class="payment-option-content">
+                  <span class="payment-option-icon">🏦</span>
+                  <div>
+                    <strong>Bank Transfer</strong>
+                    <small>Pay via bank transfer or USSD</small>
+                  </div>
+                </div>
+              </label>
+              <label class="payment-option">
+                <input type="radio" name="payment" value="card" onchange="updatePaymentNote()" />
+                <div class="payment-option-content">
+                  <span class="payment-option-icon">💳</span>
+                  <div>
+                    <strong>Debit / Credit Card</strong>
+                    <small>Pay with your bank card</small>
+                  </div>
+                </div>
+              </label>
+              <label class="payment-option">
+                <input type="radio" name="payment" value="ussd" onchange="updatePaymentNote()" />
+                <div class="payment-option-content">
+                  <span class="payment-option-icon">📱</span>
+                  <div>
+                    <strong>USSD</strong>
+                    <small>Pay with mobile banking code</small>
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div id="paymentNote" class="payment-note">
+              💰 <strong>Bank Transfer:</strong> Transfer to <strong>UNN Socials</strong> — GTBank <strong>0123456789</strong>. Use your Order ID as reference.
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Order Summary -->
+        <div class="checkout-summary reveal reveal-delay-1">
+          <div class="checkout-summary-sticky">
+            <h3>📋 Order Summary</h3>
+            <div class="summary-row" id="summaryEvent">
+              <span>Event</span>
+              <span id="summaryEventName" style="color:var(--text-3);">Not selected</span>
+            </div>
+            <div class="summary-row">
+              <span>Quantity</span>
+              <span id="summaryQty">—</span>
+            </div>
+            <div class="summary-divider"></div>
+            <div class="summary-row">
+              <span>Unit Price</span>
+              <span id="summaryUnitPrice">—</span>
+            </div>
+            <div class="summary-row summary-total">
+              <span>Total</span>
+              <span id="summaryTotal">—</span>
+            </div>
+            <div class="summary-divider"></div>
+            <div class="summary-row">
+              <span>Payment Method</span>
+              <span id="summaryPayment">Bank Transfer</span>
+            </div>
+            <button class="btn-submit btn-submit-lg" onclick="placeOrder()" id="placeOrderBtn" disabled>
+              🛒 Place Order
+            </button>
+            <p class="summary-note">By placing this order, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SUCCESS MODAL ── -->
+  <div class="modal-overlay" id="successModal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-icon">✅</div>
+      <h2>Order Placed Successfully!</h2>
+      <p>Your digital ticket(s) will be sent to your email and phone shortly.</p>
+      <div class="modal-details">
+        <div><strong>Order ID:</strong> <span id="orderId">UNN-2025-0001</span></div>
+        <div><strong>Event:</strong> <span id="orderEvent">—</span></div>
+        <div><strong>Total Paid:</strong> <span id="orderTotal">—</span></div>
+      </div>
+      <p class="modal-note">💡 Save your Order ID. You'll need it for entry.</p>
+      <a href="events.html" class="btn-primary">Browse More Events</a>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">UNN <span style="color:var(--accent-light)">Socials</span></a>
+          <p class="footer-brand-desc">The official event ticket selling platform for the University of Nigeria, Nsukka.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2025 UNN Socials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="templatemo-622-clearwave.js"></script>
+</body>
+</html>
+
