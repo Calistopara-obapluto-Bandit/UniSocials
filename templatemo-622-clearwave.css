@@ -946,36 +946,167 @@ Free for personal and commercial use
       .mobile-checkout-bar { display: flex; }
       .whatsapp-float { bottom: 84px; }
     }
-    @media (max-width: 480px) {
-      .page-header { padding: 80px 0 32px; }
-      .container { padding: 0 16px; }
-      .nav-inner { padding: 0 16px; }
-      .stats-grid { grid-template-columns: 1fr; }
-      .stat-card { padding: 24px 16px; }
-      .hero { padding: 96px 0 56px; }
-      .hero-card { padding: 24px 20px; }
-      .hero-actions .btn-primary-lg,
-      .hero-actions .btn-outline-lg { width: 100%; justify-content: center; }
-      .cta-inner { padding: 28px 20px; }
-      .cta-actions .btn-cta-primary,
-      .cta-actions .btn-cta-ghost { width: 100%; justify-content: center; }
-      .contact-form { padding: 24px 20px; }
+    @media (max-width: 540px) {
+      .checkout-grid { gap: 16px; }
       .checkout-card { padding: 16px; border-radius: var(--radius); }
-      .checkout-card-title { margin-bottom: 16px; }
-      .modal-content { padding: 28px 18px 24px; }
-      .modal-details { padding: 12px 16px; }
-      .success-card { padding: 32px 20px; }
-      .mobile-menu { padding: 90px 20px; }
-      .mobile-checkout-bar { padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+      .checkout-card-title { font-size: 0.95rem; margin-bottom: 14px; }
+      .checkout-summary-sticky { padding: 18px; }
+      .checkout-summary-sticky h3 { font-size: 1rem; }
+      .payment-option { padding: 11px 12px; gap: 10px; }
+      .payment-option-content { gap: 10px; }
+      .payment-option-icon { font-size: 1.2rem; min-width: 24px; }
+      .payment-option-content div strong { font-size: 0.85rem; }
+      .payment-option-content div small { font-size: 0.7rem; }
+      .payment-note { padding: 12px; font-size: 0.8rem; }
+      .form-group { margin-bottom: 14px; }
+      .form-group label { font-size: 0.8rem; }
+      .form-group input, .form-group textarea, .form-group select { padding: 10px 12px; font-size: 0.85rem; }
+      .form-row { gap: 12px; }
+      .summary-row { padding: 6px 0; font-size: 0.85rem; }
+      .summary-total span:last-child { font-size: 1.15rem; }
+      .btn-submit-lg { padding: 13px 24px; font-size: 0.95rem; }
+      .summary-note { font-size: 0.74rem; }
+      .mobile-checkout-bar { padding: 10px 14px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
       .mobile-checkout-btn { padding: 12px 20px; font-size: 0.875rem; }
       .mobile-checkout-total strong { font-size: 1rem; }
-      .events-grid { gap: 16px; }
-      .event-card-body { padding: 20px 16px; }
-      .event-card-footer { padding: 12px 16px; }
-      .pricing-card { padding: 28px 20px; }
-      .faq-question { padding: 18px 0; }
-      .filter-bar { padding: 12px 14px; }
-      .form-group input, .form-group textarea, .form-group select { padding: 11px 14px; }
+      .mobile-checkout-total small { font-size: 0.65rem; }
+      .event-preview { padding: 12px; }
+      .event-preview-row { font-size: 0.8rem; }
+    }
+    @media (max-width: 480px) {
+      html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
+      .page-header { padding: 80px 0 28px; }
+      .container { padding: 0 14px; }
+      .nav-inner { padding: 0 14px; }
+      .nav { padding: 12px 0; }
+      .section-label { font-size: 10px; padding: 5px 12px; margin-bottom: 16px; }
+      .section-title { font-size: clamp(1.5rem, 5vw, 2rem); }
+      .section-sub { font-size: 0.9rem; margin-top: 12px; }
+      .hero { padding: 88px 0 48px; min-height: auto; }
+      .hero-title { font-size: clamp(2rem, 7vw, 2.6rem); margin-bottom: 16px; }
+      .hero-sub { font-size: 0.95rem; margin-bottom: 28px; }
+      .hero-card { padding: 20px 16px; }
+      .hero-card-title { font-size: 1.3rem; }
+      .hero-card-icon { font-size: 2.5rem; }
+      .hero-actions { gap: 10px; }
+      .hero-actions .btn-primary-lg,
+      .hero-actions .btn-outline-lg { width: 100%; justify-content: center; }
+      .hero-stats { gap: 12px; margin-top: 32px; }
+      .hero-stat-val { font-size: 1.2rem; }
+      .hero-stat-label { font-size: 0.72rem; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .stat-card { padding: 20px 16px; }
+      .stat-value { font-size: clamp(1.5rem, 5vw, 2rem); }
+      .stat-label { font-size: 0.78rem; }
+      .events-section { padding: 48px 0; }
+      .events-grid { gap: 16px; margin-top: 32px; }
+      .event-card { border-radius: var(--radius); }
+      .event-card-image { height: 140px; font-size: 2.5rem; }
+      .event-card-body { padding: 16px 14px; }
+      .event-card-title { font-size: 1.05rem; }
+      .event-card-desc { font-size: 0.8rem; margin-bottom: 12px; }
+      .event-card-footer { padding: 12px 14px; }
+      .event-card-price { font-size: 1.1rem; }
+      .event-card-meta { font-size: 0.72rem; gap: 10px; }
+      .event-tag { font-size: 0.65rem; padding: 2px 7px; }
+      .pricing-section { padding: 48px 0; }
+      .pricing-card { padding: 24px 18px; }
+      .pricing-price { font-size: 2.5rem; }
+      .pricing-feature { font-size: 0.8rem; }
+      .content-section { padding: 48px 0; }
+      .content-grid { gap: 28px; }
+      .content-visual { padding: 28px 20px; }
+      .content-visual-icon { font-size: 3rem; }
+      .faq-list { margin-top: 32px; }
+      .faq-question { padding: 16px 0; font-size: 0.88rem; gap: 12px; }
+      .faq-answer-inner { font-size: 0.84rem; }
+      .faq-icon { width: 24px; height: 24px; font-size: 14px; }
+      .contact-section { padding: 48px 0; }
+      .contact-grid { gap: 28px; margin-top: 32px; }
+      .contact-form { padding: 20px 16px; border-radius: var(--radius); }
+      .contact-info h3 { font-size: 1.1rem; }
+      .contact-info p { font-size: 0.88rem; }
+      .contact-detail { font-size: 0.84rem; gap: 10px; }
+      .contact-detail-icon { width: 32px; height: 32px; font-size: 0.85rem; }
+      .cta-section { padding: 48px 0; }
+      .cta-inner { padding: 28px 18px; border-radius: var(--radius); gap: 24px; }
+      .cta-title { font-size: clamp(1.4rem, 5vw, 1.8rem); }
+      .cta-sub { font-size: 0.88rem; }
+      .cta-actions .btn-cta-primary,
+      .cta-actions .btn-cta-ghost { width: 100%; justify-content: center; }
+      .btn-cta-primary { padding: 14px 28px; font-size: 0.9rem; }
+      .btn-cta-ghost { padding: 12px; font-size: 0.82rem; }
+      .footer { padding: 40px 0 24px; }
+      .footer-grid { gap: 28px; margin-bottom: 28px; }
+      .footer-brand .nav-logo { font-size: 1.15rem; }
+      .footer-brand-desc { font-size: 0.8rem; }
+      .footer-col-label { font-size: 0.65rem; margin-bottom: 14px; }
+      .footer-links a { font-size: 0.82rem; }
+      .footer-copy { font-size: 0.75rem; }
+      .footer-legal a { font-size: 0.75rem; }
+      .checkout-section { padding: 20px 0 90px; }
+      .checkout-grid { gap: 14px; }
+      .checkout-card { padding: 14px; border-radius: var(--radius); }
+      .checkout-card-title { font-size: 0.9rem; margin-bottom: 12px; }
+      .checkout-summary-sticky { padding: 16px; border-radius: var(--radius); }
+      .checkout-summary-sticky h3 { font-size: 0.95rem; margin-bottom: 14px; }
+      .payment-methods { gap: 8px; }
+      .payment-option { padding: 10px 12px; gap: 8px; }
+      .payment-option-content { gap: 8px; }
+      .payment-option-icon { font-size: 1.1rem; min-width: 22px; }
+      .flw-logo { width: 22px; height: 22px; }
+      .payment-option-content div strong { font-size: 0.82rem; }
+      .payment-option-content div small { font-size: 0.68rem; }
+      .payment-note { padding: 10px 12px; font-size: 0.78rem; margin-top: 12px; }
+      .form-group { margin-bottom: 12px; }
+      .form-group label { font-size: 0.78rem; margin-bottom: 4px; }
+      .form-group input, .form-group textarea, .form-group select { padding: 10px 12px; font-size: 0.82rem; }
+      .form-row { gap: 10px; }
+      .event-preview { padding: 10px 12px; }
+      .event-preview-row { font-size: 0.78rem; }
+      .summary-row { padding: 5px 0; font-size: 0.82rem; }
+      .summary-total span:last-child { font-size: 1.1rem; }
+      .btn-submit-lg { margin-top: 14px; padding: 12px 20px; font-size: 0.9rem; }
+      .summary-note { font-size: 0.72rem; }
+      .modal-overlay { padding: 12px; }
+      .modal-content { padding: 28px 16px 24px; border-radius: var(--radius); }
+      .modal-icon { font-size: 2.8rem; margin-bottom: 12px; }
+      .modal-content h2 { font-size: 1.25rem; }
+      .modal-content > p { font-size: 0.84rem; }
+      .modal-details { padding: 12px 14px; border-radius: var(--radius); }
+      .modal-details div { font-size: 0.8rem; }
+      .modal-note { font-size: 0.75rem; padding: 8px 10px; }
+      .modal-close { top: 10px; right: 10px; width: 30px; height: 30px; font-size: 0.8rem; }
+      .success-section { padding: 32px 0 48px; }
+      .success-card { padding: 32px 18px 28px; border-radius: var(--radius); }
+      .success-icon { width: 64px; height: 64px; font-size: 32px; margin-bottom: 16px; }
+      .success-card h2 { font-size: clamp(1.3rem, 4vw, 1.6rem); }
+      .success-card p { font-size: 0.88rem; margin-bottom: 24px; }
+      .success-actions { flex-direction: column; width: 100%; }
+      .success-actions .btn-cta-primary,
+      .success-actions .btn-cta-ghost { width: 100%; justify-content: center; }
+      .mobile-menu { padding: 80px 20px; }
+      .mobile-menu a { font-size: 1rem; padding: 12px 0; }
+      .mobile-checkout-bar { padding: 10px 14px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+      .mobile-checkout-btn { padding: 12px 18px; font-size: 0.85rem; }
+      .mobile-checkout-total strong { font-size: 0.95rem; }
+      .events-grid { gap: 14px; }
+      .event-card-body { padding: 16px 14px; }
+      .event-card-footer { padding: 10px 14px; }
+      .event-card-image { height: 130px; }
+      .pricing-card { padding: 22px 16px; border-radius: var(--radius); }
+      .pricing-tier { font-size: 0.7rem; }
+      .faq-question { padding: 14px 0; font-size: 0.84rem; }
+      .filter-bar { padding: 10px 12px; }
+      .filter-search { padding: 6px 12px; min-width: 0; }
+      .filter-search input { font-size: 0.82rem; }
+      .filter-group select { padding: 8px 12px; font-size: 0.8rem; }
+      .no-results { padding: 40px 16px; }
+      .no-results span { font-size: 2.5rem; }
+      .breadcrumbs { font-size: 0.72rem; }
+      .whatsapp-float { width: 48px; height: 48px; bottom: 80px; right: 16px; }
+      .whatsapp-float svg { width: 24px; height: 24px; }
+      .wa-tooltip { display: none; }
     }
 
     /* ══════════════════════════════════════════
