@@ -19,6 +19,6 @@
 
 ## Phase 5: Test & Deploy
 - [x] 10. Test server locally (`npm start`)
-- [ ] 11. Commit and push to GitHub
-- [ ] 12. Verify Render blueprint picks up web service
+- [x] 11. Commit and push to GitHub
+- [x] 12. Verify Render blueprint picks up web service
 
