@@ -24,7 +24,7 @@ window.SITE_CONFIG = {
   USSD_CODE: '*123*456*',
 
   // Flutterwave public / API key for inline checkout
-  FLUTTERWAVE_PUBLIC_KEY: '1d23d4cc-6184-4cf3-9f47-5ad6106b9db9',
+  FLUTTERWAVE_PUBLIC_KEY: 'FSTOU9su2xlF8UU8wU05kNvqEbI8v47S',
 
   // Flutterwave bank account details
   FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
