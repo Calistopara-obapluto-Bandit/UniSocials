@@ -1,46 +1,31 @@
-# Convert UNN Socials to Render Web Service with Centralized Config
+# UNN Socials — Mobile Responsiveness + Flutterwave Payment ✅
 
-## Phase 1: Web Service Files
-- [x] 1. Create `package.json` (Node app with `npm start` script)
-- [x] 2. Create `server.js` (zero-dependency static file server + dynamic config.js from env vars)
-- [x] 3. Create `config.js` (static fallback defaults for local dev)
+## Phase A: Flutterwave Payment Integration
+- [x] 1. Add `FLUTTERWAVE_PUBLIC_KEY` to `config.js`
+- [x] 2. Add `FLUTTERWAVE_PUBLIC_KEY` to `server.js` defaults
+- [x] 3. Add `FLUTTERWAVE_PUBLIC_KEY` to `render.yaml`
+- [x] 4. Update `tickets.html`: replace Card option with Flutterwave option + load Flutterwave v3.js script + add mobile sticky checkout bar + modal close button
+- [x] 5. Update `templatemo-622-clearwave.js`:
+       - read Flutterwave public key from SITE_CONFIG
+       - update payment labels & notes for Flutterwave
+       - wire FlutterwaveCheckout inline modal with order details
+       - on success callback -> WhatsApp notification + success modal
+       - graceful fallback if key missing
+       - sync mobile sticky bar total & button state
+       - close success modal on overlay click / ✕ / Escape
+- [x] 6. FAQ payment methods updated to mention Flutterwave
 
-## Phase 2: Render Blueprint
-- [x] 4. Update `render.yaml` to web service (runtime: node, build: npm install, start: npm start) + env vars
+## Phase B: Mobile Responsive Fixes
+- [x] 7. CSS: mobile sticky checkout bar + Flutterwave icon styling + modal close button
+- [x] 8. CSS: reduce checkout-card / summary / payment-option padding on small screens, word-break for payment-note
+- [x] 9. CSS: global container/nav-inner padding on <480px, stats/stat-card tuning, hero-card/cta-inner/contact-form/modal-content/mobile-menu padding, faq/filter/event-card/pricing padding tuning
+- [x] 10. `thank-you.html`: responsive success-card padding & stacked buttons on <480px
 
-## Phase 3: HTML Files
-- [x] 5. Load `config.js` in all pages (index, events, tickets, about, faq, contact)
-- [x] 6. Add IDs for dynamic values (contact phone, FAQ email, form action, redirect URL)
+## Phase C: Test & Verify
+- [x] 11. Server started and running at http://localhost:3000
 
-## Phase 4: JavaScript
-- [x] 7. Add SITE_CONFIG application section in `templatemo-622-clearwave.js`
-- [x] 8. Update `placeOrder()` and contact form handler to use config values
-- [x] 9. Update `updatePaymentNote()` to use config bank/USSD values
-
-## Phase 5: Test & Deploy
-- [x] 10. Test server locally (`npm start`)
-- [x] 11. Commit and push to GitHub
-- [x] 12. Verify Render blueprint picks up web service
-
-## Phase 6: WhatsApp Number Update & Deploy
-- [x] 13. Update `WHATSAPP_ORDER_NUMBER` from `2348123456789` to `2348122104576` in `config.js`, `server.js`, `render.yaml`, `templatemo-622-clearwave.js`
-- [x] 14. Test server locally (verified config.js serves new number)
-- [x] 15. Commit & push to GitHub (commit `0423527`)
-- [x] 16. Verify live deployment on Render (https://unisocials.onrender.com) serves `WHATSAPP_ORDER_NUMBER: 2348122104576`
-
-## Phase 7: Contact Email Update & Deploy
-- [x] 17. Update `CONTACT_EMAIL` from `events@unnsocials.com` to `support.sbiamautos@gmail.com` in `config.js`, `server.js`, `render.yaml`, `templatemo-622-clearwave.js`, `faq.html`
-- [x] 18. Test server locally (verified config.js serves new email)
-- [x] 19. Commit & push to GitHub
-- [x] 20. Verify live deployment on Render serves `CONTACT_EMAIL: support.sbiamautos@gmail.com`
-
-## Phase 8: FormSubmit Contact Form (Email Inbox) & Deploy
-- [x] 21. Create `thank-you.html` success page (styled to match site)
-- [x] 22. Set `FORMSUBMIT_KEY` to `support.sbiamautos@gmail.com` in `config.js`, `server.js`, `render.yaml`
-- [x] 23. Update `contact.html` form action to `https://formsubmit.co/support.sbiamautos@gmail.com` and `_next` to live Render thank-you URL
-- [x] 24. Fix `templatemo-622-clearwave.js` contact block: correct input IDs (`name`, `email`, `message`), remove WhatsApp interception so FormSubmit handles submission
-- [x] 25. Test server locally (verified config.js serves email endpoint + redirect URL)
-- [x] 26. Commit & push to GitHub (commit `44e3e3a`)
-- [x] 27. Verify live deployment on Render: config.js, contact.html form action, thank-you.html all serving correctly
-
+🚀 **Next steps for you:**
+1. Replace the placeholder `FLWPUBK-xxx...` key with your real Flutterwave public key in `config.js` and Render env vars
+2. Commit & push to GitHub
+3. Verify on Render
 

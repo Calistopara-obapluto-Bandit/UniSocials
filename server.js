@@ -19,6 +19,9 @@ const defaults = {
   BANK_ACCOUNT_NAME: 'UNN Socials',
   BANK_ACCOUNT_NUMBER: '0123456789',
   USSD_CODE: '*123*456*',
+  FLUTTERWAVE_PUBLIC_KEY: '1d23d4cc-6184-4cf3-9f47-5ad6106b9db9',
+  FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
+  FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
   FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
   REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'

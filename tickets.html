@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <!-- Flutterwave Inline Checkout -->
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
 </head>
 <body>
 
@@ -126,12 +128,14 @@
                 </div>
               </label>
               <label class="payment-option">
-                <input type="radio" name="payment" value="card" onchange="updatePaymentNote()" />
+                <input type="radio" name="payment" value="flutterwave" onchange="updatePaymentNote()" />
                 <div class="payment-option-content">
-                  <span class="payment-option-icon">💳</span>
+                  <span class="payment-option-icon">
+                    <svg class="flw-logo" viewBox="0 0 64 64" aria-hidden="true"><path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z"/><path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z"/><path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z"/><path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z"/></svg>
+                  </span>
                   <div>
-                    <strong>Debit / Credit Card</strong>
-                    <small>Pay with your bank card</small>
+                    <strong>Flutterwave</strong>
+                    <small>Card, bank transfer, USSD &amp; more</small>
                   </div>
                 </div>
               </label>
@@ -188,9 +192,21 @@
     </div>
   </section>
 
+  <!-- ── MOBILE STICKY CHECKOUT BAR ── -->
+  <div class="mobile-checkout-bar" id="mobileCheckoutBar">
+    <div class="mobile-checkout-total">
+      <small>Total</small>
+      <strong id="mobileBarTotal">—</strong>
+    </div>
+    <button class="btn-submit mobile-checkout-btn" onclick="placeOrder()" id="mobilePlaceOrderBtn" disabled>
+      🛒 Place Order
+    </button>
+  </div>
+
   <!-- ── SUCCESS MODAL ── -->
   <div class="modal-overlay" id="successModal" style="display:none;">
     <div class="modal-content">
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
       <div class="modal-icon">✅</div>
       <h2>Order Placed Successfully!</h2>
       <p>Your digital ticket(s) will be sent to your email and phone shortly.</p>

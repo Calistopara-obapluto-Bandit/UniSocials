@@ -815,16 +815,43 @@ Free for personal and commercial use
       padding: 20px;
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
+      cursor: pointer;
     }
     .modal-content {
+      position: relative;
       background: var(--surface-2);
       border-radius: var(--radius-lg);
       padding: 48px 40px 40px;
       max-width: 480px;
       width: 100%;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
       text-align: center;
       box-shadow: var(--shadow-lg);
       animation: modalSlideIn 0.4s var(--silk);
+      cursor: default;
+    }
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-2);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.3s, color 0.3s, transform 0.3s;
+    }
+    .modal-close:hover {
+      background: var(--accent);
+      color: #fff;
+      transform: rotate(90deg);
     }
     @keyframes modalSlideIn {
       from { opacity: 0; transform: translateY(30px) scale(0.95); }
@@ -896,6 +923,7 @@ Free for personal and commercial use
     @media (max-width: 768px) {
       .page-header { padding: 90px 0 40px; }
       .container { padding: 0 20px; }
+      .nav-inner { padding: 0 20px; }
       .nav-links, .nav-cta { display: none; }
       .nav-hamburger { display: flex; }
       .footer-grid { grid-template-columns: 1fr; }
@@ -910,9 +938,44 @@ Free for personal and commercial use
       .filter-group select { flex: 1; }
       .form-row { grid-template-columns: 1fr; }
       .modal-content { padding: 32px 24px; }
+      .checkout-section { padding: 24px 0 96px; }
+      .checkout-grid { gap: 24px; }
+      .checkout-card { padding: 20px; }
+      .checkout-summary-sticky { padding: 20px; }
+      .payment-option { padding: 12px 14px; }
+      .mobile-checkout-bar { display: flex; }
+      .whatsapp-float { bottom: 84px; }
     }
     @media (max-width: 480px) {
-      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .page-header { padding: 80px 0 32px; }
+      .container { padding: 0 16px; }
+      .nav-inner { padding: 0 16px; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .stat-card { padding: 24px 16px; }
+      .hero { padding: 96px 0 56px; }
+      .hero-card { padding: 24px 20px; }
+      .hero-actions .btn-primary-lg,
+      .hero-actions .btn-outline-lg { width: 100%; justify-content: center; }
+      .cta-inner { padding: 28px 20px; }
+      .cta-actions .btn-cta-primary,
+      .cta-actions .btn-cta-ghost { width: 100%; justify-content: center; }
+      .contact-form { padding: 24px 20px; }
+      .checkout-card { padding: 16px; border-radius: var(--radius); }
+      .checkout-card-title { margin-bottom: 16px; }
+      .modal-content { padding: 28px 18px 24px; }
+      .modal-details { padding: 12px 16px; }
+      .success-card { padding: 32px 20px; }
+      .mobile-menu { padding: 90px 20px; }
+      .mobile-checkout-bar { padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+      .mobile-checkout-btn { padding: 12px 20px; font-size: 0.875rem; }
+      .mobile-checkout-total strong { font-size: 1rem; }
+      .events-grid { gap: 16px; }
+      .event-card-body { padding: 20px 16px; }
+      .event-card-footer { padding: 12px 16px; }
+      .pricing-card { padding: 28px 20px; }
+      .faq-question { padding: 18px 0; }
+      .filter-bar { padding: 12px 14px; }
+      .form-group input, .form-group textarea, .form-group select { padding: 11px 14px; }
     }
 
     /* ══════════════════════════════════════════
@@ -1164,6 +1227,15 @@ Free for personal and commercial use
     .payment-option-icon {
       font-size: 1.5rem;
       flex-shrink: 0;
+      min-width: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .flw-logo {
+      width: 28px;
+      height: 28px;
+      display: block;
     }
     .payment-option-content div strong {
       display: block;
@@ -1183,6 +1255,8 @@ Free for personal and commercial use
       font-size: 0.85rem;
       line-height: 1.6;
       color: var(--text-2);
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     .payment-note strong {
       color: var(--accent);
@@ -1245,6 +1319,39 @@ Free for personal and commercial use
       margin-top: 20px;
       font-size: 1rem;
       padding: 14px 32px;
+    }
+    /* Mobile sticky checkout bar */
+    .mobile-checkout-bar {
+      display: none;
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 9000;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+      box-shadow: 0 -8px 32px rgba(13,30,15,0.12);
+      padding: 12px 16px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .mobile-checkout-total small {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--text-3);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .mobile-checkout-total strong {
+      font-size: 1.15rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .mobile-checkout-btn {
+      max-width: 220px;
+      margin: 0;
+      flex-shrink: 0;
     }
     .btn-submit:disabled {
       opacity: 0.5;

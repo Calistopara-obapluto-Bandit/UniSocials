@@ -19,6 +19,12 @@ services:
         value: 0123456789
       - key: USSD_CODE
         value: "*123*456*"
+      - key: FLUTTERWAVE_PUBLIC_KEY
+        value: 1d23d4cc-6184-4cf3-9f47-5ad6106b9db9
+      - key: FLUTTERWAVE_BANK_NAME
+        value: Flutterwave MfB (formerly ok mfb)
+      - key: FLUTTERWAVE_ACCOUNT_NUMBER
+        value: "9707788756"
       - key: CONTACT_EMAIL
         value: support.sbiamautos@gmail.com
       - key: FORMSUBMIT_KEY

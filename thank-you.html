@@ -75,6 +75,13 @@
     .success-actions .btn-cta-ghost {
       background: transparent;
     }
+    @media (max-width: 480px) {
+      .success-card { padding: 36px 20px 32px; }
+      .success-actions { flex-direction: column; width: 100%; }
+      .success-actions .btn-cta-primary,
+      .success-actions .btn-cta-ghost { width: 100%; justify-content: center; }
+      .success-icon { width: 72px; height: 72px; font-size: 36px; }
+    }
   </style>
 </head>
 <body>

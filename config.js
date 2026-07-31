@@ -23,6 +23,13 @@ window.SITE_CONFIG = {
   // USSD payment code
   USSD_CODE: '*123*456*',
 
+  // Flutterwave public / API key for inline checkout
+  FLUTTERWAVE_PUBLIC_KEY: '1d23d4cc-6184-4cf3-9f47-5ad6106b9db9',
+
+  // Flutterwave bank account details
+  FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
+  FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
+
   // Contact / support email shown in FAQ
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
 
