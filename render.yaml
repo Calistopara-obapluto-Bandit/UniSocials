@@ -20,7 +20,7 @@ services:
       - key: USSD_CODE
         value: "*123*456*"
       - key: CONTACT_EMAIL
-        value: events@unnsocials.com
+        value: support.sbiamautos@gmail.com
       - key: FORMSUBMIT_KEY
         value: 8d51333da2a9cfabfb087ffb615b7963
       - key: REDIRECT_URL

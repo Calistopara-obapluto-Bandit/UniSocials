@@ -28,3 +28,9 @@
 - [x] 15. Commit & push to GitHub (commit `0423527`)
 - [x] 16. Verify live deployment on Render (https://unisocials.onrender.com) serves `WHATSAPP_ORDER_NUMBER: 2348122104576`
 
+## Phase 7: Contact Email Update & Deploy
+- [x] 17. Update `CONTACT_EMAIL` from `events@unnsocials.com` to `support.sbiamautos@gmail.com` in `config.js`, `server.js`, `render.yaml`, `templatemo-622-clearwave.js`, `faq.html`
+- [x] 18. Test server locally (verified config.js serves new email)
+- [x] 19. Commit & push to GitHub
+- [x] 20. Verify live deployment on Render serves `CONTACT_EMAIL: support.sbiamautos@gmail.com`
+

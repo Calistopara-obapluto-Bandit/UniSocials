@@ -29,7 +29,7 @@ Free for personal and commercial use
   // FAQ — contact email
   const faqEmail = document.getElementById('faqEmail');
   if (faqEmail) {
-    faqEmail.textContent = cfg.CONTACT_EMAIL || 'events@unnsocials.com';
+    faqEmail.textContent = cfg.CONTACT_EMAIL || 'support.sbiamautos@gmail.com';
   }
 
   // Contact form — FormSubmit key & redirect URL

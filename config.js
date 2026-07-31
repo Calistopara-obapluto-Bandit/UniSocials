@@ -24,7 +24,7 @@ window.SITE_CONFIG = {
   USSD_CODE: '*123*456*',
 
   // Contact / support email shown in FAQ
-  CONTACT_EMAIL: 'events@unnsocials.com',
+  CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
 
   // FormSubmit.co email key for the contact form
   FORMSUBMIT_KEY: '8d51333da2a9cfabfb087ffb615b7963',
