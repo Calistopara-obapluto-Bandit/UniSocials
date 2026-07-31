@@ -1,0 +1,13 @@
+services:
+  # UNN Socials static site
+  - type: web
+    name: unisocials
+    runtime: static
+    branch: main
+    buildCommand: ""
+    staticPublishPath: ./
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: SITE_NAME
+        value: UNN Socials
+
