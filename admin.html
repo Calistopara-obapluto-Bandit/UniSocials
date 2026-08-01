@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Admin Dashboard — UNN Socials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .admin-body { padding-top: 90px; }
+    .admin-topbar {
+      background: var(--text-1);
+      color: #fff;
+      padding: 14px 0;
+    }
+    .admin-topbar-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
+    .admin-topbar .nav-logo span { color: var(--accent-light); }
+    .admin-topbar-actions { display: flex; align-items: center; gap: 12px; }
+    .admin-logout {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.8);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 7px 18px;
+      border-radius: 100px;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.3s, color 0.3s;
+    }
+    .admin-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .admin-topbar-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent-light);
+    }
+    .admin-topbar-status .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #66BB6A;
+      animation: whatsappPulse 2s infinite;
+    }
+    .admin-notif {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #B71C1C;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 100px;
+      animation: notifBounce 0.6s ease;
+      cursor: pointer;
+    }
+    .admin-notif:hover { background: #D32F2F; }
+    @keyframes notifBounce {
+      0% { transform: scale(0.6); }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    .admin-order.payment-notified { border-color: #E65100; box-shadow: 0 0 0 3px rgba(230,81,0,0.08); }
+    .admin-order.new-order { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ghost); }
+    .admin-paid-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #E65100;
+      background: #FFF3E0;
+      border: 1px solid #FFE0B2;
+      padding: 2px 10px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Login screen ── */
+    .admin-login-wrap {
+      min-height: calc(100vh - 90px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+    }
+    .admin-login-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 32px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+    .admin-login-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 18px;
+    }
+    .admin-login-card h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 8px;
+    }
+    .admin-login-card p {
+      font-size: 0.86rem;
+      color: var(--text-3);
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .admin-login-error {
+      display: none;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      color: #B71C1C;
+      font-size: 0.82rem;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .admin-login-error.show { display: block; }
+
+    /* ── Dashboard ── */
+    .admin-dash { display: none; padding: 32px 0 64px; }
+    .admin-dash.visible { display: block; }
+    .admin-heading h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 4px;
+    }
+    .admin-heading p {
+      font-size: 0.88rem;
+      color: var(--text-3);
+    }
+    .admin-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .admin-stat {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-stat-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 8px;
+    }
+    .admin-stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .admin-stat-value small { font-size: 0.85rem; color: var(--text-3); font-weight: 500; }
+    .admin-stat.pending .admin-stat-value { color: #E65100; }
+    .admin-stat.verified .admin-stat-value { color: #1B5E20; }
+    .admin-stat.rejected .admin-stat-value { color: #B71C1C; }
+    .admin-stat.revenue .admin-stat-value { color: var(--unn-gold); }
+
+    .admin-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .admin-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .admin-filter-btn {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .admin-filter-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+    .admin-filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .admin-refresh-btn {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1.5px solid var(--accent-border);
+      border-radius: 100px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .admin-refresh-btn:hover { background: var(--accent); color: #fff; }
+    .admin-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Orders list */
+    .admin-orders { display: flex; flex-direction: column; gap: 12px; }
+    .admin-order {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .admin-order:hover { border-color: var(--accent-border); box-shadow: var(--shadow-md); }
+    .admin-order-main { min-width: 0; }
+    .admin-order-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .admin-order-id {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-family: monospace;
+      letter-spacing: 0.02em;
+    }
+    .admin-order-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .admin-order-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+    .admin-order-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
+    .admin-order-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
+    .admin-order-event {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 6px;
+    }
+    .admin-order-meta {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--text-3);
+      margin-bottom: 10px;
+    }
+    .admin-order-meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .admin-order-buyer {
+      font-size: 0.82rem;
+      color: var(--text-2);
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .admin-order-buyer strong { color: var(--text-1); }
+    .admin-order-amount {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .admin-order-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 140px;
+      align-items: stretch;
+    }
+    .admin-order-actions .action-btn {
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 100px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.3s;
+      border: 1.5px solid transparent;
+    }
+    .action-verify {
+      background: var(--accent);
+      color: #fff;
+    }
+    .action-verify:hover { background: var(--accent-mid); }
+    .action-verify:disabled { opacity: 0.4; cursor: not-allowed; }
+    .action-reject {
+      background: transparent;
+      color: #B71C1C;
+      border-color: #F5C6CB;
+    }
+    .action-reject:hover { background: #FDECEA; }
+    .action-reject:disabled { opacity: 0.4; cursor: not-allowed; }
+    .action-reopen {
+      background: transparent;
+      color: var(--accent);
+      border-color: var(--accent-border);
+    }
+    .action-reopen:hover { background: var(--accent-ghost); }
+
+    .admin-empty {
+      text-align: center;
+      padding: 60px 20px;
+      background: var(--surface-2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+    .admin-empty span { font-size: 2.8rem; display: block; margin-bottom: 12px; }
+    .admin-empty p { font-size: 0.9rem; color: var(--text-3); }
+    .admin-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--text-1);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 12px 24px;
+      border-radius: 100px;
+      box-shadow: var(--shadow-lg);
+      opacity: 0;
+      transition: transform 0.4s var(--silk), opacity 0.4s var(--silk);
+      z-index: 99999;
+      pointer-events: none;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .admin-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .admin-toast.error { background: #B71C1C; }
+
+    .admin-print-btn {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .admin-print-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+
+    @media (max-width: 1024px) {
+      .admin-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .admin-topbar-inner { padding: 0 20px; }
+      .admin-order { grid-template-columns: 1fr; }
+      .admin-order-actions { flex-direction: row; min-width: 0; }
+      .admin-order-actions .action-btn { flex: 1; }
+    }
+    @media (max-width: 540px) {
+      .admin-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .admin-stat { padding: 14px; }
+      .admin-stat-value { font-size: 1.4rem; }
+      .admin-stat-label { font-size: 0.65rem; }
+      .admin-order { padding: 14px; }
+      .admin-order-meta { gap: 8px; font-size: 0.75rem; }
+    }
+    @media (max-width: 400px) {
+      .admin-stats { grid-template-columns: 1fr; }
+      .admin-topbar-inner { flex-direction: column; align-items: flex-start; }
+    }
+    @media print {
+      .admin-topbar, .admin-toolbar, .admin-order-actions { display: none !important; }
+      .admin-dash { display: block !important; padding: 0; }
+      .admin-order { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── ADMIN TOP BAR ── -->
+  <div class="admin-topbar">
+    <div class="admin-topbar-inner">
+      <a href="index.html" class="nav-logo">UNN <span>Socials</span> · Admin</a>
+      <div class="admin-topbar-actions">
+        <span class="admin-topbar-status" id="connStatus" style="display:none;">
+          <span class="pulse"></span> <span id="connStatusText">Connected</span>
+        </span>
+        <span class="admin-notif" id="notifBadge" style="display:none;">
+          🔔 <span id="notifCount">0</span> new
+        </span>
+        <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
+        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-body">
+
+    <!-- ── LOGIN SCREEN ── -->
+    <div class="admin-login-wrap" id="loginScreen">
+      <div class="admin-login-card reveal visible">
+        <div class="admin-login-icon">🔐</div>
+        <h2>Admin Access</h2>
+        <p>Enter your admin password to manage orders. Unauthorized access is prohibited.</p>
+        <div class="admin-login-error" id="loginError">Incorrect password. Please try again.</div>
+        <form id="loginForm" onsubmit="adminLogin(event)">
+          <div class="form-group">
+            <label for="adminPassword">Password</label>
+            <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── DASHBOARD ── -->
+    <div class="admin-dash" id="dashboard">
+      <div class="container">
+        <div class="admin-heading">
+          <h1>📊 Orders Dashboard</h1>
+          <p id="lastUpdated">Loading orders…</p>
+        </div>
+
+        <div class="admin-stats">
+          <div class="admin-stat">
+            <div class="admin-stat-label">Total Orders</div>
+            <div class="admin-stat-value" id="statTotal">0</div>
+          </div>
+          <div class="admin-stat pending">
+            <div class="admin-stat-label">Pending</div>
+            <div class="admin-stat-value" id="statPending">0</div>
+          </div>
+          <div class="admin-stat verified">
+            <div class="admin-stat-label">Verified</div>
+            <div class="admin-stat-value" id="statVerified">0</div>
+          </div>
+          <div class="admin-stat revenue">
+            <div class="admin-stat-label">Revenue (Verified)</div>
+            <div class="admin-stat-value" id="statRevenue">₦0</div>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <div class="admin-filters">
+            <button class="admin-filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+            <button class="admin-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
+            <button class="admin-filter-btn" data-filter="verified" onclick="setFilter('verified')">✅ Verified</button>
+            <button class="admin-filter-btn" data-filter="rejected" onclick="setFilter('rejected')">❌ Rejected</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
+            <button class="admin-refresh-btn" id="refreshBtn" onclick="loadOrders()">↻ Refresh</button>
+          </div>
+        </div>
+
+        <div class="admin-orders" id="ordersList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-toast" id="adminToast"></div>
+
+  <script src="config.js"></script>
+  <script>
+    (function() {
+      var KEY = 'unn_admin_token';
+      var currentFilter = 'all';
+      var allOrders = [];
+      var toastTimer = null;
+      var lastUnseenCount = -1;
+      var notifPermission = false;
+
+      var loginScreen = document.getElementById('loginScreen');
+      var dashboard = document.getElementById('dashboard');
+      var logoutBtn = document.getElementById('logoutBtn');
+      var viewSiteBtn = document.getElementById('viewSiteBtn');
+      var connStatus = document.getElementById('connStatus');
+      var ordersList = document.getElementById('ordersList');
+      var lastUpdated = document.getElementById('lastUpdated');
+      var notifBadge = document.getElementById('notifBadge');
+      var notifCount = document.getElementById('notifCount');
+
+      function fmtN(n) {
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+      function fmtDate(iso) {
+        if (!iso) return '\u2014';
+        var d = new Date(iso);
+        if (isNaN(d)) return iso;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
+      }
+      function showToast(msg, isError) {
+        var t = document.getElementById('adminToast');
+        t.textContent = msg;
+        t.className = 'admin-toast show' + (isError ? ' error' : '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { t.className = 'admin-toast'; }, 3000);
+      }
+      function playAlertSound() {
+        try {
+          var ctx = new (window.AudioContext || window.webkitAudioContext)();
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.6);
+        } catch(e) {}
+      }
+      function sendBrowserNotification(title, body) {
+        try {
+          if (!('Notification' in window)) return;
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body: body, icon: 'images/tm-622-screen-01.jpg' });
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(function(p) {
+              if (p === 'granted') new Notification(title, { body: body, icon: 'images/tm-622-screen-01.jpg' });
+            });
+          }
+        } catch(e) {}
+      }
+
+      function getToken() {
+        try { return sessionStorage.getItem(KEY) || ''; } catch(e) { return ''; }
+      }
+      function setToken(t) {
+        try { sessionStorage.setItem(KEY, t); } catch(e) {}
+      }
+      function clearToken() {
+        try { sessionStorage.removeItem(KEY); } catch(e) {}
+      }
+
+      function showLoggedIn() {
+        loginScreen.style.display = 'none';
+        dashboard.classList.add('visible');
+        logoutBtn.style.display = 'inline-block';
+        viewSiteBtn.style.display = 'inline-block';
+        connStatus.style.display = 'inline-flex';
+        if (notifBadge) notifBadge.style.display = 'inline-flex';
+      }
+      function showLoggedOut() {
+        loginScreen.style.display = 'flex';
+        dashboard.classList.remove('visible');
+        logoutBtn.style.display = 'none';
+        viewSiteBtn.style.display = 'none';
+        connStatus.style.display = 'none';
+        if (notifBadge) notifBadge.style.display = 'none';
+      }
+
+      // Mark new orders as seen
+      function markOrdersSeen() {
+        var unseen = allOrders.filter(function(o) { return o.notifyAdmin && !o.seenByAdmin; });
+        if (unseen.length === 0) return;
+        var ids = unseen.map(function(o) { return o.orderId; });
+        fetch('/api/admin/orders/seen', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify({ orderIds: ids })
+        }).then(function(res) { return res.json(); }).catch(function() {});
+      }
+
+      // Poll for new unseen orders (real-time alert)
+      function pollUnseen() {
+        fetch('/api/admin/unseen-count', {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var count = (data && data.unseenCount) || 0;
+          if (lastUnseenCount >= 0 && count > lastUnseenCount) {
+            var delta = count - lastUnseenCount;
+            showToast(delta + ' new order' + (delta > 1 ? 's' : '') + ' received! 🔔');
+            playAlertSound();
+            sendBrowserNotification('New order on UNN Socials', delta + ' new order' + (delta > 1 ? 's' : '') + ' awaiting confirmation.');
+            loadOrders();
+          }
+          lastUnseenCount = count;
+          if (notifBadge) {
+            if (count > 0) {
+              notifBadge.style.display = 'inline-flex';
+              notifCount.textContent = count;
+            } else {
+              notifBadge.style.display = 'none';
+            }
+          }
+        })
+        .catch(function() {});
+      }
+
+      // Login handler (exposed to form onsubmit)
+      window.adminLogin = function(e) {
+        e.preventDefault();
+        var pwd = document.getElementById('adminPassword').value;
+        var errBox = document.getElementById('loginError');
+        var btn = document.getElementById('loginBtn');
+        if (!pwd) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Verifying…';
+
+        // Verify credentials by attempting an authenticated API call
+        fetch('/api/admin/orders', {
+          headers: { 'Authorization': 'Bearer ' + pwd }
+        })
+        .then(function(res) {
+          if (res.status === 401) {
+            errBox.classList.add('show');
+            btn.disabled = false;
+            btn.textContent = 'Login to Dashboard';
+            throw new Error('unauthorized');
+          }
+          if (res.ok) return res.json();
+          throw new Error('network');
+        })
+        .then(function(data) {
+          setToken(pwd);
+          errBox.classList.remove('show');
+          showLoggedIn();
+          lastUnseenCount = (data && data.unseenCount) || 0;
+          loadOrders();
+          pollUnseen();
+        })
+        .catch(function(err) {
+          if (err.message === 'unauthorized') return;
+          errBox.textContent = 'Cannot reach server. Check that the site is running.';
+          errBox.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = 'Login to Dashboard';
+        });
+      };
+
+      logoutBtn.addEventListener('click', function() {
+        clearToken();
+        showLoggedOut();
+        document.getElementById('adminPassword').value = '';
+      });
+
+      // Set filter (exposed)
+      window.setFilter = function(f) {
+        currentFilter = f;
+        var btns = document.querySelectorAll('.admin-filter-btn');
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].classList.toggle('active', btns[i].getAttribute('data-filter') === f);
+        }
+        renderOrders();
+      };
+
+      // Update order status (exposed)
+      window.updateOrderStatus = function(orderId, status) {
+        var btn = event && event.target;
+        if (btn) btn.disabled = true;
+
+        fetch('/api/admin/orders/status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify({ orderId: orderId, status: status })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast(status === 'verified' ? 'Order ' + orderId + ' verified ✅' :
+                       status === 'rejected' ? 'Order ' + orderId + ' rejected' :
+                       'Order ' + orderId + ' reopened');
+            loadOrders();
+          } else {
+            showToast((data && data.error) || 'Failed to update order', true);
+            if (btn) btn.disabled = false;
+            if (data && data.error === 'Unauthorized') {
+              clearToken();
+              showLoggedOut();
+            }
+          }
+        })
+        .catch(function() {
+          showToast('Network error updating order', true);
+          if (btn) btn.disabled = false;
+        });
+      };
+
+      // Load orders (exposed for refresh button)
+      window.loadOrders = function() {
+        var refreshBtn = document.getElementById('refreshBtn');
+        if (refreshBtn) refreshBtn.disabled = true;
+
+        fetch('/api/admin/orders', {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(res) {
+          if (res.status === 401) {
+            clearToken();
+            showLoggedOut();
+            throw new Error('unauthorized');
+          }
+          if (res.ok) return res.json();
+          throw new Error('network');
+        })
+        .then(function(data) {
+          allOrders = (data && data.orders) || [];
+          lastUnseenCount = (data && data.unseenCount != null) ? data.unseenCount : lastUnseenCount;
+          if (notifBadge) {
+            if (lastUnseenCount > 0) {
+              notifBadge.style.display = 'inline-flex';
+              notifCount.textContent = lastUnseenCount;
+            } else {
+              notifBadge.style.display = 'none';
+            }
+          }
+          renderOrders();
+          var now = new Date();
+          if (lastUpdated) lastUpdated.textContent = 'Last updated: ' + now.toLocaleTimeString();
+        })
+        .catch(function(err) {
+          if (err.message !== 'unauthorized') {
+            showToast('Failed to load orders', true);
+          }
+        })
+        .finally(function() {
+          if (refreshBtn) refreshBtn.disabled = false;
+        });
+      };
+
+      function renderOrders() {
+        if (!ordersList) return;
+
+        var stats = { total: allOrders.length, pending: 0, verified: 0, rejected: 0, revenue: 0 };
+        allOrders.forEach(function(o) {
+          if (o.status === 'pending') stats.pending++;
+          else if (o.status === 'verified') { stats.verified++; stats.revenue += (parseFloat(o.amount) || 0); }
+          else if (o.status === 'rejected') stats.rejected++;
+        });
+
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statPending').textContent = stats.pending;
+        document.getElementById('statVerified').textContent = stats.verified;
+        document.getElementById('statRevenue').textContent = fmtN(stats.revenue);
+
+        var filtered = allOrders.filter(function(o) {
+          return currentFilter === 'all' || o.status === currentFilter;
+        });
+
+        if (filtered.length === 0) {
+          ordersList.innerHTML = '<div class="admin-empty"><span>🗂️</span><p>No ' + (currentFilter === 'all' ? '' : currentFilter + ' ') + 'orders found.</p></div>';
+          return;
+        }
+
+        var html = '';
+        filtered.forEach(function(o) {
+          var amount = fmtN(o.amount);
+          var qty = o.qty + ' ticket' + (o.qty > 1 ? 's' : '');
+          var pm = (o.paymentMethod === 'flutterwave') ? 'Flutterwave' : 'Bank Transfer';
+          var actions = '';
+          var buyer = '<div class="admin-order-buyer"><strong>' + esc(o.buyerName || '—') + '</strong> &middot; ' +
+                      '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>' +
+                      (o.buyerPhone ? ' &middot; ' + esc(o.buyerPhone) : '') +
+                      (o.buyerFaculty ? ' &middot; ' + esc(o.buyerFaculty) : '') + '</div>';
+          var paidFlag = (o.paymentNotified && o.status === 'pending') ?
+                      '<span class="admin-paid-flag">💸 Payment claimed</span>' : '';
+          var ticket = (o.status === 'verified' && o.ticketCode) ?
+                      '<span class="admin-order-badge" style="background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;">🎟 ' + esc(o.ticketCode) + '</span>' : '';
+          var isNew = o.notifyAdmin && !o.seenByAdmin;
+
+          if (o.status === 'pending') {
+            actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
+                      '<button class="action-btn action-reject" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'rejected\')">✕ Reject</button>';
+          } else if (o.status === 'verified') {
+            actions = '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>';
+          } else if (o.status === 'rejected') {
+            actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
+                      '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>';
+          }
+
+          html += '<div class="admin-order' + (o.paymentNotified && o.status === 'pending' ? ' payment-notified' : '') + (isNew ? ' new-order' : '') + '">' +
+                    '<div class="admin-order-main">' +
+                      '<div class="admin-order-top">' +
+                        '<span class="admin-order-id">' + esc(o.orderId) + '</span>' +
+                        '<span class="admin-order-badge ' + esc(o.status) + '">' + esc(o.status) + '</span>' +
+                        paidFlag + ticket +
+                      '</div>' +
+                      '<div class="admin-order-event">' + esc(o.eventName || '—') + '</div>' +
+                      '<div class="admin-order-meta">' +
+                        '<span>📅 ' + esc(o.eventDate || '—') + '</span>' +
+                        '<span>📍 ' + esc(o.eventVenue || '—') + '</span>' +
+                        '<span>🎟 ' + esc(qty) + '</span>' +
+                        '<span>💳 ' + esc(pm) + '</span>' +
+                        '<span>🕒 ' + fmtDate(o.createdAt) + '</span>' +
+                        (o.paymentNotifiedAt ? '<span>💸 Paid ' + fmtDate(o.paymentNotifiedAt) + '</span>' : '') +
+                        (o.verifiedAt ? '<span>✅ ' + fmtDate(o.verifiedAt) + '</span>' : '') +
+                      '</div>' +
+                      buyer +
+                    '</div>' +
+                    '<div class="admin-order-right" style="text-align:right;">' +
+                      '<div class="admin-order-amount">' + amount + '</div>' +
+                      '<div class="admin-order-actions">' + actions + '</div>' +
+                    '</div>' +
+                  '</div>';
+        });
+
+        ordersList.innerHTML = html;
+      }
+
+      // Auto-refresh every 30s when logged in
+      setInterval(function() {
+        if (dashboard.classList.contains('visible')) loadOrders();
+      }, 30000);
+
+      // Poll unseen count every 8s for real-time alerts
+      setInterval(function() {
+        if (dashboard.classList.contains('visible') && getToken()) pollUnseen();
+      }, 8000);
+
+      // Clicking the notification badge marks unseen orders as seen
+      if (notifBadge) {
+        notifBadge.addEventListener('click', function() {
+          markOrdersSeen();
+          lastUnseenCount = 0;
+          notifBadge.style.display = 'none';
+          loadOrders();
+        });
+      }
+
+      // Initial state
+      if (getToken()) {
+        showLoggedIn();
+        loadOrders();
+        pollUnseen();
+      } else {
+        showLoggedOut();
+      }
+    })();
+  </script>
+</body>
+</html>
+

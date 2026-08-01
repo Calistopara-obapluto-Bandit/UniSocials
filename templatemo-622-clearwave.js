@@ -437,13 +437,25 @@ if (nav) {
     return 'UNN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
-  function showSuccessModal(orderId, eventName, totalPaid) {
+  function showSuccessModal(orderId, eventName, totalPaid, ticketCode) {
     const idEl = document.getElementById('orderId');
     const evEl = document.getElementById('orderEvent');
     const totalEl = document.getElementById('orderTotal');
+    const ticketLink = document.getElementById('viewTicketLink');
     if (idEl) idEl.textContent = orderId;
     if (evEl) evEl.textContent = eventName;
     if (totalEl) totalEl.textContent = '\u20A6' + totalPaid.toLocaleString();
+    if (ticketLink) {
+      if (ticketCode) {
+        ticketLink.style.display = 'inline-flex';
+        ticketLink.setAttribute('href', 'ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode));
+      } else {
+        // No code yet (e.g. bank transfer) — go to order lookup
+        ticketLink.textContent = '🎟 Find My Ticket';
+        ticketLink.setAttribute('href', 'my-tickets.html');
+        ticketLink.style.display = 'inline-flex';
+      }
+    }
     if (successModal) successModal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -490,10 +502,10 @@ if (nav) {
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      if (successCallback) successCallback(data && data.success);
+      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCode : null);
     })
     .catch(function() {
-      if (successCallback) successCallback(true);
+      if (successCallback) successCallback(true, null);
     });
   }
 
@@ -537,18 +549,18 @@ if (nav) {
             if (data && data.success) {
               const verifiedAmount = parseFloat(data.amount) || orderTotal;
               const totalPaid = verifiedAmount > 0 ? verifiedAmount : orderTotal;
-              createOrderViaApi(orderId, 'flutterwave', totalPaid, function() {
+              createOrderViaApi(orderId, 'flutterwave', totalPaid, function(success, ticketCode) {
                 sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, 'Flutterwave', name, email, phone);
-                showSuccessModal(orderId, eventName, totalPaid);
+                showSuccessModal(orderId, eventName, totalPaid, ticketCode);
               });
             } else {
               alert('Payment verification failed. Please contact support with your Order ID: ' + orderId);
             }
           })
           .catch(function() {
-            createOrderViaApi(orderId, 'flutterwave', orderTotal, function() {
+            createOrderViaApi(orderId, 'flutterwave', orderTotal, function(success, ticketCode) {
               sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone);
-              showSuccessModal(orderId, eventName, orderTotal);
+              showSuccessModal(orderId, eventName, orderTotal, ticketCode);
             });
           });
         } else {

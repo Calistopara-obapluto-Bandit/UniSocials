@@ -21,6 +21,12 @@ services:
         value: Flutterwave MfB (formerly ok mfb)
       - key: FLUTTERWAVE_ACCOUNT_NUMBER
         value: "9707788756"
+      # Set this to your Flutterwave webhook secret hash (Dashboard → Settings → Webhooks)
+      # so payment webhooks are signature-verified. Leave empty to skip verification.
+      - key: FLUTTERWAVE_WEBHOOK_HASH
+        value: Soludo123@
+      - key: SITE_URL
+        value: https://unisocials.onrender.com
       - key: CONTACT_EMAIL
         value: support.sbiamautos@gmail.com
       - key: FORMSUBMIT_KEY

@@ -1,34 +1,42 @@
-# UNN Socials — Mobile Responsiveness + Flutterwave Payment ✅
+# UNN Socials — Full Ticket-Selling Experience (Phase 1 + 2) ✅
 
-## Phase A: Flutterwave Payment Integration
-- [x] 1. Add `FLUTTERWAVE_PUBLIC_KEY` to `config.js`
-- [x] 2. Add `FLUTTERWAVE_PUBLIC_KEY` to `server.js` defaults
-- [x] 3. Add `FLUTTERWAVE_PUBLIC_KEY` to `render.yaml`
-- [x] 4. Update `tickets.html`: replace Card option with Flutterwave option + load Flutterwave v3.js script + add mobile sticky checkout bar + modal close button
-- [x] 5. Update `templatemo-622-clearwave.js`:
-       - read Flutterwave public key from SITE_CONFIG
-       - update payment labels & notes for Flutterwave
-       - wire FlutterwaveCheckout inline modal with order details
-       - on success callback -> WhatsApp notification + success modal
-       - graceful fallback if key missing
-       - sync mobile sticky bar total & button state
-       - close success modal on overlay click / ✕ / Escape
-- [x] 6. FAQ payment methods updated to mention Flutterwave
+## Phase 1 — Verification & Real-Time Admin Notifications
+- [x] 1. Server: add `POST /api/webhook/flutterwave` (real server-to-server payment confirmation)
+- [x] 2. Server: add `POST /api/orders/notify-paid` (buyer marks bank transfer as done)
+- [x] 3. Server: add `POST /api/orders/lookup` (buyer Order ID + phone lookup)
+- [x] 4. Server: unseen tracking (`notifyAdmin`, `unseenCount`, `POST /api/admin/orders/seen`)
+- [x] 5. Server: ticket code generation + `GET /api/ticket` (QR ticket fetch)
+- [x] 6. Server: ticket-issued notification on verify (email audit + WhatsApp to buyer)
+- [x] 7. Admin dashboard: real-time new-order alerts (poll 15s, badge, sound, browser notification, toast)
+- [x] 8. Admin dashboard: highlight "payment notified" orders needing confirmation
+- [x] 9. Pending page: "I've made the transfer" button + improved state machine + ticket preview
+- [x] 10. render.yaml: add `FLUTTERWAVE_WEBHOOK_HASH` + `SITE_URL` env vars
 
-## Phase B: Mobile Responsive Fixes
-- [x] 7. CSS: mobile sticky checkout bar + Flutterwave icon styling + modal close button
-- [x] 8. CSS: reduce checkout-card / summary / payment-option padding on small screens, word-break for payment-note
-- [x] 9. CSS: global container/nav-inner padding on <480px, stats/stat-card tuning, hero-card/cta-inner/contact-form/modal-content/mobile-menu padding, faq/filter/event-card/pricing padding tuning
-- [x] 10. `thank-you.html`: responsive success-card padding & stacked buttons on <480px
+## Phase 2 — Digital Tickets
+- [x] 11. New `ticket.html`: QR ticket page (protected by orderId + code)
+- [x] 12. New `my-tickets.html`: buyer lookup page (Order ID + phone)
+- [x] 13. Update "My Tickets" links across site → my-tickets.html
+- [x] 14. CSS: styles for ticket page, badges, admin alerts
 
-## Phase C: Test & Verify
-- [x] 11. Server started and running at http://localhost:3000
-- [x] 12. API endpoints tested end-to-end (create order → status → admin verify → 401 without auth)
-- [x] 13. Security fix: `ADMIN_PASSWORD` no longer exposed to browser via `config.js`
-- [x] 14. `orders.json` (buyer PII) added to `.gitignore`
-- [x] 15. Committed & pushed to GitHub (`2a79748`)
+## Phase 3 — Test & Deploy
+- [x] 15. Test webhook, notify-paid, lookup, unseen, ticket fetch endpoints
+- [x] 16. Test full flow: order → notify paid → admin alert → verify → ticket page unlocks
+- [ ] 17. Commit & push to Render
 
-🚀 **Next steps for you:**
-1. Set a strong `ADMIN_PASSWORD` in Render env vars (currently `CHANGE_ME_STRONG_PASSWORD` placeholder in `render.yaml`)
-2. Verify on Render — replace the placeholder password and confirm the admin API + pending order flow work in production
+## ✅ Completed This Session
+- Webhook signature verification now enforced with `FLUTTERWAVE_WEBHOOK_HASH = Soludo123@`
+  (falls back to defaults when env var not set — verified: no sig → 401, valid HMAC → verifies order)
+- Fixed `/api/ticket` endpoint: was `=== '/api/ticket'`, now `startsWith` so query params work
+- Success modal in checkout now passes `ticketCode` through `createOrderViaApi` → links straight to
+  `ticket.html?orderId=...&code=...` for verified Flutterwave orders ("Find My Ticket" → my-tickets.html otherwise)
+- Server + JS syntax verified; all 12 pages return HTTP 200; endpoints tested end-to-end
+
+## Remaining
+1. Commit & push to GitHub (Render auto-deploys on push to `main`)
+2. In Render dashboard set:
+   - `ADMIN_PASSWORD` (replace `CHANGE_ME_STRONG_PASSWORD`)
+   - `FLUTTERWAVE_WEBHOOK_HASH` = `Soludo123@` (if not using render.yaml)
+3. In Flutterwave Dashboard → Settings → Webhooks:
+   - Webhook URL: `https://unisocials.onrender.com/api/webhook/flutterwave`
+   - Secret hash: `Soludo123@`
 

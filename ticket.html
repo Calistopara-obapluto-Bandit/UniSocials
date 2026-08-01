@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Ticket — UNN Socials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .ticket-section { padding: 56px 0 80px; }
+    .ticket-card {
+      max-width: 560px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+    .ticket-header {
+      background: linear-gradient(135deg, var(--accent), var(--accent-mid));
+      color: #fff;
+      padding: 32px 36px;
+      text-align: center;
+      position: relative;
+    }
+    .ticket-header h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 6px;
+    }
+    .ticket-header p { font-size: 0.85rem; opacity: 0.9; }
+    .ticket-code {
+      display: inline-block;
+      margin-top: 14px;
+      background: rgba(255,255,255,0.18);
+      border: 1px dashed rgba(255,255,255,0.5);
+      padding: 8px 20px;
+      border-radius: 100px;
+      font-family: monospace;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .ticket-body { padding: 32px 36px; }
+    .ticket-event {
+      text-align: center;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 4px;
+    }
+    .ticket-detail {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 0.9rem;
+    }
+    .ticket-detail:last-child { border-bottom: none; }
+    .ticket-detail span { color: var(--text-3); }
+    .ticket-detail strong { color: var(--text-1); }
+    .ticket-qr {
+      text-align: center;
+      margin: 28px 0 8px;
+    }
+    .ticket-qr canvas, .ticket-qr img { max-width: 200px; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); }
+    .ticket-qr-hint { font-size: 0.78rem; color: var(--text-3); margin-top: 10px; }
+    .ticket-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    .ticket-note {
+      margin-top: 18px;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: 0.82rem;
+      color: var(--text-2);
+      line-height: 1.6;
+      text-align: center;
+    }
+    .ticket-error {
+      max-width: 560px;
+      margin: 0 auto;
+      text-align: center;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 56px 32px;
+      box-shadow: var(--shadow-md);
+    }
+    .ticket-error span { font-size: 3rem; display: block; margin-bottom: 14px; }
+    .ticket-error h2 { font-size: 1.4rem; font-weight: 700; color: var(--text-1); margin-bottom: 10px; }
+    .ticket-error p { font-size: 0.9rem; color: var(--text-3); margin-bottom: 24px; line-height: 1.6; }
+    @media (max-width: 480px) {
+      .ticket-header, .ticket-body { padding: 24px 20px; }
+      .ticket-detail { font-size: 0.82rem; }
+      .ticket-actions .btn-primary, .ticket-actions .btn-cta-ghost { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="faq.html">FAQ</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">UNN <span>Socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">My Ticket</div>
+      <h1 class="section-title reveal reveal-delay-1">Your <em>digital ticket</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Present this ticket at the entrance. Scan it to verify your booking.</p>
+    </div>
+  </section>
+
+  <section class="ticket-section">
+    <div class="container">
+      <div id="ticketError" class="ticket-error" style="display:none;">
+        <span>🔒</span>
+        <h2 id="ticketErrorTitle">Ticket not found</h2>
+        <p id="ticketErrorMsg">This ticket link is invalid or has expired. Please check your link or look up your order.</p>
+        <a href="my-tickets.html" class="btn-primary" style="display:inline-flex;padding:12px 28px;">Find My Ticket</a>
+      </div>
+
+      <div class="ticket-card reveal" id="ticketCard" style="display:none;">
+        <div class="ticket-header">
+          <h2>🎟️ UNN Socials Ticket</h2>
+          <p>Official Entry Pass</p>
+          <div class="ticket-code" id="ticketCode">TKT-000000</div>
+        </div>
+        <div class="ticket-body">
+          <div class="ticket-event" id="ticketEventName">Event Name</div>
+
+          <div style="margin-top:18px;">
+            <div class="ticket-detail">
+              <span>Order ID</span>
+              <strong id="ticketOrderId">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>📅 Date</span>
+              <strong id="ticketDate">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>📍 Venue</span>
+              <strong id="ticketVenue">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>🎟 Quantity</span>
+              <strong id="ticketQty">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>💳 Amount</span>
+              <strong id="ticketAmount">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>👤 Ticket Holder</span>
+              <strong id="ticketHolder">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>✅ Verified</span>
+              <strong id="ticketVerified">—</strong>
+            </div>
+          </div>
+
+          <div class="ticket-qr">
+            <div id="qrBox"></div>
+            <p class="ticket-qr-hint">Show this QR code at the gate for scanning.</p>
+          </div>
+
+          <div class="ticket-actions">
+            <button class="btn-primary" style="display:inline-flex;gap:8px;padding:12px 28px;" onclick="window.print()">🖨 Print Ticket</button>
+            <a href="my-tickets.html" class="btn-cta-ghost" style="display:inline-flex;">My Tickets</a>
+          </div>
+
+          <div class="ticket-note">
+            💡 Keep this page safe. One QR code is generated per order. For support, contact us on WhatsApp.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">UNN <span style="color:var(--accent-light)">Socials</span></a>
+          <p class="footer-brand-desc">The official event ticket selling platform for the University of Nigeria, Nsukka.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2025 UNN Socials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('orderId') || '';
+      const code = params.get('code') || '';
+
+      const ticketError = document.getElementById('ticketError');
+      const ticketCard = document.getElementById('ticketCard');
+      const ticketCode = document.getElementById('ticketCode');
+      const ticketEventName = document.getElementById('ticketEventName');
+      const ticketOrderId = document.getElementById('ticketOrderId');
+      const ticketDate = document.getElementById('ticketDate');
+      const ticketVenue = document.getElementById('ticketVenue');
+      const ticketQty = document.getElementById('ticketQty');
+      const ticketAmount = document.getElementById('ticketAmount');
+      const ticketHolder = document.getElementById('ticketHolder');
+      const ticketVerified = document.getElementById('ticketVerified');
+      const qrBox = document.getElementById('qrBox');
+
+      function fmtN(n) {
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+      function fmtDate(iso) {
+        if (!iso) return '\u2014';
+        const d = new Date(iso);
+        if (isNaN(d)) return iso;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function showError(title, msg) {
+        if (ticketError) {
+          document.getElementById('ticketErrorTitle').textContent = title;
+          document.getElementById('ticketErrorMsg').textContent = msg;
+          ticketError.style.display = 'block';
+        }
+        if (ticketCard) ticketCard.style.display = 'none';
+      }
+
+      function renderTicket(t) {
+        if (!t) return;
+        if (ticketCode) ticketCode.textContent = t.ticketCode;
+        if (ticketEventName) ticketEventName.textContent = t.eventName;
+        if (ticketOrderId) ticketOrderId.textContent = t.orderId;
+        if (ticketDate) ticketDate.textContent = t.eventDate;
+        if (ticketVenue) ticketVenue.textContent = t.eventVenue;
+        if (ticketQty) ticketQty.textContent = t.qty + ' ticket' + (t.qty > 1 ? 's' : '');
+        if (ticketAmount) ticketAmount.textContent = fmtN(t.amount);
+        if (ticketHolder) ticketHolder.textContent = t.buyerName;
+        if (ticketVerified) ticketVerified.textContent = fmtDate(t.verifiedAt);
+
+        if (ticketCard) ticketCard.style.display = 'block';
+        if (ticketError) ticketError.style.display = 'none';
+
+        // Generate QR code with verification URL
+        const qrUrl = window.location.origin + '/ticket.html?orderId=' + encodeURIComponent(t.orderId) + '&code=' + encodeURIComponent(t.ticketCode);
+        if (typeof window.QRCode === 'function' && qrBox) {
+          try {
+            qrBox.innerHTML = '';
+            window.QRCode.toCanvas(qrBox, qrUrl, { width: 200, margin: 1 }, function(err) {
+              if (err) {
+                qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + qrUrl + '</code>';
+              }
+            });
+          } catch(e) {
+            qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + qrUrl + '</code>';
+          }
+        } else {
+          qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + qrUrl + '</code>';
+        }
+      }
+
+      if (!orderId || !code) {
+        showError('Missing link details', 'Please open this page from your order confirmation email or the My Tickets page.');
+        return;
+      }
+
+      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && data.success && data.ticket) {
+            renderTicket(data.ticket);
+          } else {
+            const status = (data && data.status) || '';
+            if (status === 'pending') {
+              showError('Payment pending', 'Your order is awaiting payment confirmation. Your ticket will unlock once verified.');
+            } else {
+              showError('Ticket not found', 'This ticket link is invalid or expired. Check your link or look up your order.');
+            }
+          }
+        })
+        .catch(function() {
+          showError('Cannot load ticket', 'Network error. Please check your connection and try again.');
+        });
+    })();
+  </script>
+</body>
+</html>
+

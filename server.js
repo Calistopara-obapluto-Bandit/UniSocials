@@ -37,6 +37,19 @@ function saveOrders(orders) {
   }
 }
 
+// Generate a short, human-friendly ticket code (e.g. TKT-8F3K2M)
+function generateTicketCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return 'TKT-' + code;
+}
+
+// Count unseen orders (orders with notifyAdmin true that the admin hasn't seen)
+function unseenOrderCount(orders) {
+  return orders.filter(o => o.notifyAdmin && !o.seenByAdmin).length;
+}
+
 function isAdminAuthorized(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -56,6 +69,11 @@ const defaults = {
   FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X',
   FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
   FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
+  // Flutterwave webhook secret hash — used to verify payment webhooks server-to-server.
+  // Get it from Dashboard → Settings → Webhooks. Empty disables signature checks.
+  FLUTTERWAVE_WEBHOOK_HASH: 'Soludo123@',
+  // Public base URL of the site (used for ticket QR codes / links)
+  SITE_URL: 'https://unisocials.onrender.com',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
   FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
   REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'
@@ -245,14 +263,262 @@ const server = http.createServer((req, res) => {
         buyerPhone: buyerPhone,
         buyerFaculty: buyerFaculty,
         createdAt: new Date().toISOString(),
-        verifiedAt: paymentMethod === 'flutterwave' ? new Date().toISOString() : null
+        verifiedAt: paymentMethod === 'flutterwave' ? new Date().toISOString() : null,
+        // New: admin notification + ticket tracking
+        notifyAdmin: true,
+        seenByAdmin: false,
+        paymentNotified: false,
+        paymentNotifiedAt: null,
+        ticketCode: generateTicketCode()
       };
 
       orders.unshift(order);
       saveOrders(orders);
 
+      // For Flutterwave-verified orders, the ticket is auto-issued
+      if (paymentMethod === 'flutterwave') {
+        order.ticketIssued = true;
+        order.ticketIssuedAt = new Date().toISOString();
+        saveOrders(orders);
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, order: order }));
+    });
+    return;
+  }
+
+  // ── Webhook: Flutterwave payment confirmation (server-to-server) ──
+  // This is the RELIABLE path: Flutterwave POSTs here when a payment succeeds,
+  // so verification doesn't depend on the buyer's browser staying open.
+  if (req.url === '/api/webhook/flutterwave' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      // Flutterwave sends both JSON body and x-flutterwave-signature header.
+      // We optionally validate the signature using FLUTTERWAVE_WEBHOOK_HASH.
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const signature = req.headers['x-flutterwave-signature'] || '';
+      const webhookHash = (process.env.FLUTTERWAVE_WEBHOOK_HASH !== undefined
+        ? process.env.FLUTTERWAVE_WEBHOOK_HASH
+        : defaults.FLUTTERWAVE_WEBHOOK_HASH);
+      let validSignature = true;
+      if (webhookHash) {
+        const crypto = require('crypto');
+        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('hex');
+        validSignature = expected === signature;
+      }
+
+      if (!validSignature) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid signature' }));
+        return;
+      }
+
+      const txRef = (data.txRef || data.data && data.data.tx_ref || '').toString();
+      const eventType = (data.event || data['event.type'] || '').toString();
+      const status = (data.data && data.data.status || '').toString();
+
+      // Only act on successful charge confirmations
+      const isSuccess = (eventType === 'charge.completed' && (status === 'successful' || status === 'completed'));
+
+      if (!txRef) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing tx_ref' }));
+        return;
+      }
+
+      const orders = loadOrders();
+      const idx = orders.findIndex(o => o.orderId === txRef);
+
+      if (idx === -1) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Order not found for tx_ref' }));
+        return;
+      }
+
+      if (isSuccess && orders[idx].status !== 'verified') {
+        orders[idx].status = 'verified';
+        orders[idx].verifiedAt = new Date().toISOString();
+        orders[idx].paymentMethod = 'flutterwave';
+        orders[idx].notifyAdmin = true;
+        orders[idx].seenByAdmin = false;
+        orders[idx].ticketIssued = true;
+        orders[idx].ticketIssuedAt = new Date().toISOString();
+        saveOrders(orders);
+        console.log('Webhook verified order:', txRef);
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, tx_ref: txRef }));
+    });
+    return;
+  }
+
+  // ── Buyer marks bank transfer as done ──
+  if (req.url === '/api/orders/notify-paid' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const orderId = (data.orderId || '').toString().trim();
+
+      if (!orderId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing orderId' }));
+        return;
+      }
+
+      const orders = loadOrders();
+      const idx = orders.findIndex(o => o.orderId === orderId);
+
+      if (idx === -1) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Order not found' }));
+        return;
+      }
+
+      orders[idx].paymentNotified = true;
+      orders[idx].paymentNotifiedAt = new Date().toISOString();
+      orders[idx].notifyAdmin = true;
+      orders[idx].seenByAdmin = false;
+      saveOrders(orders);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, order: orders[idx] }));
+    });
+    return;
+  }
+
+  // ── Buyer order lookup (Order ID + phone) ──
+  if (req.url === '/api/orders/lookup' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const orderId = (data.orderId || '').toString().trim();
+      const phone = (data.phone || '').toString().trim();
+
+      if (!orderId || !phone) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing orderId or phone' }));
+        return;
+      }
+
+      const orders = loadOrders();
+      const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
+
+      if (!order) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Order not found. Check your Order ID and phone number.' }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        order: {
+          orderId: order.orderId,
+          status: order.status,
+          eventName: order.eventName,
+          eventDate: order.eventDate,
+          eventVenue: order.eventVenue,
+          qty: order.qty,
+          amount: order.amount,
+          currency: order.currency,
+          paymentMethod: order.paymentMethod,
+          verifiedAt: order.verifiedAt,
+          ticketCode: order.ticketCode || null,
+          paymentNotified: order.paymentNotified || false
+        }
+      }));
+    });
+    return;
+  }
+
+  // ── Get ticket by orderId + code (protected) ──
+  if (req.url.startsWith('/api/ticket') && req.method === 'GET') {
+    const url = new URL(req.url, 'http://localhost');
+    const orderId = (url.searchParams.get('orderId') || '').toString().trim();
+    const code = (url.searchParams.get('code') || '').toString().trim();
+
+    if (!orderId || !code) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Missing orderId or code' }));
+      return;
+    }
+
+    const orders = loadOrders();
+    const order = orders.find(o => o.orderId === orderId);
+
+    if (!order) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Order not found' }));
+      return;
+    }
+
+    // Only verified orders get tickets
+    if (order.status !== 'verified') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Order not yet verified', status: order.status }));
+      return;
+    }
+
+    // Validate the ticket code
+    if (order.ticketCode !== code) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Invalid ticket code' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      ticket: {
+        orderId: order.orderId,
+        ticketCode: order.ticketCode,
+        eventName: order.eventName,
+        eventDate: order.eventDate,
+        eventVenue: order.eventVenue,
+        qty: order.qty,
+        amount: order.amount,
+        currency: order.currency,
+        buyerName: order.buyerName,
+        verifiedAt: order.verifiedAt
+      }
+    }));
+    return;
+  }
+
+  // ── Admin: mark orders as seen ──
+  if (req.url === '/api/admin/orders/seen' && req.method === 'POST') {
+    if (!isAdminAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const orderIds = Array.isArray(data.orderIds) ? data.orderIds.map(String) : [];
+
+      const orders = loadOrders();
+      orders.forEach(o => {
+        if (orderIds.includes(o.orderId)) o.seenByAdmin = true;
+      });
+      saveOrders(orders);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
     });
     return;
   }
@@ -302,8 +568,22 @@ const server = http.createServer((req, res) => {
       return;
     }
     const orders = loadOrders();
+    const unseenCount = orders.filter(o => o.notifyAdmin && !o.seenByAdmin).length;
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, orders: orders }));
+    res.end(JSON.stringify({ success: true, unseenCount: unseenCount, orders: orders }));
+    return;
+  }
+
+  // GET /api/admin/unseen-count — lightweight real-time alert poll
+  if (req.url === '/api/admin/unseen-count' && req.method === 'GET') {
+    if (!isAdminAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+      return;
+    }
+    const orders = loadOrders();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, unseenCount: unseenOrderCount(orders) }));
     return;
   }
 
@@ -339,7 +619,11 @@ const server = http.createServer((req, res) => {
       }
 
       orders[idx].status = newStatus;
-      if (newStatus === 'verified') orders[idx].verifiedAt = new Date().toISOString();
+      if (newStatus === 'verified') {
+        orders[idx].verifiedAt = new Date().toISOString();
+        orders[idx].ticketIssued = true;
+        orders[idx].ticketIssuedAt = new Date().toISOString();
+      }
       saveOrders(orders);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
