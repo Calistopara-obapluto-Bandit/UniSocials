@@ -16,5 +16,5 @@ node_modules/
 
 # Runtime data (contains buyer PII — never commit)
 orders.json
-clients.json
+data/
 

@@ -7,6 +7,11 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
+      # PostgreSQL — create a free database on Render and paste its connection string here.
+      # This gives PERSISTENT storage (orders, users, sessions survive restarts/redeploys).
+      # Leave unset to use JSON files in ./data (ephemeral on Render free tier).
+      - key: DATABASE_URL
+        sync: false
       - key: WHATSAPP_FLOAT_NUMBER
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER
@@ -21,8 +26,7 @@ services:
         value: Flutterwave MfB (formerly ok mfb)
       - key: FLUTTERWAVE_ACCOUNT_NUMBER
         value: "9707788756"
-      # Set this to your Flutterwave webhook secret hash (Dashboard → Settings → Webhooks)
-      # so payment webhooks are signature-verified. Leave empty to skip verification.
+      # Flutterwave webhook secret hash (Dashboard → Settings → Webhooks)
       - key: FLUTTERWAVE_WEBHOOK_HASH
         value: Soludo123@
       - key: SITE_URL

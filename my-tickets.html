@@ -64,6 +64,52 @@
     }
     .lookup-error.show { display: block; }
     .lookup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+    /* Logged-in order cards */
+    .orders-section { padding: 24px 0 80px; display: none; }
+    .orders-section.show { display: block; }
+    .order-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+    .order-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .order-card-top .order-id { font-family: monospace; font-weight: 700; color: var(--accent); font-size: 0.85rem; }
+    .order-card-title { font-weight: 700; color: var(--text-1); font-size: 1rem; margin-bottom: 4px; }
+    .order-card-meta { font-size: 0.82rem; color: var(--text-3); }
+    .order-codes { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .order-code-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .order-code-row code { font-family: monospace; font-weight: 700; color: var(--accent); }
+    .auth-prompt {
+      max-width: 560px;
+      margin: 0 auto;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: 0.85rem;
+      color: var(--text-2);
+      display: none;
+    }
     @media (max-width: 480px) {
       .lookup-card { padding: 28px 20px; }
       .lookup-actions .btn-primary, .lookup-actions .btn-cta-ghost { width: 100%; }
@@ -94,6 +140,7 @@
         <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
+        <span class="nav-account-slot"></span>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -105,81 +152,27 @@
   <section class="page-header">
     <div class="container">
       <div class="section-label reveal">My Tickets</div>
-      <h1 class="section-title reveal reveal-delay-1">Find your <em>tickets</em></h1>
-      <p class="section-sub reveal reveal-delay-2">Enter your Order ID and the phone number you used to buy the ticket.</p>
+      <h1 class="section-title reveal reveal-delay-1">Your <em>tickets</em></h1>
+      <p class="section-sub reveal reveal-delay-2">View your digital tickets. Sign in to see all your orders automatically.</p>
     </div>
   </section>
 
-<section class="lookup-section">
+  <!-- ── LOGGED-IN ORDERS ── -->
+  <section class="orders-section" id="ordersSection">
     <div class="container">
-      <!-- ── Account Dashboard (shown when logged in) ── -->
-      <div class="lookup-card reveal" id="accountDashboard" style="display:none;">
-        <h2>👤 My Account</h2>
-        <p id="accountGreeting">Welcome back!</p>
-        <div id="accountOrdersList" style="margin-top:20px;"></div>
-        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn-cta-ghost" onclick="clientLogout(function(){ location.reload(); })" style="font-size:0.82rem;padding:8px 20px;border:none;cursor:pointer;">Log Out</button>
-        </div>
+      <div id="ordersList"></div>
+    </div>
+  </section>
+
+  <!-- ── LOOKUP ── -->
+  <section class="lookup-section" id="lookupSection">
+    <div class="container">
+      <div class="auth-prompt" id="authPrompt">
+        <strong>Tip:</strong> <a href="login.html" style="color:var(--accent);text-decoration:underline;">Sign in</a> or <a href="register.html" style="color:var(--accent);text-decoration:underline;">create an account</a> to see all your tickets in one place without entering your Order ID.
       </div>
-
-      <!-- ── Login / Register Form ── -->
-      <div class="lookup-card reveal" id="authForms" style="display:none;">
-        <div style="display:flex;gap:12px;margin-bottom:20px;">
-          <button class="admin-filter-btn active" id="tabLogin" onclick="showAuthTab('login')">Sign In</button>
-          <button class="admin-filter-btn" id="tabRegister" onclick="showAuthTab('register')">Create Account</button>
-        </div>
-
-        <!-- Login Form -->
-        <div id="loginForm">
-          <h2>🔐 Sign In</h2>
-          <p>Sign in with your email or phone number to see all your tickets.</p>
-          <div class="form-group">
-            <label for="loginIdentifier">Email or Phone</label>
-            <input type="text" id="loginIdentifier" placeholder="you@unn.edu.ng or 0812 345 6789" autocomplete="email" />
-          </div>
-          <div class="form-group">
-            <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" placeholder="Your password" autocomplete="current-password" />
-          </div>
-          <div class="lookup-error" id="loginError"></div>
-          <button class="btn-submit" id="loginBtn" onclick="doLogin()">Sign In</button>
-          <p style="font-size:0.82rem;color:var(--text-3);margin-top:12px;text-align:center;">
-            Don't have an account? <a href="#" onclick="showAuthTab('register');return false;" style="color:var(--accent);">Create one</a>
-          </p>
-        </div>
-
-        <!-- Register Form -->
-        <div id="registerForm" style="display:none;">
-          <h2>📝 Create Account</h2>
-          <p>Create an account to track your orders and access your tickets.</p>
-          <div class="form-group">
-            <label for="regName">Full Name</label>
-            <input type="text" id="regName" placeholder="John Doe" autocomplete="name" />
-          </div>
-          <div class="form-group">
-            <label for="regEmail">Email</label>
-            <input type="email" id="regEmail" placeholder="you@unn.edu.ng" autocomplete="email" />
-          </div>
-          <div class="form-group">
-            <label for="regPhone">Phone Number</label>
-            <input type="tel" id="regPhone" placeholder="0812 345 6789" autocomplete="tel" />
-          </div>
-          <div class="form-group">
-            <label for="regPassword">Password (min 4 characters)</label>
-            <input type="password" id="regPassword" placeholder="Choose a password" autocomplete="new-password" />
-          </div>
-          <div class="lookup-error" id="registerError"></div>
-          <button class="btn-submit" id="registerBtn" onclick="doRegister()">Create Account</button>
-          <p style="font-size:0.82rem;color:var(--text-3);margin-top:12px;text-align:center;">
-            Already have an account? <a href="#" onclick="showAuthTab('login');return false;" style="color:var(--accent);">Sign in</a>
-          </p>
-        </div>
-      </div>
-
-      <!-- ── Guest Order Lookup ── -->
-      <div class="lookup-card reveal" id="guestLookup" style="display:none;">
+      <div class="lookup-card reveal">
         <h2>🔍 Order Lookup</h2>
-        <p>Your Order ID is in the confirmation message you received after checkout (e.g. UNN-XXXX-XXXX).</p>
+        <p>Enter your Order ID and the phone number you used to buy the ticket.</p>
 
         <div class="form-group">
           <label for="lookupOrderId">Order ID</label>
@@ -195,10 +188,6 @@
         <div class="lookup-error" id="lookupError"></div>
 
         <div class="lookup-result" id="lookupResult"></div>
-
-        <p style="font-size:0.82rem;color:var(--text-3);margin-top:16px;text-align:center;">
-          <a href="#" onclick="showAuthTab('login');return false;" style="color:var(--accent);">Sign in to your account →</a>
-        </p>
       </div>
     </div>
   </section>
@@ -269,6 +258,26 @@
       return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
+    function orderStatusBadge(status) {
+      var badge = status === 'verified' ? 'verified' : (status === 'rejected' ? 'rejected' : 'pending');
+      var label = status === 'verified' ? '\u2705 Verified' : (status === 'rejected' ? '\u274C Rejected' : '\u23F3 Pending');
+      return '<span class="lookup-badge ' + badge + '">' + label + '</span>';
+    }
+
+    function ticketLinks(o) {
+      var links = '';
+      if (o.status === 'verified') {
+        var codes = (o.ticketCodes && o.ticketCodes.length) ? o.ticketCodes : (o.ticketCode ? [{ code: o.ticketCode }] : []);
+        codes.forEach(function(tc, i) {
+          links += '<a class="btn-primary" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;margin-bottom:8px;font-size:0.85rem;" href="ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(tc.code) + '">' +
+            '<span>Ticket ' + (i + 1) + '</span><span style="font-family:monospace;">' + esc(tc.code) + ' \u2192</span></a>';
+        });
+      } else if (o.status === 'pending') {
+        links = '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="pending.html?orderId=' + encodeURIComponent(o.orderId) + '">\u23F3 Track Order</a>';
+      }
+      return links;
+    }
+
     window.lookupOrder = function() {
       var orderId = document.getElementById('lookupOrderId').value.trim();
       var phone = document.getElementById('lookupPhone').value.trim();
@@ -286,7 +295,7 @@
       }
 
       btn.disabled = true;
-      btn.textContent = 'Searching…';
+      btn.textContent = 'Searching\u2026';
 
       fetch('/api/orders/lookup', {
         method: 'POST',
@@ -297,18 +306,8 @@
       .then(function(data) {
         if (data && data.success && data.order) {
           var o = data.order;
-          var badge = o.status === 'verified' ? 'verified' : (o.status === 'rejected' ? 'rejected' : 'pending');
-          var badgeLabel = o.status === 'verified' ? '✅ Verified' : (o.status === 'rejected' ? '❌ Rejected' : '⏳ Pending');
-
-          var ticketLink = '';
-          if (o.status === 'verified' && o.ticketCode) {
-            ticketLink = '<a class="btn-primary" style="display:inline-flex;padding:12px 26px;" href="ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(o.ticketCode) + '">🎟 View Ticket</a>';
-          } else if (o.status === 'pending') {
-            ticketLink = '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="pending.html?orderId=' + encodeURIComponent(o.orderId) + '">⏳ Track Order</a>';
-          }
-
           resultBox.innerHTML =
-            '<div style="text-align:center;margin-bottom:14px;"><span class="lookup-badge ' + badge + '">' + badgeLabel + '</span></div>' +
+            '<div style="text-align:center;margin-bottom:14px;">' + orderStatusBadge(o.status) + '</div>' +
             '<div class="lookup-order-row"><span>Order ID</span><strong>' + esc(o.orderId) + '</strong></div>' +
             '<div class="lookup-order-row"><span>Event</span><strong>' + esc(o.eventName || '\u2014') + '</strong></div>' +
             (o.eventDate ? '<div class="lookup-order-row"><span>Date</span><strong>' + esc(o.eventDate) + '</strong></div>' : '') +
@@ -317,8 +316,7 @@
             '<div class="lookup-order-row"><span>Total</span><strong>' + fmtN(o.amount) + '</strong></div>' +
             '<div class="lookup-order-row"><span>Payment</span><strong>Flutterwave</strong></div>' +
             (o.status === 'verified' ? '<div class="lookup-order-row"><span>Verified</span><strong>' + fmtDate(o.verifiedAt) + '</strong></div>' : '') +
-            (o.ticketCode ? '<div class="lookup-order-row"><span>Ticket Code</span><strong style="font-family:monospace;">' + esc(o.ticketCode) + '</strong></div>' : '') +
-            '<div class="lookup-actions">' + ticketLink +
+            '<div class="lookup-actions">' + ticketLinks(o) +
             '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="events.html">Browse Events</a>' +
             '</div>';
           resultBox.classList.add('show');
@@ -337,160 +335,53 @@
       });
     };
 
-    // ── Account Dashboard / Auth logic ──
-    var accountDashboard = document.getElementById('accountDashboard');
-    var authForms = document.getElementById('authForms');
-    var guestLookup = document.getElementById('guestLookup');
+    // If logged in, load orders automatically and hide the lookup
+    (function initLoggedIn() {
+      var ordersSection = document.getElementById('ordersSection');
+      var lookupSection = document.getElementById('lookupSection');
+      var authPrompt = document.getElementById('authPrompt');
+      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
 
-    function showSection(el) {
-      [accountDashboard, authForms, guestLookup].forEach(function(x) {
-        if (x) x.style.display = 'none';
-      });
-      if (el) el.style.display = 'block';
-    }
-
-    // Tab switching
-    window.showAuthTab = function(tab) {
-      var lt = document.getElementById('tabLogin');
-      var rt = document.getElementById('tabRegister');
-      var lf = document.getElementById('loginForm');
-      var rf = document.getElementById('registerForm');
-      if (tab === 'login') {
-        if (lt) lt.classList.add('active');
-        if (rt) rt.classList.remove('active');
-        if (lf) lf.style.display = '';
-        if (rf) rf.style.display = 'none';
-      } else {
-        if (lt) lt.classList.remove('active');
-        if (rt) rt.classList.add('active');
-        if (lf) lf.style.display = 'none';
-        if (rf) rf.style.display = '';
-      }
-    };
-
-    window.doLogin = function() {
-      var identifier = document.getElementById('loginIdentifier').value.trim();
-      var password = document.getElementById('loginPassword').value;
-      var errBox = document.getElementById('loginError');
-      var btn = document.getElementById('loginBtn');
-
-      errBox.classList.remove('show');
-      if (!identifier || !password) {
-        errBox.textContent = 'Please enter your email/phone and password.';
-        errBox.classList.add('show');
+      if (!token || !ordersSection) {
+        if (authPrompt) authPrompt.style.display = 'block';
         return;
       }
-      btn.disabled = true;
-      btn.textContent = 'Signing in…';
-      window.clientLogin(identifier, password, function(success, data) {
-        btn.disabled = false;
-        btn.textContent = 'Sign In';
-        if (success) {
-          // Show the dashboard WITHOUT reloading the page (live, no refresh)
-          enterDashboard(data && data.client);
-        } else {
-          errBox.textContent = (data && data.error) || 'Sign-in failed. Please try again.';
-          errBox.classList.add('show');
+
+      // Show orders section, hide lookup card
+      if (ordersSection) ordersSection.classList.add('show');
+      if (lookupSection) lookupSection.style.display = 'none';
+
+      fetch('/api/auth/orders', {
+        headers: window.UNNAuth.authHeaders()
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        var list = document.getElementById('ordersList');
+        if (!list) return;
+        var orders = (data && data.success && data.orders) || [];
+        if (!orders.length) {
+          list.innerHTML = '<div class="lookup-card" style="text-align:center;"><h2>No tickets yet</h2><p>You haven\u2019t bought any tickets. Browse events and grab yours today!</p>' +
+            '<a href="events.html" class="btn-primary" style="display:inline-flex;padding:12px 28px;">Browse Events</a></div>';
+          return;
         }
-      });
-    };
-
-    window.doRegister = function() {
-      var name = document.getElementById('regName').value.trim();
-      var email = document.getElementById('regEmail').value.trim();
-      var phone = document.getElementById('regPhone').value.trim();
-      var password = document.getElementById('regPassword').value;
-      var errBox = document.getElementById('registerError');
-      var btn = document.getElementById('registerBtn');
-
-      errBox.classList.remove('show');
-      if (!name || !email || !phone || !password) {
-        errBox.textContent = 'Please fill in all fields.';
-        errBox.classList.add('show');
-        return;
-      }
-      btn.disabled = true;
-      btn.textContent = 'Creating account…';
-      window.clientRegister(name, email, phone, password, function(success, data) {
-        btn.disabled = false;
-        btn.textContent = 'Create Account';
-        if (success) {
-          // Show the dashboard WITHOUT reloading the page (live, no refresh)
-          enterDashboard(data && data.client);
-        } else {
-          errBox.textContent = (data && data.error) || 'Registration failed. Please try again.';
-          errBox.classList.add('show');
-        }
-      });
-    };
-
-    // Called after login/register — switches to the dashboard without a full reload
-    function enterDashboard(client) {
-      if (client && document.getElementById('accountGreeting')) {
-        document.getElementById('accountGreeting').textContent = 'Welcome, ' + client.name + '! Here are your orders.';
-      }
-      showSection(accountDashboard);
-      // Load orders + start live polling every 5s
-      window.clientFetchMe(function(c, orders) {
-        renderOrders(orders);
-      });
-      if (window.accountPollTimer) clearInterval(window.accountPollTimer);
-      window.accountPollTimer = setInterval(function() {
-        window.clientFetchOrders(function(orders) {
-          renderOrders(orders);
+        var html = '';
+        orders.forEach(function(o) {
+          html += '<div class="order-card">' +
+            '<div class="order-card-top">' +
+              '<span class="order-id">' + esc(o.orderId) + '</span>' + orderStatusBadge(o.status) +
+            '</div>' +
+            '<div class="order-card-title">' + esc(o.eventName || '\u2014') + '</div>' +
+            '<div class="order-card-meta">' + (o.eventDate ? '📅 ' + esc(o.eventDate) : '') + (o.eventVenue ? ' &middot; 📍 ' + esc(o.eventVenue) : '') + ' &middot; ' + fmtN(o.amount) + '</div>' +
+            '<div class="order-codes">' + ticketLinks(o) + '</div>' +
+            '</div>';
         });
-      }, 5000);
-    }
-
-    // Render order list for logged-in user
-    function renderOrders(orders) {
-      var list = document.getElementById('accountOrdersList');
-      if (!list) return;
-      if (!orders || orders.length === 0) {
-        list.innerHTML = '<div class="admin-empty" style="padding:24px;"><span>🎟️</span><p>No tickets yet. <a href="events.html" style="color:var(--accent);">Browse events</a> to get started!</p></div>';
-        return;
-      }
-      var html = '';
-      orders.forEach(function(o) {
-        var badge = o.status === 'verified' ? 'verified' : (o.status === 'rejected' ? 'rejected' : 'pending');
-        var label = o.status === 'verified' ? '✅ Verified' : (o.status === 'rejected' ? '❌ Rejected' : '⏳ Pending');
-        var ticketLink = '';
-        if (o.status === 'verified' && o.ticketCode) {
-          ticketLink = '<a class="btn-primary" style="display:inline-flex;padding:8px 18px;font-size:0.78rem;" href="ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(o.ticketCode) + '">🎟 View</a>';
-        } else if (o.status === 'pending') {
-          ticketLink = '<a class="btn-cta-ghost" style="display:inline-flex;padding:8px 18px;font-size:0.78rem;" href="pending.html?orderId=' + encodeURIComponent(o.orderId) + '">⏳ Track</a>';
-        }
-        html += '<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--bg);">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
-            '<div><strong style="color:var(--text-1);">' + esc(o.eventName || '—') + '</strong>' +
-            '<div style="font-size:0.75rem;color:var(--text-3);margin-top:3px;">' + esc(o.orderId) + ' · ' + fmtN(o.amount) + (o.eventDate ? ' · ' + esc(o.eventDate) : '') + '</div></div>' +
-            '<span class="lookup-badge ' + badge + '">' + label + '</span>' +
-          '</div>' +
-          '<div style="margin-top:10px;">' + ticketLink + '</div>' +
-        '</div>';
+        list.innerHTML = html;
+      })
+      .catch(function() {
+        var list = document.getElementById('ordersList');
+        if (list) list.innerHTML = '<div class="lookup-error show">Could not load your orders. Please try again.</div>';
       });
-      list.innerHTML = html;
-    }
-
-    // Initial auth state
-    if (window.clientIsLoggedIn()) {
-      var client = window.clientGetProfile();
-      if (client && document.getElementById('accountGreeting')) {
-        document.getElementById('accountGreeting').textContent = 'Welcome, ' + client.name + '! Here are your orders.';
-      }
-      showSection(accountDashboard);
-      // Load orders + start live polling every 5s
-      window.clientFetchMe(function(c, orders) {
-        renderOrders(orders);
-      });
-      setInterval(function() {
-        window.clientFetchOrders(function(orders) {
-          renderOrders(orders);
-        });
-      }, 5000);
-    } else {
-      showSection(guestLookup);
-    }
+    })();
   </script>
 </body>
 </html>

@@ -87,19 +87,6 @@
       line-height: 1.6;
       text-align: center;
     }
-    @media print {
-      body { background: #fff !important; }
-      .nav, .mobile-menu, .page-header, .ticket-actions, .ticket-qr-hint, .footer, .whatsapp-float { display: none !important; }
-      .ticket-section { padding: 0 !important; }
-      .ticket-card { border: 2px solid #000 !important; box-shadow: none !important; max-width: 100% !important; }
-      .ticket-header { background: #fff !important; color: #000 !important; border-bottom: 2px dashed #000 !important; }
-      .ticket-header h2, .ticket-header p { color: #000 !important; }
-      .ticket-code { border-color: #000 !important; color: #000 !important; background: #fff !important; }
-      .ticket-event { color: #000 !important; }
-      .ticket-detail span { color: #555 !important; }
-      .ticket-detail strong { color: #000 !important; }
-      .ticket-qr canvas, .ticket-qr img { border: 1px solid #999 !important; }
-    }
     .ticket-error {
       max-width: 560px;
       margin: 0 auto;
@@ -117,6 +104,25 @@
       .ticket-header, .ticket-body { padding: 24px 20px; }
       .ticket-detail { font-size: 0.82rem; }
       .ticket-actions .btn-primary, .ticket-actions .btn-cta-ghost { width: 100%; }
+    }
+    /* Print-only ticket: hide everything except the ticket card */
+    @media print {
+      body * { visibility: hidden; }
+      .ticket-card, .ticket-card * { visibility: visible; }
+      .ticket-card {
+        position: absolute;
+        left: 50%;
+        top: 24px;
+        transform: translateX(-50%);
+        width: 100%;
+        max-width: 560px;
+        box-shadow: none !important;
+        border: 2px solid #222;
+        border-radius: 14px;
+      }
+      .ticket-card .ticket-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .ticket-card .ticket-actions, .ticket-card .ticket-note { display: none !important; }
+      .ticket-qr canvas, .ticket-qr img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
@@ -144,6 +150,7 @@
         <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
+        <span class="nav-account-slot"></span>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -220,7 +227,7 @@
           </div>
 
           <div class="ticket-note">
-            💡 Keep this page safe. One QR code is generated per order. For support, contact us on WhatsApp.
+            💡 Keep this page safe. One QR code is generated per ticket. For support, contact us on WhatsApp.
           </div>
         </div>
       </div>
@@ -280,31 +287,36 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script>
     (function() {
-      const params = new URLSearchParams(window.location.search);
-      const orderId = params.get('orderId') || '';
-      const code = params.get('code') || '';
+      var params = new URLSearchParams(window.location.search);
+      var orderId = params.get('orderId') || '';
+      var code = params.get('code') || '';
 
-      const ticketError = document.getElementById('ticketError');
-      const ticketCard = document.getElementById('ticketCard');
-      const ticketCode = document.getElementById('ticketCode');
-      const ticketEventName = document.getElementById('ticketEventName');
-      const ticketOrderId = document.getElementById('ticketOrderId');
-      const ticketDate = document.getElementById('ticketDate');
-      const ticketVenue = document.getElementById('ticketVenue');
-      const ticketQty = document.getElementById('ticketQty');
-      const ticketAmount = document.getElementById('ticketAmount');
-      const ticketHolder = document.getElementById('ticketHolder');
-      const ticketVerified = document.getElementById('ticketVerified');
-      const qrBox = document.getElementById('qrBox');
+      var ticketError = document.getElementById('ticketError');
+      var ticketCard = document.getElementById('ticketCard');
+      var ticketCode = document.getElementById('ticketCode');
+      var ticketEventName = document.getElementById('ticketEventName');
+      var ticketOrderId = document.getElementById('ticketOrderId');
+      var ticketDate = document.getElementById('ticketDate');
+      var ticketVenue = document.getElementById('ticketVenue');
+      var ticketQty = document.getElementById('ticketQty');
+      var ticketAmount = document.getElementById('ticketAmount');
+      var ticketHolder = document.getElementById('ticketHolder');
+      var ticketVerified = document.getElementById('ticketVerified');
+      var qrBox = document.getElementById('qrBox');
 
       function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
       function fmtDate(iso) {
         if (!iso) return '\u2014';
-        const d = new Date(iso);
+        var d = new Date(iso);
         if (isNaN(d)) return iso;
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
       }
 
       function showError(title, msg) {
@@ -314,6 +326,22 @@
           ticketError.style.display = 'block';
         }
         if (ticketCard) ticketCard.style.display = 'none';
+      }
+
+      function renderQR(url) {
+        if (!qrBox) return;
+        if (typeof window.QRCode === 'function') {
+          try {
+            qrBox.innerHTML = '';
+            window.QRCode.toCanvas(qrBox, url, { width: 200, margin: 1 }, function(err) {
+              if (err) qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + esc(url) + '</code>';
+            });
+            return;
+          } catch(e) {}
+        }
+        // Fallback: Google Chart QR API (no CDN dependency)
+        qrBox.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' +
+          encodeURIComponent(url) + '" alt="Ticket QR code" />';
       }
 
       function renderTicket(t) {
@@ -331,22 +359,8 @@
         if (ticketCard) ticketCard.style.display = 'block';
         if (ticketError) ticketError.style.display = 'none';
 
-        // Generate QR code with verification URL
-        const qrUrl = window.location.origin + '/ticket.html?orderId=' + encodeURIComponent(t.orderId) + '&code=' + encodeURIComponent(t.ticketCode);
-        if (typeof window.QRCode === 'function' && qrBox) {
-          try {
-            qrBox.innerHTML = '';
-            window.QRCode.toCanvas(qrBox, qrUrl, { width: 200, margin: 1 }, function(err) {
-              if (err) {
-                qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + qrUrl + '</code>';
-              }
-            });
-          } catch(e) {
-            qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + qrUrl + '</code>';
-          }
-        } else {
-          qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + qrUrl + '</code>';
-        }
+        var qrUrl = window.location.origin + '/ticket.html?orderId=' + encodeURIComponent(t.orderId) + '&code=' + encodeURIComponent(t.ticketCode);
+        renderQR(qrUrl);
       }
 
       if (!orderId || !code) {
@@ -360,7 +374,7 @@
           if (data && data.success && data.ticket) {
             renderTicket(data.ticket);
           } else {
-            const status = (data && data.status) || '';
+            var status = (data && data.status) || '';
             if (status === 'pending') {
               showError('Payment pending', 'Your order is awaiting payment confirmation. Your ticket will unlock once verified.');
             } else {

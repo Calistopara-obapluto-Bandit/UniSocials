@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order Pending — UNN Socials</title>
+  <title>Order Status — UNN Socials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
@@ -48,16 +48,9 @@
       font-weight: 600;
       margin: 16px 0 20px;
     }
-    .status-badge.pending {
-      background: #FFF3E0;
-      color: #E65100;
-      border: 1px solid #FFE0B2;
-    }
-    .status-badge.verified {
-      background: #E8F5E9;
-      color: #1B5E20;
-      border: 1px solid #C8E6C9;
-    }
+    .status-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+    .status-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
+    .status-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
     .pending-info {
       background: var(--bg);
       border-radius: var(--radius);
@@ -80,11 +73,7 @@
       gap: 12px;
       margin: 24px 0;
     }
-    .pending-step {
-      text-align: center;
-      font-size: 0.75rem;
-      color: var(--text-3);
-    }
+    .pending-step { text-align: center; font-size: 0.75rem; color: var(--text-3); }
     .pending-step .dot {
       width: 32px; height: 32px;
       border-radius: 50%;
@@ -96,18 +85,24 @@
       border: 2px solid var(--border);
       background: var(--surface-2);
     }
-    .pending-step.active .dot {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-    .pending-step.done .dot {
-      background: var(--accent-light);
-      border-color: var(--accent-light);
-      color: #fff;
-    }
+    .pending-step.active .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pending-step.done .dot { background: var(--accent-light); border-color: var(--accent-light); color: #fff; }
     .pending-step.done { color: var(--accent); }
     .pending-step.active { color: var(--text-1); font-weight: 600; }
+    .ticket-codes { margin: 18px 0; text-align: left; }
+    .ticket-codes .tc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+    .ticket-codes .tc-row code { font-family: monospace; font-weight: 700; color: var(--accent); }
     @media (max-width: 480px) {
       .pending-card { padding: 32px 20px; }
       .pending-progress { gap: 8px; }
@@ -138,6 +133,7 @@
         <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
+        <span class="nav-account-slot"></span>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -149,20 +145,20 @@
   <section class="page-header">
     <div class="container">
       <div class="section-label reveal">Order Status</div>
-      <h1 class="section-title reveal reveal-delay-1">Your order is <em>pending</em></h1>
-      <p class="section-sub reveal reveal-delay-2">We're waiting for your payment confirmation. This page refreshes automatically.</p>
+      <h1 class="section-title reveal reveal-delay-1">Order <em>status</em></h1>
+      <p class="section-sub reveal reveal-delay-2">This page refreshes automatically as your order is verified.</p>
     </div>
   </section>
 
-<section class="pending-section">
+  <section class="pending-section">
     <div class="container">
-      <div class="pending-card reveal visible" id="pendingCard">
+      <div class="pending-card reveal" id="pendingCard">
         <div class="pending-spinner" id="pendingSpinner"></div>
-        <div class="pending-icon" id="pendingIcon" style="display:none;font-size:3.5rem;margin-bottom:12px;"></div>
-        <h2 id="statusTitle">Confirming your payment…</h2>
-        <div class="status-badge pending" id="statusBadge">⏳ Confirming</div>
+        <div class="pending-icon" id="pendingIcon" style="display:none;font-size:3.5rem;margin-bottom:12px;">✅</div>
+        <h2 id="statusTitle">Awaiting Payment</h2>
+        <div class="status-badge pending" id="statusBadge">⏳ Pending</div>
         <p style="color:var(--text-2);font-size:0.9rem;line-height:1.6;" id="statusMessage">
-          Please wait while we confirm your Flutterwave payment. You'll be redirected to your ticket page automatically once verified.
+          Your order has been placed. Complete your payment and your tickets will be issued automatically once verified.
         </p>
         <div class="pending-info">
           <div><strong>Order ID</strong> <span id="pOrderId">—</span></div>
@@ -180,15 +176,17 @@
 
         <div id="pendingActions">
           <p style="font-size:0.82rem;color:var(--text-3);margin-bottom:16px;">
-            💡 Keep this page open. You'll be redirected automatically.
+            💡 If you've already paid, you'll be redirected automatically once the payment is confirmed. This page refreshes every few seconds.
           </p>
           <p style="font-size:0.82rem;color:var(--text-3);margin-top:14px;margin-bottom:0;">
-            <a href="my-tickets.html" style="color:var(--accent);text-decoration:underline;">Find My Tickets →</a>
+            <a href="my-tickets.html" style="color:var(--accent);text-decoration:underline;">Check my tickets →</a> &nbsp;|&nbsp;
+            <a href="events.html" style="color:var(--accent);text-decoration:underline;">Browse more events →</a>
           </p>
         </div>
         <div id="verifiedActions" style="display:none;">
-          <a href="ticket.html" class="btn-cta-primary" id="pendingTicketLink" style="font-size:0.85rem;padding:12px 28px;">
-            🎟 View My Ticket
+          <div class="ticket-codes" id="verifiedTicketCodes"></div>
+          <a href="my-tickets.html" class="btn-cta-primary" style="font-size:0.85rem;padding:12px 28px;margin-right:8px;">
+            🎟 View My Tickets
           </a>
           <a href="events.html" class="btn-cta-ghost" style="display:inline-flex;margin-top:8px;">
             Browse More Events →
@@ -250,34 +248,40 @@
   <script src="templatemo-622-clearwave.js"></script>
   <script>
     (function() {
-      const params = new URLSearchParams(window.location.search);
-      const orderId = params.get('orderId') || '';
+      var params = new URLSearchParams(window.location.search);
+      var orderId = params.get('orderId') || '';
 
-      const pOrderId = document.getElementById('pOrderId');
-      const pEventName = document.getElementById('pEventName');
-      const pQty = document.getElementById('pQty');
-      const pTotal = document.getElementById('pTotal');
-      const pPayment = document.getElementById('pPayment');
-      const statusTitle = document.getElementById('statusTitle');
-      const statusBadge = document.getElementById('statusBadge');
-      const statusMessage = document.getElementById('statusMessage');
-      const pendingSpinner = document.getElementById('pendingSpinner');
-      const pendingIcon = document.getElementById('pendingIcon');
-      const step2 = document.getElementById('step2');
-      const step3 = document.getElementById('step3');
-      const pendingActions = document.getElementById('pendingActions');
-      const verifiedActions = document.getElementById('verifiedActions');
+      var pOrderId = document.getElementById('pOrderId');
+      var pEventName = document.getElementById('pEventName');
+      var pQty = document.getElementById('pQty');
+      var pTotal = document.getElementById('pTotal');
+      var pPayment = document.getElementById('pPayment');
+      var statusTitle = document.getElementById('statusTitle');
+      var statusBadge = document.getElementById('statusBadge');
+      var statusMessage = document.getElementById('statusMessage');
+      var pendingSpinner = document.getElementById('pendingSpinner');
+      var pendingIcon = document.getElementById('pendingIcon');
+      var step2 = document.getElementById('step2');
+      var step3 = document.getElementById('step3');
+      var pendingActions = document.getElementById('pendingActions');
+      var verifiedActions = document.getElementById('verifiedActions');
+      var verifiedTicketCodes = document.getElementById('verifiedTicketCodes');
 
       function fmtN(n) {
-        return '₦' + Number(n || 0).toLocaleString();
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
       }
 
-      // Populate from sessionStorage first (fast paint)
+      // Populate from sessionStorage first (fast paint) for orders just placed
       try {
-        const raw = sessionStorage.getItem('pendingOrder');
+        var raw = sessionStorage.getItem('pendingOrder');
         if (raw) {
-          const data = JSON.parse(raw);
-          if (pOrderId) pOrderId.textContent = data.orderId || orderId;
+          var data = JSON.parse(raw);
+          if (pOrderId) pOrderId.textContent = data.orderId || orderId || '—';
           if (pEventName) pEventName.textContent = data.eventName || '—';
           if (pQty) pQty.textContent = data.qty ? (data.qty + ' ticket' + (data.qty > 1 ? 's' : '')) : '—';
           if (pTotal) pTotal.textContent = fmtN(data.amount);
@@ -286,85 +290,93 @@
       } catch(e) {}
 
       if (orderId && pOrderId) pOrderId.textContent = orderId;
+      if (!orderId) {
+        // No orderId — show a helpful empty state instead of a blank page
+        if (statusTitle) statusTitle.textContent = 'No order to track';
+        if (statusBadge) { statusBadge.className = 'status-badge pending'; statusBadge.textContent = '⚠️ Missing Order ID'; }
+        if (statusMessage) statusMessage.textContent = 'Open this page from your checkout confirmation or from the My Tickets page.';
+        if (pendingSpinner) pendingSpinner.style.display = 'none';
+        if (pendingActions) pendingActions.style.display = 'none';
+        if (verifiedActions) verifiedActions.style.display = 'none';
+        return;
+      }
 
       function renderVerified(order) {
         if (pendingSpinner) pendingSpinner.style.display = 'none';
         if (pendingIcon) { pendingIcon.style.display = 'block'; pendingIcon.textContent = '✅'; }
         if (statusTitle) statusTitle.textContent = 'Order Verified!';
-        if (statusBadge) {
-          statusBadge.className = 'status-badge verified';
-          statusBadge.textContent = '✅ Verified';
-        }
-        if (statusMessage) {
-          statusMessage.textContent = 'Payment confirmed. Your digital ticket(s) are on their way to your email and phone.';
-        }
-        if (step2) { step2.className = 'pending-step done'; step2.querySelector('.dot').textContent = '✓'; }
-        if (step3) { step3.className = 'pending-step done'; step3.querySelector('.dot').textContent = '✓'; }
+        if (statusBadge) { statusBadge.className = 'status-badge verified'; statusBadge.textContent = '✅ Verified'; }
+        if (statusMessage) statusMessage.textContent = 'Payment confirmed. Your digital tickets are ready below.';
+        if (step2) { step2.className = 'pending-step done'; step2.querySelector('.dot').textContent = '\u2713'; }
+        if (step3) { step3.className = 'pending-step done'; step3.querySelector('.dot').textContent = '\u2713'; }
         if (pendingActions) pendingActions.style.display = 'none';
         if (verifiedActions) verifiedActions.style.display = 'block';
+
+        var codes = (order && order.ticketCodes) || [];
+        if (verifiedTicketCodes) {
+          if (codes.length) {
+            var html = '<div style="font-weight:700;font-size:0.85rem;color:var(--text-2);margin-bottom:8px;">Your digital ticket(s):</div>';
+            codes.forEach(function(tc, i) {
+              html += '<div class="tc-row"><span>Ticket ' + (i + 1) + ' / ' + codes.length + '</span>' +
+                '<a href="ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(tc.code) +
+                '" style="color:var(--accent);font-weight:700;text-decoration:none;"><code>' + esc(tc.code) + '</code> →</a></div>';
+            });
+            verifiedTicketCodes.innerHTML = html;
+          } else if (order.ticketCode) {
+            verifiedTicketCodes.innerHTML =
+              '<a href="ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(order.ticketCode) +
+              '" class="btn-primary" style="display:inline-flex;padding:12px 26px;">🎟 View My Ticket (' + esc(order.ticketCode) + ')</a>';
+          }
+        }
       }
 
       function renderRejected() {
         if (pendingSpinner) pendingSpinner.style.display = 'none';
-        if (pendingIcon) { pendingIcon.style.display = 'block'; pendingIcon.textContent = '⚠️'; }
+        if (pendingIcon) { pendingIcon.style.display = 'block'; pendingIcon.textContent = '\u26A0\uFE0F'; }
         if (statusTitle) statusTitle.textContent = 'Payment Not Confirmed';
-        if (statusBadge) {
-          statusBadge.className = 'status-badge pending';
-          statusBadge.textContent = '⚠️ Action Needed';
-        }
-        if (statusMessage) {
-          statusMessage.textContent = 'We could not confirm your payment yet. Please contact support on WhatsApp with your Order ID.';
-        }
-        if (step2) { step2.className = 'pending-step active'; }
+        if (statusBadge) { statusBadge.className = 'status-badge rejected'; statusBadge.textContent = '\u274C Rejected'; }
+        if (statusMessage) statusMessage.textContent = 'We could not confirm your payment. Please contact support on WhatsApp with your Order ID.';
+        if (step2) step2.className = 'pending-step active';
         if (pendingActions) {
-          const cfg = window.SITE_CONFIG || {};
-          const wa = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
+          var cfg = window.SITE_CONFIG || {};
+          var wa = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
           pendingActions.innerHTML =
             '<a href="https://wa.me/' + wa + '?text=' + encodeURIComponent('Hello, I need help with my order ' + orderId) +
-            '" target="_blank" rel="noopener" class="btn-cta-primary" style="font-size:0.85rem;padding:12px 28px;">💬 Contact Support</a>';
+            '" target="_blank" rel="noopener" class="btn-cta-primary" style="font-size:0.85rem;padding:12px 28px;">\uD83D\uDCAC Contact Support</a>' +
+            '<p style="font-size:0.82rem;color:var(--text-3);margin-top:12px;"><a href="events.html" style="color:var(--accent);text-decoration:underline;">Browse more events \u2192</a></p>';
         }
         if (verifiedActions) verifiedActions.style.display = 'none';
       }
 
       function checkStatus() {
-        if (!orderId) return;
         fetch('/api/orders/status?orderId=' + encodeURIComponent(orderId))
           .then(function(res) { return res.json(); })
           .then(function(data) {
             if (!data || !data.success || !data.order) return;
-            const order = data.order;
+            var order = data.order;
             if (order.eventName && pEventName) pEventName.textContent = order.eventName;
             if (order.qty && pQty) pQty.textContent = order.qty + ' ticket' + (order.qty > 1 ? 's' : '');
             if (order.amount && pTotal) pTotal.textContent = fmtN(order.amount);
-if (order.paymentMethod && pPayment) pPayment.textContent = 'Flutterwave';
+            if (order.paymentMethod && pPayment) pPayment.textContent = order.paymentMethod === 'flutterwave' ? 'Flutterwave' : 'Flutterwave';
 
             if (order.status === 'verified') {
               renderVerified(order);
-              // Auto-redirect to ticket page after short delay
-              if (order.ticketCode) {
-                setTimeout(function() {
-                  window.location.href = 'ticket.html?orderId=' + encodeURIComponent(order.orderId) + '&code=' + encodeURIComponent(order.ticketCode);
-                }, 2000);
-              }
               clearInterval(pollTimer);
             } else if (order.status === 'rejected') {
               renderRejected();
               clearInterval(pollTimer);
             }
           })
-          .catch(function() {
-            // Keep polling silently on transient errors
-          });
-      };
+          .catch(function() {});
+      }
 
       // Poll every 4 seconds
       checkStatus();
-      const pollTimer = setInterval(checkStatus, 4000);
+      var pollTimer = setInterval(checkStatus, 4000);
 
-      // Also expose for manual refresh
       window.refreshOrderStatus = checkStatus;
     })();
   </script>
 </body>
 </html>
- 
+

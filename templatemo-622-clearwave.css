@@ -215,6 +215,33 @@ Free for personal and commercial use
     .nav-cta {
       display: flex; align-items: center; gap: 12px;
     }
+    .nav-account-slot {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .nav-signin {
+      font-size: 0.85rem; font-weight: 600; color: var(--text-2);
+      padding: 8px 16px; border-radius: 100px;
+      border: 1.5px solid var(--border);
+      transition: color 0.3s, border-color 0.3s, background 0.3s;
+    }
+    .nav-signin:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-ghost); }
+    .nav-account-link {
+      font-size: 0.82rem; font-weight: 700; color: var(--accent);
+      background: var(--accent-ghost); border: 1px solid var(--accent-border);
+      padding: 8px 16px; border-radius: 100px;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: background 0.3s, color 0.3s;
+    }
+    .nav-account-link:hover { background: var(--accent); color: #fff; }
+    .nav-account-logout {
+      font-size: 0.85rem; font-weight: 700; color: var(--text-3);
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1.5px solid var(--border);
+      display: inline-flex; align-items: center; justify-content: center;
+      text-decoration: none;
+      transition: border-color 0.3s, color 0.3s, background 0.3s;
+    }
+    .nav-account-logout:hover { color: #B71C1C; border-color: #F5C6CB; background: #FDECEA; }
     .btn-ghost {
       font-size: 0.875rem; font-weight: 500; color: var(--text-2);
       padding: 9px 20px; border-radius: 100px;
@@ -1379,6 +1406,11 @@ Free for personal and commercial use
       border-radius: var(--radius-lg);
       padding: 28px;
       margin-bottom: 24px;
+      transition: border-color 0.4s var(--silk), box-shadow 0.4s var(--silk);
+    }
+    .checkout-card-highlight {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ghost), 0 12px 40px rgba(27,94,32,0.16);
     }
     .checkout-card-title {
       font-size: 1rem;

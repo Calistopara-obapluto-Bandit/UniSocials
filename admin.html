@@ -90,6 +90,99 @@
       letter-spacing: 0.05em;
     }
 
+    /* ── Gate scan / check-in panel ── */
+    .admin-scan-panel {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-scan-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .admin-scan-header h3 { font-size: 1rem; font-weight: 700; color: var(--text-1); }
+    .admin-scan-header p { font-size: 0.8rem; color: var(--text-3); margin-top: 4px; line-height: 1.5; }
+    .admin-scan-inputs { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .admin-scan-inputs .form-group { min-width: 260px; flex: 1; margin-bottom: 0; }
+    .admin-scan-result { margin-top: 14px; display: none; }
+    .admin-scan-result.show { display: block; }
+    .scan-result-box { border-radius: 10px; padding: 14px 16px; font-size: 0.85rem; line-height: 1.6; word-break: break-word; }
+    .scan-result-box.success { background: #E8F5E9; border: 1px solid #C8E6C9; color: #1B5E20; }
+    .scan-result-box.error { background: #FDECEA; border: 1px solid #F5C6CB; color: #B71C1C; }
+    .scan-result-box.warn { background: #FFF3E0; border: 1px solid #FFE0B2; color: #E65100; }
+
+    /* ── Per-ticket code list in admin order cards ── */
+    .admin-ticket-codes {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+    }
+    .admin-ticket-codes-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .admin-ticket-code {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 0.8rem;
+    }
+    .admin-ticket-code code { font-family: monospace; font-weight: 700; color: var(--accent); flex: 1; }
+    .admin-ticket-code.used code { color: var(--text-3); text-decoration: line-through; }
+    .admin-ticket-unused {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #1B5E20;
+      background: #E8F5E9;
+      border: 1px solid #C8E6C9;
+      padding: 1px 8px;
+      border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .admin-ticket-used {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #E65100;
+      background: #FFF3E0;
+      border: 1px solid #FFE0B2;
+      padding: 1px 8px;
+      border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .admin-ticket-open, .admin-ticket-copy {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--text-2);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .admin-ticket-open:hover, .admin-ticket-copy:hover {
+      border-color: var(--accent-border);
+      color: var(--accent);
+      background: var(--accent-ghost);
+    }
+
     /* ── Login screen ── */
     .admin-login-wrap {
       min-height: calc(100vh - 90px);
@@ -488,6 +581,28 @@
           </div>
         </div>
 
+        <!-- ── GATE SCAN / CHECK-IN ── -->
+        <div class="admin-scan-panel">
+          <div class="admin-scan-header">
+            <div>
+              <h3>🎫 Gate Check-in / Scan Ticket</h3>
+              <p>Enter the Order ID and ticket code shown on the buyer's ticket, or use a QR scanner that fills these fields. The ticket will be marked as used and cannot be reused.</p>
+            </div>
+          </div>
+          <div class="admin-scan-inputs">
+            <div class="form-group">
+              <label for="scanOrderId">Order ID</label>
+              <input type="text" id="scanOrderId" placeholder="UNN-XXXX-XXXX" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="scanCode">Ticket Code</label>
+              <input type="text" id="scanCode" placeholder="TKT-XXXXXX" autocomplete="off" />
+            </div>
+            <button class="btn-submit" style="white-space:nowrap;" onclick="scanTicket()">✅ Check In</button>
+          </div>
+          <div class="admin-scan-result" id="scanResult"></div>
+        </div>
+
         <div class="admin-orders" id="ordersList"></div>
       </div>
     </div>
@@ -727,6 +842,79 @@
         });
       };
 
+      // Copy a ticket code to clipboard
+      window.copyTicketCode = function(code, btn) {
+        var done = function() {
+          if (btn) {
+            var orig = btn.textContent;
+            btn.textContent = '✓';
+            setTimeout(function() { btn.textContent = orig; }, 1200);
+          }
+          showToast('Ticket code copied');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(done).catch(function() {
+            prompt('Copy ticket code:', code);
+          });
+        } else {
+          prompt('Copy ticket code:', code);
+        }
+      };
+
+      // Gate check-in: scan/validate a ticket code
+      window.scanTicket = function() {
+        var orderId = (document.getElementById('scanOrderId') ? document.getElementById('scanOrderId').value : '').trim();
+        var code = (document.getElementById('scanCode') ? document.getElementById('scanCode').value : '').trim();
+        var resultBox = document.getElementById('scanResult');
+
+        if (!orderId || !code) {
+          if (resultBox) {
+            resultBox.className = 'admin-scan-result show';
+            resultBox.innerHTML = '<div class="scan-result-box warn">⚠️ Enter both the Order ID and the Ticket Code.</div>';
+          }
+          return;
+        }
+
+        fetch('/api/ticket/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify({ orderId: orderId, code: code })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (!resultBox) return;
+          resultBox.className = 'admin-scan-result show';
+          if (data && data.success) {
+            if (data.alreadyUsed) {
+              resultBox.innerHTML = '<div class="scan-result-box warn">♻️ <strong>Already checked in.</strong> ' +
+                esc(data.message || '') + '</div>';
+              showToast('Ticket was already used', true);
+            } else {
+              resultBox.innerHTML = '<div class="scan-result-box success">✅ <strong>Check-in successful!</strong> ' +
+                esc(data.message || '') + '</div>';
+              showToast('Ticket checked in ✅');
+            }
+            loadOrders();
+            if (document.getElementById('scanOrderId')) document.getElementById('scanOrderId').value = '';
+            if (document.getElementById('scanCode')) document.getElementById('scanCode').value = '';
+          } else {
+            var err = (data && data.error) || 'Ticket could not be verified';
+            resultBox.innerHTML = '<div class="scan-result-box error">❌ ' + esc(err) + '</div>';
+            showToast('Check-in failed', true);
+          }
+        })
+        .catch(function() {
+          if (resultBox) {
+            resultBox.className = 'admin-scan-result show';
+            resultBox.innerHTML = '<div class="scan-result-box error">❌ Network error checking in ticket.</div>';
+          }
+          showToast('Network error checking in', true);
+        });
+      };
+
       // Load orders (exposed for refresh button)
       window.loadOrders = function() {
         var refreshBtn = document.getElementById('refreshBtn');
@@ -809,6 +997,24 @@
                       '<span class="admin-order-badge" style="background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;">🎟 ' + esc(o.ticketCode) + '</span>' : '';
           var isNew = o.notifyAdmin && !o.seenByAdmin;
 
+          // Per-ticket code list (each ticket has its own QR code)
+          var ticketList = '';
+          if (o.status === 'verified' && Array.isArray(o.ticketCodes) && o.ticketCodes.length) {
+            ticketList = '<div class="admin-ticket-codes"><div class="admin-ticket-codes-label">🎟 Ticket Codes (' + o.ticketCodes.length + ')</div>';
+            o.ticketCodes.forEach(function(tc, i) {
+              var used = tc && tc.used;
+              var qrHref = 'ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(tc.code);
+              ticketList += '<div class="admin-ticket-code' + (used ? ' used' : '') + '">' +
+                '<span style="color:var(--text-3);font-size:0.72rem;">#' + (i + 1) + '</span>' +
+                '<code>' + esc(tc.code) + '</code>' +
+                (used ? '<span class="admin-ticket-used">Used</span>' : '<span class="admin-ticket-unused">OK</span>') +
+                '<a class="admin-ticket-open" href="' + qrHref + '" target="_blank" rel="noopener" title="Open ticket">↗</a>' +
+                '<button class="admin-ticket-copy" onclick="copyTicketCode(\'' + esc(tc.code) + '\', this)" title="Copy code">⧉</button>' +
+                '</div>';
+            });
+            ticketList += '</div>';
+          }
+
           if (o.status === 'pending') {
             actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
                       '<button class="action-btn action-reject" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'rejected\')">✕ Reject</button>';
@@ -837,6 +1043,7 @@
                         (o.verifiedAt ? '<span>✅ ' + fmtDate(o.verifiedAt) + '</span>' : '') +
                       '</div>' +
                       buyer +
+                      ticketList +
                     '</div>' +
                     '<div class="admin-order-right" style="text-align:right;">' +
                       '<div class="admin-order-amount">' + amount + '</div>' +

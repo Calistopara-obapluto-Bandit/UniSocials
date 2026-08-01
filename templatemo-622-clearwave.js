@@ -22,7 +22,6 @@ Free for personal and commercial use
   if (contactPhoneLink) {
     const num = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
     contactPhoneLink.setAttribute('href', 'https://wa.me/' + num);
-    // Format display: +234 812 210 4576
     contactPhoneLink.textContent = '+' + num.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3');
   }
 
@@ -42,6 +41,92 @@ Free for personal and commercial use
   if (formNext) {
     formNext.value = cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html';
   }
+})();
+
+/* ══════════════════════════════════════════
+   AUTH — buyer accounts (persistent login)
+   ══════════════════════════════════════════ */
+(function() {
+  const AUTH_KEY = 'unn_auth_token';
+  const USER_KEY = 'unn_auth_user';
+
+  function getToken() {
+    try { return localStorage.getItem(AUTH_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setAuth(token, user) {
+    try {
+      if (token) localStorage.setItem(AUTH_KEY, token);
+      if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } catch (e) {}
+  }
+  function getCachedUser() {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function clearAuth() {
+    try {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem(USER_KEY);
+    } catch (e) {}
+  }
+  function authHeaders() {
+    const t = getToken();
+    const h = { 'Content-Type': 'application/json' };
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return h;
+  }
+
+  window.UNNAuth = {
+    getToken: getToken,
+    getCachedUser: getCachedUser,
+    setAuth: setAuth,
+    clearAuth: clearAuth,
+    authHeaders: authHeaders,
+    isLoggedIn: function() { return !!getToken(); },
+    currentUser: getCachedUser
+  };
+
+  // Inject/update the account link in the nav (Sign In / My Account)
+  function renderNavAccount() {
+    document.querySelectorAll('.nav-account-slot').forEach(function(slot) {
+      var user = getCachedUser();
+      if (user) {
+        var firstName = (user.name || 'Account').split(' ')[0];
+        slot.innerHTML =
+          '<a href="my-tickets.html" class="nav-account-link" title="My Tickets">🎟 ' + esc(firstName) + '</a>' +
+          '<a href="#" class="nav-account-logout" onclick="UNNAuth.logout(event)" title="Log out">⎋</a>';
+      } else {
+        slot.innerHTML =
+          '<a href="login.html" class="nav-signin">Sign In</a>';
+      }
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+    });
+  }
+
+  window.UNNAuth.renderNavAccount = renderNavAccount;
+  window.UNNAuth.logout = function(e) {
+    if (e) e.preventDefault();
+    var token = getToken();
+    if (token) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).catch(function() {});
+    }
+    clearAuth();
+    renderNavAccount();
+    if (window.location.pathname.endsWith('my-tickets.html')) window.location.reload();
+  };
+
+  // Render on every page load (handles login.html/register.html too)
+  document.addEventListener('DOMContentLoaded', renderNavAccount);
 })();
 
 /* ── MOBILE MENU ── */
@@ -176,22 +261,18 @@ if (nav) {
       const tags = card.querySelector('.event-card-tags')?.textContent?.toLowerCase() || '';
       const searchText = title + ' ' + desc + ' ' + tags;
 
-      // Category filter
       const catMatch = category === 'all' || cat === category;
 
-      // Price filter
       let priceMatch = true;
       if (price === 'low') priceMatch = p < 2000;
       else if (price === 'mid') priceMatch = p >= 2000 && p <= 4000;
       else if (price === 'high') priceMatch = p > 4000;
 
-      // Search text
       const searchMatch = !search || searchText.includes(search);
 
       if (catMatch && priceMatch && searchMatch) {
         card.style.display = '';
         visibleCount++;
-        // Re-trigger reveal animation
         card.classList.remove('visible');
         setTimeout(() => card.classList.add('visible'), 50);
       } else {
@@ -199,23 +280,18 @@ if (nav) {
       }
     });
 
-    // Update count
     if (eventsCount) {
       eventsCount.innerHTML = 'Showing <strong>' + visibleCount + '</strong> event' + (visibleCount !== 1 ? 's' : '');
     }
-
-    // Show no results
     if (noResults) {
       noResults.style.display = visibleCount === 0 ? 'block' : 'none';
     }
   }
 
-  // Bind events
   if (searchInput) searchInput.addEventListener('input', filterEvents);
   if (categoryFilter) categoryFilter.addEventListener('change', filterEvents);
   if (priceFilter) priceFilter.addEventListener('change', filterEvents);
 
-  // Expose reset for "Clear Filters" button
   window.resetFilters = function() {
     if (searchInput) searchInput.value = '';
     if (categoryFilter) categoryFilter.value = 'all';
@@ -241,6 +317,16 @@ if (nav) {
   const eventPreview = document.getElementById('eventPreview');
   const previewDate = document.getElementById('previewDate');
   const previewVenue = document.getElementById('previewVenue');
+
+  // Prefill buyer info if logged in
+  (function prefill() {
+    const u = window.UNNAuth && window.UNNAuth.getCachedUser();
+    if (!u) return;
+    if (buyerName && !buyerName.value) buyerName.value = u.name || '';
+    if (buyerEmail && !buyerEmail.value) buyerEmail.value = u.email || '';
+    if (buyerPhone && !buyerPhone.value) buyerPhone.value = u.phone || '';
+    updateContinueBtn();
+  })();
 
   function getSelectedOption() {
     return eventSelect.options[eventSelect.selectedIndex];
@@ -279,7 +365,6 @@ if (nav) {
     const phone = buyerPhone ? buyerPhone.value.trim() : '';
     if (!name || !email || !phone) { alert('Please fill in your name, email, and phone number.'); return; }
 
-    // Save to sessionStorage
     sessionStorage.setItem('checkoutData', JSON.stringify({
       eventValue: opt.value,
       eventName: opt.dataset.name,
@@ -304,6 +389,18 @@ if (nav) {
       for (const opt of eventSelect.options) {
         if (opt.value === eventParam) { opt.selected = true; break; }
       }
+      // Focus attention on the chosen event like popular ticket sites:
+      // highlight the selection card and scroll it into view.
+      const card = eventSelect.closest('.checkout-card');
+      if (card) {
+        setTimeout(function() {
+          card.classList.add('checkout-card-highlight');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(function() {
+            card.classList.remove('checkout-card-highlight');
+          }, 2600);
+        }, 400);
+      }
     }
     updateEventDetails();
   }
@@ -319,7 +416,7 @@ if (nav) {
 })();
 
 /* ══════════════════════════════════════════
-   CHECKOUT — PAYMENT (Step 2 with API integration)
+   CHECKOUT — PAYMENT (Flutterwave-only, per-ticket)
    ══════════════════════════════════════════ */
 (function() {
   const summaryEventName = document.getElementById('summaryEventName');
@@ -328,7 +425,6 @@ if (nav) {
   const summaryQty = document.getElementById('summaryQty');
   const summaryUnitPrice = document.getElementById('summaryUnitPrice');
   const summaryTotal = document.getElementById('summaryTotal');
-  const summaryPayment = document.getElementById('summaryPayment');
   const summaryBuyer = document.getElementById('summaryBuyer');
   const summaryEmail = document.getElementById('summaryEmail');
   const placeOrderBtn = document.getElementById('placeOrderBtn');
@@ -378,39 +474,38 @@ if (nav) {
 
   function updatePaymentNote() {
     const note = document.getElementById('paymentNote');
-    const bankDetails = document.getElementById('bankTransferDetails');
-
-    if (summaryPayment) summaryPayment.textContent = 'Flutterwave';
-
     if (note) {
-      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket is issued automatically once payment is confirmed.';
+      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.';
     }
-    if (bankDetails) bankDetails.style.display = 'none';
   }
 
   function generateOrderId() {
     return 'UNN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
-  function showSuccessModal(orderId, eventName, totalPaid, ticketCode) {
+  function showSuccessModal(orderId, eventName, totalPaid, ticketCodes) {
     const idEl = document.getElementById('orderId');
     const evEl = document.getElementById('orderEvent');
     const totalEl = document.getElementById('orderTotal');
-    const ticketLink = document.getElementById('viewTicketLink');
+    const ticketListEl = document.getElementById('successTicketList');
+
     if (idEl) idEl.textContent = orderId;
     if (evEl) evEl.textContent = eventName;
     if (totalEl) totalEl.textContent = '\u20A6' + totalPaid.toLocaleString();
-    if (ticketLink) {
-      if (ticketCode) {
-        ticketLink.style.display = 'inline-flex';
-        ticketLink.setAttribute('href', 'ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode));
-      } else {
-        // No code yet (e.g. bank transfer) — go to order lookup
-        ticketLink.textContent = '🎟 Find My Ticket';
-        ticketLink.setAttribute('href', 'my-tickets.html');
-        ticketLink.style.display = 'inline-flex';
-      }
+
+    // Per-ticket links
+    if (ticketListEl && Array.isArray(ticketCodes) && ticketCodes.length) {
+      let html = '<div style="margin-top:14px;text-align:left;">';
+      html += '<div style="font-weight:700;font-size:0.85rem;color:var(--text-2);margin-bottom:8px;">🎟 Your ticket(s):</div>';
+      ticketCodes.forEach(function(tc) {
+        html += '<a href="ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(tc.code) +
+          '" class="btn-primary" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;margin-bottom:8px;font-size:0.85rem;">' +
+          '<span>Ticket ' + (tc.index || '') + '</span><span style="font-family:monospace;">' + tc.code + ' →</span></a>';
+      });
+      html += '</div>';
+      ticketListEl.innerHTML = html;
     }
+
     if (successModal) successModal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -420,7 +515,14 @@ if (nav) {
     document.body.style.overflow = '';
   }
 
-  function sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, paymentLabel, name, email, phone, ticketCode) {
+  function sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, paymentLabel, name, email, phone, ticketCodes) {
+    let ticketLines = '';
+    if (Array.isArray(ticketCodes) && ticketCodes.length) {
+      ticketLines = '\n\n🎟 *Digital Tickets:*\n';
+      ticketCodes.forEach(function(tc) {
+        ticketLines += '• ' + tc.code + ' → ' + window.location.origin + '/ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(tc.code) + '\n';
+      });
+    }
     var msg = '🛒 *New Ticket Order!*\n\n' +
       'Order ID: ' + orderId + '\n' +
       'Event: ' + eventName + '\n' +
@@ -429,18 +531,18 @@ if (nav) {
       'Payment: ' + paymentLabel + '\n\n' +
       '👤 ' + name + '\n' +
       '📧 ' + email + '\n' +
-      '📞 ' + phone + '\n\n' +
-      (ticketCode ? ('🎟 *Digital Ticket:* ' + window.location.origin + '/ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode) + '\n\n') : '') +
-      'Thank you for using UNN Socials!';
+      '📞 ' + phone + '\n' +
+      ticketLines +
+      '\nThank you for using UNN Socials!';
     const cfg = window.SITE_CONFIG || {};
     const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  function createOrderViaApi(orderId, paymentMethod, orderTotal, successCallback) {
+  function createOrderViaApi(orderId, orderTotal, successCallback) {
     fetch('/api/orders', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         orderId: orderId,
         eventName: checkoutData.eventName,
@@ -449,7 +551,7 @@ if (nav) {
         qty: checkoutData.qty,
         amount: orderTotal,
         currency: 'NGN',
-        paymentMethod: paymentMethod,
+        paymentMethod: 'flutterwave',
         buyerName: checkoutData.buyerName,
         buyerEmail: checkoutData.buyerEmail,
         buyerPhone: checkoutData.buyerPhone,
@@ -458,10 +560,10 @@ if (nav) {
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCode : null);
+      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCodes : null);
     })
     .catch(function() {
-      if (successCallback) successCallback(true, null);
+      if (successCallback) successCallback(false, null);
     });
   }
 
@@ -482,9 +584,7 @@ if (nav) {
       amount: orderTotal,
       currency: 'NGN',
       payment_options: 'card, banktransfer, ussd, mobilemoney, account',
-      // IMPORTANT: Do NOT set redirect_url — the modal callback handles everything.
-      // A redirect_url would cause a full-page navigation BEFORE the callback fires,
-      // meaning the order never gets created and the ticket is never issued.
+      redirect_url: cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html',
       customer: {
         email: email || 'customer@unn.edu.ng',
         name: customerName,
@@ -496,15 +596,7 @@ if (nav) {
         logo: 'https://unisocials.onrender.com/images/tm-622-screen-01.jpg'
       },
       callback: function(response) {
-        // Re-enable the button so the user can retry
-        var btn = document.getElementById('placeOrderBtn');
-        var mobileBtn = document.getElementById('mobilePlaceOrderBtn');
-        if (btn) { btn.disabled = false; btn.innerHTML = '🛒 Place Order — <span id="placeOrderTotal">\u20A6' + total.toLocaleString() + '</span>'; }
-        if (mobileBtn) { mobileBtn.disabled = false; mobileBtn.textContent = '🛒 Place Order'; }
-
         if (response && (response.status === 'successful' || response.status === 'completed')) {
-          // The order was ALREADY created in placeOrder() — just verify server-side
-          // so the stored order flips to "verified" and we get the ticket code back.
           fetch('/api/verify-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -513,38 +605,32 @@ if (nav) {
           .then(function(res) { return res.json(); })
           .then(function(data) {
             if (data && data.success) {
-              const ticketCode = data.ticketCode || null;
-              sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone, ticketCode);
-              if (ticketCode) {
-                // Direct to QR ticket
-                window.location.href = 'ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode);
-              } else {
-                showSuccessModal(orderId, eventName, orderTotal, '');
-              }
+              const verifiedAmount = parseFloat(data.order && data.order.amount) || orderTotal;
+              const totalPaid = verifiedAmount > 0 ? verifiedAmount : orderTotal;
+              const ticketCodes = (data.order && data.order.ticketCodes) || [];
+              const withIndex = ticketCodes.map(function(tc, i) { return { code: tc.code, index: i + 1 }; });
+              sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, 'Flutterwave', name, email, phone, withIndex);
+              showSuccessModal(orderId, eventName, totalPaid, withIndex);
             } else {
-              alert('Payment verification failed. Please contact support with your Order ID: ' + orderId);
+              // Payment not yet verified — redirect to pending tracker
+              alert('Payment received but verification is still processing. We\'ll confirm shortly.');
+              window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
             }
           })
           .catch(function() {
-            showSuccessModal(orderId, eventName, orderTotal, '');
+            window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
           });
         } else {
-          // Payment was not completed — order remains "pending" so admin can see it.
-          alert('Payment was not completed. You can try again. Your order ID is ' + orderId + ' (shown to admin).');
+          alert('Payment was not completed. You can try again.');
         }
       },
-      onclose: function() {
-        var btn = document.getElementById('placeOrderBtn');
-        var mobileBtn = document.getElementById('mobilePlaceOrderBtn');
-        if (btn) { btn.disabled = false; btn.innerHTML = '🛒 Place Order — <span id="placeOrderTotal">\u20A6' + total.toLocaleString() + '</span>'; }
-        if (mobileBtn) { mobileBtn.disabled = false; mobileBtn.textContent = '🛒 Place Order'; }
-      }
+      onclose: function() {}
     };
 
     if (typeof window.FlutterwaveCheckout === 'function') {
       window.FlutterwaveCheckout(payload);
     } else {
-      alert('Flutterwave checkout could not be loaded. Please check your internet connection or try another payment method.');
+      alert('Flutterwave checkout could not be loaded. Please check your internet connection.');
     }
   }
 
@@ -556,25 +642,26 @@ if (nav) {
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
 
-    // Disable button to prevent double-click
-    const btn = document.getElementById('placeOrderBtn');
-    const mobileBtn = document.getElementById('mobilePlaceOrderBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Creating order…'; }
-    if (mobileBtn) { mobileBtn.disabled = true; mobileBtn.textContent = 'Creating order…'; }
+    const placeBtn = document.getElementById('placeOrderBtn');
+    if (placeBtn) { placeBtn.disabled = true; placeBtn.textContent = 'Starting payment…'; }
 
-    // Step 1: Create the order FIRST (status "pending") so it appears in admin
-    // immediately — even if the buyer closes the Flutterwave modal without paying.
-    createOrderViaApi(orderId, 'flutterwave', total, function(success, ticketCode) {
-      // Step 2: Open Flutterwave checkout with the order ID as tx_ref
+    // 1) Create the pending order server-side FIRST
+    createOrderViaApi(orderId, total, function(success) {
+      if (!success) {
+        alert('Could not create your order. Please try again.');
+        if (placeBtn) { placeBtn.disabled = false; placeBtn.textContent = '🛒 Place Order — ₦' + total.toLocaleString(); }
+        return;
+      }
+      // 2) Open Flutterwave to pay for that exact order id
       startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+      // Re-enable in case user closes modal
+      setTimeout(function() {
+        if (placeBtn) { placeBtn.disabled = false; placeBtn.textContent = '🛒 Place Order — ₦' + total.toLocaleString(); }
+      }, 15000);
     });
   };
 
   // Bind events
-  document.querySelectorAll('input[name="payment"]').forEach(function(el) {
-    el.addEventListener('change', updatePaymentNote);
-  });
-
   if (successModal) {
     successModal.addEventListener('click', function(e) {
       if (e.target === successModal) closeSuccessModal();
@@ -629,179 +716,3 @@ document.querySelectorAll('.ticket-form').forEach(form => {
   }
 });
 
-/* ══════════════════════════════════════════
-   CLIENT ACCOUNT — Login / Register / Session
-   ══════════════════════════════════════════ */
-(function() {
-  const CLIENT_KEY = 'unn_client_token';
-  const CLIENT_DATA_KEY = 'unn_client_data';
-
-  // Helper: get stored token
-  function getToken() {
-    try { return localStorage.getItem(CLIENT_KEY) || ''; } catch(e) { return ''; }
-  }
-
-  // Helper: set token + client data
-  function setSession(token, client) {
-    try {
-      localStorage.setItem(CLIENT_KEY, token);
-      if (client) localStorage.setItem(CLIENT_DATA_KEY, JSON.stringify(client));
-    } catch(e) {}
-  }
-
-  function clearSession() {
-    try {
-      localStorage.removeItem(CLIENT_KEY);
-      localStorage.removeItem(CLIENT_DATA_KEY);
-    } catch(e) {}
-  }
-
-  function getStoredClient() {
-    try {
-      const raw = localStorage.getItem(CLIENT_DATA_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch(e) { return null; }
-  }
-
-  // ── API call helpers ──
-  function apiCall(method, url, body, callback) {
-    var opts = {
-      method: method,
-      headers: { 'Content-Type': 'application/json' }
-    };
-    var token = getToken();
-    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
-    if (body) opts.body = JSON.stringify(body);
-
-    fetch(url, opts)
-      .then(function(r) { return r.json(); })
-      .then(function(d) { callback(d); })
-      .catch(function() { callback(null); });
-  }
-
-  // ── Register a new account ──
-  window.clientRegister = function(name, email, phone, password, callback) {
-    apiCall('POST', '/api/account/register', {
-      name: name, email: email, phone: phone, password: password
-    }, function(data) {
-      if (data && data.success && data.token) {
-        setSession(data.token, data.client);
-        if (callback) callback(true, data);
-      } else {
-        if (callback) callback(false, data);
-      }
-    });
-  };
-
-  // ── Login to existing account ──
-  window.clientLogin = function(identifier, password, callback) {
-    apiCall('POST', '/api/account/login', {
-      identifier: identifier, password: password
-    }, function(data) {
-      if (data && data.success && data.token) {
-        setSession(data.token, data.client);
-        if (callback) callback(true, data);
-      } else {
-        if (callback) callback(false, data);
-      }
-    });
-  };
-
-  // ── Logout ──
-  window.clientLogout = function(callback) {
-    apiCall('POST', '/api/account/logout', null, function() {
-      clearSession();
-      if (callback) callback();
-    });
-  };
-
-  // ── Check if logged in, auto-restore session ──
-  window.clientIsLoggedIn = function() {
-    return !!getToken();
-  };
-
-  // ── Get the current client profile (from cache) ──
-  window.clientGetProfile = function() {
-    return getStoredClient();
-  };
-
-  // ── Fetch fresh client data + orders from server ──
-  window.clientFetchMe = function(callback) {
-    apiCall('GET', '/api/account/me', null, function(data) {
-      if (data && data.success && data.client) {
-        setSession(getToken(), data.client);
-        if (callback) callback(data.client, data.orders || []);
-      } else {
-        // Token expired or invalid
-        if (data && !data.success && data.error === 'Not logged in') {
-          clearSession();
-        }
-        if (callback) callback(null, []);
-      }
-    });
-  };
-
-  // ── Fetch only orders (for live polling) ──
-  window.clientFetchOrders = function(callback) {
-    apiCall('GET', '/api/account/orders', null, function(data) {
-      if (data && data.success) {
-        if (callback) callback(data.orders || []);
-      } else {
-        if (callback) callback([]);
-      }
-    });
-  };
-
-  // ── Update navigation to show login/register or profile ──
-  function updateNavForAuth() {
-    var isLoggedIn = window.clientIsLoggedIn();
-    var client = window.clientGetProfile();
-
-    // Find all nav "Sign In" / "Get Tickets" buttons and update them
-    document.querySelectorAll('.nav-cta .btn-primary').forEach(function(btn) {
-      if (isLoggedIn) {
-        btn.textContent = '👤 ' + (client ? client.name.split(' ')[0] : 'My Account');
-        btn.setAttribute('href', 'my-tickets.html');
-      } else {
-        btn.textContent = 'Get Tickets';
-        btn.setAttribute('href', 'events.html');
-      }
-    });
-
-    // Add login/register link in the nav-links if not logged in
-    document.querySelectorAll('.nav-links li a').forEach(function(a) {
-      if (a.getAttribute('href') === 'login.html' || a.textContent === 'Sign In') {
-        if (isLoggedIn) {
-          a.textContent = 'My Tickets';
-          a.setAttribute('href', 'my-tickets.html');
-        } else {
-          a.textContent = 'Sign In';
-          // If we have a login modal, link to it
-          var loginModal = document.getElementById('loginModal');
-          if (loginModal) {
-            a.setAttribute('href', '#');
-            a.addEventListener('click', function(e) {
-              e.preventDefault();
-              loginModal.style.display = 'flex';
-            });
-          }
-        }
-      }
-    });
-  }
-
-  // ── Auto-restore session on page load ──
-  if (getToken()) {
-    // Silently refresh the session in background
-    apiCall('GET', '/api/account/me', null, function(data) {
-      if (data && data.success && data.client) {
-        setSession(getToken(), data.client);
-      } else {
-        clearSession();
-      }
-      updateNavForAuth();
-    });
-  } else {
-    updateNavForAuth();
-  }
-})();

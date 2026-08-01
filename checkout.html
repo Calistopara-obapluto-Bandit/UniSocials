@@ -41,6 +41,7 @@
         <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
+        <span class="nav-account-slot"></span>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -111,21 +112,20 @@
         <div class="checkout-card reveal reveal-delay-1">
           <h3 class="checkout-card-title">💳 Payment Method</h3>
           <div class="payment-methods">
-            <label class="payment-option">
-              <input type="radio" name="payment" value="flutterwave" checked onchange="updatePaymentNote()" />
+            <div class="payment-option selected">
               <div class="payment-option-content">
                 <span class="payment-option-icon">
                   <svg class="flw-logo" viewBox="0 0 64 64" aria-hidden="true"><path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z"/><path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z"/><path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z"/><path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z"/></svg>
                 </span>
                 <div>
                   <strong>Flutterwave</strong>
-                  <small>Pay securely with card, bank, USSD &amp; mobile money</small>
+                  <small>Pay securely with card, bank transfer, USSD &amp; mobile money</small>
                 </div>
               </div>
-            </label>
+            </div>
           </div>
           <div id="paymentNote" class="payment-note">
-            🔒 You'll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket is issued automatically once payment is confirmed.
+            🔒 You'll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.
           </div>
         </div>
 
@@ -163,8 +163,9 @@
         <div><strong>Event:</strong> <span id="orderEvent">—</span></div>
         <div><strong>Total Paid:</strong> <span id="orderTotal">—</span></div>
       </div>
+      <div id="successTicketList"></div>
       <p class="modal-note">💡 Save your Order ID. You'll need it for entry.</p>
-      <a href="my-tickets.html" id="viewTicketLink" class="btn-primary" style="display:inline-flex;margin-top:4px;">🎟 View My Ticket</a>
+      <a href="my-tickets.html" id="viewTicketLink" class="btn-primary" style="display:inline-flex;margin-top:4px;">🎟 View My Tickets</a>
       <a href="events.html" class="btn-cta-ghost" style="display:inline-flex;margin-top:10px;width:100%;justify-content:center;">Browse More Events</a>
     </div>
   </div>

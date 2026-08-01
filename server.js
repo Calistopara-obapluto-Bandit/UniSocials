@@ -1,118 +1,222 @@
 /*
-UNN Socials — Node.js static file server + dynamic config generator
-Serves the static site and injects environment variables into config.js
-at request time, so Render env vars are picked up without a build step.
+UNN Socials — Node.js server
+----------------------------------
+- Serves the static site + dynamic config.js
+- Persistent data storage:
+    • PostgreSQL if DATABASE_URL is set (recommended for Render — survives restarts/redeploys)
+    • JSON files in ./data otherwise (persists on local disk)
+- Flutterwave-only checkout with server-authoritative verification:
+    order is created PENDING → Flutterwave confirms → /api/verify-payment or webhook
+    checks amount+currency against the order BEFORE issuing tickets.
+- One unique ticket code per ticket purchased (qty = N → N QR tickets).
+- Buyer accounts (register/login) so tickets are stored and don't require refresh.
+- Admin gate scan endpoint for check-in.
 */
 
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
-const crypto = require('crypto');
+const DATA_DIR = path.join(__dirname, 'data');
 
-// Simple in-memory order log (resets on restart; enough to detect duplicates/tampering)
-const orderLog = [];
-const orderLogLimit = 500;
+// ────────────────────────────────────────────
+// STORAGE LAYER (async)
+// ────────────────────────────────────────────
+let db = null;      // pg Pool when using PostgreSQL
+let usePg = false;
 
-// Persistent order store — JSON file so orders survive restarts (Render free tier disk persists within a session)
-const ORDERS_FILE = path.join(__dirname, 'orders.json');
-const CLIENTS_FILE = path.join(__dirname, 'clients.json');
+async function initStorage() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 
-function loadOrders() {
+  if (process.env.DATABASE_URL) {
+    try {
+      const { Pool } = require('pg');
+      db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await db.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      usePg = true;
+      console.log('Storage: PostgreSQL connected.');
+      return;
+    } catch (e) {
+      console.warn('PostgreSQL unavailable, falling back to JSON files:', e.message);
+      db = null;
+      usePg = false;
+    }
+  }
+  console.log('Storage: JSON files in ./data (set DATABASE_URL to use PostgreSQL).');
+}
+
+/* ── Orders ── */
+async function readOrders() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM orders ORDER BY data->>\'createdAt\' DESC');
+    return r.rows.map(row => row.data);
+  }
   try {
-    const raw = fs.readFileSync(ORDERS_FILE, 'utf8');
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'orders.json'), 'utf8');
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
-  } catch(e) {
-    return [];
+  } catch (e) { return []; }
+}
+async function writeOrders(orders) {
+  if (usePg) {
+    await db.query('DELETE FROM orders');
+    for (const o of orders) {
+      await db.query('INSERT INTO orders (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [o.orderId, JSON.stringify(o)]);
+    }
+    return;
   }
+  fs.writeFileSync(path.join(DATA_DIR, 'orders.json'), JSON.stringify(orders, null, 2), 'utf8');
+}
+async function getOrder(orderId) {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM orders WHERE id = $1', [orderId]);
+    return r.rows.length ? r.rows[0].data : null;
+  }
+  const orders = await readOrders();
+  return orders.find(o => o.orderId === orderId) || null;
+}
+async function addOrder(order) {
+  const orders = await readOrders();
+  orders.unshift(order);
+  await writeOrders(orders);
+}
+async function patchOrder(orderId, patch) {
+  const orders = await readOrders();
+  const idx = orders.findIndex(o => o.orderId === orderId);
+  if (idx === -1) return null;
+  orders[idx] = Object.assign({}, orders[idx], patch);
+  await writeOrders(orders);
+  return orders[idx];
 }
 
-function saveOrders(orders) {
-  try {
-    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf8');
-  } catch(e) {
-    console.error('Failed to save orders:', e.message);
+/* ── Users ── */
+async function readUsers() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM users');
+    return r.rows.map(row => row.data);
   }
-}
-
-// ── Client account store (clients.json) ──
-function loadClients() {
   try {
-    const raw = fs.readFileSync(CLIENTS_FILE, 'utf8');
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'users.json'), 'utf8');
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
-  } catch(e) {
-    return [];
+  } catch (e) { return []; }
+}
+async function writeUsers(users) {
+  if (usePg) {
+    await db.query('DELETE FROM users');
+    for (const u of users) {
+      await db.query('INSERT INTO users (id, email, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET data = $3', [u.id, u.email, JSON.stringify(u)]);
+    }
+    return;
   }
+  fs.writeFileSync(path.join(DATA_DIR, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
+}
+async function findUserByEmail(email) {
+  const users = await readUsers();
+  return users.find(u => u.email.toLowerCase() === String(email).toLowerCase()) || null;
+}
+async function findUserById(id) {
+  const users = await readUsers();
+  return users.find(u => u.id === id) || null;
+}
+async function addUser(user) {
+  const users = await readUsers();
+  users.push(user);
+  await writeUsers(users);
 }
 
-function saveClients(clients) {
+/* ── Sessions ── */
+async function readSessions() {
+  if (usePg) {
+    const r = await db.query('SELECT token, user_id FROM sessions');
+    const out = {};
+    r.rows.forEach(row => { out[row.token] = row.user_id; });
+    return out;
+  }
   try {
-    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(clients, null, 2), 'utf8');
-  } catch(e) {
-    console.error('Failed to save clients:', e.message);
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'sessions.json'), 'utf8');
+    return JSON.parse(raw) || {};
+  } catch (e) { return {}; }
+}
+async function writeSessions(sessions) {
+  if (usePg) {
+    await db.query('DELETE FROM sessions');
+    for (const [token, userId] of Object.entries(sessions)) {
+      await db.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2)', [token, userId]);
+    }
+    return;
   }
+  fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify(sessions, null, 2), 'utf8');
 }
-
-function hashPassword(pw) {
-  return crypto.createHash('sha256').update(String(pw)).digest('hex');
+async function createSession(token, userId) {
+  const sessions = await readSessions();
+  sessions[token] = userId;
+  await writeSessions(sessions);
 }
-
-function makeClientToken() {
-  return 'c_' + crypto.randomBytes(24).toString('hex');
-}
-
-// Find client by bearer token from Authorization header
-function getClientByToken(req) {
-  const auth = req.headers['authorization'] || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+async function getSessionUser(token) {
   if (!token) return null;
-  const clients = loadClients();
-  const client = clients.find(c => c.token && c.token === token);
-  return client || null;
+  const sessions = await readSessions();
+  const userId = sessions[token];
+  if (!userId) return null;
+  return await findUserById(userId);
 }
-
-// Sanitize a client object for response (never expose hash/token)
-function publicClient(c) {
-  return {
-    id: c.id,
-    name: c.name,
-    email: c.email,
-    phone: c.phone,
-    createdAt: c.createdAt
-  };
+async function deleteSession(token) {
+  const sessions = await readSessions();
+  delete sessions[token];
+  await writeSessions(sessions);
 }
-
-// Link an order to a client by matching buyer email/phone
-function linkOrderToClient(orders, order) {
-  const clients = loadClients();
-  const matched = clients.find(c =>
-    (c.email && c.email.toLowerCase() === String(order.buyerEmail || '').toLowerCase()) ||
-    (c.phone && c.phone.replace(/\D/g, '') === String(order.buyerPhone || '').replace(/\D/g, ''))
-  );
-  if (matched) {
-    order.clientId = matched.id;
-    saveOrders(orders);
+async function deleteUserSessions(userId) {
+  const sessions = await readSessions();
+  for (const [t, uid] of Object.entries(sessions)) {
+    if (uid === userId) delete sessions[t];
   }
+  await writeSessions(sessions);
 }
 
-// Generate a short, human-friendly ticket code (e.g. TKT-8F3K2M)
-function generateTicketCode() {
+// ────────────────────────────────────────────
+// HELPERS
+// ────────────────────────────────────────────
+const orderLog = [];
+const orderLogLimit = 1000;
+
+function randCode6() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
   let code = '';
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return 'TKT-' + code;
+  return code;
 }
-
-// Count unseen orders (orders with notifyAdmin true that the admin hasn't seen)
+function generateTicketCodes(qty) {
+  const arr = [];
+  const count = Math.max(1, parseInt(qty) || 1);
+  for (let i = 0; i < count; i++) {
+    arr.push({ code: 'TKT-' + randCode6(), used: false, usedAt: null });
+  }
+  return arr;
+}
 function unseenOrderCount(orders) {
   return orders.filter(o => o.notifyAdmin && !o.seenByAdmin).length;
 }
-
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(pw), salt, 64).toString('hex');
+  return salt + ':' + hash;
+}
+function verifyPassword(pw, stored) {
+  try {
+    const [salt, hash] = String(stored).split(':');
+    const test = crypto.scryptSync(String(pw), salt, 64).toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
+  } catch (e) { return false; }
+}
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
 function isAdminAuthorized(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -124,18 +228,12 @@ function isAdminAuthorized(req) {
 const defaults = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
   WHATSAPP_ORDER_NUMBER: '2348122104576',
-  // Admin dashboard password — set a strong one in Render env vars
   ADMIN_PASSWORD: 'admin1234',
-  // Flutterwave client secret key — server-side only (never exposed to the browser)
   FLUTTERWAVE_SECRET_KEY: 'FSTOU9su2xlF8UU8wU05kNvqEbI8v47S',
-  // Flutterwave public key — safe to expose to the browser for inline checkout
   FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X',
   FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
   FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
-  // Flutterwave webhook secret hash — used to verify payment webhooks server-to-server.
-  // Get it from Dashboard → Settings → Webhooks. Empty disables signature checks.
   FLUTTERWAVE_WEBHOOK_HASH: 'Soludo123@',
-  // Public base URL of the site (used for ticket QR codes / links)
   SITE_URL: 'https://unisocials.onrender.com',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
   FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
@@ -145,8 +243,8 @@ const defaults = {
 function getConfig() {
   const cfg = {};
   for (const [key, val] of Object.entries(defaults)) {
-    // Never expose secret/private/password keys to the browser
-    if (/SECRET|PRIVATE|PASSWORD/i.test(key)) continue;
+    // Never expose secret keys, passwords, or the webhook HMAC hash to the browser
+    if (/SECRET|PRIVATE|PASSWORD|WEBHOOK/i.test(key)) continue;
     cfg[key] = process.env[key] !== undefined ? process.env[key] : val;
   }
   return cfg;
@@ -168,349 +266,323 @@ const MIME_TYPES = {
   '.map': 'application/json; charset=utf-8'
 };
 
-const server = http.createServer((req, res) => {
-  // Dynamically serve config.js with env var values
-  if (req.url === '/config.js' || req.url === '/config.js?') {
-    const cfg = getConfig();
-    const js = `/* Generated by server.js from environment variables */\n` +
-      `window.SITE_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`;
-    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(js);
-    return;
-  }
+function sendJson(res, status, obj) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(obj));
+}
 
-  // ── Flutterwave transaction verification endpoint ──
-  // Verifies payment with Flutterwave's API using the secret key (server-side),
-  // so the amount and order can't be tampered with client-side.
-  if (req.url.startsWith('/api/verify-payment')) {
+function readBody(req) {
+  return new Promise((resolve) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let txRef = '';
-      try {
-        const parsed = JSON.parse(body || '{}');
-        txRef = (parsed.tx_ref || '').toString();
-      } catch(e) {}
+    req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on('end', () => { resolve(body); });
+    req.on('error', () => { resolve(''); });
+  });
+}
 
-      if (!txRef) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Missing tx_ref' }));
-        return;
-      }
+// Verify a transaction reference against Flutterwave (server-side)
+function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
+  return new Promise((resolve) => {
+    const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
+      ? process.env.FLUTTERWAVE_SECRET_KEY
+      : defaults.FLUTTERWAVE_SECRET_KEY;
+    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(txRef);
+    const options = {
+      hostname: 'api.flutterwave.com',
+      port: 443,
+      path: apiPath,
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json' }
+    };
+    const apiReq = https.request(options, (apiRes) => {
+      let data = '';
+      apiRes.on('data', c => { data += c; });
+      apiRes.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          const t = json.data || {};
+          const status = String(t.status || '');
+          const amount = parseFloat(t.amount) || 0;
+          const currency = String(t.currency || '');
+          const verified = json.status === 'success' && (status === 'successful' || status === 'completed');
 
-      // Reject duplicate/retried orders
-      if (orderLog.includes(txRef)) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Order already processed' }));
-        return;
-      }
+          // Strong verification: match amount & currency against the order
+          const amountOk = !expectedAmount || Math.abs(amount - expectedAmount) < 1;
+          const currencyOk = !expectedCurrency || currency === expectedCurrency;
 
-      const secretKey = (process.env.FLUTTERWAVE_SECRET_KEY !== undefined
-        ? process.env.FLUTTERWAVE_SECRET_KEY
-        : defaults.FLUTTERWAVE_SECRET_KEY);
-
-      const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(txRef);
-      const options = {
-        hostname: 'api.flutterwave.com',
-        port: 443,
-        path: apiPath,
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + secretKey,
-          'Content-Type': 'application/json'
+          resolve({
+            success: verified && amountOk && currencyOk,
+            apiSuccess: verified,
+            amount: amount,
+            currency: currency,
+            status: status,
+            amountOk: amountOk,
+            currencyOk: currencyOk
+          });
+        } catch (e) {
+          resolve({ success: false, apiSuccess: false, error: 'Bad response' });
         }
-      };
-
-      const apiReq = https.request(options, (apiRes) => {
-        let data = '';
-        apiRes.on('data', c => { data += c; });
-        apiRes.on('end', () => {
-          let verified = false;
-          let amount = 0;
-          let status = '';
-          let currency = '';
-          try {
-            const json = JSON.parse(data);
-            status = (json.data && json.data.status) || '';
-            amount = (json.data && json.data.amount) || 0;
-            currency = (json.data && json.data.currency) || '';
-            verified = json.status === 'success' &&
-              (status === 'successful' || status === 'completed');
-          } catch(e) {}
-
-          if (verified) {
-            orderLog.push(txRef);
-            if (orderLog.length > orderLogLimit) orderLog.shift();
-
-            // Update the matching order in storage to verified (if it exists)
-            // so admin + client dashboards reflect the paid status instantly.
-            let ticketCode = null;
-            try {
-              const orders = loadOrders();
-              const idx = orders.findIndex(o => o.orderId === txRef);
-              if (idx !== -1 && orders[idx].status !== 'verified') {
-                orders[idx].status = 'verified';
-                orders[idx].verifiedAt = new Date().toISOString();
-                orders[idx].paymentMethod = 'flutterwave';
-                orders[idx].paymentConfirmed = true;
-                orders[idx].ticketIssued = true;
-                orders[idx].ticketIssuedAt = new Date().toISOString();
-                orders[idx].rejectedAt = null;
-                orders[idx].notifyAdmin = true;
-                orders[idx].seenByAdmin = false;
-                saveOrders(orders);
-              }
-              if (idx !== -1) ticketCode = orders[idx].ticketCode || null;
-            } catch(e) {}
-
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              success: true,
-              tx_ref: txRef,
-              amount: amount,
-              currency: currency,
-              status: status,
-              ticketCode: ticketCode
-            }));
-          } else {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-              success: false,
-              error: 'Payment not verified',
-              status: status,
-              tx_ref: txRef
-            }));
-          }
-        });
       });
-
-      apiReq.on('error', () => {
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Verification network error' }));
-      });
-
-      apiReq.end();
     });
-    return;
+    apiReq.on('error', () => {
+      resolve({ success: false, apiSuccess: false, error: 'Network error' });
+    });
+    apiReq.end();
+  });
+}
+
+// Mark an order verified + ensure tickets exist
+function verifyOrderTicketData(order) {
+  if (!order.ticketCodes || !order.ticketCodes.length) {
+    order.ticketCodes = generateTicketCodes(order.qty);
   }
+  order.ticketCode = order.ticketCodes[0].code; // legacy single-code reference
+  order.status = 'verified';
+  order.verifiedAt = order.verifiedAt || new Date().toISOString();
+  order.ticketIssued = true;
+  order.ticketIssuedAt = new Date().toISOString();
+  order.notifyAdmin = true;
+  order.seenByAdmin = false;
+  return order;
+}
 
-  // ── Order management API ──
+// ────────────────────────────────────────────
+// HTTP SERVER
+// ────────────────────────────────────────────
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  const pathname = url.pathname;
 
-  // POST /api/orders — create a new order (status "pending" for bank transfer,
-  // or "verified" if it's an auto-verified Flutterwave payment)
-  if (req.url === '/api/orders' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
+  try {
+    // ── Dynamic config.js ──
+    if (pathname === '/config.js') {
+      const cfg = getConfig();
+      const js = '/* Generated by server.js from environment variables */\nwindow.SITE_CONFIG = ' + JSON.stringify(cfg, null, 2) + ';\n';
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(js);
+      return;
+    }
+
+    // ── AUTH: Register ──
+    if (pathname === '/api/auth/register' && req.method === 'POST') {
+      const body = await readBody(req);
       let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const phone = String(data.phone || '').trim();
+      const password = String(data.password || '');
 
-      const orderId = (data.orderId || '').toString().trim();
-      const eventName = (data.eventName || '').toString().trim();
-      const eventDate = (data.eventDate || '').toString().trim();
-      const eventVenue = (data.eventVenue || '').toString().trim();
+      if (!name || !email || !phone || password.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Please provide name, email, phone and a password of at least 6 characters.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) {
+        return sendJson(res, 409, { success: false, error: 'An account with this email already exists. Please log in.' });
+      }
+      const user = {
+        id: 'USR-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name: name,
+        email: email,
+        phone: phone,
+        passwordHash: hashPassword(password),
+        createdAt: new Date().toISOString()
+      };
+      await addUser(user);
+      const token = generateToken();
+      await createSession(token, user.id);
+      return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
+    }
+
+    // ── AUTH: Login ──
+    if (pathname === '/api/auth/login' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      if (!email || !password) {
+        return sendJson(res, 400, { success: false, error: 'Please enter your email and password.' });
+      }
+      const user = await findUserByEmail(email);
+      if (!user || !verifyPassword(password, user.passwordHash)) {
+        return sendJson(res, 401, { success: false, error: 'Invalid email or password.' });
+      }
+      const token = generateToken();
+      await createSession(token, user.id);
+      return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
+    }
+
+    // ── AUTH: Logout ──
+    if (pathname === '/api/auth/logout' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      if (token) await deleteSession(token);
+      return sendJson(res, 200, { success: true });
+    }
+
+    // ── AUTH: Me (current user + their orders) ──
+    if (pathname === '/api/auth/me' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user) return sendJson(res, 401, { success: false, error: 'Not logged in' });
+      const orders = await readOrders();
+      const mine = orders.filter(o => o.userId === user.id || String(o.buyerEmail).toLowerCase() === user.email);
+      return sendJson(res, 200, { success: true, user: publicUser(user), orders: mine });
+    }
+
+    // ── AUTH: My orders (used by my-tickets page) ──
+    if (pathname === '/api/auth/orders' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user) return sendJson(res, 401, { success: false, error: 'Not logged in' });
+      const orders = await readOrders();
+      const mine = orders.filter(o => o.userId === user.id || String(o.buyerEmail).toLowerCase() === user.email);
+      return sendJson(res, 200, { success: true, orders: mine });
+    }
+
+    // ── Create order (PENDING until payment is server-verified) ──
+    if (pathname === '/api/orders' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+
+      const orderId = String(data.orderId || '').trim();
+      const eventName = String(data.eventName || '').trim();
+      const eventDate = String(data.eventDate || '').trim();
+      const eventVenue = String(data.eventVenue || '').trim();
       const qty = parseInt(data.qty) || 1;
       const amount = parseFloat(data.amount) || 0;
-      const currency = (data.currency || 'NGN').toString();
-      const paymentMethod = (data.paymentMethod || 'bank-transfer').toString();
-      const buyerName = (data.buyerName || '').toString().trim();
-      const buyerEmail = (data.buyerEmail || '').toString().trim();
-      const buyerPhone = (data.buyerPhone || '').toString().trim();
-      const buyerFaculty = (data.buyerFaculty || '').toString().trim();
+      const currency = String(data.currency || 'NGN');
+      const buyerName = String(data.buyerName || '').trim();
+      const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
+      const buyerPhone = String(data.buyerPhone || '').trim();
+      const buyerFaculty = String(data.buyerFaculty || '').trim();
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Missing required order fields' }));
-        return;
+        return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
       }
 
-      const orders = loadOrders();
-
-      // Prevent duplicate order IDs
-      if (orders.some(o => o.orderId === orderId)) {
-        res.writeHead(409, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Order ID already exists' }));
-        return;
+      const existing = await getOrder(orderId);
+      if (existing) {
+        return sendJson(res, 409, { success: false, error: 'Order ID already exists' });
       }
 
-      const paymentConfirmed = data.paymentConfirmed === true || data.paymentConfirmed === 'true';
+      // Attach user if logged in
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+
       const order = {
         orderId: orderId,
-        status: paymentConfirmed ? 'verified' : 'pending',
+        status: 'pending',                 // ALWAYS pending until server verification
         eventName: eventName,
         eventDate: eventDate,
         eventVenue: eventVenue,
         qty: qty,
         amount: amount,
         currency: currency,
-        paymentMethod: paymentMethod,
+        paymentMethod: 'flutterwave',      // Flutterwave is the only method
         buyerName: buyerName,
         buyerEmail: buyerEmail,
         buyerPhone: buyerPhone,
         buyerFaculty: buyerFaculty,
+        userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
-        verifiedAt: paymentConfirmed ? new Date().toISOString() : null,
-        // New: admin notification + ticket tracking
+        verifiedAt: null,
         notifyAdmin: true,
         seenByAdmin: false,
-        paymentNotified: false,
-        paymentNotifiedAt: null,
-        ticketCode: generateTicketCode()
+        ticketCodes: generateTicketCodes(qty),  // one code per ticket
+        ticketCode: null
       };
+      order.ticketCode = order.ticketCodes[0].code;
+      await addOrder(order);
+      return sendJson(res, 200, { success: true, order: order });
+    }
 
-      orders.unshift(order);
-      saveOrders(orders);
+    // ── Verify payment (server-authoritative) ──
+    if (pathname === '/api/verify-payment' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const txRef = String(data.tx_ref || '').trim();
+      if (!txRef) return sendJson(res, 400, { success: false, error: 'Missing tx_ref' });
 
-      // For pre-confirmed Flutterwave payments, the ticket is auto-issued
-      if (paymentConfirmed) {
-        order.ticketIssued = true;
-        order.ticketIssuedAt = new Date().toISOString();
-        saveOrders(orders);
+      const order = await getOrder(txRef);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
+
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+
+      if (result.success) {
+        const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
+        console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
+        return sendJson(res, 200, { success: true, order: updated });
       }
 
-      // Link the new order to an existing client account (if email/phone matches)
-      linkOrderToClient(orders, order);
+      return sendJson(res, 200, {
+        success: false,
+        error: result.amountOk && result.currencyOk ? 'Payment not verified yet' : 'Payment amount/currency mismatch',
+        status: result.status,
+        amountOk: result.amountOk,
+        currencyOk: result.currencyOk,
+        tx_ref: txRef
+      });
+    }
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, order: order }));
-    });
-    return;
-  }
-
-  // ── Webhook: Flutterwave payment confirmation (server-to-server) ──
-  // This is the RELIABLE path: Flutterwave POSTs here when a payment succeeds,
-  // so verification doesn't depend on the buyer's browser staying open.
-  if (req.url === '/api/webhook/flutterwave' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      // Flutterwave sends both JSON body and x-flutterwave-signature header.
-      // We optionally validate the signature using FLUTTERWAVE_WEBHOOK_HASH.
+    // ── Flutterwave webhook (server-to-server) ──
+    if (pathname === '/api/webhook/flutterwave' && req.method === 'POST') {
+      const body = await readBody(req);
       let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
 
       const signature = req.headers['x-flutterwave-signature'] || '';
-      const webhookHash = (process.env.FLUTTERWAVE_WEBHOOK_HASH !== undefined
+      const webhookHash = process.env.FLUTTERWAVE_WEBHOOK_HASH !== undefined
         ? process.env.FLUTTERWAVE_WEBHOOK_HASH
-        : defaults.FLUTTERWAVE_WEBHOOK_HASH);
+        : defaults.FLUTTERWAVE_WEBHOOK_HASH;
       let validSignature = true;
       if (webhookHash) {
-        const crypto = require('crypto');
         const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('hex');
         validSignature = expected === signature;
       }
-
       if (!validSignature) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Invalid signature' }));
-        return;
+        return sendJson(res, 401, { success: false, error: 'Invalid signature' });
       }
 
-      const txRef = (data.txRef || data.data && data.data.tx_ref || '').toString();
-      const eventType = (data.event || data['event.type'] || '').toString();
-      const status = (data.data && data.data.status || '').toString();
+      const txRef = String((data.txRef || (data.data && data.data.tx_ref) || ''));
+      const eventType = String((data.event || data['event.type'] || ''));
+      const status = String((data.data && data.data.status) || '');
+      const webhookAmount = parseFloat((data.data && data.data.amount) || 0);
+      const webhookCurrency = String((data.data && data.data.currency) || '');
+      const isSuccess = eventType === 'charge.completed' && (status === 'successful' || status === 'completed');
 
-      // Only act on successful charge confirmations
-      const isSuccess = (eventType === 'charge.completed' && (status === 'successful' || status === 'completed'));
+      if (!txRef) return sendJson(res, 200, { success: false, error: 'Missing tx_ref' });
 
-      if (!txRef) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Missing tx_ref' }));
-        return;
+      const order = await getOrder(txRef);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
+
+      if (isSuccess && order.status !== 'verified') {
+        // Verify amount/currency from webhook payload too
+        const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
+        const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
+        if (amountOk && currencyOk) {
+          await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
+          console.log('Webhook verified order:', txRef);
+        } else {
+          return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
+        }
       }
+      return sendJson(res, 200, { success: true, tx_ref: txRef });
+    }
 
-      const orders = loadOrders();
-      const idx = orders.findIndex(o => o.orderId === txRef);
-
-      if (idx === -1) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Order not found for tx_ref' }));
-        return;
-      }
-
-      if (isSuccess && orders[idx].status !== 'verified') {
-        orders[idx].status = 'verified';
-        orders[idx].verifiedAt = new Date().toISOString();
-        orders[idx].paymentMethod = 'flutterwave';
-        orders[idx].notifyAdmin = true;
-        orders[idx].seenByAdmin = false;
-        orders[idx].ticketIssued = true;
-        orders[idx].ticketIssuedAt = new Date().toISOString();
-        saveOrders(orders);
-        console.log('Webhook verified order:', txRef);
-      }
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, tx_ref: txRef }));
-    });
-    return;
-  }
-
-  // ── Buyer marks bank transfer as done ──
-  if (req.url === '/api/orders/notify-paid' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
-
-      const orderId = (data.orderId || '').toString().trim();
-
-      if (!orderId) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Missing orderId' }));
-        return;
-      }
-
-      const orders = loadOrders();
-      const idx = orders.findIndex(o => o.orderId === orderId);
-
-      if (idx === -1) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Order not found' }));
-        return;
-      }
-
-      orders[idx].paymentNotified = true;
-      orders[idx].paymentNotifiedAt = new Date().toISOString();
-      orders[idx].notifyAdmin = true;
-      orders[idx].seenByAdmin = false;
-      saveOrders(orders);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, order: orders[idx] }));
-    });
-    return;
-  }
-
-  // ── Buyer order lookup (Order ID + phone) ──
-  if (req.url === '/api/orders/lookup' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
-
-      const orderId = (data.orderId || '').toString().trim();
-      const phone = (data.phone || '').toString().trim();
-
-      if (!orderId || !phone) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Missing orderId or phone' }));
-        return;
-      }
-
-      const orders = loadOrders();
-      const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
-
-      if (!order) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Order not found. Check your Order ID and phone number.' }));
-        return;
-      }
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
+    // ── Public status lookup (pending page) ──
+    if (pathname === '/api/orders/status') {
+      const orderId = String(url.searchParams.get('orderId') || '').trim();
+      if (!orderId) return sendJson(res, 400, { success: false, error: 'Missing orderId' });
+      const order = await getOrder(orderId);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      return sendJson(res, 200, {
         success: true,
         order: {
           orderId: order.orderId,
@@ -523,499 +595,229 @@ const server = http.createServer((req, res) => {
           currency: order.currency,
           paymentMethod: order.paymentMethod,
           verifiedAt: order.verifiedAt,
-          ticketCode: order.ticketCode || null,
-          paymentNotified: order.paymentNotified || false
+          ticketCodes: order.ticketCodes || [],
+          ticketCode: order.ticketCode || null
         }
-      }));
-    });
-    return;
-  }
-
-  // ── Get ticket by orderId + code (protected) ──
-  if (req.url.startsWith('/api/ticket') && req.method === 'GET') {
-    const url = new URL(req.url, 'http://localhost');
-    const orderId = (url.searchParams.get('orderId') || '').toString().trim();
-    const code = (url.searchParams.get('code') || '').toString().trim();
-
-    if (!orderId || !code) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Missing orderId or code' }));
-      return;
-    }
-
-    const orders = loadOrders();
-    const order = orders.find(o => o.orderId === orderId);
-
-    if (!order) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Order not found' }));
-      return;
-    }
-
-    // Only verified orders get tickets
-    if (order.status !== 'verified') {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Order not yet verified', status: order.status }));
-      return;
-    }
-
-    // Validate the ticket code
-    if (order.ticketCode !== code) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Invalid ticket code' }));
-      return;
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      ticket: {
-        orderId: order.orderId,
-        ticketCode: order.ticketCode,
-        eventName: order.eventName,
-        eventDate: order.eventDate,
-        eventVenue: order.eventVenue,
-        qty: order.qty,
-        amount: order.amount,
-        currency: order.currency,
-        buyerName: order.buyerName,
-        verifiedAt: order.verifiedAt
-      }
-    }));
-    return;
-  }
-
-  // ── Admin: mark orders as seen ──
-  if (req.url === '/api/admin/orders/seen' && req.method === 'POST') {
-    if (!isAdminAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-      return;
-    }
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
-
-      const orderIds = Array.isArray(data.orderIds) ? data.orderIds.map(String) : [];
-
-      const orders = loadOrders();
-      orders.forEach(o => {
-        if (orderIds.includes(o.orderId)) o.seenByAdmin = true;
       });
-      saveOrders(orders);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true }));
-    });
-    return;
-  }
-
-  // GET /api/orders/status?orderId=... — public status lookup (used by pending.html polling)
-  if (req.url.startsWith('/api/orders/status')) {
-    const url = new URL(req.url, 'http://localhost');
-    const orderId = (url.searchParams.get('orderId') || '').toString().trim();
-
-    if (!orderId) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Missing orderId' }));
-      return;
     }
 
-    const orders = loadOrders();
-    const order = orders.find(o => o.orderId === orderId);
-
-    if (!order) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Order not found' }));
-      return;
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      order: {
-        orderId: order.orderId,
-        status: order.status,
-        eventName: order.eventName,
-        qty: order.qty,
-        amount: order.amount,
-        currency: order.currency,
-        paymentMethod: order.paymentMethod,
-        verifiedAt: order.verifiedAt,
-        ticketCode: order.ticketCode || null
-      }
-    }));
-    return;
-  }
-
-  // GET /api/admin/orders — list all orders (requires admin auth)
-  if (req.url === '/api/admin/orders' && req.method === 'GET') {
-    if (!isAdminAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-      return;
-    }
-    const orders = loadOrders();
-    const unseenCount = orders.filter(o => o.notifyAdmin && !o.seenByAdmin).length;
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, unseenCount: unseenCount, orders: orders }));
-    return;
-  }
-
-  // GET /api/admin/unseen-count — lightweight real-time alert poll
-  if (req.url === '/api/admin/unseen-count' && req.method === 'GET') {
-    if (!isAdminAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-      return;
-    }
-    const orders = loadOrders();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, unseenCount: unseenOrderCount(orders) }));
-    return;
-  }
-
-  // POST /api/admin/orders/status — verify/approve/reject an order (requires admin auth)
-  if (req.url === '/api/admin/orders/status' && req.method === 'POST') {
-    if (!isAdminAuthorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-      return;
-    }
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
+    // ── Buyer order lookup (Order ID + phone) ──
+    if (pathname === '/api/orders/lookup' && req.method === 'POST') {
+      const body = await readBody(req);
       let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const orderId = String(data.orderId || '').trim();
+      const phone = String(data.phone || '').trim();
+      if (!orderId || !phone) return sendJson(res, 400, { success: false, error: 'Missing orderId or phone' });
 
-      const orderId = (data.orderId || '').toString().trim();
-      const newStatus = (data.status || '').toString().trim(); // 'verified' | 'rejected' | 'pending'
+      const orders = await readOrders();
+      const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID and phone number.' });
 
-      if (!orderId || !['verified', 'rejected', 'pending'].includes(newStatus)) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Invalid orderId or status' }));
-        return;
+      return sendJson(res, 200, {
+        success: true,
+        order: {
+          orderId: order.orderId,
+          status: order.status,
+          eventName: order.eventName,
+          eventDate: order.eventDate,
+          eventVenue: order.eventVenue,
+          qty: order.qty,
+          amount: order.amount,
+          currency: order.currency,
+          paymentMethod: order.paymentMethod,
+          verifiedAt: order.verifiedAt,
+          ticketCodes: order.ticketCodes || [],
+          ticketCode: order.ticketCode || null
+        }
+      });
+    }
+
+    // ── Get ticket by orderId + code (protected, per-ticket) ──
+    if (pathname === '/api/ticket' && req.method === 'GET') {
+      const orderId = String(url.searchParams.get('orderId') || '').trim();
+      const code = String(url.searchParams.get('code') || '').trim();
+      if (!orderId || !code) return sendJson(res, 400, { success: false, error: 'Missing orderId or code' });
+
+      const order = await getOrder(orderId);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      if (order.status !== 'verified') {
+        return sendJson(res, 403, { success: false, error: 'Order not yet verified', status: order.status });
       }
 
-      const orders = loadOrders();
-      const idx = orders.findIndex(o => o.orderId === orderId);
-
+      const codes = order.ticketCodes || [];
+      const idx = codes.findIndex(t => t.code === code);
       if (idx === -1) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Order not found' }));
-        return;
+        return sendJson(res, 403, { success: false, error: 'Invalid ticket code' });
       }
 
-      orders[idx].status = newStatus;
-      if (newStatus === 'verified') {
-        orders[idx].verifiedAt = new Date().toISOString();
-        orders[idx].ticketIssued = true;
-        orders[idx].ticketIssuedAt = new Date().toISOString();
-        orders[idx].rejectedAt = null;
-      } else if (newStatus === 'rejected') {
-        orders[idx].rejectedAt = new Date().toISOString();
-      } else if (newStatus === 'pending') {
-        orders[idx].rejectedAt = null;
-      }
-      saveOrders(orders);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, order: orders[idx] }));
-    });
-    return;
-  }
-
-  // ── Client account API ──
-
-  // POST /api/account/register — create a buyer account (auto-links orders)
-  if (req.url === '/api/account/register' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
-
-      const name = (data.name || '').toString().trim();
-      const email = (data.email || '').toString().trim().toLowerCase();
-      const phone = (data.phone || '').toString().trim();
-      const password = (data.password || '').toString();
-
-      if (!name || !email || !phone || !password || password.length < 4) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Please fill in your name, email, phone and a password (min 4 characters).' }));
-        return;
-      }
-
-      const clients = loadClients();
-      const exists = clients.find(c =>
-        (c.email && c.email.toLowerCase() === email) ||
-        (c.phone && c.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))
-      );
-      if (exists) {
-        res.writeHead(409, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'An account with this email or phone already exists. Please sign in.' }));
-        return;
-      }
-
-      const client = {
-        id: 'C_' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
-        name: name,
-        email: email,
-        phone: phone,
-        passwordHash: hashPassword(password),
-        token: makeClientToken(),
-        createdAt: new Date().toISOString()
-      };
-
-      clients.push(client);
-      saveClients(clients);
-
-      // Link any existing orders by email/phone
-      const orders = loadOrders();
-      let linked = false;
-      orders.forEach(o => {
-        const emailMatch = o.buyerEmail && o.buyerEmail.toLowerCase() === email;
-        const phoneMatch = o.buyerPhone && o.buyerPhone.replace(/\D/g, '') === phone.replace(/\D/g, '');
-        if (emailMatch || phoneMatch) { o.clientId = client.id; linked = true; }
-      });
-      if (linked) saveOrders(orders);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, token: client.token, client: publicClient(client) }));
-    });
-    return;
-  }
-
-  // POST /api/account/login — sign in with email/phone + password
-  if (req.url === '/api/account/login' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
-
-      const identifier = (data.identifier || '').toString().trim().toLowerCase();
-      const password = (data.password || '').toString();
-
-      if (!identifier || !password) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Please enter your email/phone and password.' }));
-        return;
-      }
-
-      const clients = loadClients();
-      const digits = identifier.replace(/\D/g, '');
-      const client = clients.find(c =>
-        (c.email && c.email.toLowerCase() === identifier) ||
-        (c.phone && c.phone.replace(/\D/g, '') === digits)
-      );
-
-      if (!client || client.passwordHash !== hashPassword(password)) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Invalid email/phone or password.' }));
-        return;
-      }
-
-      // Refresh token (keeps single active session)
-      client.token = makeClientToken();
-      saveClients(clients);
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, token: client.token, client: publicClient(client) }));
-    });
-    return;
-  }
-
-  // GET /api/account/me — returns the logged-in client + their orders (token auth)
-  if (req.url === '/api/account/me' && req.method === 'GET') {
-    const client = getClientByToken(req);
-    if (!client) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Not logged in' }));
-      return;
-    }
-
-    const orders = loadOrders().filter(o => o.clientId === client.id);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      client: publicClient(client),
-      orders: orders.map(o => ({
-        orderId: o.orderId,
-        status: o.status,
-        eventName: o.eventName,
-        eventDate: o.eventDate,
-        eventVenue: o.eventVenue,
-        qty: o.qty,
-        amount: o.amount,
-        currency: o.currency,
-        paymentMethod: o.paymentMethod,
-        verifiedAt: o.verifiedAt,
-        ticketCode: o.ticketCode || null,
-        rejectedAt: o.rejectedAt || null
-      }))
-    }));
-    return;
-  }
-
-  // GET /api/account/orders — live polling endpoint for the buyer dashboard
-  if (req.url === '/api/account/orders' && req.method === 'GET') {
-    const client = getClientByToken(req);
-    if (!client) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, error: 'Not logged in' }));
-      return;
-    }
-
-    const orders = loadOrders().filter(o => o.clientId === client.id);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      orders: orders.map(o => ({
-        orderId: o.orderId,
-        status: o.status,
-        eventName: o.eventName,
-        eventDate: o.eventDate,
-        eventVenue: o.eventVenue,
-        qty: o.qty,
-        amount: o.amount,
-        currency: o.currency,
-        paymentMethod: o.paymentMethod,
-        verifiedAt: o.verifiedAt,
-        ticketCode: o.ticketCode || null,
-        rejectedAt: o.rejectedAt || null
-      }))
-    }));
-    return;
-  }
-
-  // POST /api/account/logout — invalidate the client token
-  if (req.url === '/api/account/logout' && req.method === 'POST') {
-    const client = getClientByToken(req);
-    if (client) {
-      const clients = loadClients();
-      const idx = clients.findIndex(c => c.id === client.id);
-      if (idx !== -1) {
-        clients[idx].token = null;
-        saveClients(clients);
-      }
-    }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true }));
-    return;
-  }
-
-  // Normalize URL
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
-  if (urlPath === '/') urlPath = '/index.html';
-
-  // Prevent path traversal
-  const filePath = path.join(PUBLIC_DIR, urlPath);
-  if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      // Try index.html fallback for directory requests
-      const indexPath = path.join(PUBLIC_DIR, urlPath, 'index.html');
-      fs.stat(indexPath, (err2, stats2) => {
-        if (err2 || !stats2.isFile()) {
-          // Graceful 404 page — handles Render free-tier cold start
-          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="refresh" content="3" />
-  <title>UNN Socials — Waking up...</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #0a1a0a;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      color: #e0e0e0;
-      text-align: center;
-      padding: 24px;
-    }
-    .card {
-      background: linear-gradient(145deg, #0f2a0f, #1a3a1a);
-      border: 1px solid #2a5a2a;
-      border-radius: 24px;
-      padding: 48px 40px;
-      max-width: 480px;
-      width: 100%;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
-    }
-    .logo { font-size: 28px; font-weight: 700; margin-bottom: 24px; }
-    .logo span { color: #ffd700; }
-    .icon { font-size: 56px; margin-bottom: 16px; }
-    h1 { font-size: 22px; font-weight: 600; margin-bottom: 12px; color: #fff; }
-    p { font-size: 15px; line-height: 1.6; color: #a0c0a0; margin-bottom: 24px; }
-    .spinner {
-      display: inline-block;
-      width: 36px; height: 36px;
-      border: 3px solid #2a5a2a;
-      border-top-color: #ffd700;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-bottom: 20px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .btn {
-      display: inline-block;
-      background: #ffd700;
-      color: #0a1a0a;
-      font-weight: 600;
-      font-size: 15px;
-      padding: 12px 32px;
-      border-radius: 40px;
-      text-decoration: none;
-      transition: background 0.2s;
-    }
-    .btn:hover { background: #ffe44d; }
-    .hint { font-size: 13px; color: #608060; margin-top: 16px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo">UNN <span>Socials</span></div>
-    <div class="icon">⚡</div>
-    <div class="spinner"></div>
-    <h1>Waking up the server…</h1>
-    <p>This page is hosted on a free service that sleeps after inactivity.<br>It should be ready in a moment.</p>
-    <a href="/" class="btn" onclick="location.reload()">⟳ Refresh Now</a>
-    <p class="hint">Auto-refreshing every 3 seconds &mdash; or tap the button above.</p>
-  </div>
-</body>
-</html>`);
-          return;
+      const entry = codes[idx];
+      return sendJson(res, 200, {
+        success: true,
+        ticket: {
+          orderId: order.orderId,
+          ticketCode: entry.code,
+          ticketIndex: idx + 1,
+          totalTickets: codes.length,
+          used: !!entry.used,
+          usedAt: entry.usedAt || null,
+          eventName: order.eventName,
+          eventDate: order.eventDate,
+          eventVenue: order.eventVenue,
+          qty: order.qty,
+          amount: order.amount,
+          currency: order.currency,
+          buyerName: order.buyerName,
+          verifiedAt: order.verifiedAt
         }
-        const ext = path.extname(indexPath).toLowerCase();
-        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-        fs.createReadStream(indexPath).pipe(res);
       });
+    }
+
+    // ── Admin: scan ticket at gate (check-in) ──
+    if (pathname === '/api/ticket/scan' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const orderId = String(data.orderId || '').trim();
+      const code = String(data.code || '').trim();
+      if (!orderId || !code) return sendJson(res, 400, { success: false, error: 'Missing orderId or code' });
+
+      const order = await getOrder(orderId);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      if (order.status !== 'verified') return sendJson(res, 403, { success: false, error: 'Order not verified' });
+
+      const codes = order.ticketCodes || [];
+      const idx = codes.findIndex(t => t.code === code);
+      if (idx === -1) return sendJson(res, 403, { success: false, error: 'Invalid ticket code' });
+
+      const entry = codes[idx];
+      if (entry.used) {
+        return sendJson(res, 200, {
+          success: true,
+          alreadyUsed: true,
+          message: 'This ticket was already scanned on ' + (entry.usedAt || 'earlier') + '.',
+          ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length }
+        });
+      }
+      entry.used = true;
+      entry.usedAt = new Date().toISOString();
+      codes[idx] = entry;
+      const updated = await patchOrder(orderId, { ticketCodes: codes });
+      return sendJson(res, 200, {
+        success: true,
+        message: '✅ Check-in successful for ' + order.buyerName,
+        ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length }
+      });
+    }
+
+    // ── Admin: mark orders seen ──
+    if (pathname === '/api/admin/orders/seen' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const orderIds = Array.isArray(data.orderIds) ? data.orderIds.map(String) : [];
+      const orders = await readOrders();
+      let changed = false;
+      orders.forEach(o => {
+        if (orderIds.includes(o.orderId) && !o.seenByAdmin) {
+          o.seenByAdmin = true;
+          changed = true;
+        }
+      });
+      if (changed) await writeOrders(orders);
+      return sendJson(res, 200, { success: true });
+    }
+
+    // ── Admin: list orders ──
+    if (pathname === '/api/admin/orders' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const orders = await readOrders();
+      return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
+    }
+
+    // ── Admin: unseen count ──
+    if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const orders = await readOrders();
+      return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
+    }
+
+    // ── Admin: update order status (verify/reject/reopen) ──
+    if (pathname === '/api/admin/orders/status' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const orderId = String(data.orderId || '').trim();
+      const newStatus = String(data.status || '').trim();
+      if (!orderId || !['verified', 'rejected', 'pending'].includes(newStatus)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid orderId or status' });
+      }
+      const order = await getOrder(orderId);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+
+      if (newStatus === 'verified') {
+        const updated = await patchOrder(orderId, verifyOrderTicketData(Object.assign({}, order)));
+        return sendJson(res, 200, { success: true, order: updated });
+      }
+      const updated = await patchOrder(orderId, { status: newStatus });
+      return sendJson(res, 200, { success: true, order: updated });
+    }
+
+    // ── Static files ──
+    let urlPath = decodeURIComponent(pathname);
+    if (urlPath === '/') urlPath = '/index.html';
+    const filePath = path.join(PUBLIC_DIR, urlPath);
+    if (!filePath.startsWith(PUBLIC_DIR)) {
+      res.writeHead(403);
+      res.end('Forbidden');
       return;
     }
 
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-    fs.createReadStream(filePath).pipe(res);
-  });
+    fs.stat(filePath, (err, stats) => {
+      if (err || !stats.isFile()) {
+        const indexPath = path.join(PUBLIC_DIR, urlPath, 'index.html');
+        fs.stat(indexPath, (err2, stats2) => {
+          if (err2 || !stats2.isFile()) {
+            res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta http-equiv="refresh" content="3"><title>UNN Socials — Waking up...</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a1a0a;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#e0e0e0;text-align:center;padding:24px}.card{background:linear-gradient(145deg,#0f2a0f,#1a3a1a);border:1px solid #2a5a2a;border-radius:24px;padding:48px 40px;max-width:480px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.6)}.logo{font-size:28px;font-weight:700;margin-bottom:24px}.logo span{color:#ffd700}.icon{font-size:56px;margin-bottom:16px}h1{font-size:22px;font-weight:600;margin-bottom:12px;color:#fff}p{font-size:15px;line-height:1.6;color:#a0c0a0;margin-bottom:24px}.spinner{display:inline-block;width:36px;height:36px;border:3px solid #2a5a2a;border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}@keyframes spin{to{transform:rotate(360deg)}}.btn{display:inline-block;background:#ffd700;color:#0a1a0a;font-weight:600;font-size:15px;padding:12px 32px;border-radius:40px;text-decoration:none;transition:background .2s}.btn:hover{background:#ffe44d}.hint{font-size:13px;color:#608060;margin-top:16px}</style>
+</head><body><div class="card"><div class="logo">UNN <span>Socials</span></div><div class="icon">⚡</div><div class="spinner"></div><h1>Waking up the server…</h1><p>This page is hosted on a free service that sleeps after inactivity.<br>It should be ready in a moment.</p><a href="/" class="btn" onclick="location.reload()">⟳ Refresh Now</a><p class="hint">Auto-refreshing every 3 seconds &mdash; or tap the button above.</p></div></body></html>`);
+            return;
+          }
+          const ext = path.extname(indexPath).toLowerCase();
+          res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+          fs.createReadStream(indexPath).pipe(res);
+        });
+        return;
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+      fs.createReadStream(filePath).pipe(res);
+    });
+  } catch (err) {
+    console.error('Request error:', err.message);
+    if (!res.headersSent) sendJson(res, 500, { success: false, error: 'Server error' });
+    else res.end();
+  }
 });
 
-server.listen(PORT, () => {
-  console.log(`UNN Socials server running at http://localhost:${PORT}`);
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    createdAt: user.createdAt
+  };
+}
+
+initStorage().then(() => {
+  server.listen(PORT, () => {
+    console.log('UNN Socials server running at http://localhost:' + PORT);
+  });
 });
 
