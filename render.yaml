@@ -11,8 +11,12 @@ services:
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER
         value: 2348122104576
-      - key: FLUTTERWAVE_PUBLIC_KEY
+      - key: ADMIN_PASSWORD
+        value: CHANGE_ME_STRONG_PASSWORD
+      - key: FLUTTERWAVE_SECRET_KEY
         value: FSTOU9su2xlF8UU8wU05kNvqEbI8v47S
+      - key: FLUTTERWAVE_PUBLIC_KEY
+        value: FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X
       - key: FLUTTERWAVE_BANK_NAME
         value: Flutterwave MfB (formerly ok mfb)
       - key: FLUTTERWAVE_ACCOUNT_NUMBER

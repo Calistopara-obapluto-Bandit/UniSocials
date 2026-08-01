@@ -5,17 +5,55 @@ at request time, so Render env vars are picked up without a build step.
 */
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
 
+// Simple in-memory order log (resets on restart; enough to detect duplicates/tampering)
+const orderLog = [];
+const orderLogLimit = 500;
+
+// Persistent order store — JSON file so orders survive restarts (Render free tier disk persists within a session)
+const ORDERS_FILE = path.join(__dirname, 'orders.json');
+
+function loadOrders() {
+  try {
+    const raw = fs.readFileSync(ORDERS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveOrders(orders) {
+  try {
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf8');
+  } catch(e) {
+    console.error('Failed to save orders:', e.message);
+  }
+}
+
+function isAdminAuthorized(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const expected = process.env.ADMIN_PASSWORD !== undefined ? process.env.ADMIN_PASSWORD : defaults.ADMIN_PASSWORD;
+  return !!token && token === expected;
+}
+
 // Default configuration values (overridden by environment variables on Render)
 const defaults = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
   WHATSAPP_ORDER_NUMBER: '2348122104576',
-  FLUTTERWAVE_PUBLIC_KEY: 'FSTOU9su2xlF8UU8wU05kNvqEbI8v47S',
+  // Admin dashboard password — set a strong one in Render env vars
+  ADMIN_PASSWORD: 'admin1234',
+  // Flutterwave client secret key — server-side only (never exposed to the browser)
+  FLUTTERWAVE_SECRET_KEY: 'FSTOU9su2xlF8UU8wU05kNvqEbI8v47S',
+  // Flutterwave public key — safe to expose to the browser for inline checkout
+  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X',
   FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
   FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
@@ -26,6 +64,8 @@ const defaults = {
 function getConfig() {
   const cfg = {};
   for (const [key, val] of Object.entries(defaults)) {
+    // Never expose secret/private/password keys to the browser
+    if (/SECRET|PRIVATE|PASSWORD/i.test(key)) continue;
     cfg[key] = process.env[key] !== undefined ? process.env[key] : val;
   }
   return cfg;
@@ -55,6 +95,256 @@ const server = http.createServer((req, res) => {
       `window.SITE_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`;
     res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(js);
+    return;
+  }
+
+  // ── Flutterwave transaction verification endpoint ──
+  // Verifies payment with Flutterwave's API using the secret key (server-side),
+  // so the amount and order can't be tampered with client-side.
+  if (req.url.startsWith('/api/verify-payment')) {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let txRef = '';
+      try {
+        const parsed = JSON.parse(body || '{}');
+        txRef = (parsed.tx_ref || '').toString();
+      } catch(e) {}
+
+      if (!txRef) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing tx_ref' }));
+        return;
+      }
+
+      // Reject duplicate/retried orders
+      if (orderLog.includes(txRef)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Order already processed' }));
+        return;
+      }
+
+      const secretKey = (process.env.FLUTTERWAVE_SECRET_KEY !== undefined
+        ? process.env.FLUTTERWAVE_SECRET_KEY
+        : defaults.FLUTTERWAVE_SECRET_KEY);
+
+      const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(txRef);
+      const options = {
+        hostname: 'api.flutterwave.com',
+        port: 443,
+        path: apiPath,
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + secretKey,
+          'Content-Type': 'application/json'
+        }
+      };
+
+      const apiReq = https.request(options, (apiRes) => {
+        let data = '';
+        apiRes.on('data', c => { data += c; });
+        apiRes.on('end', () => {
+          let verified = false;
+          let amount = 0;
+          let status = '';
+          let currency = '';
+          try {
+            const json = JSON.parse(data);
+            status = (json.data && json.data.status) || '';
+            amount = (json.data && json.data.amount) || 0;
+            currency = (json.data && json.data.currency) || '';
+            verified = json.status === 'success' &&
+              (status === 'successful' || status === 'completed');
+          } catch(e) {}
+
+          if (verified) {
+            orderLog.push(txRef);
+            if (orderLog.length > orderLogLimit) orderLog.shift();
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              tx_ref: txRef,
+              amount: amount,
+              currency: currency,
+              status: status
+            }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: false,
+              error: 'Payment not verified',
+              status: status,
+              tx_ref: txRef
+            }));
+          }
+        });
+      });
+
+      apiReq.on('error', () => {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Verification network error' }));
+      });
+
+      apiReq.end();
+    });
+    return;
+  }
+
+  // ── Order management API ──
+
+  // POST /api/orders — create a new order (status "pending" for bank transfer,
+  // or "verified" if it's an auto-verified Flutterwave payment)
+  if (req.url === '/api/orders' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const orderId = (data.orderId || '').toString().trim();
+      const eventName = (data.eventName || '').toString().trim();
+      const eventDate = (data.eventDate || '').toString().trim();
+      const eventVenue = (data.eventVenue || '').toString().trim();
+      const qty = parseInt(data.qty) || 1;
+      const amount = parseFloat(data.amount) || 0;
+      const currency = (data.currency || 'NGN').toString();
+      const paymentMethod = (data.paymentMethod || 'bank-transfer').toString();
+      const buyerName = (data.buyerName || '').toString().trim();
+      const buyerEmail = (data.buyerEmail || '').toString().trim();
+      const buyerPhone = (data.buyerPhone || '').toString().trim();
+      const buyerFaculty = (data.buyerFaculty || '').toString().trim();
+
+      if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Missing required order fields' }));
+        return;
+      }
+
+      const orders = loadOrders();
+
+      // Prevent duplicate order IDs
+      if (orders.some(o => o.orderId === orderId)) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Order ID already exists' }));
+        return;
+      }
+
+      const order = {
+        orderId: orderId,
+        status: paymentMethod === 'flutterwave' ? 'verified' : 'pending',
+        eventName: eventName,
+        eventDate: eventDate,
+        eventVenue: eventVenue,
+        qty: qty,
+        amount: amount,
+        currency: currency,
+        paymentMethod: paymentMethod,
+        buyerName: buyerName,
+        buyerEmail: buyerEmail,
+        buyerPhone: buyerPhone,
+        buyerFaculty: buyerFaculty,
+        createdAt: new Date().toISOString(),
+        verifiedAt: paymentMethod === 'flutterwave' ? new Date().toISOString() : null
+      };
+
+      orders.unshift(order);
+      saveOrders(orders);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, order: order }));
+    });
+    return;
+  }
+
+  // GET /api/orders/status?orderId=... — public status lookup (used by pending.html polling)
+  if (req.url.startsWith('/api/orders/status')) {
+    const url = new URL(req.url, 'http://localhost');
+    const orderId = (url.searchParams.get('orderId') || '').toString().trim();
+
+    if (!orderId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Missing orderId' }));
+      return;
+    }
+
+    const orders = loadOrders();
+    const order = orders.find(o => o.orderId === orderId);
+
+    if (!order) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Order not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      order: {
+        orderId: order.orderId,
+        status: order.status,
+        eventName: order.eventName,
+        qty: order.qty,
+        amount: order.amount,
+        currency: order.currency,
+        paymentMethod: order.paymentMethod,
+        verifiedAt: order.verifiedAt
+      }
+    }));
+    return;
+  }
+
+  // GET /api/admin/orders — list all orders (requires admin auth)
+  if (req.url === '/api/admin/orders' && req.method === 'GET') {
+    if (!isAdminAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+      return;
+    }
+    const orders = loadOrders();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, orders: orders }));
+    return;
+  }
+
+  // POST /api/admin/orders/status — verify/approve/reject an order (requires admin auth)
+  if (req.url === '/api/admin/orders/status' && req.method === 'POST') {
+    if (!isAdminAuthorized(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const orderId = (data.orderId || '').toString().trim();
+      const newStatus = (data.status || '').toString().trim(); // 'verified' | 'rejected' | 'pending'
+
+      if (!orderId || !['verified', 'rejected', 'pending'].includes(newStatus)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid orderId or status' }));
+        return;
+      }
+
+      const orders = loadOrders();
+      const idx = orders.findIndex(o => o.orderId === orderId);
+
+      if (idx === -1) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Order not found' }));
+        return;
+      }
+
+      orders[idx].status = newStatus;
+      if (newStatus === 'verified') orders[idx].verifiedAt = new Date().toISOString();
+      saveOrders(orders);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, order: orders[idx] }));
+    });
     return;
   }
 
