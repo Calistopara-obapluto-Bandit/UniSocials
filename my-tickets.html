@@ -386,8 +386,8 @@
         btn.disabled = false;
         btn.textContent = 'Sign In';
         if (success) {
-          // Refresh page to show dashboard
-          location.reload();
+          // Show the dashboard WITHOUT reloading the page (live, no refresh)
+          enterDashboard(data && data.client);
         } else {
           errBox.textContent = (data && data.error) || 'Sign-in failed. Please try again.';
           errBox.classList.add('show');
@@ -415,13 +415,32 @@
         btn.disabled = false;
         btn.textContent = 'Create Account';
         if (success) {
-          location.reload();
+          // Show the dashboard WITHOUT reloading the page (live, no refresh)
+          enterDashboard(data && data.client);
         } else {
           errBox.textContent = (data && data.error) || 'Registration failed. Please try again.';
           errBox.classList.add('show');
         }
       });
     };
+
+    // Called after login/register — switches to the dashboard without a full reload
+    function enterDashboard(client) {
+      if (client && document.getElementById('accountGreeting')) {
+        document.getElementById('accountGreeting').textContent = 'Welcome, ' + client.name + '! Here are your orders.';
+      }
+      showSection(accountDashboard);
+      // Load orders + start live polling every 5s
+      window.clientFetchMe(function(c, orders) {
+        renderOrders(orders);
+      });
+      if (window.accountPollTimer) clearInterval(window.accountPollTimer);
+      window.accountPollTimer = setInterval(function() {
+        window.clientFetchOrders(function(orders) {
+          renderOrders(orders);
+        });
+      }, 5000);
+    }
 
     // Render order list for logged-in user
     function renderOrders(orders) {

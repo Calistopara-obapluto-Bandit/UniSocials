@@ -470,7 +470,7 @@ if (nav) {
     const publicKey = cfg.FLUTTERWAVE_PUBLIC_KEY || '';
 
     if (!publicKey) {
-      alert('Flutterwave is not configured. Please use Bank Transfer or contact support.');
+      alert('Flutterwave is not configured. Please contact support.');
       return;
     }
 
@@ -496,39 +496,49 @@ if (nav) {
         logo: 'https://unisocials.onrender.com/images/tm-622-screen-01.jpg'
       },
       callback: function(response) {
+        // Re-enable the button so the user can retry
+        var btn = document.getElementById('placeOrderBtn');
+        var mobileBtn = document.getElementById('mobilePlaceOrderBtn');
+        if (btn) { btn.disabled = false; btn.innerHTML = '🛒 Place Order — <span id="placeOrderTotal">\u20A6' + total.toLocaleString() + '</span>'; }
+        if (mobileBtn) { mobileBtn.disabled = false; mobileBtn.textContent = '🛒 Place Order'; }
+
         if (response && (response.status === 'successful' || response.status === 'completed')) {
-          // First, create the order via the API (this issues the ticket)
-          createOrderViaApi(orderId, 'flutterwave', orderTotal, function(success, ticketCode) {
-            if (ticketCode) {
+          // The order was ALREADY created in placeOrder() — just verify server-side
+          // so the stored order flips to "verified" and we get the ticket code back.
+          fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data && data.success) {
+              const ticketCode = data.ticketCode || null;
               sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone, ticketCode);
-              // Redirect directly to the ticket page
-              window.location.href = 'ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode);
-            } else {
-              // Fallback — try verification then redirect
-              fetch('/api/verify-payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
-              })
-              .then(function(res) { return res.json(); })
-              .then(function(data) {
-                if (data && data.success) {
-                  sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone, '');
-                  showSuccessModal(orderId, eventName, orderTotal, '');
-                } else {
-                  alert('Payment verification failed. Please contact support with your Order ID: ' + orderId);
-                }
-              })
-              .catch(function() {
+              if (ticketCode) {
+                // Direct to QR ticket
+                window.location.href = 'ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode);
+              } else {
                 showSuccessModal(orderId, eventName, orderTotal, '');
-              });
+              }
+            } else {
+              alert('Payment verification failed. Please contact support with your Order ID: ' + orderId);
             }
+          })
+          .catch(function() {
+            showSuccessModal(orderId, eventName, orderTotal, '');
           });
         } else {
-          alert('Payment was not completed. You can try again.');
+          // Payment was not completed — order remains "pending" so admin can see it.
+          alert('Payment was not completed. You can try again. Your order ID is ' + orderId + ' (shown to admin).');
         }
       },
-      onclose: function() {}
+      onclose: function() {
+        var btn = document.getElementById('placeOrderBtn');
+        var mobileBtn = document.getElementById('mobilePlaceOrderBtn');
+        if (btn) { btn.disabled = false; btn.innerHTML = '🛒 Place Order — <span id="placeOrderTotal">\u20A6' + total.toLocaleString() + '</span>'; }
+        if (mobileBtn) { mobileBtn.disabled = false; mobileBtn.textContent = '🛒 Place Order'; }
+      }
     };
 
     if (typeof window.FlutterwaveCheckout === 'function') {
@@ -546,8 +556,18 @@ if (nav) {
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
 
-    // Only Flutterwave payment — no bank transfer option
-    startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+    // Disable button to prevent double-click
+    const btn = document.getElementById('placeOrderBtn');
+    const mobileBtn = document.getElementById('mobilePlaceOrderBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating order…'; }
+    if (mobileBtn) { mobileBtn.disabled = true; mobileBtn.textContent = 'Creating order…'; }
+
+    // Step 1: Create the order FIRST (status "pending") so it appears in admin
+    // immediately — even if the buyer closes the Flutterwave modal without paying.
+    createOrderViaApi(orderId, 'flutterwave', total, function(success, ticketCode) {
+      // Step 2: Open Flutterwave checkout with the order ID as tx_ref
+      startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+    });
   };
 
   // Bind events

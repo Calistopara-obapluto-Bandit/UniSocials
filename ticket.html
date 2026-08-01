@@ -87,6 +87,19 @@
       line-height: 1.6;
       text-align: center;
     }
+    @media print {
+      body { background: #fff !important; }
+      .nav, .mobile-menu, .page-header, .ticket-actions, .ticket-qr-hint, .footer, .whatsapp-float { display: none !important; }
+      .ticket-section { padding: 0 !important; }
+      .ticket-card { border: 2px solid #000 !important; box-shadow: none !important; max-width: 100% !important; }
+      .ticket-header { background: #fff !important; color: #000 !important; border-bottom: 2px dashed #000 !important; }
+      .ticket-header h2, .ticket-header p { color: #000 !important; }
+      .ticket-code { border-color: #000 !important; color: #000 !important; background: #fff !important; }
+      .ticket-event { color: #000 !important; }
+      .ticket-detail span { color: #555 !important; }
+      .ticket-detail strong { color: #000 !important; }
+      .ticket-qr canvas, .ticket-qr img { border: 1px solid #999 !important; }
+    }
     .ticket-error {
       max-width: 560px;
       margin: 0 auto;

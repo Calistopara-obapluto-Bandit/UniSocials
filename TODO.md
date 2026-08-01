@@ -33,5 +33,6 @@ that stay logged in (no page refresh).
 - [x] "Sign In / My Account" in nav on all pages; auto-login after purchase
 
 ### 5. Test & Deploy
-- [ ] End-to-end test (checkout → flutterwave → ticket/QR → account dashboard → admin reject/verify live)
+- [x] End-to-end test (checkout → flutterwave → ticket/QR → account dashboard → admin reject/verify live)
+- [x] Verified: admin reject propagates to client lookup (`rejected` status), ticket fetch returns QR, client register/login/logout works
 - [ ] Commit & push to Render

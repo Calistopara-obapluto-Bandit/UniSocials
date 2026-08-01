@@ -242,13 +242,35 @@ const server = http.createServer((req, res) => {
             orderLog.push(txRef);
             if (orderLog.length > orderLogLimit) orderLog.shift();
 
+            // Update the matching order in storage to verified (if it exists)
+            // so admin + client dashboards reflect the paid status instantly.
+            let ticketCode = null;
+            try {
+              const orders = loadOrders();
+              const idx = orders.findIndex(o => o.orderId === txRef);
+              if (idx !== -1 && orders[idx].status !== 'verified') {
+                orders[idx].status = 'verified';
+                orders[idx].verifiedAt = new Date().toISOString();
+                orders[idx].paymentMethod = 'flutterwave';
+                orders[idx].paymentConfirmed = true;
+                orders[idx].ticketIssued = true;
+                orders[idx].ticketIssuedAt = new Date().toISOString();
+                orders[idx].rejectedAt = null;
+                orders[idx].notifyAdmin = true;
+                orders[idx].seenByAdmin = false;
+                saveOrders(orders);
+              }
+              if (idx !== -1) ticketCode = orders[idx].ticketCode || null;
+            } catch(e) {}
+
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
               success: true,
               tx_ref: txRef,
               amount: amount,
               currency: currency,
-              status: status
+              status: status,
+              ticketCode: ticketCode
             }));
           } else {
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -311,9 +333,10 @@ const server = http.createServer((req, res) => {
         return;
       }
 
+      const paymentConfirmed = data.paymentConfirmed === true || data.paymentConfirmed === 'true';
       const order = {
         orderId: orderId,
-        status: paymentMethod === 'flutterwave' ? 'verified' : 'pending',
+        status: paymentConfirmed ? 'verified' : 'pending',
         eventName: eventName,
         eventDate: eventDate,
         eventVenue: eventVenue,
@@ -326,7 +349,7 @@ const server = http.createServer((req, res) => {
         buyerPhone: buyerPhone,
         buyerFaculty: buyerFaculty,
         createdAt: new Date().toISOString(),
-        verifiedAt: paymentMethod === 'flutterwave' ? new Date().toISOString() : null,
+        verifiedAt: paymentConfirmed ? new Date().toISOString() : null,
         // New: admin notification + ticket tracking
         notifyAdmin: true,
         seenByAdmin: false,
@@ -338,8 +361,8 @@ const server = http.createServer((req, res) => {
       orders.unshift(order);
       saveOrders(orders);
 
-      // For Flutterwave-verified orders, the ticket is auto-issued
-      if (paymentMethod === 'flutterwave') {
+      // For pre-confirmed Flutterwave payments, the ticket is auto-issued
+      if (paymentConfirmed) {
         order.ticketIssued = true;
         order.ticketIssuedAt = new Date().toISOString();
         saveOrders(orders);
@@ -620,7 +643,8 @@ const server = http.createServer((req, res) => {
         amount: order.amount,
         currency: order.currency,
         paymentMethod: order.paymentMethod,
-        verifiedAt: order.verifiedAt
+        verifiedAt: order.verifiedAt,
+        ticketCode: order.ticketCode || null
       }
     }));
     return;
@@ -689,6 +713,11 @@ const server = http.createServer((req, res) => {
         orders[idx].verifiedAt = new Date().toISOString();
         orders[idx].ticketIssued = true;
         orders[idx].ticketIssuedAt = new Date().toISOString();
+        orders[idx].rejectedAt = null;
+      } else if (newStatus === 'rejected') {
+        orders[idx].rejectedAt = new Date().toISOString();
+      } else if (newStatus === 'pending') {
+        orders[idx].rejectedAt = null;
       }
       saveOrders(orders);
 
