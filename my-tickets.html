@@ -110,9 +110,74 @@
     </div>
   </section>
 
-  <section class="lookup-section">
+<section class="lookup-section">
     <div class="container">
-      <div class="lookup-card reveal">
+      <!-- ── Account Dashboard (shown when logged in) ── -->
+      <div class="lookup-card reveal" id="accountDashboard" style="display:none;">
+        <h2>👤 My Account</h2>
+        <p id="accountGreeting">Welcome back!</p>
+        <div id="accountOrdersList" style="margin-top:20px;"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn-cta-ghost" onclick="clientLogout(function(){ location.reload(); })" style="font-size:0.82rem;padding:8px 20px;border:none;cursor:pointer;">Log Out</button>
+        </div>
+      </div>
+
+      <!-- ── Login / Register Form ── -->
+      <div class="lookup-card reveal" id="authForms" style="display:none;">
+        <div style="display:flex;gap:12px;margin-bottom:20px;">
+          <button class="admin-filter-btn active" id="tabLogin" onclick="showAuthTab('login')">Sign In</button>
+          <button class="admin-filter-btn" id="tabRegister" onclick="showAuthTab('register')">Create Account</button>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginForm">
+          <h2>🔐 Sign In</h2>
+          <p>Sign in with your email or phone number to see all your tickets.</p>
+          <div class="form-group">
+            <label for="loginIdentifier">Email or Phone</label>
+            <input type="text" id="loginIdentifier" placeholder="you@unn.edu.ng or 0812 345 6789" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Your password" autocomplete="current-password" />
+          </div>
+          <div class="lookup-error" id="loginError"></div>
+          <button class="btn-submit" id="loginBtn" onclick="doLogin()">Sign In</button>
+          <p style="font-size:0.82rem;color:var(--text-3);margin-top:12px;text-align:center;">
+            Don't have an account? <a href="#" onclick="showAuthTab('register');return false;" style="color:var(--accent);">Create one</a>
+          </p>
+        </div>
+
+        <!-- Register Form -->
+        <div id="registerForm" style="display:none;">
+          <h2>📝 Create Account</h2>
+          <p>Create an account to track your orders and access your tickets.</p>
+          <div class="form-group">
+            <label for="regName">Full Name</label>
+            <input type="text" id="regName" placeholder="John Doe" autocomplete="name" />
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email</label>
+            <input type="email" id="regEmail" placeholder="you@unn.edu.ng" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="regPhone">Phone Number</label>
+            <input type="tel" id="regPhone" placeholder="0812 345 6789" autocomplete="tel" />
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Password (min 4 characters)</label>
+            <input type="password" id="regPassword" placeholder="Choose a password" autocomplete="new-password" />
+          </div>
+          <div class="lookup-error" id="registerError"></div>
+          <button class="btn-submit" id="registerBtn" onclick="doRegister()">Create Account</button>
+          <p style="font-size:0.82rem;color:var(--text-3);margin-top:12px;text-align:center;">
+            Already have an account? <a href="#" onclick="showAuthTab('login');return false;" style="color:var(--accent);">Sign in</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Guest Order Lookup ── -->
+      <div class="lookup-card reveal" id="guestLookup" style="display:none;">
         <h2>🔍 Order Lookup</h2>
         <p>Your Order ID is in the confirmation message you received after checkout (e.g. UNN-XXXX-XXXX).</p>
 
@@ -130,6 +195,10 @@
         <div class="lookup-error" id="lookupError"></div>
 
         <div class="lookup-result" id="lookupResult"></div>
+
+        <p style="font-size:0.82rem;color:var(--text-3);margin-top:16px;text-align:center;">
+          <a href="#" onclick="showAuthTab('login');return false;" style="color:var(--accent);">Sign in to your account →</a>
+        </p>
       </div>
     </div>
   </section>
@@ -183,6 +252,7 @@
   </footer>
 
   <script src="config.js"></script>
+  <script src="templatemo-622-clearwave.js"></script>
   <script>
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -245,7 +315,7 @@
             (o.eventVenue ? '<div class="lookup-order-row"><span>Venue</span><strong>' + esc(o.eventVenue) + '</strong></div>' : '') +
             '<div class="lookup-order-row"><span>Quantity</span><strong>' + o.qty + ' ticket' + (o.qty > 1 ? 's' : '') + '</strong></div>' +
             '<div class="lookup-order-row"><span>Total</span><strong>' + fmtN(o.amount) + '</strong></div>' +
-            '<div class="lookup-order-row"><span>Payment</span><strong>' + (o.paymentMethod === 'flutterwave' ? 'Flutterwave' : 'Bank Transfer') + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Payment</span><strong>Flutterwave</strong></div>' +
             (o.status === 'verified' ? '<div class="lookup-order-row"><span>Verified</span><strong>' + fmtDate(o.verifiedAt) + '</strong></div>' : '') +
             (o.ticketCode ? '<div class="lookup-order-row"><span>Ticket Code</span><strong style="font-family:monospace;">' + esc(o.ticketCode) + '</strong></div>' : '') +
             '<div class="lookup-actions">' + ticketLink +
@@ -266,6 +336,142 @@
         btn.textContent = 'Find My Ticket';
       });
     };
+
+    // ── Account Dashboard / Auth logic ──
+    var accountDashboard = document.getElementById('accountDashboard');
+    var authForms = document.getElementById('authForms');
+    var guestLookup = document.getElementById('guestLookup');
+
+    function showSection(el) {
+      [accountDashboard, authForms, guestLookup].forEach(function(x) {
+        if (x) x.style.display = 'none';
+      });
+      if (el) el.style.display = 'block';
+    }
+
+    // Tab switching
+    window.showAuthTab = function(tab) {
+      var lt = document.getElementById('tabLogin');
+      var rt = document.getElementById('tabRegister');
+      var lf = document.getElementById('loginForm');
+      var rf = document.getElementById('registerForm');
+      if (tab === 'login') {
+        if (lt) lt.classList.add('active');
+        if (rt) rt.classList.remove('active');
+        if (lf) lf.style.display = '';
+        if (rf) rf.style.display = 'none';
+      } else {
+        if (lt) lt.classList.remove('active');
+        if (rt) rt.classList.add('active');
+        if (lf) lf.style.display = 'none';
+        if (rf) rf.style.display = '';
+      }
+    };
+
+    window.doLogin = function() {
+      var identifier = document.getElementById('loginIdentifier').value.trim();
+      var password = document.getElementById('loginPassword').value;
+      var errBox = document.getElementById('loginError');
+      var btn = document.getElementById('loginBtn');
+
+      errBox.classList.remove('show');
+      if (!identifier || !password) {
+        errBox.textContent = 'Please enter your email/phone and password.';
+        errBox.classList.add('show');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      window.clientLogin(identifier, password, function(success, data) {
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+        if (success) {
+          // Refresh page to show dashboard
+          location.reload();
+        } else {
+          errBox.textContent = (data && data.error) || 'Sign-in failed. Please try again.';
+          errBox.classList.add('show');
+        }
+      });
+    };
+
+    window.doRegister = function() {
+      var name = document.getElementById('regName').value.trim();
+      var email = document.getElementById('regEmail').value.trim();
+      var phone = document.getElementById('regPhone').value.trim();
+      var password = document.getElementById('regPassword').value;
+      var errBox = document.getElementById('registerError');
+      var btn = document.getElementById('registerBtn');
+
+      errBox.classList.remove('show');
+      if (!name || !email || !phone || !password) {
+        errBox.textContent = 'Please fill in all fields.';
+        errBox.classList.add('show');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Creating account…';
+      window.clientRegister(name, email, phone, password, function(success, data) {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        if (success) {
+          location.reload();
+        } else {
+          errBox.textContent = (data && data.error) || 'Registration failed. Please try again.';
+          errBox.classList.add('show');
+        }
+      });
+    };
+
+    // Render order list for logged-in user
+    function renderOrders(orders) {
+      var list = document.getElementById('accountOrdersList');
+      if (!list) return;
+      if (!orders || orders.length === 0) {
+        list.innerHTML = '<div class="admin-empty" style="padding:24px;"><span>🎟️</span><p>No tickets yet. <a href="events.html" style="color:var(--accent);">Browse events</a> to get started!</p></div>';
+        return;
+      }
+      var html = '';
+      orders.forEach(function(o) {
+        var badge = o.status === 'verified' ? 'verified' : (o.status === 'rejected' ? 'rejected' : 'pending');
+        var label = o.status === 'verified' ? '✅ Verified' : (o.status === 'rejected' ? '❌ Rejected' : '⏳ Pending');
+        var ticketLink = '';
+        if (o.status === 'verified' && o.ticketCode) {
+          ticketLink = '<a class="btn-primary" style="display:inline-flex;padding:8px 18px;font-size:0.78rem;" href="ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(o.ticketCode) + '">🎟 View</a>';
+        } else if (o.status === 'pending') {
+          ticketLink = '<a class="btn-cta-ghost" style="display:inline-flex;padding:8px 18px;font-size:0.78rem;" href="pending.html?orderId=' + encodeURIComponent(o.orderId) + '">⏳ Track</a>';
+        }
+        html += '<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--bg);">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<div><strong style="color:var(--text-1);">' + esc(o.eventName || '—') + '</strong>' +
+            '<div style="font-size:0.75rem;color:var(--text-3);margin-top:3px;">' + esc(o.orderId) + ' · ' + fmtN(o.amount) + (o.eventDate ? ' · ' + esc(o.eventDate) : '') + '</div></div>' +
+            '<span class="lookup-badge ' + badge + '">' + label + '</span>' +
+          '</div>' +
+          '<div style="margin-top:10px;">' + ticketLink + '</div>' +
+        '</div>';
+      });
+      list.innerHTML = html;
+    }
+
+    // Initial auth state
+    if (window.clientIsLoggedIn()) {
+      var client = window.clientGetProfile();
+      if (client && document.getElementById('accountGreeting')) {
+        document.getElementById('accountGreeting').textContent = 'Welcome, ' + client.name + '! Here are your orders.';
+      }
+      showSection(accountDashboard);
+      // Load orders + start live polling every 5s
+      window.clientFetchMe(function(c, orders) {
+        renderOrders(orders);
+      });
+      setInterval(function() {
+        window.clientFetchOrders(function(orders) {
+          renderOrders(orders);
+        });
+      }, 5000);
+    } else {
+      showSection(guestLookup);
+    }
   </script>
 </body>
 </html>

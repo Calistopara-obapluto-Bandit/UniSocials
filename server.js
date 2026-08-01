@@ -11,6 +11,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
+const crypto = require('crypto');
 
 // Simple in-memory order log (resets on restart; enough to detect duplicates/tampering)
 const orderLog = [];
@@ -18,6 +19,7 @@ const orderLogLimit = 500;
 
 // Persistent order store — JSON file so orders survive restarts (Render free tier disk persists within a session)
 const ORDERS_FILE = path.join(__dirname, 'orders.json');
+const CLIENTS_FILE = path.join(__dirname, 'clients.json');
 
 function loadOrders() {
   try {
@@ -34,6 +36,67 @@ function saveOrders(orders) {
     fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), 'utf8');
   } catch(e) {
     console.error('Failed to save orders:', e.message);
+  }
+}
+
+// ── Client account store (clients.json) ──
+function loadClients() {
+  try {
+    const raw = fs.readFileSync(CLIENTS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveClients(clients) {
+  try {
+    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(clients, null, 2), 'utf8');
+  } catch(e) {
+    console.error('Failed to save clients:', e.message);
+  }
+}
+
+function hashPassword(pw) {
+  return crypto.createHash('sha256').update(String(pw)).digest('hex');
+}
+
+function makeClientToken() {
+  return 'c_' + crypto.randomBytes(24).toString('hex');
+}
+
+// Find client by bearer token from Authorization header
+function getClientByToken(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!token) return null;
+  const clients = loadClients();
+  const client = clients.find(c => c.token && c.token === token);
+  return client || null;
+}
+
+// Sanitize a client object for response (never expose hash/token)
+function publicClient(c) {
+  return {
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    phone: c.phone,
+    createdAt: c.createdAt
+  };
+}
+
+// Link an order to a client by matching buyer email/phone
+function linkOrderToClient(orders, order) {
+  const clients = loadClients();
+  const matched = clients.find(c =>
+    (c.email && c.email.toLowerCase() === String(order.buyerEmail || '').toLowerCase()) ||
+    (c.phone && c.phone.replace(/\D/g, '') === String(order.buyerPhone || '').replace(/\D/g, ''))
+  );
+  if (matched) {
+    order.clientId = matched.id;
+    saveOrders(orders);
   }
 }
 
@@ -281,6 +344,9 @@ const server = http.createServer((req, res) => {
         order.ticketIssuedAt = new Date().toISOString();
         saveOrders(orders);
       }
+
+      // Link the new order to an existing client account (if email/phone matches)
+      linkOrderToClient(orders, order);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, order: order }));
@@ -629,6 +695,188 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, order: orders[idx] }));
     });
+    return;
+  }
+
+  // ── Client account API ──
+
+  // POST /api/account/register — create a buyer account (auto-links orders)
+  if (req.url === '/api/account/register' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const name = (data.name || '').toString().trim();
+      const email = (data.email || '').toString().trim().toLowerCase();
+      const phone = (data.phone || '').toString().trim();
+      const password = (data.password || '').toString();
+
+      if (!name || !email || !phone || !password || password.length < 4) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Please fill in your name, email, phone and a password (min 4 characters).' }));
+        return;
+      }
+
+      const clients = loadClients();
+      const exists = clients.find(c =>
+        (c.email && c.email.toLowerCase() === email) ||
+        (c.phone && c.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))
+      );
+      if (exists) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'An account with this email or phone already exists. Please sign in.' }));
+        return;
+      }
+
+      const client = {
+        id: 'C_' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
+        name: name,
+        email: email,
+        phone: phone,
+        passwordHash: hashPassword(password),
+        token: makeClientToken(),
+        createdAt: new Date().toISOString()
+      };
+
+      clients.push(client);
+      saveClients(clients);
+
+      // Link any existing orders by email/phone
+      const orders = loadOrders();
+      let linked = false;
+      orders.forEach(o => {
+        const emailMatch = o.buyerEmail && o.buyerEmail.toLowerCase() === email;
+        const phoneMatch = o.buyerPhone && o.buyerPhone.replace(/\D/g, '') === phone.replace(/\D/g, '');
+        if (emailMatch || phoneMatch) { o.clientId = client.id; linked = true; }
+      });
+      if (linked) saveOrders(orders);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, token: client.token, client: publicClient(client) }));
+    });
+    return;
+  }
+
+  // POST /api/account/login — sign in with email/phone + password
+  if (req.url === '/api/account/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch(e) {}
+
+      const identifier = (data.identifier || '').toString().trim().toLowerCase();
+      const password = (data.password || '').toString();
+
+      if (!identifier || !password) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Please enter your email/phone and password.' }));
+        return;
+      }
+
+      const clients = loadClients();
+      const digits = identifier.replace(/\D/g, '');
+      const client = clients.find(c =>
+        (c.email && c.email.toLowerCase() === identifier) ||
+        (c.phone && c.phone.replace(/\D/g, '') === digits)
+      );
+
+      if (!client || client.passwordHash !== hashPassword(password)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid email/phone or password.' }));
+        return;
+      }
+
+      // Refresh token (keeps single active session)
+      client.token = makeClientToken();
+      saveClients(clients);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, token: client.token, client: publicClient(client) }));
+    });
+    return;
+  }
+
+  // GET /api/account/me — returns the logged-in client + their orders (token auth)
+  if (req.url === '/api/account/me' && req.method === 'GET') {
+    const client = getClientByToken(req);
+    if (!client) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Not logged in' }));
+      return;
+    }
+
+    const orders = loadOrders().filter(o => o.clientId === client.id);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      client: publicClient(client),
+      orders: orders.map(o => ({
+        orderId: o.orderId,
+        status: o.status,
+        eventName: o.eventName,
+        eventDate: o.eventDate,
+        eventVenue: o.eventVenue,
+        qty: o.qty,
+        amount: o.amount,
+        currency: o.currency,
+        paymentMethod: o.paymentMethod,
+        verifiedAt: o.verifiedAt,
+        ticketCode: o.ticketCode || null,
+        rejectedAt: o.rejectedAt || null
+      }))
+    }));
+    return;
+  }
+
+  // GET /api/account/orders — live polling endpoint for the buyer dashboard
+  if (req.url === '/api/account/orders' && req.method === 'GET') {
+    const client = getClientByToken(req);
+    if (!client) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: 'Not logged in' }));
+      return;
+    }
+
+    const orders = loadOrders().filter(o => o.clientId === client.id);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      orders: orders.map(o => ({
+        orderId: o.orderId,
+        status: o.status,
+        eventName: o.eventName,
+        eventDate: o.eventDate,
+        eventVenue: o.eventVenue,
+        qty: o.qty,
+        amount: o.amount,
+        currency: o.currency,
+        paymentMethod: o.paymentMethod,
+        verifiedAt: o.verifiedAt,
+        ticketCode: o.ticketCode || null,
+        rejectedAt: o.rejectedAt || null
+      }))
+    }));
+    return;
+  }
+
+  // POST /api/account/logout — invalidate the client token
+  if (req.url === '/api/account/logout' && req.method === 'POST') {
+    const client = getClientByToken(req);
+    if (client) {
+      const clients = loadClients();
+      const idx = clients.findIndex(c => c.id === client.id);
+      if (idx !== -1) {
+        clients[idx].token = null;
+        saveClients(clients);
+      }
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
     return;
   }
 

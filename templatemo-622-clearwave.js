@@ -377,60 +377,15 @@ if (nav) {
   if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
 
   function updatePaymentNote() {
-    const cfg = window.SITE_CONFIG || {};
-    const flwBank = cfg.FLUTTERWAVE_BANK_NAME || 'Flutterwave MfB (formerly ok mfb)';
-    const flwAcct = cfg.FLUTTERWAVE_ACCOUNT_NUMBER || '';
-
-    const selected = document.querySelector('input[name="payment"]:checked');
-    const val = selected ? selected.value : 'bank-transfer';
     const note = document.getElementById('paymentNote');
     const bankDetails = document.getElementById('bankTransferDetails');
 
-    if (summaryPayment) {
-      summaryPayment.textContent = val === 'flutterwave' ? 'Flutterwave' : 'Bank Transfer';
+    if (summaryPayment) summaryPayment.textContent = 'Flutterwave';
+
+    if (note) {
+      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket is issued automatically once payment is confirmed.';
     }
-
-    if (val === 'flutterwave') {
-      if (note) {
-        note.innerHTML = 'You will be redirected to Flutterwave to pay securely with card, bank transfer, USSD, or mobile money. Your Order ID is generated instantly and verified before confirmation.';
-      }
-      if (bankDetails) bankDetails.style.display = 'none';
-    } else {
-      if (note) {
-        note.innerHTML = 'Bank Transfer: Transfer to <strong>' + flwBank + '</strong>. Use your Order ID as reference.';
-      }
-      if (bankDetails) bankDetails.style.display = '';
-    }
-
-    const bankNameEl = document.getElementById('flwBankName');
-    const accountBankEl = document.getElementById('accountBankName');
-    const accountNumEl = document.getElementById('accountNumber');
-    if (bankNameEl) bankNameEl.textContent = flwBank;
-    if (accountBankEl) accountBankEl.textContent = flwBank;
-    if (accountNumEl && flwAcct) accountNumEl.textContent = flwAcct;
-  }
-
-  function revealAccount() {
-    const accountReveal = document.getElementById('accountReveal');
-    const btn = document.querySelector('.reveal-account-btn');
-    if (!accountReveal) return;
-    const isHidden = accountReveal.style.display === 'none';
-    accountReveal.style.display = isHidden ? 'block' : 'none';
-    if (btn) btn.innerHTML = isHidden ? 'Hide Account Number' : 'Show Account Number';
-  }
-
-  function copyAccountNumber() {
-    const cfg = window.SITE_CONFIG || {};
-    const flwAcct = cfg.FLUTTERWAVE_ACCOUNT_NUMBER || '9707788756';
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(flwAcct).then(function() {
-        alert('Account number copied: ' + flwAcct);
-      }).catch(function() {
-        prompt('Copy the account number:', flwAcct);
-      });
-    } else {
-      prompt('Copy the account number:', flwAcct);
-    }
+    if (bankDetails) bankDetails.style.display = 'none';
   }
 
   function generateOrderId() {
@@ -465,7 +420,7 @@ if (nav) {
     document.body.style.overflow = '';
   }
 
-  function sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, paymentLabel, name, email, phone) {
+  function sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, paymentLabel, name, email, phone, ticketCode) {
     var msg = '🛒 *New Ticket Order!*\n\n' +
       'Order ID: ' + orderId + '\n' +
       'Event: ' + eventName + '\n' +
@@ -475,6 +430,7 @@ if (nav) {
       '👤 ' + name + '\n' +
       '📧 ' + email + '\n' +
       '📞 ' + phone + '\n\n' +
+      (ticketCode ? ('🎟 *Digital Ticket:* ' + window.location.origin + '/ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode) + '\n\n') : '') +
       'Thank you for using UNN Socials!';
     const cfg = window.SITE_CONFIG || {};
     const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
@@ -526,7 +482,9 @@ if (nav) {
       amount: orderTotal,
       currency: 'NGN',
       payment_options: 'card, banktransfer, ussd, mobilemoney, account',
-      redirect_url: cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html',
+      // IMPORTANT: Do NOT set redirect_url — the modal callback handles everything.
+      // A redirect_url would cause a full-page navigation BEFORE the callback fires,
+      // meaning the order never gets created and the ticket is never issued.
       customer: {
         email: email || 'customer@unn.edu.ng',
         name: customerName,
@@ -539,32 +497,35 @@ if (nav) {
       },
       callback: function(response) {
         if (response && (response.status === 'successful' || response.status === 'completed')) {
-          fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
-          })
-          .then(function(res) { return res.json(); })
-          .then(function(data) {
-            if (data && data.success) {
-              const verifiedAmount = parseFloat(data.amount) || orderTotal;
-              const totalPaid = verifiedAmount > 0 ? verifiedAmount : orderTotal;
-              createOrderViaApi(orderId, 'flutterwave', totalPaid, function(success, ticketCode) {
-                sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, 'Flutterwave', name, email, phone);
-                showSuccessModal(orderId, eventName, totalPaid, ticketCode);
-              });
+          // First, create the order via the API (this issues the ticket)
+          createOrderViaApi(orderId, 'flutterwave', orderTotal, function(success, ticketCode) {
+            if (ticketCode) {
+              sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone, ticketCode);
+              // Redirect directly to the ticket page
+              window.location.href = 'ticket.html?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(ticketCode);
             } else {
-              alert('Payment verification failed. Please contact support with your Order ID: ' + orderId);
+              // Fallback — try verification then redirect
+              fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
+              })
+              .then(function(res) { return res.json(); })
+              .then(function(data) {
+                if (data && data.success) {
+                  sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone, '');
+                  showSuccessModal(orderId, eventName, orderTotal, '');
+                } else {
+                  alert('Payment verification failed. Please contact support with your Order ID: ' + orderId);
+                }
+              })
+              .catch(function() {
+                showSuccessModal(orderId, eventName, orderTotal, '');
+              });
             }
-          })
-          .catch(function() {
-            createOrderViaApi(orderId, 'flutterwave', orderTotal, function(success, ticketCode) {
-              sendOrderToWhatsApp(orderId, eventName, qty, orderTotal, 'Flutterwave', name, email, phone);
-              showSuccessModal(orderId, eventName, orderTotal, ticketCode);
-            });
           });
         } else {
-          alert('Payment was not completed. You can try again or choose another payment method.');
+          alert('Payment was not completed. You can try again.');
         }
       },
       onclose: function() {}
@@ -584,37 +545,9 @@ if (nav) {
     const name = checkoutData.buyerName;
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
-    const cfg = window.SITE_CONFIG || {};
-    const flwBank = cfg.FLUTTERWAVE_BANK_NAME || 'Flutterwave MfB (formerly ok mfb)';
-    const flwAcct = cfg.FLUTTERWAVE_ACCOUNT_NUMBER || '9707788756';
 
-    const paymentMethod = document.querySelector('input[name="payment"]:checked');
-    const selectedPayment = paymentMethod ? paymentMethod.value : 'bank-transfer';
-
-    if (selectedPayment === 'flutterwave') {
-      startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
-      return;
-    }
-
-    // Bank Transfer payment
-    sessionStorage.setItem('pendingOrder', JSON.stringify({
-      orderId: orderId,
-      eventName: eventName,
-      qty: qty,
-      amount: total,
-      paymentMethod: 'bank-transfer',
-      buyerName: name,
-      buyerEmail: email,
-      buyerPhone: phone,
-      bankName: flwBank,
-      accountNumber: flwAcct
-    }));
-
-    sendOrderToWhatsApp(orderId, eventName, qty, total, 'Bank Transfer', name, email, phone);
-
-    createOrderViaApi(orderId, 'bank-transfer', total, function(apiSuccess) {
-      window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
-    });
+    // Only Flutterwave payment — no bank transfer option
+    startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
   };
 
   // Bind events
@@ -633,8 +566,6 @@ if (nav) {
   });
 
   window.updatePaymentNote = updatePaymentNote;
-  window.revealAccount = revealAccount;
-  window.copyAccountNumber = copyAccountNumber;
   updatePaymentNote();
 })();
 
@@ -677,3 +608,180 @@ document.querySelectorAll('.ticket-form').forEach(form => {
     });
   }
 });
+
+/* ══════════════════════════════════════════
+   CLIENT ACCOUNT — Login / Register / Session
+   ══════════════════════════════════════════ */
+(function() {
+  const CLIENT_KEY = 'unn_client_token';
+  const CLIENT_DATA_KEY = 'unn_client_data';
+
+  // Helper: get stored token
+  function getToken() {
+    try { return localStorage.getItem(CLIENT_KEY) || ''; } catch(e) { return ''; }
+  }
+
+  // Helper: set token + client data
+  function setSession(token, client) {
+    try {
+      localStorage.setItem(CLIENT_KEY, token);
+      if (client) localStorage.setItem(CLIENT_DATA_KEY, JSON.stringify(client));
+    } catch(e) {}
+  }
+
+  function clearSession() {
+    try {
+      localStorage.removeItem(CLIENT_KEY);
+      localStorage.removeItem(CLIENT_DATA_KEY);
+    } catch(e) {}
+  }
+
+  function getStoredClient() {
+    try {
+      const raw = localStorage.getItem(CLIENT_DATA_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch(e) { return null; }
+  }
+
+  // ── API call helpers ──
+  function apiCall(method, url, body, callback) {
+    var opts = {
+      method: method,
+      headers: { 'Content-Type': 'application/json' }
+    };
+    var token = getToken();
+    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+    if (body) opts.body = JSON.stringify(body);
+
+    fetch(url, opts)
+      .then(function(r) { return r.json(); })
+      .then(function(d) { callback(d); })
+      .catch(function() { callback(null); });
+  }
+
+  // ── Register a new account ──
+  window.clientRegister = function(name, email, phone, password, callback) {
+    apiCall('POST', '/api/account/register', {
+      name: name, email: email, phone: phone, password: password
+    }, function(data) {
+      if (data && data.success && data.token) {
+        setSession(data.token, data.client);
+        if (callback) callback(true, data);
+      } else {
+        if (callback) callback(false, data);
+      }
+    });
+  };
+
+  // ── Login to existing account ──
+  window.clientLogin = function(identifier, password, callback) {
+    apiCall('POST', '/api/account/login', {
+      identifier: identifier, password: password
+    }, function(data) {
+      if (data && data.success && data.token) {
+        setSession(data.token, data.client);
+        if (callback) callback(true, data);
+      } else {
+        if (callback) callback(false, data);
+      }
+    });
+  };
+
+  // ── Logout ──
+  window.clientLogout = function(callback) {
+    apiCall('POST', '/api/account/logout', null, function() {
+      clearSession();
+      if (callback) callback();
+    });
+  };
+
+  // ── Check if logged in, auto-restore session ──
+  window.clientIsLoggedIn = function() {
+    return !!getToken();
+  };
+
+  // ── Get the current client profile (from cache) ──
+  window.clientGetProfile = function() {
+    return getStoredClient();
+  };
+
+  // ── Fetch fresh client data + orders from server ──
+  window.clientFetchMe = function(callback) {
+    apiCall('GET', '/api/account/me', null, function(data) {
+      if (data && data.success && data.client) {
+        setSession(getToken(), data.client);
+        if (callback) callback(data.client, data.orders || []);
+      } else {
+        // Token expired or invalid
+        if (data && !data.success && data.error === 'Not logged in') {
+          clearSession();
+        }
+        if (callback) callback(null, []);
+      }
+    });
+  };
+
+  // ── Fetch only orders (for live polling) ──
+  window.clientFetchOrders = function(callback) {
+    apiCall('GET', '/api/account/orders', null, function(data) {
+      if (data && data.success) {
+        if (callback) callback(data.orders || []);
+      } else {
+        if (callback) callback([]);
+      }
+    });
+  };
+
+  // ── Update navigation to show login/register or profile ──
+  function updateNavForAuth() {
+    var isLoggedIn = window.clientIsLoggedIn();
+    var client = window.clientGetProfile();
+
+    // Find all nav "Sign In" / "Get Tickets" buttons and update them
+    document.querySelectorAll('.nav-cta .btn-primary').forEach(function(btn) {
+      if (isLoggedIn) {
+        btn.textContent = '👤 ' + (client ? client.name.split(' ')[0] : 'My Account');
+        btn.setAttribute('href', 'my-tickets.html');
+      } else {
+        btn.textContent = 'Get Tickets';
+        btn.setAttribute('href', 'events.html');
+      }
+    });
+
+    // Add login/register link in the nav-links if not logged in
+    document.querySelectorAll('.nav-links li a').forEach(function(a) {
+      if (a.getAttribute('href') === 'login.html' || a.textContent === 'Sign In') {
+        if (isLoggedIn) {
+          a.textContent = 'My Tickets';
+          a.setAttribute('href', 'my-tickets.html');
+        } else {
+          a.textContent = 'Sign In';
+          // If we have a login modal, link to it
+          var loginModal = document.getElementById('loginModal');
+          if (loginModal) {
+            a.setAttribute('href', '#');
+            a.addEventListener('click', function(e) {
+              e.preventDefault();
+              loginModal.style.display = 'flex';
+            });
+          }
+        }
+      }
+    });
+  }
+
+  // ── Auto-restore session on page load ──
+  if (getToken()) {
+    // Silently refresh the session in background
+    apiCall('GET', '/api/account/me', null, function(data) {
+      if (data && data.success && data.client) {
+        setSession(getToken(), data.client);
+      } else {
+        clearSession();
+      }
+      updateNavForAuth();
+    });
+  } else {
+    updateNavForAuth();
+  }
+})();

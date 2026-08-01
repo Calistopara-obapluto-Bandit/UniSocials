@@ -797,7 +797,7 @@
         filtered.forEach(function(o) {
           var amount = fmtN(o.amount);
           var qty = o.qty + ' ticket' + (o.qty > 1 ? 's' : '');
-          var pm = (o.paymentMethod === 'flutterwave') ? 'Flutterwave' : 'Bank Transfer';
+          var pm = 'Flutterwave';
           var actions = '';
           var buyer = '<div class="admin-order-buyer"><strong>' + esc(o.buyerName || '—') + '</strong> &middot; ' +
                       '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>' +

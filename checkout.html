@@ -112,49 +112,20 @@
           <h3 class="checkout-card-title">💳 Payment Method</h3>
           <div class="payment-methods">
             <label class="payment-option">
-              <input type="radio" name="payment" value="flutterwave" onchange="updatePaymentNote()" />
+              <input type="radio" name="payment" value="flutterwave" checked onchange="updatePaymentNote()" />
               <div class="payment-option-content">
                 <span class="payment-option-icon">
                   <svg class="flw-logo" viewBox="0 0 64 64" aria-hidden="true"><path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z"/><path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z"/><path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z"/><path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z"/></svg>
                 </span>
                 <div>
                   <strong>Flutterwave</strong>
-                  <small>Pay instantly with card, bank, USSD &amp; mobile money</small>
-                </div>
-              </div>
-            </label>
-            <label class="payment-option">
-              <input type="radio" name="payment" value="bank-transfer" checked onchange="updatePaymentNote()" />
-              <div class="payment-option-content">
-                <span class="payment-option-icon">🏦</span>
-                <div>
-                  <strong>Bank Transfer</strong>
-                  <small>Transfer to our Flutterwave account</small>
+                  <small>Pay securely with card, bank, USSD &amp; mobile money</small>
                 </div>
               </div>
             </label>
           </div>
           <div id="paymentNote" class="payment-note">
-            🏦 <strong>Bank Transfer:</strong> Transfer to <strong id="flwBankName">Flutterwave MfB</strong>. Use your Order ID as reference.
-          </div>
-          <div class="bank-transfer-details" id="bankTransferDetails">
-            <button type="button" class="reveal-account-btn" onclick="revealAccount()">👁️ Show Account Number</button>
-            <div id="accountReveal" class="account-reveal" style="display:none;">
-              <div class="account-details">
-                <span>Account Name</span>
-                <strong>UNN Socials</strong>
-              </div>
-              <div class="account-details">
-                <span>Bank</span>
-                <strong id="accountBankName">Flutterwave MfB (formerly ok mfb)</strong>
-              </div>
-              <div class="account-details">
-                <span>Account Number</span>
-                <strong id="accountNumber" class="account-number-copy">9707788756 📋</strong>
-              </div>
-              <p class="account-hint">Use your Order ID as the transfer reference. Your ticket will be confirmed automatically after payment.</p>
-              <button type="button" class="btn-submit" onclick="copyAccountNumber()">📋 Copy Account Number</button>
-            </div>
+            🔒 You'll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket is issued automatically once payment is confirmed.
           </div>
         </div>
 
