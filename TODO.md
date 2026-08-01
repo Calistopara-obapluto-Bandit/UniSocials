@@ -23,9 +23,12 @@
 
 ## Phase C: Test & Verify
 - [x] 11. Server started and running at http://localhost:3000
+- [x] 12. API endpoints tested end-to-end (create order → status → admin verify → 401 without auth)
+- [x] 13. Security fix: `ADMIN_PASSWORD` no longer exposed to browser via `config.js`
+- [x] 14. `orders.json` (buyer PII) added to `.gitignore`
+- [x] 15. Committed & pushed to GitHub (`2a79748`)
 
 🚀 **Next steps for you:**
-1. Replace the placeholder `FLWPUBK-xxx...` key with your real Flutterwave public key in `config.js` and Render env vars
-2. Commit & push to GitHub
-3. Verify on Render
+1. Set a strong `ADMIN_PASSWORD` in Render env vars (currently `CHANGE_ME_STRONG_PASSWORD` placeholder in `render.yaml`)
+2. Verify on Render — replace the placeholder password and confirm the admin API + pending order flow work in production
 
