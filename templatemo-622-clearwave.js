@@ -102,6 +102,27 @@ Free for personal and commercial use
           '<a href="login.html" class="nav-signin">Sign In</a>';
       }
     });
+
+    // Mobile top-bar sign-in button — visible on small screens (CSS hides it on desktop).
+    // Injected here so it stays in sync with login/logout state on every page.
+    document.querySelectorAll('.nav-inner').forEach(function(inner) {
+      var existing = inner.querySelector('.nav-mobile-signin');
+      if (existing) existing.remove();
+      var user = getCachedUser();
+      var link = document.createElement('a');
+      link.className = 'nav-mobile-signin';
+      if (user) {
+        link.href = 'my-tickets.html';
+        link.title = 'My Tickets';
+        link.textContent = '🎟 ' + esc((user.name || 'Account').split(' ')[0]);
+      } else {
+        link.href = 'login.html';
+        link.textContent = 'Sign In';
+      }
+      var hamburger = inner.querySelector('.nav-hamburger');
+      if (hamburger) inner.insertBefore(link, hamburger);
+      else inner.appendChild(link);
+    });
   }
 
   function esc(s) {
@@ -371,6 +392,7 @@ if (nav) {
       eventDate: opt.dataset.date,
       eventTime: opt.dataset.time,
       eventVenue: opt.dataset.venue,
+      eventCategory: opt.dataset.category || '',
       eventPrice: parseFloat(opt.dataset.price || 0),
       qty: parseInt(qtySelect ? qtySelect.value : 1),
       buyerName: name,
@@ -548,6 +570,7 @@ if (nav) {
         eventName: checkoutData.eventName,
         eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '',
         eventVenue: checkoutData.eventVenue || '',
+        eventCategory: checkoutData.eventCategory || '',
         qty: checkoutData.qty,
         amount: orderTotal,
         currency: 'NGN',

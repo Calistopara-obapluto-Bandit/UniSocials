@@ -887,6 +887,35 @@
         });
       };
 
+      // Resend an order email (buyer confirmation if verified, new-order admin alert if pending)
+      window.resendOrderEmail = function(orderId, btn) {
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+        fetch('/api/admin/orders/resend-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify({ orderId: orderId })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Email queued for ' + orderId + ' ✉');
+          } else {
+            showToast((data && data.error) || 'Failed to queue email', true);
+            if (data && data.error === 'Unauthorized') {
+              clearToken();
+              showLoggedOut();
+            }
+          }
+        })
+        .catch(function() { showToast('Network error sending email', true); })
+        .finally(function() {
+          if (btn) { btn.disabled = false; btn.textContent = '✉ Resend Email'; }
+        });
+      };
+
       // Copy a ticket code to clipboard
       window.copyTicketCode = function(code, btn) {
         var done = function() {
@@ -1161,9 +1190,11 @@
 
           if (o.status === 'pending') {
             actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
-                      '<button class="action-btn action-reject" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'rejected\')">✕ Reject</button>';
+                      '<button class="action-btn action-reject" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'rejected\')">✕ Reject</button>' +
+                      '<button class="action-btn action-reopen" onclick="resendOrderEmail(\'' + esc(o.orderId) + '\', this)" title="Send the admin new-order alert again">✉ Resend Email</button>';
           } else if (o.status === 'verified') {
-            actions = '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>';
+            actions = '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>' +
+                      '<button class="action-btn action-reopen" onclick="resendOrderEmail(\'' + esc(o.orderId) + '\', this)" title="Resend the buyer ticket confirmation email">✉ Resend Email</button>';
           } else if (o.status === 'rejected') {
             actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
                       '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>';
@@ -1180,6 +1211,7 @@
                       '<div class="admin-order-meta">' +
                         '<span>📅 ' + esc(o.eventDate || '—') + '</span>' +
                         '<span>📍 ' + esc(o.eventVenue || '—') + '</span>' +
+                        (o.eventCategory ? '<span>🏷 ' + esc(o.eventCategory) + '</span>' : '') +
                         '<span>🎟 ' + esc(qty) + '</span>' +
                         '<span>💳 ' + esc(pm) + '</span>' +
                         '<span>🕒 ' + fmtDate(o.createdAt) + '</span>' +

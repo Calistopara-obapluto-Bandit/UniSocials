@@ -10,9 +10,13 @@ services:
       # ─────────────────────────────────────────────────────────────────────────
       # PERSISTENT STORAGE — PostgreSQL (Neon external DB, connections survive
       # Render free-tier restarts/redeploys). Tables are auto-created on boot.
+      #
+      # ⚠️ SECURITY: Set DATABASE_URL in the Render dashboard (Environment → Env Vars)
+      # instead of here, so the DB password is never committed to the repo.
+      # Example value:
+      #   DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+      # If DATABASE_URL is not set, the server falls back to JSON files in ./data.
       # ─────────────────────────────────────────────────────────────────────────
-      - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_Vf4ybRHQNuo0@ep-winter-hall-axsl4zw9.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require
       - key: WHATSAPP_FLOAT_NUMBER
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER
@@ -38,4 +42,21 @@ services:
         value: support.sbiamautos@gmail.com
       - key: REDIRECT_URL
         value: https://unisocials.onrender.com/thank-you.html
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # EMAIL NOTIFICATIONS (Resend)
+      #   • ADMIN_EMAIL gets an instant alert for every new order awaiting payment
+      #     verification AND for every confirmed payment
+      #   • Buyer gets a confirmation email with their ticket QR links
+      #
+      # ⚠️ SECURITY: Set RESEND_API_KEY in the Render dashboard (Environment → Env Vars)
+      # so the key is never committed to the repo (GitHub secret scanning rejects
+      # commits containing live API keys). After verifying a custom domain in Resend,
+      # set EMAIL_FROM to your domain.
+      # ─────────────────────────────────────────────────────────────────────────
+      - key: ADMIN_EMAIL
+        value: soludobenedict5@gmail.com
+      - key: EMAIL_FROM
+        value: UNN Socials <onboarding@resend.dev>
+
 

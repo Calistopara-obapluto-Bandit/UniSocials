@@ -242,6 +242,23 @@ Free for personal and commercial use
       transition: border-color 0.3s, color 0.3s, background 0.3s;
     }
     .nav-account-logout:hover { color: #B71C1C; border-color: #F5C6CB; background: #FDECEA; }
+    /* Mobile-only sign-in button in the top nav bar (shown ≤768px, next to hamburger) */
+    .nav-mobile-signin {
+      display: none;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--accent);
+      padding: 8px 16px;
+      border-radius: 100px;
+      white-space: nowrap;
+      box-shadow: 0 3px 12px rgba(27,94,32,0.25);
+      transition: background 0.3s, transform 0.3s;
+    }
+    .nav-mobile-signin:hover {
+      background: var(--accent-mid);
+      transform: scale(1.03);
+    }
     .btn-ghost {
       font-size: 0.875rem; font-weight: 500; color: var(--text-2);
       padding: 9px 20px; border-radius: 100px;
@@ -1004,7 +1021,8 @@ Free for personal and commercial use
       .container { padding: 0 20px; }
       .nav-inner { padding: 0 20px; }
       .nav-links, .nav-cta { display: none; }
-      .nav-hamburger { display: flex; }
+      .nav-hamburger { display: flex; margin-left: 8px; }
+      .nav-mobile-signin { display: inline-flex; align-items: center; }
       .footer-grid { grid-template-columns: 1fr; }
       .cta-inner { padding: 32px 24px; }
       .pricing-grid { max-width: 100%; }

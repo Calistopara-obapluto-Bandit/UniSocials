@@ -1,5 +1,30 @@
 # UNN Socials — Overhaul (Flutterwave-only + Accounts + Per-Ticket Codes + Persistent Storage)
 
+## ✅ Latest Round — Event Category + Resend Email + Secret Removal — Completed
+- [x] `tickets.html`: added `data-category` to every event option (Arts & Culture, Engineering, Business, Music, Academic, Sports)
+- [x] `templatemo-622-clearwave.js`: pass `eventCategory` through both checkout flows (tickets page + events page)
+- [x] `server.js`: store `eventCategory` on order creation
+- [x] `server.js`: include Category in ALL email functions — `sendBuyerConfirmation`, `sendAdminAlert`, `sendNewOrderAlert` (plain text + HTML table)
+- [x] `server.js`: new endpoint `POST /api/admin/orders/resend-email` (admin-only) — resends buyer confirmation for verified orders, new-order alert for pending orders, 400 for rejected
+- [x] `admin.html`: category chip (`🏷`) in order meta row
+- [x] `admin.html`: "✉ Resend Email" action button on pending + verified orders
+- [x] `admin.html`: `resendOrderEmail()` JS helper with loading state + error handling + unauthorized logout
+- [x] `render.yaml`: removed committed `DATABASE_URL` (Postgres password) and `RESEND_API_KEY` — both now set via Render dashboard env vars only; documented examples in comments
+- [x] Syntax check: `node --check server.js` + `node --check templatemo-622-clearwave.js` both pass
+- [x] End-to-end API test (local): create order with category → stored correctly → resend-email returns 200 "Email queued" → unauthorized returns 401 → missing order returns 404 → test order cleaned up
+- [x] Temp test/helper files removed from repo
+
+## ✅ Email Notifications (Resend) — Completed
+- [x] server.js: `postJson` helper + Resend integration
+- [x] server.js: `sendBuyerConfirmation` — buyer gets confirmation email with per-ticket QR links
+- [x] server.js: `sendAdminAlert` — admin gets instant alert with order details + admin dashboard link
+- [x] server.js: `notifyOrderVerified` fired on ALL three verification paths (verify-payment API, Flutterwave webhook, admin manual verify)
+- [x] server.js: email env vars read from `process.env` (RESEND_API_KEY, EMAIL_FROM, ADMIN_EMAIL) with defaults
+- [x] server.js: `getConfig` excludes RESEND/ADMIN_EMAIL/PASSWORD/WEBHOOK/API_KEY from browser config.js
+- [x] render.yaml: added `ADMIN_EMAIL`, `EMAIL_FROM`, `RESEND_API_KEY` env vars
+- [x] Tested: admin verify → order marked verified → notification path executed successfully
+- [x] Best-effort: email failures never block the order flow (try/catch everywhere)
+
 ## ✅ Neon PostgreSQL Connected & Verified
 - [x] `DATABASE_URL` updated in `render.yaml` to the new Neon PostgreSQL connection string
 - [x] Connectivity test: connection OK, database `neondb` reachable

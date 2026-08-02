@@ -237,14 +237,24 @@ const defaults = {
   SITE_URL: 'https://unisocials.onrender.com',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
   FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
-  REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'
+  REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html',
+  // Email notifications — admin gets an alert the moment a payment is confirmed,
+  // and the buyer gets a confirmation email with their ticket QR links.
+  ADMIN_EMAIL: 'soludobenedict5@gmail.com',
+  // "From" address for Resend. In Resend test mode you must use onboarding@resend.dev
+  // and only the account owner's email can receive. After verifying a domain
+  // (e.g. unn.edu.ng or your own domain), set EMAIL_FROM="UNN Socials <no-reply@yourdomain>"
+  EMAIL_FROM: 'UNN Socials <onboarding@resend.dev>'
+  // NOTE: RESEND_API_KEY is intentionally NOT hardcoded here. Set it in the
+  // Render dashboard (Environment → Env Vars) so it's never committed to the
+  // repo — GitHub secret scanning rejects live Resend keys in commits.
 };
 
 function getConfig() {
   const cfg = {};
   for (const [key, val] of Object.entries(defaults)) {
-    // Never expose secret keys, passwords, or the webhook HMAC hash to the browser
-    if (/SECRET|PRIVATE|PASSWORD|WEBHOOK/i.test(key)) continue;
+    // Never expose secret keys, passwords, API keys, or the webhook HMAC hash to the browser
+    if (/SECRET|PRIVATE|PASSWORD|WEBHOOK|API_KEY|RESEND/i.test(key)) continue;
     cfg[key] = process.env[key] !== undefined ? process.env[key] : val;
   }
   return cfg;
@@ -344,6 +354,277 @@ function verifyOrderTicketData(order) {
   order.notifyAdmin = true;
   order.seenByAdmin = false;
   return order;
+}
+
+// ────────────────────────────────────────────
+// EMAIL NOTIFICATIONS
+// ────────────────────────────────────────────
+// Sends an HTTPS POST to any JSON API (Resend, FormSubmit, etc.)
+function postJson(hostname, pathname, headers, body) {
+  return new Promise((resolve) => {
+    const data = JSON.stringify(body);
+    const options = {
+      hostname: hostname,
+      port: 443,
+      path: pathname,
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }, headers)
+    };
+    const req = https.request(options, (res) => {
+      let out = '';
+      res.on('data', c => { out += c; });
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(out); } catch (e) {}
+        resolve({ status: res.statusCode, body: out, json: json });
+      });
+    });
+    req.on('error', () => { resolve({ status: 0, body: '', json: null }); });
+    req.end(data);
+  });
+}
+
+function emailFrom() {
+  return process.env.EMAIL_FROM !== undefined ? process.env.EMAIL_FROM : defaults.EMAIL_FROM;
+}
+function resendKey() {
+  return process.env.RESEND_API_KEY !== undefined ? process.env.RESEND_API_KEY : defaults.RESEND_API_KEY;
+}
+function adminEmail() {
+  return process.env.ADMIN_EMAIL !== undefined ? process.env.ADMIN_EMAIL : defaults.ADMIN_EMAIL;
+}
+function siteUrl() {
+  return process.env.SITE_URL !== undefined ? process.env.SITE_URL : defaults.SITE_URL;
+}
+
+// Plain-text digest of the order for the email body
+function orderEmailLines(order) {
+  const site = siteUrl();
+  const codes = order.ticketCodes || [];
+  let ticketLines = '';
+  if (codes.length) {
+    ticketLines = '\n\nYour digital ticket(s):\n';
+    codes.forEach((t, i) => {
+      ticketLines += (i + 1) + '. ' + t.code + ' — ' + site + '/ticket.html?orderId=' + encodeURIComponent(order.orderId) + '&code=' + encodeURIComponent(t.code) + '\n';
+    });
+  }
+  return {
+    subject: 'Ticket Confirmation — ' + order.eventName + ' (' + order.orderId + ')',
+    text:
+      'Hi ' + (order.buyerName || 'there') + ',\n\n' +
+      'Your payment has been confirmed! Here are your ticket details:\n\n' +
+      'Order ID: ' + order.orderId + '\n' +
+      'Event: ' + order.eventName + '\n' +
+      'Category: ' + (order.eventCategory || '—') + '\n' +
+      'Date: ' + (order.eventDate || '—') + '\n' +
+      'Venue: ' + (order.eventVenue || '—') + '\n' +
+      'Quantity: ' + order.qty + '\n' +
+      'Total paid: ₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN') + '\n' +
+      ticketLines +
+      '\nPlease keep this email safe — it contains your tickets.\n' +
+      'See you at the event!\n\nUNN Socials Team'
+  };
+}
+
+// Send buyer confirmation via Resend. Best-effort: never throws/never blocks.
+async function sendBuyerConfirmation(order) {
+  try {
+    const key = resendKey();
+    const email = order.buyerEmail;
+    if (!key || !email) return;
+    const lines = orderEmailLines(order);
+    const payload = {
+      from: emailFrom(),
+      to: [email],
+      subject: lines.subject,
+      text: lines.text,
+      html: '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+        '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">UNN Socials — Ticket Confirmation 🎟️</div>' +
+        '<div style="padding:24px">' +
+        '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(order.buyerName || 'there') + '</strong>,</p>' +
+        '<p style="margin:0 0 16px;color:#475569">Your payment has been confirmed! Here are your ticket details:</p>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+        rowHtml('Order ID', escapeHtml(order.orderId)) +
+        rowHtml('Event', escapeHtml(order.eventName)) +
+        rowHtml('Category', escapeHtml(order.eventCategory || '—')) +
+        rowHtml('Date', escapeHtml(order.eventDate || '—')) +
+        rowHtml('Venue', escapeHtml(order.eventVenue || '—')) +
+        rowHtml('Quantity', String(order.qty)) +
+        rowHtml('Total paid', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
+        '</table>' +
+        ticketLinksHtml(order) +
+        '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Please keep this email safe — it contains your tickets.</p>' +
+        '</div></div>'
+    };
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
+    if (r.status === 200) {
+      console.log('Buyer confirmation email sent to', email);
+    } else {
+      console.warn('Buyer email failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    }
+  } catch (e) {
+    console.warn('Buyer email error:', e.message);
+  }
+}
+
+// Admin instant alert — sends via Resend (primary) so it always lands immediately.
+async function sendAdminAlert(order) {
+  try {
+    const key = resendKey();
+    const to = adminEmail();
+    if (!key || !to) return;
+    const site = siteUrl();
+    const codes = order.ticketCodes || [];
+    let ticketList = '';
+    if (codes.length) {
+      ticketList = '<ul>';
+      codes.forEach(function(t) {
+        ticketList += '<li>' + escapeHtml(t.code) + ' — <a href="' + site + '/ticket.html?orderId=' + encodeURIComponent(order.orderId) + '&code=' + encodeURIComponent(t.code) + '">view</a></li>';
+      });
+      ticketList += '</ul>';
+    }
+    const payload = {
+      from: emailFrom(),
+      to: [to],
+      subject: '💸 New payment received — ' + order.orderId + ' — ₦' + Number(order.amount || 0).toLocaleString(),
+      text:
+        'New payment confirmed!\n\n' +
+        'Order ID: ' + order.orderId + '\n' +
+        'Event: ' + order.eventName + '\n' +
+        'Category: ' + (order.eventCategory || '—') + '\n' +
+        'Date: ' + (order.eventDate || '—') + '\n' +
+        'Venue: ' + (order.eventVenue || '—') + '\n' +
+        'Qty: ' + order.qty + '\n' +
+        'Amount: ₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN') + '\n' +
+        'Buyer: ' + order.buyerName + '\n' +
+        'Email: ' + order.buyerEmail + '\n' +
+        'Phone: ' + order.buyerPhone + '\n' +
+        'Paid at: ' + (order.verifiedAt || new Date().toISOString()) + '\n\n' +
+        'View in admin: ' + site + '/admin.html\n'
+      ,
+      html: '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+        '<div style="background:#B71C1C;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">💸 New Payment Received</div>' +
+        '<div style="padding:24px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+        rowHtml('Order ID', escapeHtml(order.orderId)) +
+        rowHtml('Event', escapeHtml(order.eventName)) +
+        rowHtml('Category', escapeHtml(order.eventCategory || '—')) +
+        rowHtml('Date', escapeHtml(order.eventDate || '—')) +
+        rowHtml('Venue', escapeHtml(order.eventVenue || '—')) +
+        rowHtml('Qty', String(order.qty)) +
+        rowHtml('Amount', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
+        rowHtml('Buyer', escapeHtml(order.buyerName || '')) +
+        rowHtml('Email', escapeHtml(order.buyerEmail || '')) +
+        rowHtml('Phone', escapeHtml(order.buyerPhone || '')) +
+        rowHtml('Paid at', escapeHtml(order.verifiedAt || new Date().toISOString())) +
+        '</table>' +
+        (ticketList ? '<div style="margin-bottom:16px"><strong>Tickets:</strong>' + ticketList + '</div>' : '') +
+        '<a href="' + site + '/admin.html" style="display:inline-block;background:#1B5E20;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none">Open Admin Dashboard</a>' +
+        '</div></div>'
+    };
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
+    if (r.status === 200) {
+      console.log('Admin alert email sent to', to);
+    } else {
+      console.warn('Admin alert failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    }
+  } catch (e) {
+    console.warn('Admin alert error:', e.message);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+  });
+}
+function rowHtml(label, value) {
+  return '<tr><td style="padding:8px 10px;border-bottom:1px solid #eef2f7;color:#64748b;width:40%">' + label + '</td>' +
+    '<td style="padding:8px 10px;border-bottom:1px solid #eef2f7;color:#0f172a;font-weight:600">' + value + '</td></tr>';
+}
+function ticketLinksHtml(order) {
+  const site = siteUrl();
+  const codes = order.ticketCodes || [];
+  if (!codes.length) return '';
+  let html = '<div style="margin-bottom:12px"><strong style="display:block;margin-bottom:8px">Your tickets:</strong>';
+  codes.forEach(function(t, i) {
+    html += '<a href="' + site + '/ticket.html?orderId=' + encodeURIComponent(order.orderId) + '&code=' + encodeURIComponent(t.code) +
+      '" style="display:block;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:10px 14px;border-radius:8px;text-decoration:none;margin-bottom:6px">' +
+      'Ticket ' + (i + 1) + ' — ' + escapeHtml(t.code) + ' → View & QR</a>';
+  });
+  html += '</div>';
+  return html;
+}
+
+// Fire buyer + admin emails after an order becomes verified (best-effort, non-blocking).
+async function notifyOrderVerified(order) {
+  try {
+    sendBuyerConfirmation(order);
+    sendAdminAlert(order);
+  } catch (e) {
+    console.warn('notifyOrderVerified error:', e.message);
+  }
+}
+
+// Admin instant alert when a NEW order is placed (payment NOT confirmed yet).
+// The admin uses this to watch for the payment and verify it in the dashboard.
+async function sendNewOrderAlert(order) {
+  try {
+    const key = resendKey();
+    const to = adminEmail();
+    if (!key || !to) return;
+    const site = siteUrl();
+    const payload = {
+      from: emailFrom(),
+      to: [to],
+      subject: '🛒 New order awaiting verification — ' + order.orderId + ' — ₦' + Number(order.amount || 0).toLocaleString(),
+      text:
+        'A new order has been placed and is awaiting payment verification.\n\n' +
+        'Order ID: ' + order.orderId + '\n' +
+        'Event: ' + order.eventName + '\n' +
+        'Category: ' + (order.eventCategory || '—') + '\n' +
+        'Date: ' + (order.eventDate || '—') + '\n' +
+        'Venue: ' + (order.eventVenue || '—') + '\n' +
+        'Qty: ' + order.qty + '\n' +
+        'Amount: ₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN') + '\n' +
+        'Buyer: ' + order.buyerName + '\n' +
+        'Email: ' + order.buyerEmail + '\n' +
+        'Phone: ' + order.buyerPhone + '\n\n' +
+        'Go to the admin dashboard to verify the payment: ' + site + '/admin.html\n'
+      ,
+      html: '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+        '<div style="background:#E65100;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">🛒 New Order — Awaiting Payment Verification</div>' +
+        '<div style="padding:24px">' +
+        '<p style="margin:0 0 16px;color:#475569">A new order was just placed. Please confirm the payment and verify it in the dashboard.</p>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+        rowHtml('Order ID', escapeHtml(order.orderId)) +
+        rowHtml('Event', escapeHtml(order.eventName)) +
+        rowHtml('Category', escapeHtml(order.eventCategory || '—')) +
+        rowHtml('Date', escapeHtml(order.eventDate || '—')) +
+        rowHtml('Venue', escapeHtml(order.eventVenue || '—')) +
+        rowHtml('Qty', String(order.qty)) +
+        rowHtml('Amount', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
+        rowHtml('Buyer', escapeHtml(order.buyerName || '')) +
+        rowHtml('Email', escapeHtml(order.buyerEmail || '')) +
+        rowHtml('Phone', escapeHtml(order.buyerPhone || '')) +
+        '</table>' +
+        '<a href="' + site + '/admin.html" style="display:inline-block;background:#E65100;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none">Verify Payment in Admin</a>' +
+        '</div></div>'
+    };
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
+    if (r.status === 200) {
+      console.log('New-order admin alert sent to', to);
+    } else {
+      console.warn('New-order alert failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    }
+  } catch (e) {
+    console.warn('New-order alert error:', e.message);
+  }
+}
+
+// Fire the new-order alert (best-effort, non-blocking).
+function notifyNewOrder(order) {
+  try { sendNewOrderAlert(order); } catch (e) { console.warn('notifyNewOrder error:', e.message); }
 }
 
 // ────────────────────────────────────────────
@@ -453,6 +734,7 @@ const server = http.createServer(async (req, res) => {
       const eventName = String(data.eventName || '').trim();
       const eventDate = String(data.eventDate || '').trim();
       const eventVenue = String(data.eventVenue || '').trim();
+      const eventCategory = String(data.eventCategory || '').trim();
       const qty = parseInt(data.qty) || 1;
       const amount = parseFloat(data.amount) || 0;
       const currency = String(data.currency || 'NGN');
@@ -479,6 +761,7 @@ const server = http.createServer(async (req, res) => {
         orderId: orderId,
         status: 'pending',                 // ALWAYS pending until server verification
         eventName: eventName,
+        eventCategory: eventCategory,
         eventDate: eventDate,
         eventVenue: eventVenue,
         qty: qty,
@@ -499,6 +782,9 @@ const server = http.createServer(async (req, res) => {
       };
       order.ticketCode = order.ticketCodes[0].code;
       await addOrder(order);
+      // Notify the admin the moment a new order is placed so they can watch for
+      // the payment and verify it (e.g. bank transfer / manual confirmation).
+      notifyNewOrder(order);
       return sendJson(res, 200, { success: true, order: order });
     }
 
@@ -516,8 +802,10 @@ const server = http.createServer(async (req, res) => {
       const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
 
       if (result.success) {
+        const wasVerified = order.status === 'verified';
         const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
         console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
+        if (!wasVerified) notifyOrderVerified(updated);
         return sendJson(res, 200, { success: true, order: updated });
       }
 
@@ -567,8 +855,9 @@ const server = http.createServer(async (req, res) => {
         const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
         const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
         if (amountOk && currencyOk) {
-          await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
+          const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
           console.log('Webhook verified order:', txRef);
+          notifyOrderVerified(updated);
         } else {
           return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
         }
@@ -744,6 +1033,26 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
 
+    // ── Admin: resend buyer confirmation email for an order ──
+    if (pathname === '/api/admin/orders/resend-email' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const orderId = String(data.orderId || '').trim();
+      if (!orderId) return sendJson(res, 400, { success: false, error: 'Missing orderId' });
+      const order = await getOrder(orderId);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      if (order.status === 'verified') {
+        await sendBuyerConfirmation(order);
+      } else if (order.status === 'pending') {
+        await sendNewOrderAlert(order);
+      } else {
+        return sendJson(res, 400, { success: false, error: 'Order is not eligible for email resend (status: ' + order.status + ')' });
+      }
+      return sendJson(res, 200, { success: true, message: 'Email queued' });
+    }
+
     // ── Admin: update order status (verify/reject/reopen) ──
     if (pathname === '/api/admin/orders/status' && req.method === 'POST') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
@@ -759,7 +1068,9 @@ const server = http.createServer(async (req, res) => {
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
 
       if (newStatus === 'verified') {
+        const wasVerified = order.status === 'verified';
         const updated = await patchOrder(orderId, verifyOrderTicketData(Object.assign({}, order)));
+        if (!wasVerified) notifyOrderVerified(updated);
         return sendJson(res, 200, { success: true, order: updated });
       }
       const updated = await patchOrder(orderId, { status: newStatus });
