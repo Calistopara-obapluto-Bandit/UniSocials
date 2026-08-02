@@ -339,10 +339,12 @@
 
       function renderQR(url) {
         if (!qrBox) return;
-        if (typeof window.QRCode === 'function') {
+        // qrcode.min.js exposes an object namespace (QRCode.toCanvas / toDataURL / create)
+        var QR = window.QRCode;
+        if (QR && typeof QR.toCanvas === 'function') {
           try {
             qrBox.innerHTML = '';
-            window.QRCode.toCanvas(qrBox, url, {
+            QR.toCanvas(qrBox, url, {
               width: 264,
               margin: 4,
               errorCorrectionLevel: 'H',
@@ -354,7 +356,7 @@
             return;
           } catch(e) {}
         }
-        // Fallback: independent QR API (self-hosted fallback, silent if offline)
+        // Fallback: independent QR API (silent if offline)
         qrBox.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=264x264&margin=16&qzone=4&data=' +
           encodeURIComponent(url) + '" alt="Ticket QR code" style="background:#fff;" />';
       }
