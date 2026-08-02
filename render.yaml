@@ -7,9 +7,27 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      # PostgreSQL — create a free database on Render and paste its connection string here.
-      # This gives PERSISTENT storage (orders, users, sessions survive restarts/redeploys).
-      # Leave unset to use JSON files in ./data (ephemeral on Render free tier).
+      # ─────────────────────────────────────────────────────────────────────────
+      # PERSISTENT STORAGE — pick ONE option below:
+      #
+      # OPTION 1 (recommended): You ALREADY have a free PostgreSQL on Render.
+      #   The PgHero monitoring link you see (pghero-dpg-xxxx-a.onrender.com) is
+      #   just the dashboard for an EXISTING database instance (id: dpg-xxxx).
+      #   In the Render dashboard go to:
+      #     Dashboard → Databases → open your PostgreSQL instance
+      #     → tab "Connect" → copy the "Internal Database URL"
+      #   Paste that full postgres://... string as the DATABASE_URL value below.
+      #   The app will auto-create its tables on first boot. No new DB needed.
+      #
+      # OPTION 2: Free external PostgreSQL (if you truly cannot use a Render DB).
+      #   Create a free database at Neon (neon.tech) or Supabase, copy the
+      #   connection string, and paste it here. Works exactly the same.
+      #
+      # OPTION 3: No database at all.
+      #   Leave DATABASE_URL empty/unset → the app falls back to JSON files in
+      #   ./data. NOTE: on Render's free tier the disk is ephemeral, so orders
+      #   may be lost on restart/redeploy. Use this only for quick testing.
+      # ─────────────────────────────────────────────────────────────────────────
       - key: DATABASE_URL
         sync: false
       - key: WHATSAPP_FLOAT_NUMBER
