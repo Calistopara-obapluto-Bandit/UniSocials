@@ -51,9 +51,15 @@ services:
       #
       # ⚠️ SECURITY: Set RESEND_API_KEY in the Render dashboard (Environment → Env Vars)
       # so the key is never committed to the repo (GitHub secret scanning rejects
-      # commits containing live API keys). After verifying a custom domain in Resend,
-      # set EMAIL_FROM to your domain.
+      # commits containing live API keys — see the .env file locally for the value).
+      #
+      # 👉 REQUIRED: In Render dashboard → unisocials → Environment → Env Vars,
+      #    add:  RESEND_API_KEY = re_JFNfNZsY_...   (your live Resend key)
+      #
+      # After verifying a custom domain in Resend, set EMAIL_FROM to your domain.
       # ─────────────────────────────────────────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
       - key: ADMIN_EMAIL
         value: soludobenedict5@gmail.com
       - key: EMAIL_FROM

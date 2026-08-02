@@ -18,3 +18,11 @@ node_modules/
 orders.json
 data/
 
+# Local secrets (live API keys — NEVER commit)
+.env
+.env.*
+
+# Temporary test / helper scripts
+_*.js
+
+

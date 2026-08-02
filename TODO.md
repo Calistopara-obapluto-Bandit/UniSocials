@@ -1,6 +1,16 @@
 # UNN Socials — Overhaul (Flutterwave-only + Accounts + Per-Ticket Codes + Persistent Storage)
 
-## ✅ Latest Round — Event Category + Resend Email + Secret Removal — Completed
+## ✅ Latest Round — Resend Email Notifications RESTORED & WORKING — Completed
+- [x] Restored the live Resend API key to make email notifications actually work (admin + buyer)
+- [x] Verified key is valid: `GET /api.resend.com/domains` → 200; test email sent → accepted (200, email ID returned)
+- [x] Created local `.env` (gitignored) holding `RESEND_API_KEY`, `ADMIN_EMAIL`, `EMAIL_FROM`, Flutterwave keys, admin password
+- [x] `server.js`: added a lightweight `.env` loader at boot (reads `.env` if present; never committed) so local dev uses the same secrets as Render
+- [x] `render.yaml`: added `RESEND_API_KEY` env var with `sync: false` (must be set in Render dashboard) + clearer instructions in comments
+- [x] `.gitignore`: excluded `.env` and `.env.*` so the live key can never be committed
+- [x] End-to-end test passed: create order → "New-order admin alert sent to soludobenedict5@gmail.com" → admin verify → "Buyer confirmation email sent" + "Admin alert email sent"
+- [x] Server boots cleanly with the `.env` loader (`node --check` passes, starts on :3000)
+
+## ✅ Event Category + Resend Email + Secret Removal — Completed
 - [x] `tickets.html`: added `data-category` to every event option (Arts & Culture, Engineering, Business, Music, Academic, Sports)
 - [x] `templatemo-622-clearwave.js`: pass `eventCategory` through both checkout flows (tickets page + events page)
 - [x] `server.js`: store `eventCategory` on order creation

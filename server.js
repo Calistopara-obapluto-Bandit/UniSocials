@@ -19,7 +19,24 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// ── Load local .env (if present) so local dev uses the same secrets as Render.
+// Never commit .env — it holds live API keys (gitignored).
+try {
+  const envRaw = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+  envRaw.split(/\r?\n/).forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) return;
+    const k = trimmed.slice(0, eq).trim();
+    let v = trimmed.slice(eq + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    if (process.env[k] === undefined) process.env[k] = v;
+  });
+} catch (e) { /* no .env file — fall back to process.env / defaults */ }
+
 const PORT = process.env.PORT || 3000;
+
 const PUBLIC_DIR = __dirname;
 const DATA_DIR = path.join(__dirname, 'data');
 
