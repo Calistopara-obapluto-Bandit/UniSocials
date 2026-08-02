@@ -54,7 +54,7 @@ services:
       # commits containing live API keys — see the .env file locally for the value).
       #
       # 👉 REQUIRED: In Render dashboard → unisocials → Environment → Env Vars,
-      #    add:  RESEND_API_KEY = re_JFNfNZsY_...   (your live Resend key)
+      #    add your live Resend API key as:  RESEND_API_KEY  (see local .env)
       #
       # After verifying a custom domain in Resend, set EMAIL_FROM to your domain.
       # ─────────────────────────────────────────────────────────────────────────
