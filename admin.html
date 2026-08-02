@@ -501,6 +501,41 @@
       .admin-dash { display: block !important; padding: 0; }
       .admin-order { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
     }
+
+    /* ── Camera QR scanner ── */
+    .admin-scan-camera {
+      margin-top: 14px;
+      border: 2px dashed var(--accent-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: var(--bg);
+      text-align: center;
+    }
+    .admin-scan-camera-inner {
+      position: relative;
+      max-width: 400px;
+      margin: 0 auto;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+    .admin-scan-camera-inner video {
+      width: 100%;
+      height: auto;
+      display: block;
+      transform: scaleX(-1);
+    }
+    .admin-scan-camera-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -581,12 +616,12 @@
           </div>
         </div>
 
-        <!-- ── GATE SCAN / CHECK-IN ── -->
+<!-- ── GATE SCAN / CHECK-IN ── -->
         <div class="admin-scan-panel">
           <div class="admin-scan-header">
             <div>
               <h3>🎫 Gate Check-in / Scan Ticket</h3>
-              <p>Enter the Order ID and ticket code shown on the buyer's ticket, or use a QR scanner that fills these fields. The ticket will be marked as used and cannot be reused.</p>
+              <p>Enter the Order ID and ticket code, or tap <strong>📷 Scan QR</strong> to scan the buyer's ticket QR code with your camera. The ticket will be marked as used and cannot be reused.</p>
             </div>
           </div>
           <div class="admin-scan-inputs">
@@ -599,6 +634,15 @@
               <input type="text" id="scanCode" placeholder="TKT-XXXXXX" autocomplete="off" />
             </div>
             <button class="btn-submit" style="white-space:nowrap;" onclick="scanTicket()">✅ Check In</button>
+            <button class="admin-filter-btn" id="qrScanBtn" onclick="toggleQRScanner()" style="display:inline-flex;align-items:center;gap:6px;">📷 Scan QR</button>
+          </div>
+          <div class="admin-scan-camera" id="scanCameraWrap" style="display:none;">
+            <div class="admin-scan-camera-inner">
+              <video id="qrVideo" autoplay playsinline muted></video>
+              <canvas id="qrCanvas" style="display:none;"></canvas>
+              <div class="admin-scan-camera-overlay" id="scanOverlay">Point camera at the ticket QR code</div>
+            </div>
+            <button class="action-btn action-reject" onclick="stopQRScanner()" style="margin-top:8px;">✕ Stop Camera</button>
           </div>
           <div class="admin-scan-result" id="scanResult"></div>
         </div>
@@ -611,6 +655,7 @@
   <div class="admin-toast" id="adminToast"></div>
 
   <script src="config.js"></script>
+  <script src="jsqr.min.js"></script>
   <script>
     (function() {
       var KEY = 'unn_admin_token';
@@ -913,6 +958,105 @@
           }
           showToast('Network error checking in', true);
         });
+      };
+
+// ── Camera QR scanner ──
+      var qrStream = null;
+      var qrScanTimer = null;
+
+      window.toggleQRScanner = function() {
+        var wrap = document.getElementById('scanCameraWrap');
+        var btn = document.getElementById('qrScanBtn');
+        if (wrap.style.display !== 'none') {
+          stopQRScanner();
+          return;
+        }
+        wrap.style.display = 'block';
+        btn.textContent = '✕ Stop Camera';
+        startQRScanner();
+      };
+
+      function startQRScanner() {
+        var video = document.getElementById('qrVideo');
+        var canvas = document.getElementById('qrCanvas');
+        var overlay = document.getElementById('scanOverlay');
+        if (!video || !canvas) return;
+
+        // Check for jsQR
+        if (typeof jsQR === 'undefined') {
+          if (overlay) overlay.textContent = '⚠️ QR scanner library not loaded.';
+          return;
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } })
+          .then(function(stream) {
+            qrStream = stream;
+            video.srcObject = stream;
+            video.play();
+
+            var ctx = canvas.getContext('2d');
+
+            function decodeFrame() {
+              if (!qrStream || video.readyState < 2) {
+                qrScanTimer = requestAnimationFrame(decodeFrame);
+                return;
+              }
+              canvas.width = video.videoWidth || 640;
+              canvas.height = video.videoHeight || 480;
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+              if (code && code.data) {
+                var decoded = code.data;
+                if (overlay) overlay.textContent = '✅ QR found! Processing...';
+                // Parse QR data — expected format: "ORDERID:TKT-CODE" or "https://...?orderId=...&code=..."
+                var orderId = '', ticketCode = '';
+                if (decoded.indexOf('orderId=') !== -1) {
+                  try {
+                    var u = new URL(decoded);
+                    orderId = u.searchParams.get('orderId') || '';
+                    ticketCode = u.searchParams.get('code') || '';
+                  } catch(e) {}
+                } else if (decoded.indexOf(':') !== -1) {
+                  var parts = decoded.split(':');
+                  orderId = parts[0] || '';
+                  ticketCode = parts.slice(1).join(':') || '';
+                } else {
+                  // Assume it's just a ticket code, try to match pattern
+                  ticketCode = decoded;
+                }
+                if (orderId) document.getElementById('scanOrderId').value = orderId;
+                if (ticketCode) document.getElementById('scanCode').value = ticketCode;
+                stopQRScanner();
+                // Auto-scan after a brief pause
+                setTimeout(function() { window.scanTicket(); }, 300);
+              } else {
+                if (overlay) overlay.textContent = '🔍 Point camera at the ticket QR code';
+                qrScanTimer = requestAnimationFrame(decodeFrame);
+              }
+            }
+            decodeFrame();
+          })
+          .catch(function(err) {
+            if (overlay) overlay.textContent = '⚠️ Camera access denied or not available.';
+            console.error('Camera error:', err);
+          });
+      }
+
+      window.stopQRScanner = function() {
+        if (qrScanTimer) { cancelAnimationFrame(qrScanTimer); qrScanTimer = null; }
+        if (qrStream) {
+          qrStream.getTracks().forEach(function(t) { t.stop(); });
+          qrStream = null;
+        }
+        var video = document.getElementById('qrVideo');
+        if (video) video.srcObject = null;
+        var wrap = document.getElementById('scanCameraWrap');
+        if (wrap) wrap.style.display = 'none';
+        var btn = document.getElementById('qrScanBtn');
+        if (btn) btn.textContent = '📷 Scan QR';
+        var overlay = document.getElementById('scanOverlay');
+        if (overlay) overlay.textContent = 'Point camera at the ticket QR code';
       };
 
       // Load orders (exposed for refresh button)

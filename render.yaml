@@ -8,28 +8,11 @@ services:
     startCommand: npm start
     envVars:
       # ─────────────────────────────────────────────────────────────────────────
-      # PERSISTENT STORAGE — pick ONE option below:
-      #
-      # OPTION 1 (recommended): You ALREADY have a free PostgreSQL on Render.
-      #   The PgHero monitoring link you see (pghero-dpg-xxxx-a.onrender.com) is
-      #   just the dashboard for an EXISTING database instance (id: dpg-xxxx).
-      #   In the Render dashboard go to:
-      #     Dashboard → Databases → open your PostgreSQL instance
-      #     → tab "Connect" → copy the "Internal Database URL"
-      #   Paste that full postgres://... string as the DATABASE_URL value below.
-      #   The app will auto-create its tables on first boot. No new DB needed.
-      #
-      # OPTION 2: Free external PostgreSQL (if you truly cannot use a Render DB).
-      #   Create a free database at Neon (neon.tech) or Supabase, copy the
-      #   connection string, and paste it here. Works exactly the same.
-      #
-      # OPTION 3: No database at all.
-      #   Leave DATABASE_URL empty/unset → the app falls back to JSON files in
-      #   ./data. NOTE: on Render's free tier the disk is ephemeral, so orders
-      #   may be lost on restart/redeploy. Use this only for quick testing.
+      # PERSISTENT STORAGE — PostgreSQL (Neon external DB, connections survive
+      # Render free-tier restarts/redeploys). Tables are auto-created on boot.
       # ─────────────────────────────────────────────────────────────────────────
       - key: DATABASE_URL
-        sync: false
+        value: postgresql://neondb_owner:npg_Vf4ybRHQNuo0@ep-winter-hall-axsl4zw9.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require
       - key: WHATSAPP_FLOAT_NUMBER
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER

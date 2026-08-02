@@ -1,5 +1,12 @@
 # UNN Socials — Overhaul (Flutterwave-only + Accounts + Per-Ticket Codes + Persistent Storage)
 
+## ✅ Neon PostgreSQL Connected & Verified
+- [x] `DATABASE_URL` updated in `render.yaml` to the new Neon PostgreSQL connection string
+- [x] Connectivity test: connection OK, database `neondb` reachable
+- [x] Tables auto-created on boot: `orders`, `users`, `sessions`
+- [x] End-to-end persistence test: order created → server stopped → order still present in Neon DB (survives restarts)
+- [x] Test data cleaned up (0 test orders remain)
+
 ## Completed
 ### Phase 1 — Server Core (persistent storage + verification)
 - [x] 1. package.json: add `pg` dependency (PostgreSQL persistence; JSON fallback in ./data)
