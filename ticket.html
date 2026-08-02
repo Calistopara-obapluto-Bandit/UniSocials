@@ -67,7 +67,16 @@
       text-align: center;
       margin: 28px 0 8px;
     }
-    .ticket-qr canvas, .ticket-qr img { max-width: 200px; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); }
+    .ticket-qr-holder {
+      display: inline-block;
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      line-height: 0;
+    }
+    .ticket-qr canvas, .ticket-qr img { max-width: 240px; width: 100%; height: auto; display: block; background: #ffffff; }
     .ticket-qr-hint { font-size: 0.78rem; color: var(--text-3); margin-top: 10px; }
     .ticket-actions {
       display: flex;
@@ -217,7 +226,7 @@
           </div>
 
           <div class="ticket-qr">
-            <div id="qrBox"></div>
+            <div class="ticket-qr-holder"><div id="qrBox"></div></div>
             <p class="ticket-qr-hint">Show this QR code at the gate for scanning.</p>
           </div>
 
@@ -284,7 +293,7 @@
 
   <script src="config.js"></script>
   <script src="templatemo-622-clearwave.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="qrcode.min.js"></script>
   <script>
     (function() {
       var params = new URLSearchParams(window.location.search);
@@ -333,15 +342,21 @@
         if (typeof window.QRCode === 'function') {
           try {
             qrBox.innerHTML = '';
-            window.QRCode.toCanvas(qrBox, url, { width: 200, margin: 1 }, function(err) {
+            window.QRCode.toCanvas(qrBox, url, {
+              width: 264,
+              margin: 4,
+              errorCorrectionLevel: 'H',
+              color: { dark: '#000000', light: '#ffffff' },
+              scale: 8
+            }, function(err) {
               if (err) qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + esc(url) + '</code>';
             });
             return;
           } catch(e) {}
         }
-        // Fallback: Google Chart QR API (no CDN dependency)
-        qrBox.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' +
-          encodeURIComponent(url) + '" alt="Ticket QR code" />';
+        // Fallback: independent QR API (self-hosted fallback, silent if offline)
+        qrBox.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=264x264&margin=16&qzone=4&data=' +
+          encodeURIComponent(url) + '" alt="Ticket QR code" style="background:#fff;" />';
       }
 
       function renderTicket(t) {
