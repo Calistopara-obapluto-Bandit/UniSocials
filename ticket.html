@@ -339,19 +339,23 @@
 
       function renderQR(url) {
         if (!qrBox) return;
-        // qrcode.min.js exposes an object namespace (QRCode.toCanvas / toDataURL / create)
+        qrBox.innerHTML = '';
         var QR = window.QRCode;
         if (QR && typeof QR.toCanvas === 'function') {
           try {
-            qrBox.innerHTML = '';
-            QR.toCanvas(qrBox, url, {
+            // qrcode.min.js toCanvas() requires a REAL <canvas> element (getContext('2d'))
+            var canvas = document.createElement('canvas');
+            qrBox.appendChild(canvas);
+            QR.toCanvas(canvas, url, {
               width: 264,
               margin: 4,
               errorCorrectionLevel: 'H',
-              color: { dark: '#000000', light: '#ffffff' },
-              scale: 8
+              color: { dark: '#000000', light: '#ffffff' }
             }, function(err) {
-              if (err) qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + esc(url) + '</code>';
+              if (err) {
+                // Fallback to text code if canvas rendering fails
+                qrBox.innerHTML = '<code style="font-size:0.8rem;word-break:break-all;">' + esc(url) + '</code>';
+              }
             });
             return;
           } catch(e) {}
