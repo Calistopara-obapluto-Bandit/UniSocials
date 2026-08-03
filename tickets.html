@@ -193,10 +193,13 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var events = (data && data.success && data.events) || [];
-          if (!events.length) return;
 
-          // Remove static fallback options (keep the "Choose an event..." placeholder)
+          // Remove static fallback options (keep the "Choose an event..." placeholder).
+          // This runs even when there are zero events so that a deleted event never
+          // reappears as a purchasable option.
           while (eventSelect.options.length > 1) eventSelect.remove(1);
+
+          if (!events.length) return;
 
           events.forEach(function(ev) {
             var opt = document.createElement('option');

@@ -1369,8 +1369,10 @@ window.deleteManagedEvent = function(eventId) {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            showToast('Event deleted');
+            var extra = (data.ordersDeleted > 0) ? ' — ' + data.ordersDeleted + ' related order(s) removed too' : '';
+            showToast('Event deleted' + extra);
             loadManagedEvents();
+            loadOrders();
           } else {
             showToast((data && data.error) || 'Failed to delete event', true);
           }

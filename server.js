@@ -1334,8 +1334,26 @@ const server = http.createServer(async (req, res) => {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const eventId = String(url.searchParams.get('eventId') || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+
+      // Capture the event (to know its name) before deleting it, so we can also
+      // remove any orders/tickets that belong to this event.
+      const events = await readEvents();
+      const ev = events.find(e => e.id === eventId);
       const deleted = await deleteEvent(eventId);
-      return sendJson(res, 200, { success: deleted });
+
+      // "Tickets will be deleted after the event" — any orders placed for this
+      // event are removed along with it, so stale tickets never outlive the event.
+      let ordersDeleted = 0;
+      if (deleted && ev && ev.name) {
+        const orders = await readOrders();
+        const remaining = orders.filter(o => o.eventName !== ev.name);
+        ordersDeleted = orders.length - remaining.length;
+        if (ordersDeleted > 0) {
+          await writeOrders(remaining);
+          console.log('Deleted event "' + ev.name + '" — removed ' + ordersDeleted + ' related order(s).');
+        }
+      }
+      return sendJson(res, 200, { success: deleted, ordersDeleted: ordersDeleted });
     }
 
     // ── Static files ──
