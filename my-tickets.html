@@ -177,6 +177,10 @@
   <!-- ── LOGGED-IN ORDERS ── -->
   <section class="orders-section" id="ordersSection">
     <div class="container">
+      <div id="ordersHeader" style="display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+        <h2 style="font-size:1.3rem;font-weight:700;color:var(--text-1);">🎟 My Orders</h2>
+        <button class="btn-cta-ghost" onclick="UNNAuth.logout()" style="display:inline-flex;padding:10px 24px;font-size:0.85rem;cursor:pointer;">Log Out</button>
+      </div>
       <div id="ordersList"></div>
     </div>
   </section>

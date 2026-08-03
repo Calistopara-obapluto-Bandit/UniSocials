@@ -715,6 +715,42 @@
           <div class="admin-scan-result" id="scanResult"></div>
         </div>
 
+        <!-- ── EVENTS MANAGER ── -->
+        <div class="admin-scan-panel">
+          <div class="admin-scan-header">
+            <div>
+              <h3>🎤 Manage Events</h3>
+              <p>Add or remove events. New events appear instantly on the Events page, Tickets page, and Home page for buyers.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+            <div class="form-group"><label for="evName">Event Name</label><input type="text" id="evName" placeholder="e.g. Medical Dinner Night" /></div>
+            <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
+              <option value="Arts &amp; Culture">Arts &amp; Culture</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Business">Business</option>
+              <option value="Music">Music</option>
+              <option value="Academic">Academic</option>
+              <option value="Sports">Sports</option>
+              <option value="Medical">Medical</option>
+              <option value="General">General</option>
+            </select></div>
+            <div class="form-group"><label for="evPrice">Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
+            <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
+            <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
+            <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
+            <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
+            <div class="form-group"><label for="evIcon">Icon (emoji)</label><input type="text" id="evIcon" placeholder="🎉" /></div>
+            <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
+            <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
+            <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
+          </div>
+          <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
+        </div>
+
         <div class="admin-orders" id="ordersList"></div>
       </div>
     </div>
@@ -865,9 +901,19 @@
       }
 
       // Login handler (exposed to form onsubmit)
-      window.adminLogin = function(e) {
-        e.preventDefault();
-        var pwd = document.getElementById('adminPassword').value;
+    window.adminLogin = function(e) {
+      e.preventDefault();
+
+      // Check if already logged in
+      var existingToken = getToken();
+      if (existingToken) {
+        showLoggedIn();
+        loadOrders();
+        pollUnseen();
+        return;
+      }
+
+      var pwd = document.getElementById('adminPassword').value;
         var errBox = document.getElementById('loginError');
         var btn = document.getElementById('loginBtn');
         if (!pwd) return;
@@ -1217,6 +1263,126 @@
         if (btn) btn.textContent = '📷 Scan QR';
         var overlay = document.getElementById('scanOverlay');
         if (overlay) overlay.textContent = 'Point camera at the ticket QR code';
+      };
+
+// ── Events Manager ──
+      window.loadManagedEvents = function() {
+        fetch('/api/events')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            var container = document.getElementById('managedEventsList');
+            var count = document.getElementById('eventsManageCount');
+            if (count) count.textContent = events.length + ' event' + (events.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!events.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No events added yet. Add your first event above.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
+            events.forEach(function(ev) {
+              var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<span>' + esc(ev.icon || '🎤') + '</span>' +
+                '<strong>' + esc(ev.name) + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
+                '</div>' +
+                '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function() {});
+      };
+
+      window.addEventItem = function() {
+        var name = document.getElementById('evName').value.trim();
+        var category = document.getElementById('evCategory').value;
+        var price = parseFloat(document.getElementById('evPrice').value) || 0;
+        var date = document.getElementById('evDate').value.trim();
+        var time = document.getElementById('evTime').value.trim();
+        var venue = document.getElementById('evVenue').value.trim();
+        var desc = document.getElementById('evDesc').value.trim();
+        var icon = document.getElementById('evIcon').value.trim() || '🎤';
+        var tags = document.getElementById('evTags').value.trim();
+
+        if (!name || !category || !date || !venue) {
+          showToast('Event Name, Category, Date, and Venue are required.', true);
+          return;
+        }
+
+        var ev = {
+          name: name,
+          category: category,
+          price: price,
+          date: date,
+          time: time,
+          venue: venue,
+          description: desc,
+          icon: icon,
+          tags: tags ? tags.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : []
+        };
+
+        var btn = event && event.target;
+        if (btn) btn.disabled = true;
+
+        fetch('/api/admin/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify(ev)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Event "' + esc(name) + '" added!');
+            document.getElementById('evName').value = '';
+            document.getElementById('evPrice').value = '';
+            document.getElementById('evDate').value = '';
+            document.getElementById('evTime').value = '';
+            document.getElementById('evVenue').value = '';
+            document.getElementById('evDesc').value = '';
+            document.getElementById('evIcon').value = '';
+            document.getElementById('evTags').value = '';
+            loadManagedEvents();
+          } else {
+            showToast((data && data.error) || 'Failed to add event', true);
+          }
+        })
+        .catch(function() { showToast('Network error adding event', true); })
+        .finally(function() { if (btn) btn.disabled = false; });
+      };
+
+window.deleteManagedEvent = function(eventId) {
+        if (!eventId) return;
+        if (!confirm('Delete this event? This cannot be undone.')) return;
+
+        fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Event deleted');
+            loadManagedEvents();
+          } else {
+            showToast((data && data.error) || 'Failed to delete event', true);
+          }
+        })
+        .catch(function() { showToast('Network error deleting event', true); });
+      };
+
+      // Load events on login
+      var origShowLoggedIn = showLoggedIn;
+      showLoggedIn = function() {
+        origShowLoggedIn();
+        loadManagedEvents();
       };
 
       // Load orders (exposed for refresh button)

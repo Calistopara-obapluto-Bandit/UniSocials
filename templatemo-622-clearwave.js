@@ -319,6 +319,9 @@ if (nav) {
     if (priceFilter) priceFilter.value = 'all';
     filterEvents();
   };
+
+  // Exposed so dynamically-loaded event cards (from /api/events) can re-run filtering
+  window.filterEvents = filterEvents;
 })();
 
 /* ══════════════════════════════════════════
@@ -529,12 +532,14 @@ if (nav) {
   function showSuccessModal(orderId, eventName, totalPaid, ticketCodes) {
     const idEl = document.getElementById('orderId');
     const evEl = document.getElementById('orderEvent');
+    const emailEl = document.getElementById('orderEmail');
     const totalEl = document.getElementById('orderTotal');
     const ticketListEl = document.getElementById('successTicketList');
 
     if (idEl) idEl.textContent = orderId;
     if (evEl) evEl.textContent = eventName;
     if (totalEl) totalEl.textContent = '\u20A6' + totalPaid.toLocaleString();
+    if (emailEl) emailEl.textContent = checkoutData && checkoutData.buyerEmail ? checkoutData.buyerEmail : '\u2014';
 
     // Per-ticket links
     if (ticketListEl && Array.isArray(ticketCodes) && ticketCodes.length) {

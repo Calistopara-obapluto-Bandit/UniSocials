@@ -56,6 +56,7 @@ async function initStorage() {
       await db.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
@@ -194,6 +195,133 @@ async function deleteUserSessions(userId) {
     if (uid === userId) delete sessions[t];
   }
   await writeSessions(sessions);
+}
+
+/* ── Events (admin-managed catalog shown on client pages) ── */
+const DEFAULT_EVENTS = [
+  {
+    id: 'arts-cultural-night',
+    name: 'Faculty of Arts Cultural Night',
+    category: 'Arts & Culture',
+    price: 2500,
+    date: 'March 10, 2025',
+    time: '4:00 PM',
+    venue: 'Arts Theatre',
+    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of UNN Arts department talent.',
+    tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
+    icon: '🎭',
+    featured: true,
+    seats: '150 seats left'
+  },
+  {
+    id: 'engineering-dinner',
+    name: 'Engineering Annual Dinner',
+    category: 'Engineering',
+    price: 5000,
+    date: 'March 15, 2025',
+    time: '5:00 PM',
+    venue: 'Engineering Auditorium',
+    description: 'The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.',
+    tags: ['🏆 Awards', '🍽️ Dinner', '🤝 Networking'],
+    icon: '⚙️',
+    featured: true,
+    seats: '80 seats left'
+  },
+  {
+    id: 'entrepreneurship-summit',
+    name: 'Entrepreneurship Summit',
+    category: 'Business',
+    price: 3000,
+    date: 'March 22, 2025',
+    time: '10:00 AM',
+    venue: 'Business School Hall',
+    description: 'Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.',
+    tags: ['💡 Pitching', '💰 Funding', '📈 Workshops'],
+    icon: '💼',
+    featured: true,
+    seats: '200 seats left'
+  },
+  {
+    id: 'music-festival',
+    name: 'UNN Music Festival',
+    category: 'Music',
+    price: 4000,
+    date: 'March 29, 2025',
+    time: '6:00 PM',
+    venue: 'UNN Sports Complex',
+    description: 'Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.',
+    tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
+    icon: '🎵',
+    featured: true,
+    seats: '300 seats left'
+  },
+  {
+    id: 'law-moot-court',
+    name: 'Faculty of Law Moot Court',
+    category: 'Academic',
+    price: 1500,
+    date: 'April 5, 2025',
+    time: '9:00 AM',
+    venue: 'Faculty of Law',
+    description: 'The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.',
+    tags: ['⚖️ Mock Trial', '📜 Legal Debate', '🏅 Competition'],
+    icon: '📚',
+    featured: false,
+    seats: '100 seats left'
+  },
+  {
+    id: 'sports-day',
+    name: 'Inter-Faculty Sports Day',
+    category: 'Sports',
+    price: 1000,
+    date: 'April 12, 2025',
+    time: '8:00 AM',
+    venue: 'UNN Stadium',
+    description: 'A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!',
+    tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
+    icon: '⚽',
+    featured: false,
+    seats: 'Unlimited'
+  }
+];
+
+async function readEvents() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM events ORDER BY data->>\'date\' ASC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'events.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return DEFAULT_EVENTS;
+  }
+}
+async function writeEvents(events) {
+  if (usePg) {
+    await db.query('DELETE FROM events');
+    for (const ev of events) {
+      await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [ev.id, JSON.stringify(ev)]);
+    }
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(events, null, 2), 'utf8');
+}
+async function addEvent(ev) {
+  const events = await readEvents();
+  const idx = events.findIndex(e => e.id === ev.id);
+  if (idx === -1) events.push(ev);
+  else events[idx] = ev;
+  await writeEvents(events);
+  return ev;
+}
+async function deleteEvent(eventId) {
+  const events = await readEvents();
+  const next = events.filter(e => e.id !== eventId);
+  if (next.length === events.length) return false;
+  await writeEvents(next);
+  return true;
 }
 
 // ────────────────────────────────────────────
@@ -1166,6 +1294,48 @@ const server = http.createServer(async (req, res) => {
       }
       const updated = await patchOrder(orderId, { status: newStatus });
       return sendJson(res, 200, { success: true, order: updated });
+    }
+
+    // ── Public events list (used by events.html, tickets.html, index.html) ──
+    if (pathname === '/api/events' && req.method === 'GET') {
+      const events = await readEvents();
+      return sendJson(res, 200, { success: true, events: events });
+    }
+
+    // ── Admin: create/update an event ──
+    if (pathname === '/api/admin/events' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const id = String(data.id || '').trim() || 'evt-' + Date.now().toString(36);
+      const name = String(data.name || '').trim();
+      if (!name) return sendJson(res, 400, { success: false, error: 'Event name is required' });
+      const ev = {
+        id: id,
+        name: name,
+        category: String(data.category || '').trim() || 'General',
+        price: parseFloat(data.price) || 0,
+        date: String(data.date || '').trim(),
+        time: String(data.time || '').trim(),
+        venue: String(data.venue || '').trim(),
+        description: String(data.description || '').trim(),
+        tags: data.tags || [],
+        icon: data.icon || '🎟️',
+        featured: !!data.featured,
+        seats: data.seats || '—'
+      };
+      await addEvent(ev);
+      return sendJson(res, 200, { success: true, event: ev });
+    }
+
+    // ── Admin: delete an event ──
+    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const eventId = String(url.searchParams.get('eventId') || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+      const deleted = await deleteEvent(eventId);
+      return sendJson(res, 200, { success: deleted });
     }
 
     // ── Static files ──
