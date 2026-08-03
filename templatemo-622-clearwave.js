@@ -1,5 +1,5 @@
 /*
-UNN Socials — Event Ticket Selling Platform for University of Nigeria
+Unisocials — Event Ticket Selling Platform for University of Nigeria
 Rebranded from TemplateMo 622 Clearwave
 https://templatemo.com/tm-622-clearwave
 Free for personal and commercial use
@@ -369,12 +369,22 @@ if (nav) {
     updateContinueBtn();
   }
 
+  function getQty() {
+    const raw = qtySelect ? qtySelect.value : '1';
+    let q = parseInt(raw, 10);
+    if (!q || isNaN(q)) q = 1;
+    if (q < 1) q = 1;
+    if (q > 100) q = 100;
+    return q;
+  }
+
   function updateContinueBtn() {
     const opt = getSelectedOption();
     const name = buyerName ? buyerName.value.trim() : '';
     const email = buyerEmail ? buyerEmail.value.trim() : '';
     const phone = buyerPhone ? buyerPhone.value.trim() : '';
-    const canContinue = !!opt.value && name.length > 0 && email.length > 0 && phone.length > 0;
+    const qty = getQty();
+    const canContinue = !!opt.value && name.length > 0 && email.length > 0 && phone.length > 0 && qty >= 1 && qty <= 100;
     if (continueBtn) continueBtn.disabled = !canContinue;
   }
 
@@ -385,6 +395,8 @@ if (nav) {
     const email = buyerEmail ? buyerEmail.value.trim() : '';
     const phone = buyerPhone ? buyerPhone.value.trim() : '';
     if (!name || !email || !phone) { alert('Please fill in your name, email, and phone number.'); return; }
+    const qty = getQty();
+    if (qty < 1 || qty > 100) { alert('Please enter a quantity between 1 and 100 tickets.'); return; }
 
     sessionStorage.setItem('checkoutData', JSON.stringify({
       eventValue: opt.value,
@@ -394,7 +406,7 @@ if (nav) {
       eventVenue: opt.dataset.venue,
       eventCategory: opt.dataset.category || '',
       eventPrice: parseFloat(opt.dataset.price || 0),
-      qty: parseInt(qtySelect ? qtySelect.value : 1),
+      qty: qty,
       buyerName: name,
       buyerEmail: email,
       buyerPhone: phone,
@@ -428,7 +440,16 @@ if (nav) {
   }
 
   if (eventSelect) eventSelect.addEventListener('change', updateEventDetails);
-  if (qtySelect) qtySelect.addEventListener('change', updateContinueBtn);
+  if (qtySelect) {
+    qtySelect.addEventListener('change', updateContinueBtn);
+    qtySelect.addEventListener('input', updateContinueBtn);
+    // Keep the value clamped between 1 and 100 as the user types
+    qtySelect.addEventListener('blur', function() {
+      const q = getQty();
+      if (qtySelect.value !== String(q)) qtySelect.value = String(q);
+      updateContinueBtn();
+    });
+  }
   if (buyerName) buyerName.addEventListener('input', updateContinueBtn);
   if (buyerEmail) buyerEmail.addEventListener('input', updateContinueBtn);
   if (buyerPhone) buyerPhone.addEventListener('input', updateContinueBtn);
@@ -502,7 +523,7 @@ if (nav) {
   }
 
   function generateOrderId() {
-    return 'UNN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    return 'UNI-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
   function showSuccessModal(orderId, eventName, totalPaid, ticketCodes) {
@@ -555,7 +576,7 @@ if (nav) {
       '📧 ' + email + '\n' +
       '📞 ' + phone + '\n' +
       ticketLines +
-      '\nThank you for using UNN Socials!';
+      '\nThank you for using Unisocials!';
     const cfg = window.SITE_CONFIG || {};
     const waNumber = cfg.WHATSAPP_ORDER_NUMBER || '2348122104576';
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
@@ -599,7 +620,7 @@ if (nav) {
       return;
     }
 
-    const customerName = name || 'UNN Customer';
+    const customerName = name || 'Unisocial Customer';
 
     const payload = {
       public_key: publicKey,
@@ -614,7 +635,7 @@ if (nav) {
         phone_number: phone || ''
       },
       customizations: {
-        title: 'UNN Socials',
+        title: 'Unisocials',
         description: eventName + (qty > 1 ? ' (' + qty + ' tickets)' : ''),
         logo: 'https://unisocials.onrender.com/images/tm-622-screen-01.jpg'
       },

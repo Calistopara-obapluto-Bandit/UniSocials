@@ -1,4 +1,4 @@
-# UNN Socials — Event Ticket Selling Site
+# Unisocials — Event Ticket Selling Site
 
 ## Architecture
 Multi-page static site for UNN (University of Nigeria) students to buy event tickets.
@@ -7,7 +7,7 @@ Multi-page static site for UNN (University of Nigeria) students to buy event tic
 1. **index.html** — Home page (Hero with upcoming events, stats, featured events)
 2. **events.html** — All events listing with ticket purchase
 3. **pricing.html** — Ticket packages/pricing for different event tiers
-4. **about.html** — About UNN Socials
+4. **about.html** — About Unisocials
 5. **faq.html** — FAQ about events and ticketing
 6. **contact.html** — Contact page
 

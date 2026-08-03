@@ -1,5 +1,5 @@
 /*
-UNN Socials — Site Configuration
+Unisocials — Site Configuration
 ---------------------------------
 These values are used across the site (WhatsApp links, bank details, emails).
 When running under the Node server (server.js), this file is served dynamically

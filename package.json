@@ -1,7 +1,7 @@
 {
-  "name": "unn-socials",
+  "name": "unisocials",
   "version": "2.0.0",
-  "description": "UNN Socials — Event Ticket Selling Platform for University of Nigeria (Flutterwave-only, accounts, per-ticket QR codes, PostgreSQL persistence)",
+  "description": "Unisocials — Event Ticket Selling Platform for University of Nigeria (Flutterwave-only, accounts, per-ticket QR codes, PostgreSQL persistence)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

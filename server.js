@@ -1,5 +1,5 @@
 /*
-UNN Socials — Node.js server
+Unisocials — Node.js server
 ----------------------------------
 - Serves the static site + dynamic config.js
 - Persistent data storage:
@@ -260,8 +260,13 @@ const defaults = {
   ADMIN_EMAIL: 'soludobenedict5@gmail.com',
   // "From" address for Resend. In Resend test mode you must use onboarding@resend.dev
   // and only the account owner's email can receive. After verifying a domain
-  // (e.g. unn.edu.ng or your own domain), set EMAIL_FROM="UNN Socials <no-reply@yourdomain>"
-  EMAIL_FROM: 'UNN Socials <onboarding@resend.dev>'
+  // (e.g. unn.edu.ng or your own domain), set EMAIL_FROM="Unisocials <no-reply@yourdomain>"
+  EMAIL_FROM: 'Unisocials <onboarding@resend.dev>',
+  // Brevo API key — sends buyer ticket confirmation emails (no domain required;
+  // just verify a sender email at https://app.brevo.com). Never exposed to browser.
+  BREVO_API_KEY: '',
+  BREVO_SENDER_EMAIL: 'support.sbiamautos@gmail.com',
+  BREVO_SENDER_NAME: 'Unisocials'
   // NOTE: RESEND_API_KEY is intentionally NOT hardcoded here. Set it in the
   // Render dashboard (Environment → Env Vars) so it's never committed to the
   // repo — GitHub secret scanning rejects live Resend keys in commits.
@@ -414,6 +419,45 @@ function siteUrl() {
   return process.env.SITE_URL !== undefined ? process.env.SITE_URL : defaults.SITE_URL;
 }
 
+// Brevo (transactional email — free tier works WITHOUT a verified domain; you just
+// verify a sender email address). Used for buyer ticket emails; admin alerts stay on Resend.
+function brevoApiKey() {
+  return process.env.BREVO_API_KEY !== undefined ? process.env.BREVO_API_KEY : '';
+}
+function brevoSenderEmail() {
+  if (process.env.BREVO_SENDER_EMAIL !== undefined) return process.env.BREVO_SENDER_EMAIL;
+  return process.env.CONTACT_EMAIL !== undefined ? process.env.CONTACT_EMAIL : defaults.CONTACT_EMAIL;
+}
+function brevoSenderName() {
+  if (process.env.BREVO_SENDER_NAME !== undefined) return process.env.BREVO_SENDER_NAME;
+  return 'Unisocials';
+}
+
+// Send an email via Brevo (transactional API — works WITHOUT a verified domain;
+// you only verify a sender email at https://app.brevo.com → Senders).
+// Returns the Brevo response JSON on success, or null when BREVO_API_KEY is
+// missing / the request fails. Never throws / never blocks.
+async function sendBrevoEmail(to, subject, text, html, toName) {
+  try {
+    const apiKey = brevoApiKey();
+    if (!apiKey || !to) return null;
+    const payload = {
+      sender: { name: brevoSenderName(), email: brevoSenderEmail() },
+      to: [{ email: to, name: toName || '' }],
+      subject: subject,
+      textContent: text,
+      htmlContent: html
+    };
+    const r = await postJson('api.brevo.com', '/v3/smtp/email', { 'api-key': apiKey }, payload);
+    if (r.status === 200 || r.status === 201) return r.json;
+    console.warn('Brevo email failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    return null;
+  } catch (e) {
+    console.warn('Brevo email error:', e.message);
+    return null;
+  }
+}
+
 // Plain-text digest of the order for the email body
 function orderEmailLines(order) {
   const site = siteUrl();
@@ -439,57 +483,76 @@ function orderEmailLines(order) {
       'Total paid: ₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN') + '\n' +
       ticketLines +
       '\nPlease keep this email safe — it contains your tickets.\n' +
-      'See you at the event!\n\nUNN Socials Team'
+      'See you at the event!\n\nUnisocials Team'
   };
 }
 
-// Send buyer confirmation via Resend. Best-effort: never throws/never blocks.
+// Build the buyer confirmation HTML (shared by Brevo + Resend providers)
+function buildBuyerHtml(order) {
+  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+    '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Ticket Confirmation 🎟️</div>' +
+    '<div style="padding:24px">' +
+    '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(order.buyerName || 'there') + '</strong>,</p>' +
+    '<p style="margin:0 0 16px;color:#475569">Your payment has been confirmed! Here are your ticket details:</p>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+    rowHtml('Order ID', escapeHtml(order.orderId)) +
+    rowHtml('Event', escapeHtml(order.eventName)) +
+    rowHtml('Category', escapeHtml(order.eventCategory || '—')) +
+    rowHtml('Date', escapeHtml(order.eventDate || '—')) +
+    rowHtml('Venue', escapeHtml(order.eventVenue || '—')) +
+    rowHtml('Quantity', String(order.qty)) +
+    rowHtml('Total paid', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
+    '</table>' +
+    ticketLinksHtml(order) +
+    '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Please keep this email safe — it contains your tickets.</p>' +
+    '</div></div>';
+}
+
+// Send buyer confirmation email. Prefers Brevo (works WITHOUT a domain — you just
+// verify a sender email address in Brevo), falls back to Resend if BREVO_API_KEY
+// isn't set. Best-effort: never throws / never blocks.
 async function sendBuyerConfirmation(order) {
   try {
-    const key = resendKey();
     const email = order.buyerEmail;
-    if (!key || !email) return;
+    if (!email) return;
     const lines = orderEmailLines(order);
+    const html = buildBuyerHtml(order);
+
+    // Brevo first — delivers to ANY client email without a verified domain
+    if (brevoApiKey()) {
+      const sent = await sendBrevoEmail(email, lines.subject, lines.text, html, order.buyerName || '');
+      if (sent) console.log('Buyer confirmation email sent via Brevo to', email);
+      return;
+    }
+
+    // Fallback: Resend
+    const key = resendKey();
+    if (!key) return;
     const payload = {
       from: emailFrom(),
       to: [email],
       subject: lines.subject,
       text: lines.text,
-      html: '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
-        '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">UNN Socials — Ticket Confirmation 🎟️</div>' +
-        '<div style="padding:24px">' +
-        '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(order.buyerName || 'there') + '</strong>,</p>' +
-        '<p style="margin:0 0 16px;color:#475569">Your payment has been confirmed! Here are your ticket details:</p>' +
-        '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
-        rowHtml('Order ID', escapeHtml(order.orderId)) +
-        rowHtml('Event', escapeHtml(order.eventName)) +
-        rowHtml('Category', escapeHtml(order.eventCategory || '—')) +
-        rowHtml('Date', escapeHtml(order.eventDate || '—')) +
-        rowHtml('Venue', escapeHtml(order.eventVenue || '—')) +
-        rowHtml('Quantity', String(order.qty)) +
-        rowHtml('Total paid', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
-        '</table>' +
-        ticketLinksHtml(order) +
-        '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Please keep this email safe — it contains your tickets.</p>' +
-        '</div></div>'
+      html: html
     };
     const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
     if (r.status === 200) {
-      console.log('Buyer confirmation email sent to', email);
+      console.log('Buyer confirmation email sent via Resend to', email);
     } else {
-      console.warn('Buyer email failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+      console.warn('Resend buyer email failed (' + r.status + '):', r.body && r.body.slice(0, 200));
     }
   } catch (e) {
     console.warn('Buyer email error:', e.message);
   }
 }
 
-// Admin instant alert — sends via Resend (primary) so it always lands immediately.
+// Admin instant alert — sends via Resend (primary), falls back to Brevo so it
+// always lands immediately even if the Resend key is unavailable.
 async function sendAdminAlert(order) {
   try {
     const key = resendKey();
     const to = adminEmail();
-    if (!key || !to) return;
+    if (!to) return;
     const site = siteUrl();
     const codes = order.ticketCodes || [];
     let ticketList = '';
@@ -539,12 +602,17 @@ async function sendAdminAlert(order) {
         '<a href="' + site + '/admin.html" style="display:inline-block;background:#1B5E20;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none">Open Admin Dashboard</a>' +
         '</div></div>'
     };
-    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
-    if (r.status === 200) {
-      console.log('Admin alert email sent to', to);
-    } else {
-      console.warn('Admin alert failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    if (key) {
+      const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
+      if (r.status === 200) {
+        console.log('Admin alert email sent to', to);
+        return;
+      }
+      console.warn('Admin alert failed via Resend (' + r.status + '):', r.body && r.body.slice(0, 200));
     }
+    // Brevo fallback — so admin alerts still land even if Resend is unavailable
+    const bsent = await sendBrevoEmail(to, payload.subject, payload.text, payload.html);
+    if (bsent) console.log('Admin alert email sent via Brevo to', to);
   } catch (e) {
     console.warn('Admin alert error:', e.message);
   }
@@ -585,11 +653,12 @@ async function notifyOrderVerified(order) {
 
 // Admin instant alert when a NEW order is placed (payment NOT confirmed yet).
 // The admin uses this to watch for the payment and verify it in the dashboard.
+// Sends via Resend (primary), falls back to Brevo so the alert always lands.
 async function sendNewOrderAlert(order) {
   try {
     const key = resendKey();
     const to = adminEmail();
-    if (!key || !to) return;
+    if (!to) return;
     const site = siteUrl();
     const payload = {
       from: emailFrom(),
@@ -628,12 +697,17 @@ async function sendNewOrderAlert(order) {
         '<a href="' + site + '/admin.html" style="display:inline-block;background:#E65100;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none">Verify Payment in Admin</a>' +
         '</div></div>'
     };
-    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
-    if (r.status === 200) {
-      console.log('New-order admin alert sent to', to);
-    } else {
-      console.warn('New-order alert failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    if (key) {
+      const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, payload);
+      if (r.status === 200) {
+        console.log('New-order admin alert sent to', to);
+        return;
+      }
+      console.warn('New-order alert failed via Resend (' + r.status + '):', r.body && r.body.slice(0, 200));
     }
+    // Brevo fallback — so the new-order alert still lands even if Resend is unavailable
+    const bsent = await sendBrevoEmail(to, payload.subject, payload.text, payload.html);
+    if (bsent) console.log('New-order admin alert sent via Brevo to', to);
   } catch (e) {
     console.warn('New-order alert error:', e.message);
   }
@@ -1111,9 +1185,9 @@ const server = http.createServer(async (req, res) => {
           if (err2 || !stats2.isFile()) {
             res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(`<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta http-equiv="refresh" content="3"><title>UNN Socials — Waking up...</title>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta http-equiv="refresh" content="3"><title>Unisocials — Waking up...</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a1a0a;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#e0e0e0;text-align:center;padding:24px}.card{background:linear-gradient(145deg,#0f2a0f,#1a3a1a);border:1px solid #2a5a2a;border-radius:24px;padding:48px 40px;max-width:480px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.6)}.logo{font-size:28px;font-weight:700;margin-bottom:24px}.logo span{color:#ffd700}.icon{font-size:56px;margin-bottom:16px}h1{font-size:22px;font-weight:600;margin-bottom:12px;color:#fff}p{font-size:15px;line-height:1.6;color:#a0c0a0;margin-bottom:24px}.spinner{display:inline-block;width:36px;height:36px;border:3px solid #2a5a2a;border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}@keyframes spin{to{transform:rotate(360deg)}}.btn{display:inline-block;background:#ffd700;color:#0a1a0a;font-weight:600;font-size:15px;padding:12px 32px;border-radius:40px;text-decoration:none;transition:background .2s}.btn:hover{background:#ffe44d}.hint{font-size:13px;color:#608060;margin-top:16px}</style>
-</head><body><div class="card"><div class="logo">UNN <span>Socials</span></div><div class="icon">⚡</div><div class="spinner"></div><h1>Waking up the server…</h1><p>This page is hosted on a free service that sleeps after inactivity.<br>It should be ready in a moment.</p><a href="/" class="btn" onclick="location.reload()">⟳ Refresh Now</a><p class="hint">Auto-refreshing every 3 seconds &mdash; or tap the button above.</p></div></body></html>`);
+</head><body><div class="card"><div class="logo">Uni<span>socials</span></div><div class="icon">⚡</div><div class="spinner"></div><h1>Waking up the server…</h1><p>This page is hosted on a free service that sleeps after inactivity.<br>It should be ready in a moment.</p><a href="/" class="btn" onclick="location.reload()">⟳ Refresh Now</a><p class="hint">Auto-refreshing every 3 seconds &mdash; or tap the button above.</p></div></body></html>`);
             return;
           }
           const ext = path.extname(indexPath).toLowerCase();
@@ -1145,7 +1219,7 @@ function publicUser(user) {
 
 initStorage().then(() => {
   server.listen(PORT, () => {
-    console.log('UNN Socials server running at http://localhost:' + PORT);
+    console.log('Unisocials server running at http://localhost:' + PORT);
   });
 });
 

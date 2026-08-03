@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <title>Admin Dashboard — UNN Socials</title>
+  <title>Admin Dashboard — Unisocials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
@@ -322,6 +322,58 @@
     .admin-refresh-btn:hover { background: var(--accent); color: #fff; }
     .admin-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    /* Event / Category filter selects */
+    .admin-cat-filters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      align-items: flex-end;
+    }
+    .admin-cat-filter {
+      flex: 1;
+      min-width: 210px;
+    }
+    .admin-cat-filter label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .admin-cat-filter select {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-1);
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .admin-cat-filter select:focus {
+      outline: none;
+      border-color: var(--accent-border);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .admin-cat-clear {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1.5px solid var(--accent-border);
+      border-radius: 100px;
+      padding: 8px 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.3s;
+    }
+    .admin-cat-clear:hover { background: var(--accent); color: #fff; }
+
     /* Orders list */
     .admin-orders { display: flex; flex-direction: column; gap: 12px; }
     .admin-order {
@@ -543,7 +595,7 @@
   <!-- ── ADMIN TOP BAR ── -->
   <div class="admin-topbar">
     <div class="admin-topbar-inner">
-      <a href="index.html" class="nav-logo">UNN <span>Socials</span> · Admin</a>
+      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Admin</a>
       <div class="admin-topbar-actions">
         <span class="admin-topbar-status" id="connStatus" style="display:none;">
           <span class="pulse"></span> <span id="connStatusText">Connected</span>
@@ -616,6 +668,22 @@
           </div>
         </div>
 
+        <div class="admin-cat-filters" id="catFilters">
+          <div class="admin-cat-filter">
+            <label for="eventFilterSel">🎤 Filter by Event</label>
+            <select id="eventFilterSel" onchange="setEventFilter(this.value)">
+              <option value="">All Events</option>
+            </select>
+          </div>
+          <div class="admin-cat-filter">
+            <label for="categoryFilterSel">🏷 Filter by Category</label>
+            <select id="categoryFilterSel" onchange="setCategoryFilter(this.value)">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+          <button class="admin-cat-clear" onclick="clearCatFilters()">✕ Clear Filters</button>
+        </div>
+
 <!-- ── GATE SCAN / CHECK-IN ── -->
         <div class="admin-scan-panel">
           <div class="admin-scan-header">
@@ -627,7 +695,7 @@
           <div class="admin-scan-inputs">
             <div class="form-group">
               <label for="scanOrderId">Order ID</label>
-              <input type="text" id="scanOrderId" placeholder="UNN-XXXX-XXXX" autocomplete="off" />
+              <input type="text" id="scanOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
             </div>
             <div class="form-group">
               <label for="scanCode">Ticket Code</label>
@@ -660,6 +728,8 @@
     (function() {
       var KEY = 'unn_admin_token';
       var currentFilter = 'all';
+      var currentEventFilter = '';
+      var currentCategoryFilter = '';
       var allOrders = [];
       var toastTimer = null;
       var lastUnseenCount = -1;
@@ -778,7 +848,7 @@
             var delta = count - lastUnseenCount;
             showToast(delta + ' new order' + (delta > 1 ? 's' : '') + ' received! 🔔');
             playAlertSound();
-            sendBrowserNotification('New order on UNN Socials', delta + ' new order' + (delta > 1 ? 's' : '') + ' awaiting confirmation.');
+            sendBrowserNotification('New order on Unisocials', delta + ' new order' + (delta > 1 ? 's' : '') + ' awaiting confirmation.');
             loadOrders();
           }
           lastUnseenCount = count;
@@ -849,6 +919,67 @@
         for (var i = 0; i < btns.length; i++) {
           btns[i].classList.toggle('active', btns[i].getAttribute('data-filter') === f);
         }
+        renderOrders();
+      };
+
+      // Build Event + Category dropdown options from allOrders (unique values only)
+      function populateFilterSelects() {
+        var eventSel = document.getElementById('eventFilterSel');
+        var catSel = document.getElementById('categoryFilterSel');
+        if (!eventSel || !catSel) return;
+
+        var events = [], cats = [];
+        allOrders.forEach(function(o) {
+          var ev = (o.eventName || '').trim();
+          var ct = (o.eventCategory || '').trim();
+          if (ev && events.indexOf(ev) === -1) events.push(ev);
+          if (ct && cats.indexOf(ct) === -1) cats.push(ct);
+        });
+        events.sort(function(a, b) { return a.localeCompare(b); });
+        cats.sort(function(a, b) { return a.localeCompare(b); });
+
+        // Preserve current selection when repopulating
+        var keepEvent = eventSel.value;
+        var keepCat = catSel.value;
+
+        var evHtml = '<option value="">All Events</option>';
+        events.forEach(function(ev) {
+          evHtml += '<option value="' + esc(ev) + '">' + esc(ev) + '</option>';
+        });
+
+        var catHtml = '<option value="">All Categories</option>';
+        cats.forEach(function(ct) {
+          catHtml += '<option value="' + esc(ct) + '">' + esc(ct) + '</option>';
+        });
+
+        eventSel.innerHTML = evHtml;
+        catSel.innerHTML = catHtml;
+
+        // Restore selection if it still exists (e.g. after auto-refresh)
+        if (keepEvent && events.indexOf(keepEvent) !== -1) eventSel.value = keepEvent;
+        if (keepCat && cats.indexOf(keepCat) !== -1) catSel.value = keepCat;
+      }
+
+      // Set event filter (exposed)
+      window.setEventFilter = function(v) {
+        currentEventFilter = v;
+        renderOrders();
+      };
+
+      // Set category filter (exposed)
+      window.setCategoryFilter = function(v) {
+        currentCategoryFilter = v;
+        renderOrders();
+      };
+
+      // Clear all event/category filters (exposed)
+      window.clearCatFilters = function() {
+        currentEventFilter = '';
+        currentCategoryFilter = '';
+        var es = document.getElementById('eventFilterSel');
+        var cs = document.getElementById('categoryFilterSel');
+        if (es) es.value = '';
+        if (cs) cs.value = '';
         renderOrders();
       };
 
@@ -1117,6 +1248,7 @@
             }
           }
           renderOrders();
+          populateFilterSelects();
           var now = new Date();
           if (lastUpdated) lastUpdated.textContent = 'Last updated: ' + now.toLocaleTimeString();
         })
@@ -1133,8 +1265,15 @@
       function renderOrders() {
         if (!ordersList) return;
 
-        var stats = { total: allOrders.length, pending: 0, verified: 0, rejected: 0, revenue: 0 };
-        allOrders.forEach(function(o) {
+        // First apply Event + Category filters (these drive the stats too)
+        var catFiltered = allOrders.filter(function(o) {
+          var matchesEvent = !currentEventFilter || (o.eventName || '') === currentEventFilter;
+          var matchesCategory = !currentCategoryFilter || (o.eventCategory || '') === currentCategoryFilter;
+          return matchesEvent && matchesCategory;
+        });
+
+        var stats = { total: catFiltered.length, pending: 0, verified: 0, rejected: 0, revenue: 0 };
+        catFiltered.forEach(function(o) {
           if (o.status === 'pending') stats.pending++;
           else if (o.status === 'verified') { stats.verified++; stats.revenue += (parseFloat(o.amount) || 0); }
           else if (o.status === 'rejected') stats.rejected++;
@@ -1145,12 +1284,14 @@
         document.getElementById('statVerified').textContent = stats.verified;
         document.getElementById('statRevenue').textContent = fmtN(stats.revenue);
 
-        var filtered = allOrders.filter(function(o) {
+        // Then apply the status quick-filter for the visible list
+        var filtered = catFiltered.filter(function(o) {
           return currentFilter === 'all' || o.status === currentFilter;
         });
 
         if (filtered.length === 0) {
-          ordersList.innerHTML = '<div class="admin-empty"><span>🗂️</span><p>No ' + (currentFilter === 'all' ? '' : currentFilter + ' ') + 'orders found.</p></div>';
+          ordersList.innerHTML = '<div class="admin-empty"><span>🗂️</span><p>No ' + (currentFilter === 'all' ? '' : currentFilter + ' ') + 'orders found' +
+            (currentEventFilter || currentCategoryFilter ? ' with the selected filters' : '') + '.</p></div>';
           return;
         }
 

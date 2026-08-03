@@ -1,6 +1,36 @@
-# UNN Socials — Overhaul (Flutterwave-only + Accounts + Per-Ticket Codes + Persistent Storage)
+# Unisocials — Overhaul (Flutterwave-only + Accounts + Per-Ticket Codes + Persistent Storage)
 
-## ✅ Latest Round — Resend Email Notifications RESTORED & WORKING — Completed
+## ✅ Email Delivery Verified (Brevo buyer + Resend admin) — Completed
+- [x] `_brevo_test.js`: live test email via Brevo API → HTTP **201** accepted/queued (buyer confirmation channel working)
+- [x] `_resend_test.js`: live test email via Resend API → HTTP **200** accepted (admin alert channel working)
+- [x] Resend API key validated via `GET /api.resend.com/domains` → 200 (key is live and valid)
+- [x] Confirmed email flow in `server.js`: buyer gets ticket confirmation (Brevo first, Resend fallback); admin gets new-order alert + payment alert (Resend first, Brevo fallback)
+- [x] Security: live keys stay in `.env` (gitignored); `.env.example` committed with placeholders only; no live Resend/Brevo keys in tracked files
+- [x] Pushed to GitHub `main` → Render Blueprint auto-deploy (RESEND_API_KEY + BREVO_API_KEY already set in Render dashboard)
+
+## ✅ Heliopolis → Brevo email verification — Completed
+- [x] `_brevo_test.js`: new test script that loads `.env` and sends a real transactional email via Brevo (`api.brevo.com/v3/smtp/email`)
+- [x] Test PASSED: HTTP **201** with `messageId` returned → Brevo accepted and queued the email for delivery to `soludobenedict5@gmail.com`
+- [x] Confirmed the Brevo API key + verified sender (`support.sbiamautos@gmail.com`) are valid and can deliver mail
+- [x] `server.js`: `sendBrevoEmail()` helper now centralizes Brevo sends (returns response JSON on success, `null` on failure — never throws)
+- [x] `server.js`: `sendBuyerConfirmation()` prefers Brevo, falls back to Resend
+- [x] `server.js`: `sendAdminAlert()` — Resend primary with **Brevo fallback** so admin payment alerts always land
+- [x] `server.js`: `sendNewOrderAlert()` — Resend primary with **Brevo fallback** so new-order alerts also always land
+- [x] `render.yaml`: `BREVO_API_KEY` (sync: false), `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` env vars already present
+- [x] `.env.example`: documents `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
+- [x] Syntax check: `node --check server.js` passes
+
+## ✅ Latest Round — Admin Dashboard Event & Category Filters — Completed
+- [x] `admin.html`: added "Filter by Event" and "Filter by Category" dropdowns with a "✕ Clear Filters" button
+- [x] `admin.html`: `populateFilterSelects()` builds unique options from live orders (preserves selection on auto-refresh)
+- [x] `admin.html`: `setEventFilter()` / `setCategoryFilter()` / `clearCatFilters()` wired to `onchange` handlers
+- [x] `admin.html`: stats (Total / Pending / Verified / Revenue) now reflect the event + category filter selection
+- [x] `admin.html`: status quick-filter (All / Pending / Verified / Rejected) composes with event/category filters
+- [x] Verified `eventCategory` flows: `tickets.html` → `data-category` → checkout JS → `POST /api/orders` → `server.js` storage → admin order meta 🏷 chip + category filter
+- [x] Syntax check: `node --check` passes for `server.js`, `templatemo-622-clearwave.js`, and the inline admin JS
+- [x] Secret hygiene: `.env` is gitignored; `.env.example` holds placeholders only; `config.js` masks the secret key; no live API keys in tracked files
+
+## ✅ Resend Email Notifications RESTORED & WORKING — Completed
 - [x] Restored the live Resend API key to make email notifications actually work (admin + buyer)
 - [x] Verified key is valid: `GET /api.resend.com/domains` → 200; test email sent → accepted (200, email ID returned)
 - [x] Created local `.env` (gitignored) holding `RESEND_API_KEY`, `ADMIN_EMAIL`, `EMAIL_FROM`, Flutterwave keys, admin password

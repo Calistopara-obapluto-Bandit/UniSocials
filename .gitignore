@@ -21,6 +21,8 @@ data/
 # Local secrets (live API keys — NEVER commit)
 .env
 .env.*
+!.env.example
+
 
 # Temporary test / helper scripts
 _*.js

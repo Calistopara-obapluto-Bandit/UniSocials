@@ -44,25 +44,35 @@ services:
         value: https://unisocials.onrender.com/thank-you.html
 
       # ─────────────────────────────────────────────────────────────────────────
-      # EMAIL NOTIFICATIONS (Resend)
+      # EMAIL NOTIFICATIONS
       #   • ADMIN_EMAIL gets an instant alert for every new order awaiting payment
-      #     verification AND for every confirmed payment
-      #   • Buyer gets a confirmation email with their ticket QR links
+      #     verification AND for every confirmed payment (sent via Resend — works
+      #     because it only needs to reach YOUR inbox).
+      #   • Buyer gets a confirmation email with their ticket QR links. Sent via
+      #     BREVO (free tier, NO domain required — you only verify a sender email
+      #     address at https://app.brevo.com → Senders) so tickets reach clients.
       #
-      # ⚠️ SECURITY: Set RESEND_API_KEY in the Render dashboard (Environment → Env Vars)
-      # so the key is never committed to the repo (GitHub secret scanning rejects
-      # commits containing live API keys — see the .env file locally for the value).
+      # ⚠️ SECURITY: Set these in the Render dashboard (Environment → Env Vars),
+      #    never in the repo — GitHub secret scanning rejects live API keys.
+      #    See local .env / .env.example for the values.
       #
-      # 👉 REQUIRED: In Render dashboard → unisocials → Environment → Env Vars,
-      #    add your live Resend API key as:  RESEND_API_KEY  (see local .env)
-      #
-      # After verifying a custom domain in Resend, set EMAIL_FROM to your domain.
+      # 👉 REQUIRED (Render dashboard → unisocials → Environment → Env Vars):
+      #    RESEND_API_KEY      = your Resend key (admin alerts)
+      #    BREVO_API_KEY       = your Brevo SMTP API key (buyer emails — no domain)
+      #    BREVO_SENDER_EMAIL  = the verified sender email (e.g. support.sbiamautos@gmail.com)
+      #    EMAIL_FROM          = Unisocials <onboarding@resend.dev> (Resend fallback)
       # ─────────────────────────────────────────────────────────────────────────
       - key: RESEND_API_KEY
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        value: support.sbiamautos@gmail.com
+      - key: BREVO_SENDER_NAME
+        value: Unisocials
       - key: ADMIN_EMAIL
         value: soludobenedict5@gmail.com
       - key: EMAIL_FROM
-        value: UNN Socials <onboarding@resend.dev>
+        value: Unisocials <onboarding@resend.dev>
 
 
