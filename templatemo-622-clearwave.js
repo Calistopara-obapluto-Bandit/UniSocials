@@ -1,5 +1,5 @@
 /*
-Unisocials — Event Ticket Selling Platform for University of Nigeria
+Unisocials — Event Ticket Selling Platform for Universities
 Rebranded from TemplateMo 622 Clearwave
 https://templatemo.com/tm-622-clearwave
 Free for personal and commercial use
@@ -41,6 +41,114 @@ Free for personal and commercial use
   if (formNext) {
     formNext.value = cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html';
   }
+})();
+
+/* ══════════════════════════════════════════
+   UNIVERSITY — selected campus (multi-tenant)
+   Persists the user's chosen university in localStorage so
+   events, categories, and tickets reflect their campus.
+   ══════════════════════════════════════════ */
+(function() {
+const UNI_KEY = 'selected_university';
+
+  function getUniversity() {
+    try {
+      const raw = localStorage.getItem(UNI_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function setUniversity(uni) {
+    try {
+      if (uni) localStorage.setItem(UNI_KEY, JSON.stringify(uni));
+      else localStorage.removeItem(UNI_KEY);
+    } catch (e) {}
+    // Notify any page (e.g. home featured events) to re-render for the new campus.
+    if (typeof window.onUniversityChange === 'function') {
+      try { window.onUniversityChange(); } catch (e) {}
+    }
+  }
+  function clearUniversity() {
+    try { localStorage.removeItem(UNI_KEY); } catch (e) {}
+    if (typeof window.onUniversityChange === 'function') {
+      try { window.onUniversityChange(); } catch (e) {}
+    }
+  }
+
+window.UNUniversity = {
+    getUniversity: getUniversity,
+    setUniversity: setUniversity,
+    clearUniversity: clearUniversity,
+    getKey: function() { return UNI_KEY; },
+    universityId: function() {
+      var u = getUniversity();
+      return u ? (u.id || u.slug || '') : '';
+    }
+  };
+})();
+
+/* ══════════════════════════════════════════
+   NOTIFY — subscribe to event email notifications
+   ══════════════════════════════════════════ */
+(function() {
+  function subscribe(email, universityId, universityName, eventId, btn) {
+    if (!email || !universityId) {
+      if (btn) {
+        btn.textContent = '⚠️ Select your campus first';
+        setTimeout(function() { btn.textContent = '🔔 Notify me'; }, 2000);
+      }
+      return Promise.reject(new Error('email+university required'));
+    }
+    // If an eventId is given, we still store the subscription at the university
+    // level so the user gets notified about all events at that campus (announcements
+    // + reminders). The eventId is kept for reference.
+    return fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email,
+        universityId: universityId,
+        universityName: universityName || '',
+        source: 'button'
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data && data.success) {
+        if (btn) {
+          btn.textContent = '✅ Subscribed!';
+          btn.disabled = true;
+          setTimeout(function() { btn.textContent = '🔔 Notify me'; btn.disabled = false; }, 2500);
+        }
+        return data;
+      }
+      throw new Error((data && data.error) || 'subscribe failed');
+    })
+    .catch(function(err) {
+      if (btn) {
+        btn.textContent = '⚠️ Error';
+        setTimeout(function() { btn.textContent = '🔔 Notify me'; }, 2000);
+      }
+      throw err;
+    });
+  }
+
+  function unsubscribe(email, universityId, btn) {
+    return fetch('/api/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, universityId: universityId || '' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (btn) btn.textContent = data && data.success ? '✅ Unsubscribed' : '⚠️ Error';
+      return data;
+    });
+  }
+
+  window.UNNotify = {
+    subscribe: subscribe,
+    unsubscribe: unsubscribe
+  };
 })();
 
 /* ══════════════════════════════════════════
@@ -146,7 +254,7 @@ Free for personal and commercial use
     if (window.location.pathname.endsWith('my-tickets.html')) window.location.reload();
   };
 
-  // Render on every page load (handles login.html/register.html too)
+// Render on every page load (handles login.html/register.html too)
   document.addEventListener('DOMContentLoaded', renderNavAccount);
 })();
 
@@ -635,7 +743,7 @@ if (nav) {
       payment_options: 'card, banktransfer, ussd, mobilemoney, account',
       redirect_url: cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html',
       customer: {
-        email: email || 'customer@unn.edu.ng',
+email: email || 'customer@example.com',
         name: customerName,
         phone_number: phone || ''
       },

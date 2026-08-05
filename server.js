@@ -54,9 +54,11 @@ async function initStorage() {
       const { Pool } = require('pg');
       db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
       await db.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
-      await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
@@ -200,14 +202,14 @@ async function deleteUserSessions(userId) {
 /* ── Events (admin-managed catalog shown on client pages) ── */
 const DEFAULT_EVENTS = [
   {
-    id: 'arts-cultural-night',
+id: 'arts-cultural-night',
     name: 'Faculty of Arts Cultural Night',
     category: 'Arts & Culture',
     price: 2500,
     date: 'March 10, 2025',
     time: '4:00 PM',
     venue: 'Arts Theatre',
-    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of UNN Arts department talent.',
+    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.',
     tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
     icon: '🎭',
     featured: true,
@@ -242,13 +244,13 @@ const DEFAULT_EVENTS = [
     seats: '200 seats left'
   },
   {
-    id: 'music-festival',
-    name: 'UNN Music Festival',
+id: 'music-festival',
+    name: 'Campus Music Festival',
     category: 'Music',
     price: 4000,
     date: 'March 29, 2025',
     time: '6:00 PM',
-    venue: 'UNN Sports Complex',
+    venue: 'Sports Complex',
     description: 'Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.',
     tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
     icon: '🎵',
@@ -276,7 +278,7 @@ const DEFAULT_EVENTS = [
     price: 1000,
     date: 'April 12, 2025',
     time: '8:00 AM',
-    venue: 'UNN Stadium',
+venue: 'Main Stadium',
     description: 'A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!',
     tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
     icon: '⚽',
@@ -321,6 +323,178 @@ async function deleteEvent(eventId) {
   const next = events.filter(e => e.id !== eventId);
   if (next.length === events.length) return false;
   await writeEvents(next);
+  return true;
+}
+
+/* ── Universities (multi-tenant) ── */
+const DEFAULT_UNIVERSITIES = [
+  {
+    id: 'uni-unn',
+    slug: 'unn',
+    name: 'University of Nigeria, Nsukka',
+    shortName: 'UNN',
+    location: 'Nsukka, Enugu State',
+    state: 'Enugu',
+    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+    contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'uni-unilag',
+    slug: 'unilag',
+    name: 'University of Lagos',
+    shortName: 'UNILAG',
+    location: 'Akoka, Lagos State',
+    state: 'Lagos',
+    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+    contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'uni-ui',
+    slug: 'ui',
+    name: 'University of Ibadan',
+    shortName: 'UI',
+    location: 'Ibadan, Oyo State',
+    state: 'Oyo',
+    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+    contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'uni-oau',
+    slug: 'oau',
+    name: 'Obafemi Awolowo University',
+    shortName: 'OAU',
+    location: 'Ile-Ife, Osun State',
+    state: 'Osun',
+    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+    contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'uni-uniben',
+    slug: 'uniben',
+    name: 'University of Benin',
+    shortName: 'UNIBEN',
+    location: 'Benin City, Edo State',
+    state: 'Edo',
+    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+    contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'uni-lasu',
+    slug: 'lasu',
+    name: 'Lagos State University',
+    shortName: 'LASU',
+    location: 'Ojo, Lagos State',
+    state: 'Lagos',
+    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+    contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'uni-covenant',
+    slug: 'covenant',
+    name: 'Covenant University',
+    shortName: 'CU',
+    location: 'Ota, Ogun State',
+    state: 'Ogun',
+categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
+contactEmail: 'support.sbiamautos@gmail.com',
+    createdAt: new Date().toISOString()
+  }
+];
+
+async function readUniversities() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM universities ORDER BY data->>\'name\' ASC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'universities.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return DEFAULT_UNIVERSITIES;
+  }
+}
+async function writeUniversities(list) {
+  if (usePg) {
+    await db.query('DELETE FROM universities');
+    for (const u of list) {
+      await db.query('INSERT INTO universities (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [u.id, JSON.stringify(u)]);
+    }
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'universities.json'), JSON.stringify(list, null, 2), 'utf8');
+}
+async function findUniversityById(id) {
+  const list = await readUniversities();
+  return list.find(u => u.id === id || u.slug === id) || null;
+}
+async function findUniversityBySlug(slug) {
+  const list = await readUniversities();
+  return list.find(u => u.slug === slug) || null;
+}
+async function addUniversity(u) {
+  const list = await readUniversities();
+  const idx = list.findIndex(x => x.id === u.id);
+  if (idx === -1) list.push(u);
+  else list[idx] = u;
+  await writeUniversities(list);
+  return u;
+}
+async function deleteUniversity(id) {
+  const list = await readUniversities();
+  const next = list.filter(u => u.id !== id);
+  if (next.length === list.length) return false;
+  await writeUniversities(next);
+  return true;
+}
+
+/* ── Subscribers (event email notifications) ── */
+// A subscriber is a user who opted in to receive event notifications for a campus.
+// Shape: { id, email, name, universityId, universityName, source: 'button'|'register', createdAt }
+async function readSubscribers() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM subscribers ORDER BY data->>\'createdAt\' DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'subscribers.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writeSubscribers(list) {
+  if (usePg) {
+    await db.query('DELETE FROM subscribers');
+    for (const s of list) {
+      await db.query('INSERT INTO subscribers (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [s.id, JSON.stringify(s)]);
+    }
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'subscribers.json'), JSON.stringify(list, null, 2), 'utf8');
+}
+async function findSubscriber(email, universityId) {
+  const list = await readSubscribers();
+  return list.find(s => s.email.toLowerCase() === String(email).toLowerCase() && s.universityId === universityId) || null;
+}
+async function addSubscriber(sub) {
+  const list = await readSubscribers();
+  const idx = list.findIndex(s => s.email.toLowerCase() === sub.email.toLowerCase() && s.universityId === sub.universityId);
+  if (idx === -1) list.unshift(sub);
+  else list[idx] = sub;
+  await writeSubscribers(list);
+  return sub;
+}
+async function removeSubscriber(email, universityId) {
+  const list = await readSubscribers();
+  const next = list.filter(s => !(s.email.toLowerCase() === String(email).toLowerCase() && s.universityId === universityId));
+  if (next.length === list.length) return false;
+  await writeSubscribers(next);
   return true;
 }
 
@@ -386,9 +560,9 @@ const defaults = {
   // Email notifications — admin gets an alert the moment a payment is confirmed,
   // and the buyer gets a confirmation email with their ticket QR links.
   ADMIN_EMAIL: 'soludobenedict5@gmail.com',
-  // "From" address for Resend. In Resend test mode you must use onboarding@resend.dev
+// "From" address for Resend. In Resend test mode you must use onboarding@resend.dev
   // and only the account owner's email can receive. After verifying a domain
-  // (e.g. unn.edu.ng or your own domain), set EMAIL_FROM="Unisocials <no-reply@yourdomain>"
+  // (e.g. your university's domain or your own domain), set EMAIL_FROM="Unisocials <no-reply@yourdomain>"
   EMAIL_FROM: 'Unisocials <onboarding@resend.dev>',
   // Brevo API key — sends buyer ticket confirmation emails (no domain required;
   // just verify a sender email at https://app.brevo.com). Never exposed to browser.
@@ -847,6 +1021,106 @@ function notifyNewOrder(order) {
 }
 
 // ────────────────────────────────────────────
+// EVENT NOTIFICATION EMAILS (subscribers)
+// ────────────────────────────────────────────
+// Email a subscriber about an event (type = 'new' announcement or 'reminder').
+async function sendEventEmailToSubscriber(sub, ev, type) {
+  try {
+    const to = sub && sub.email;
+    if (!to || !ev) return false;
+    const site = siteUrl();
+    const isReminder = type === 'reminder';
+    const subject = isReminder
+      ? '⏰ Reminder: ' + ev.name + ' — happening ' + (ev.date || 'soon') + '!'
+      : '🎉 New event on Unisocials: ' + ev.name;
+    const text =
+      'Hi ' + (sub.name || 'there') + ',\n\n' +
+      (isReminder ? 'This is a friendly reminder that this event is happening:\n\n'
+                 : 'There is a new event at ' + (ev.universityName || 'your campus') + ':\n\n') +
+      'Event: ' + ev.name + '\n' +
+      'Category: ' + (ev.category || '—') + '\n' +
+      'Date: ' + (ev.date || '—') + ' ' + (ev.time || '') + '\n' +
+      'Venue: ' + (ev.venue || '—') + '\n' +
+      'Price: ₦' + Number(ev.price || 0).toLocaleString() + '\n\n' +
+      'Get your tickets: ' + site + '/tickets.html?event=' + encodeURIComponent(ev.id || '') + '\n\n' +
+      (isReminder ? 'See you there!\n\nUnisocials Team' : 'Don\'t miss out!\n\nUnisocials Team');
+    const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:' + (isReminder ? '#E65100' : '#1B5E20') + ';color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">' + (isReminder ? '⏰ Event Reminder' : '🎉 New Event Announced') + '</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(sub.name || 'there') + '</strong>,</p>' +
+      '<p style="margin:0 0 16px;color:#475569">' + (isReminder ? 'Just a reminder that this event is happening:' : 'There is a new event at ' + escapeHtml(ev.universityName || 'your campus') + ':') + '</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+      rowHtml('Event', escapeHtml(ev.name)) +
+      rowHtml('Category', escapeHtml(ev.category || '—')) +
+      rowHtml('Date', escapeHtml((ev.date || '—') + ' ' + (ev.time || ''))) +
+      rowHtml('Venue', escapeHtml(ev.venue || '—')) +
+      rowHtml('Price', '₦' + Number(ev.price || 0).toLocaleString()) +
+      '</table>' +
+      '<a href="' + site + '/tickets.html?event=' + encodeURIComponent(ev.id || '') + '" style="display:inline-block;background:#1B5E20;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none">Get Tickets</a>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">You are receiving this because you subscribed to event notifications for ' + escapeHtml(ev.universityName || 'your campus') + '.</p>' +
+      '</div></div>';
+    const sent = await sendBrevoEmail(to, subject, text, html, sub.name || '');
+    if (sent) console.log('Event ' + type + ' email sent to ' + to + ' for "' + ev.name + '"');
+    return sent ? true : false;
+  } catch (e) {
+    console.warn('Event notification email error:', e.message);
+    return false;
+  }
+}
+
+// Notify all subscribers of an event's university about that event (best-effort).
+async function notifySubscribersAboutEvent(ev) {
+  try {
+    const subs = await readSubscribers();
+    const matched = subs.filter(s => !ev.universityId || s.universityId === ev.universityId);
+    if (!matched.length) return;
+    let sent = 0;
+    await Promise.all(matched.map(async function(s) {
+      const ok = await sendEventEmailToSubscriber(s, ev, 'new');
+      if (ok) sent++;
+    }));
+console.log('Notified ' + sent + ' subscriber(s) about "' + ev.name + '"');
+    return sent;
+  } catch (e) {
+    console.warn('notifySubscribersAboutEvent error:', e.message);
+    return 0;
+  }
+}
+
+// Weekly reminder job — emails subscribers of events happening within the next 7 days.
+async function runEventReminders() {
+  try {
+    const events = await readEvents();
+    const now = new Date();
+    const upcoming = events.filter(function(ev) {
+      if (!ev.date) return false;
+      const d = new Date(ev.date);
+      if (isNaN(d)) return false;
+      const diffDays = (d - now) / (1000 * 60 * 60 * 24);
+      return diffDays >= 0 && diffDays <= 7;
+    });
+    if (!upcoming.length) return;
+    const subs = await readSubscribers();
+    let sent = 0;
+    for (const ev of upcoming) {
+      const matched = subs.filter(s => !ev.universityId || s.universityId === ev.universityId);
+      for (const s of matched) {
+        const ok = await sendEventEmailToSubscriber(s, ev, 'reminder');
+        if (ok) sent++;
+      }
+    }
+    if (sent) console.log('Event reminder job sent ' + sent + ' reminder email(s).');
+  } catch (e) {
+    console.warn('runEventReminders error:', e.message);
+  }
+}
+
+// Run reminder job every 6 hours (non-blocking).
+setInterval(function() {
+  try { runEventReminders(); } catch (e) {}
+}, 6 * 60 * 60 * 1000);
+
+// ────────────────────────────────────────────
 // HTTP SERVER
 // ────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
@@ -1299,6 +1573,13 @@ const server = http.createServer(async (req, res) => {
     // ── Public events list (used by events.html, tickets.html, index.html) ──
     if (pathname === '/api/events' && req.method === 'GET') {
       const events = await readEvents();
+      const uniSlug = String(url.searchParams.get('university') || '').trim();
+      if (uniSlug) {
+        const filtered = events.filter(function(e) {
+          return (e.universityId === uniSlug || e.universitySlug === uniSlug);
+        });
+        return sendJson(res, 200, { success: true, events: filtered });
+      }
       return sendJson(res, 200, { success: true, events: events });
     }
 
@@ -1311,6 +1592,14 @@ const server = http.createServer(async (req, res) => {
       const id = String(data.id || '').trim() || 'evt-' + Date.now().toString(36);
       const name = String(data.name || '').trim();
       if (!name) return sendJson(res, 400, { success: false, error: 'Event name is required' });
+      // Attach university info to new events
+      const universityId = String(data.universityId || '').trim();
+      const universityName = String(data.universityName || '').trim();
+      let uniSlug = String(data.universitySlug || '').trim();
+      if (!uniSlug && universityId) {
+        const uni = await findUniversityById(universityId);
+        if (uni) uniSlug = uni.slug || uni.id;
+      }
       const ev = {
         id: id,
         name: name,
@@ -1323,9 +1612,14 @@ const server = http.createServer(async (req, res) => {
         tags: data.tags || [],
         icon: data.icon || '🎟️',
         featured: !!data.featured,
-        seats: data.seats || '—'
+        seats: data.seats || '—',
+        universityId: universityId,
+        universityName: universityName,
+        universitySlug: uniSlug
       };
       await addEvent(ev);
+      // Notify subscribers about the new event (best-effort)
+      try { notifySubscribersAboutEvent(ev); } catch (e) {}
       return sendJson(res, 200, { success: true, event: ev });
     }
 
@@ -1354,6 +1648,133 @@ const server = http.createServer(async (req, res) => {
         }
       }
       return sendJson(res, 200, { success: deleted, ordersDeleted: ordersDeleted });
+    }
+
+    // ── Public universities list ──
+    if (pathname === '/api/universities' && req.method === 'GET') {
+      const list = await readUniversities();
+      return sendJson(res, 200, { success: true, universities: list });
+    }
+
+    // ── Admin: create/update a university ──
+    if (pathname === '/api/admin/universities' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const id = String(data.id || '').trim() || 'uni-' + Date.now().toString(36);
+      const name = String(data.name || '').trim();
+      if (!name) return sendJson(res, 400, { success: false, error: 'University name is required' });
+      const slug = String(data.slug || '').trim() || id;
+      const u = {
+        id: id,
+        name: name,
+        slug: slug,
+        location: String(data.location || '').trim(),
+        state: String(data.state || '').trim(),
+        categories: Array.isArray(data.categories) ? data.categories : ['General'],
+        contactEmail: String(data.contactEmail || '').trim(),
+        createdAt: new Date().toISOString()
+      };
+      await addUniversity(u);
+      return sendJson(res, 200, { success: true, university: u });
+    }
+
+    // ── Admin: delete a university ──
+if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const uniId = String(url.searchParams.get('uniId') || url.searchParams.get('universityId') || '').trim();
+      if (!uniId) return sendJson(res, 400, { success: false, error: 'Missing uniId' });
+      // Capture the university to derive its id/slug so we can remove its events too.
+      const unis = await readUniversities();
+      const uni = unis.find(function(u) { return u.id === uniId || u.slug === uniId; });
+      let eventsDeleted = 0;
+      if (uni) {
+        const events = await readEvents();
+        const before = events.length;
+        const remaining = events.filter(function(e) { return e.universityId !== uni.id && e.universityId !== uni.slug; });
+        eventsDeleted = before - remaining.length;
+        if (eventsDeleted > 0) await writeEvents(remaining);
+      }
+      const deleted = await deleteUniversity(uniId);
+      return sendJson(res, 200, { success: deleted, eventsDeleted: eventsDeleted });
+    }
+
+    // ── Subscribe to event notifications ──
+    if (pathname === '/api/subscribe' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const universityId = String(data.universityId || '').trim();
+      const name = String(data.name || '').trim() || email.split('@')[0];
+      if (!email || !universityId) {
+        return sendJson(res, 400, { success: false, error: 'Email and university are required' });
+      }
+      const existing = await findSubscriber(email, universityId);
+      if (existing) {
+        return sendJson(res, 200, { success: true, message: 'Already subscribed' });
+      }
+      const sub = {
+        id: 'SUB-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        email: email,
+        name: name,
+        universityId: universityId,
+        universityName: String(data.universityName || '').trim(),
+        source: data.source || 'button',
+        createdAt: new Date().toISOString()
+      };
+      await addSubscriber(sub);
+      return sendJson(res, 200, { success: true, subscriber: sub });
+    }
+
+    // ── Unsubscribe from event notifications ──
+    if (pathname === '/api/unsubscribe' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const universityId = String(data.universityId || '').trim();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Email is required' });
+      const removed = await removeSubscriber(email, universityId || undefined);
+      return sendJson(res, 200, { success: true, removed: removed });
+    }
+
+// ── Admin: list subscribers ──
+    if (pathname === '/api/admin/subscribers' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const subs = await readSubscribers();
+      const uniFilter = String(url.searchParams.get('universityId') || '').trim();
+      const filtered = uniFilter ? subs.filter(s => s.universityId === uniFilter) : subs;
+      return sendJson(res, 200, { success: true, subscribers: filtered });
+    }
+
+    // ── Admin: remove a subscriber (by email, optionally scoped to a university) ──
+    if (pathname === '/api/admin/subscribers' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const universityId = String(data.universityId || '').trim();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Email is required' });
+      const removed = await removeSubscriber(email, universityId || undefined);
+      return sendJson(res, 200, { success: true, removed: removed });
+    }
+
+    // ── Admin: notify subscribers about a specific event ──
+    if (pathname === '/api/admin/events/notify' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const eventId = String(data.eventId || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+const events = await readEvents();
+      const ev = events.find(e => e.id === eventId);
+      if (!ev) return sendJson(res, 404, { success: false, error: 'Event not found' });
+      const notified = await notifySubscribersAboutEvent(ev);
+      return sendJson(res, 200, { success: true, message: 'Subscribers notified', notified: notified });
     }
 
     // ── Static files ──

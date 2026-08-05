@@ -8,6 +8,37 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .uni-picker-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .uni-picker-label { font-size: 0.9rem; color: var(--text-3); white-space: nowrap; }
+    .uni-picker-bar select {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-1);
+      cursor: pointer;
+    }
+    .uni-picker-bar select:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
+    @media (max-width: 540px) {
+      .uni-picker-bar { flex-wrap: wrap; }
+      .uni-picker-bar select { flex: 1 1 100%; }
+    }
+  </style>
 </head>
 <body>
 
@@ -22,9 +53,8 @@
     <a href="index.html">Home</a>
     <a href="events.html">Events</a>
     <a href="tickets.html">Tickets</a>
-    <a href="about.html">About</a>
+<a href="about.html">About</a>
     <a href="contact.html">Contact</a>
-    <a href="faq.html">FAQ</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
   </div>
 
@@ -34,11 +64,10 @@
       <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
       <ul class="nav-links" role="list">
         <li><a href="index.html">Home</a></li>
-        <li><a href="events.html" class="active">Events</a></li>
+<li><a href="events.html" class="active">Events</a></li>
         <li><a href="tickets.html">Tickets</a></li>
         <li><a href="about.html">About</a></li>
         <li><a href="contact.html">Contact</a></li>
-        <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
         <span class="nav-account-slot"></span>
@@ -62,20 +91,17 @@
   <!-- ── SEARCH & FILTER BAR ── -->
   <section class="filter-section">
     <div class="container">
-      <div class="filter-bar reveal">
+<div class="filter-bar reveal">
         <div class="filter-search">
           <span class="filter-search-icon">🔍</span>
           <input type="text" id="eventSearch" placeholder="Search events by name, faculty, or category..." />
         </div>
         <div class="filter-group">
+          <select id="universityFilter" class="uni-selector">
+            <option value="">Select your campus…</option>
+          </select>
           <select id="categoryFilter">
             <option value="all">All Categories</option>
-            <option value="Arts &amp; Culture">Arts &amp; Culture</option>
-            <option value="Engineering">Engineering</option>
-            <option value="Business">Business</option>
-            <option value="Music">Music</option>
-            <option value="Academic">Academic</option>
-            <option value="Sports">Sports</option>
           </select>
           <select id="priceFilter">
             <option value="all">Any Price</option>
@@ -106,7 +132,7 @@
               <span>📍 Arts Theatre</span>
             </div>
             <h3 class="event-card-title">Faculty of Arts Cultural Night</h3>
-            <p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of UNN Arts department talent.</p>
+<p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.</p>
             <div class="event-card-tags">
               <span class="event-tag">💃 Performance</span>
               <span class="event-tag">🎤 Live Music</span>
@@ -185,11 +211,11 @@
             <div class="event-card-badge">Music</div>
           </div>
           <div class="event-card-body">
-            <div class="event-card-meta">
+<div class="event-card-meta">
               <span>📅 Mar 29 · 6:00 PM</span>
-              <span>📍 UNN Sports Complex</span>
+              <span>📍 Sports Complex</span>
             </div>
-            <h3 class="event-card-title">UNN Music Festival</h3>
+            <h3 class="event-card-title">Campus Music Festival</h3>
             <p class="event-card-desc">Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.</p>
             <div class="event-card-tags">
               <span class="event-tag">🎸 Live Bands</span>
@@ -241,9 +267,9 @@
             <div class="event-card-badge">Sports</div>
           </div>
           <div class="event-card-body">
-            <div class="event-card-meta">
+<div class="event-card-meta">
               <span>📅 Apr 12 · 8:00 AM</span>
-              <span>📍 UNN Stadium</span>
+              <span>📍 Campus Stadium</span>
             </div>
             <h3 class="event-card-title">Inter-Faculty Sports Day</h3>
             <p class="event-card-desc">A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!</p>
@@ -296,7 +322,7 @@
       <div class="footer-grid">
         <div class="footer-brand">
           <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
-          <p class="footer-brand-desc">The official event ticket selling platform for the University of Nigeria, Nsukka.</p>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
         </div>
         <div>
           <div class="footer-col-label">Quick Links</div>
@@ -341,11 +367,13 @@
 
   <script src="config.js"></script>
   <script src="templatemo-622-clearwave.js"></script>
-  <script>
+<script>
     (function() {
       var grid = document.getElementById('eventsGrid');
       if (!grid) return;
       var countEl = document.getElementById('eventsCount');
+      var categorySel = document.getElementById('categoryFilter');
+      var uniSel = document.getElementById('universityFilter');
 
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -356,9 +384,18 @@
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
 
+      // Rebuild the category dropdown from the selected university's categories.
+      function rebuildCategoryFilter(uni) {
+        if (!categorySel) return;
+        var cats = (uni && uni.categories && uni.categories.length) ? uni.categories : [];
+        var html = '<option value="all">All Categories</option>';
+        cats.forEach(function(c) { html += '<option value="' + esc(c) + '">' + esc(c) + '</option>'; });
+        categorySel.innerHTML = html;
+      }
+
       function renderEvents(events) {
         if (!events || !events.length) {
-          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No events available yet. Check back soon!</p></div>';
+          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No events available for this campus yet. Check back soon!</p></div>';
           if (countEl) countEl.innerHTML = 'Showing <strong>0</strong> events';
           return;
         }
@@ -372,6 +409,8 @@
             }).join('') + '</div>';
           }
           var dateLine = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
+          var uniName = ev.universityName || ev.universityName || '';
+          var notifyBtn = '<button class="btn-notify" onclick="notifyMe(this)" data-event="' + esc(ev.id || '') + '" data-uni="' + esc(ev.universityId || '') + '" data-uni-name="' + esc(ev.universityName || '') + '" title="Get notified when this event is happening">🔔 Notify me</button>';
           html +=
             '<div class="event-card reveal' + delay + '" data-category="' + esc(ev.category || '') + '" data-price="' + (ev.price || 0) + '" data-date="' + esc(ev.date || '') + '">' +
               '<div class="event-card-image" style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9);">' +
@@ -384,6 +423,7 @@
                   '<span>\uD83D\uDCCD ' + esc(ev.venue || '—') + '</span>' +
                 '</div>' +
                 '<h3 class="event-card-title">' + esc(ev.name) + '</h3>' +
+                (uniName ? '<div class="event-card-uni">' + esc(uniName) + '</div>' : '') +
                 '<p class="event-card-desc">' + esc(ev.description || '') + '</p>' +
                 tagsHtml +
               '</div>' +
@@ -392,7 +432,10 @@
                   '<div class="event-card-price">' + fmtN(ev.price) + ' <small>/ ticket</small></div>' +
                   '<div class="event-card-capacity">\uD83C\uDF9F\uFE0F ' + esc(ev.seats || '—') + '</div>' +
                 '</div>' +
-                '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Get Tickets</a>' +
+                '<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">' +
+                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Get Tickets</a>' +
+                  notifyBtn +
+                '</div>' +
               '</div>' +
             '</div>';
         });
@@ -404,12 +447,65 @@
         if (window.filterEvents) window.filterEvents();
       }
 
-      fetch('/api/events')
-        .then(function(r) { return r.json(); })
-        .then(function(data) { renderEvents(data && data.success ? data.events : []); })
-        .catch(function() {
-          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
-        });
+      function loadEvents(uni) {
+        var url = '/api/events';
+        if (uni && (uni.id || uni.slug)) {
+          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
+        }
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) { renderEvents(data && data.success ? data.events : []); })
+          .catch(function() {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
+          });
+      }
+
+      // When the university changes, reload events + rebuild category filter.
+      window.onUniversityChange = function(uni) {
+        rebuildCategoryFilter(uni);
+        loadEvents(uni);
+      };
+
+// Exposed for the inline "Notify me" button.
+      window.notifyMe = function(btn) {
+        var email = prompt('Enter your email to get notified about events at this campus:');
+        if (!email) return;
+        var uniId = btn.getAttribute('data-uni') || (window.UNUniversity ? window.UNUniversity.universityId() : '');
+        var uniName = btn.getAttribute('data-uni-name') || '';
+        var eventId = btn.getAttribute('data-event') || '';
+        window.UNNotify.subscribe(email, uniId, uniName, eventId, btn);
+      };
+
+// Populate the university dropdown from /api/universities.
+      if (uniSel) {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.universities) || [];
+            var html = '<option value="">All Universities</option>';
+            list.forEach(function(u) {
+              html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
+            });
+            uniSel.innerHTML = html;
+            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            if (cur && (cur.slug || cur.id)) uniSel.value = cur.slug || cur.id;
+            // If the dropdown is used, selecting a campus updates the global selection.
+            uniSel.addEventListener('change', function() {
+              var val = uniSel.value;
+              var found = list.find(function(u) { return (u.slug || u.id) === val; });
+              if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+              if (window.onUniversityChange) window.onUniversityChange(found || null);
+            });
+          })
+          .catch(function() {});
+      }
+
+      // Initial load — if a university is already selected, use it.
+      var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+      if (initialUni && initialUni.id) {
+        rebuildCategoryFilter(initialUni);
+      }
+      loadEvents(initialUni);
     })();
   </script>
 </body>

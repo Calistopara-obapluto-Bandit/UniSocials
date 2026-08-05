@@ -723,16 +723,12 @@
               <p>Add or remove events. New events appear instantly on the Events page, Tickets page, and Home page for buyers.</p>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
             <div class="form-group"><label for="evName">Event Name</label><input type="text" id="evName" placeholder="e.g. Medical Dinner Night" /></div>
+            <div class="form-group"><label for="evUniversity">University</label><select id="evUniversity" onchange="updateUniCategories()">
+              <option value="">Select university...</option>
+            </select></div>
             <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
-              <option value="Arts &amp; Culture">Arts &amp; Culture</option>
-              <option value="Engineering">Engineering</option>
-              <option value="Business">Business</option>
-              <option value="Music">Music</option>
-              <option value="Academic">Academic</option>
-              <option value="Sports">Sports</option>
-              <option value="Medical">Medical</option>
               <option value="General">General</option>
             </select></div>
             <div class="form-group"><label for="evPrice">Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
@@ -748,7 +744,49 @@
             <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
             <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
           </div>
-          <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
+<div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
+        </div>
+
+        <!-- ── UNIVERSITIES MANAGER ── -->
+        <div class="admin-scan-panel">
+          <div class="admin-scan-header">
+            <div>
+              <h3>🏛 Universities Manager</h3>
+              <p>Add or remove universities. Each university has its own categories used across the site. Events and tickets are scoped per university.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+            <div class="form-group"><label for="uniName">University Name</label><input type="text" id="uniName" placeholder="e.g. University of Lagos" /></div>
+            <div class="form-group"><label for="uniLocation">Location</label><input type="text" id="uniLocation" placeholder="e.g. Akoka, Lagos" /></div>
+            <div class="form-group"><label for="uniState">State</label><input type="text" id="uniState" placeholder="e.g. Lagos" /></div>
+            <div class="form-group"><label for="uniCategories">Categories (comma separated)</label><input type="text" id="uniCategories" placeholder="Law, Medicine, Social Sciences, Engineering, General" /></div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-submit" style="white-space:nowrap;" onclick="addUniversityItem()">➕ Add University</button>
+            <button class="admin-refresh-btn" onclick="loadManagedUniversities()">↻ Refresh</button>
+            <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="uniManageCount"></span>
+          </div>
+          <div class="admin-ticket-codes" id="managedUniversitiesList" style="margin-top:14px;"></div>
+        </div>
+
+        <!-- ── SUBSCRIBERS ── -->
+        <div class="admin-scan-panel">
+          <div class="admin-scan-header">
+            <div>
+              <h3>📧 Subscribers (Event Notifications)</h3>
+              <p>Users who opted in to receive event notifications. When you create an event, subscribers of that university are emailed automatically.</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+            <div class="admin-cat-filter" style="flex:1;min-width:220px;">
+              <label for="subFilterUni">Filter by University</label>
+              <select id="subFilterUni" onchange="loadSubscribers()">
+                <option value="">All Universities</option>
+              </select>
+            </div>
+            <button class="admin-refresh-btn" onclick="loadSubscribers()">↻ Refresh</button>
+          </div>
+          <div class="admin-ticket-codes" id="subscribersList" style="margin-top:14px;"></div>
         </div>
 
         <div class="admin-orders" id="ordersList"></div>
@@ -1288,9 +1326,13 @@
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
+'<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
@@ -1298,7 +1340,7 @@
           .catch(function() {});
       };
 
-      window.addEventItem = function() {
+window.addEventItem = function() {
         var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
@@ -1309,6 +1351,17 @@
         var icon = document.getElementById('evIcon').value.trim() || '🎤';
         var tags = document.getElementById('evTags').value.trim();
 
+        // Selected university (required to scope the event to a campus)
+        var uniSel = document.getElementById('evUniversity');
+        var uniId = uniSel ? uniSel.value : '';
+        var uni = allUniversities.find(function(u) { return u.id === uniId; });
+        var uniName = uni ? uni.name : '';
+        var uniSlug = uni ? (uni.slug || uni.id) : '';
+
+        if (!uniId) {
+          showToast('Please select a university for this event.', true);
+          return;
+        }
         if (!name || !category || !date || !venue) {
           showToast('Event Name, Category, Date, and Venue are required.', true);
           return;
@@ -1323,7 +1376,10 @@
           venue: venue,
           description: desc,
           icon: icon,
-          tags: tags ? tags.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : []
+          tags: tags ? tags.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [],
+          universityId: uniId,
+          universityName: uniName,
+          universitySlug: uniSlug
         };
 
         var btn = event && event.target;
@@ -1559,6 +1615,208 @@ window.deleteManagedEvent = function(eventId) {
           loadOrders();
         });
       }
+
+// ── Universities Manager ──
+      var allUniversities = [];
+
+      window.loadManagedUniversities = function() {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            allUniversities = (data && data.success && data.universities) || [];
+            var container = document.getElementById('managedUniversitiesList');
+            var count = document.getElementById('uniManageCount');
+            if (count) count.textContent = allUniversities.length + ' universit' + (allUniversities.length !== 1 ? 'ies' : 'y');
+            if (!container) return;
+            if (!allUniversities.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No universities added yet. Add your first university above.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">🏛 Saved Universities (' + allUniversities.length + ')</div>';
+            allUniversities.forEach(function(uni) {
+              var id = (uni.id || uni._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+              var cats = (uni.categories || []).join(', ');
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<strong>' + esc(uni.name) + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(uni.location || '') + (uni.state ? ', ' + esc(uni.state) : '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">Categories: ' + esc(cats || '—') + '</span>' +
+                '</div>' +
+                '<button class="admin-ticket-copy" onclick="deleteManagedUniversity(\'' + esc(id) + '\')" title="Delete university" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+            // Populate the event form university select + subscriber filter
+            populateUniversitySelects();
+          })
+          .catch(function() {});
+      };
+
+      function populateUniversitySelects() {
+        var uniSel = document.getElementById('evUniversity');
+        var subSel = document.getElementById('subFilterUni');
+        if (uniSel) {
+          var keep = uniSel.value;
+          var html = '<option value="">Select university...</option>';
+          allUniversities.forEach(function(u) {
+            html += '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>';
+          });
+          uniSel.innerHTML = html;
+          if (keep && allUniversities.some(function(u) { return u.id === keep; })) uniSel.value = keep;
+        }
+        if (subSel) {
+          var keep2 = subSel.value;
+          var html2 = '<option value="">All Universities</option>';
+          allUniversities.forEach(function(u) {
+            html2 += '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>';
+          });
+          subSel.innerHTML = html2;
+          if (keep2 && allUniversities.some(function(u) { return u.id === keep2; })) subSel.value = keep2;
+        }
+      }
+
+      window.updateUniCategories = function() {
+        var uniId = document.getElementById('evUniversity').value;
+        var catSel = document.getElementById('evCategory');
+        if (!uniId || !catSel) { if (catSel) catSel.innerHTML = '<option value="General">General</option>'; return; }
+        var uni = allUniversities.find(function(u) { return u.id === uniId; });
+        var cats = (uni && uni.categories && uni.categories.length) ? uni.categories : ['General'];
+        var html = '';
+        cats.forEach(function(c) { html += '<option value="' + esc(c) + '">' + esc(c) + '</option>'; });
+        catSel.innerHTML = html;
+      };
+
+      window.addUniversityItem = function() {
+        var name = document.getElementById('uniName').value.trim();
+        var location = document.getElementById('uniLocation').value.trim();
+        var state = document.getElementById('uniState').value.trim();
+        var categoriesRaw = document.getElementById('uniCategories').value.trim();
+        if (!name) { showToast('University name is required.', true); return; }
+        var categories = categoriesRaw ? categoriesRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean) : ['General'];
+        var uni = { name: name, location: location, state: state, categories: categories };
+        var btn = event && event.target;
+        if (btn) btn.disabled = true;
+        fetch('/api/admin/universities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify(uni)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('University "' + esc(name) + '" added!');
+            document.getElementById('uniName').value = '';
+            document.getElementById('uniLocation').value = '';
+            document.getElementById('uniState').value = '';
+            document.getElementById('uniCategories').value = '';
+            loadManagedUniversities();
+          } else {
+            showToast((data && data.error) || 'Failed to add university', true);
+          }
+        })
+        .catch(function() { showToast('Network error adding university', true); })
+        .finally(function() { if (btn) btn.disabled = false; });
+      };
+
+      window.deleteManagedUniversity = function(uniId) {
+        if (!uniId) return;
+        if (!confirm('Delete this university and all its events? This cannot be undone.')) return;
+        fetch('/api/admin/universities?universityId=' + encodeURIComponent(uniId), {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('University deleted' + (data.eventsDeleted ? ' (' + data.eventsDeleted + ' events removed)' : ''));
+            loadManagedUniversities();
+            loadManagedEvents();
+          } else {
+            showToast((data && data.error) || 'Failed to delete university', true);
+          }
+        })
+        .catch(function() { showToast('Network error deleting university', true); });
+      };
+
+      // ── Subscribers ──
+      window.loadSubscribers = function() {
+        var uniId = document.getElementById('subFilterUni') ? document.getElementById('subFilterUni').value : '';
+        var url = '/api/admin/subscribers' + (uniId ? '?universityId=' + encodeURIComponent(uniId) : '');
+        fetch(url, { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var subs = (data && data.success && data.subscribers) || [];
+            var container = document.getElementById('subscribersList');
+            if (!container) return;
+            if (!subs.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No subscribers yet.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">📧 Subscribers (' + subs.length + ')</div>';
+            subs.forEach(function(s) {
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<strong>' + esc(s.email) + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(s.universityName || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + (s.eventIds ? s.eventIds.length : 0) + ' event(s)</span>' +
+                '</div>' +
+                '<button class="admin-ticket-copy" onclick="removeSubscriber(\'' + esc(s.email) + '\')" title="Remove subscriber" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function() {});
+      };
+
+      window.removeSubscriber = function(email) {
+        if (!email) return;
+        if (!confirm('Remove ' + email + ' from all event notifications?')) return;
+        fetch('/api/admin/subscribers', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ email: email })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Subscriber removed');
+            loadSubscribers();
+          } else {
+            showToast((data && data.error) || 'Failed to remove subscriber', true);
+          }
+        })
+        .catch(function() { showToast('Network error removing subscriber', true); });
+      };
+
+      window.notifySubscribers = function(eventId, btn) {
+        if (!eventId) return;
+        if (!confirm('Send an email notification about this event to all subscribers of its university?')) return;
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+        fetch('/api/admin/events/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ eventId: eventId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Notification sent to ' + (data.notified || 0) + ' subscriber(s)');
+          } else {
+            showToast((data && data.error) || 'Failed to send notification', true);
+          }
+        })
+        .catch(function() { showToast('Network error sending notification', true); })
+        .finally(function() { if (btn) { btn.disabled = false; btn.textContent = '📧 Notify'; } });
+      };
+
+      // Load events on login — also load universities and subscribers
+      var origShowLoggedIn2 = showLoggedIn;
+      showLoggedIn = function() {
+        origShowLoggedIn2();
+        loadManagedEvents();
+        loadManagedUniversities();
+        loadSubscribers();
+      };
 
       // Initial state
       if (getToken()) {

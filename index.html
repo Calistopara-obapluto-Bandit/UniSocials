@@ -22,9 +22,8 @@
     <a href="index.html">Home</a>
     <a href="events.html">Events</a>
     <a href="tickets.html">Tickets</a>
-    <a href="about.html">About</a>
+<a href="about.html">About</a>
     <a href="contact.html">Contact</a>
-    <a href="faq.html">FAQ</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
   </div>
 
@@ -36,9 +35,8 @@
         <li><a href="index.html" class="active">Home</a></li>
         <li><a href="events.html">Events</a></li>
         <li><a href="tickets.html">Tickets</a></li>
-        <li><a href="about.html">About</a></li>
+<li><a href="about.html">About</a></li>
         <li><a href="contact.html">Contact</a></li>
-        <li><a href="faq.html">FAQ</a></li>
       </ul>
       <div class="nav-cta">
         <span class="nav-account-slot"></span>
@@ -57,15 +55,15 @@
         <div class="hero-content">
           <div class="hero-badge reveal">
             <div class="hero-badge-dot">✦</div>
-            <span>University of Nigeria's <strong>Official Event Platform</strong></span>
+<span>Your University's <strong>Official Event Platform</strong></span>
           </div>
           <h1 class="hero-title reveal reveal-delay-1">
             Your campus,<br><em>one event at a time.</em>
           </h1>
           <p class="hero-sub reveal reveal-delay-2">
-            Unisocials is the official ticket selling platform for University of Nigeria events. From department dinners to faculty galas — discover, book, and attend with ease.
+Unisocials is the ticket selling platform for university events across Nigeria. From department dinners to faculty galas — discover, book, and attend with ease.
           </p>
-          <div class="hero-actions reveal reveal-delay-3">
+<div class="hero-actions reveal reveal-delay-3">
             <a href="events.html" class="btn-primary-lg">
               Browse Events
               <span class="btn-arrow">→</span>
@@ -73,6 +71,12 @@
             <a href="my-tickets.html" class="btn-outline-lg">
               <span>✦</span> My Tickets
             </a>
+          </div>
+          <div class="hero-uni-picker reveal reveal-delay-4">
+            <label for="homeUniversity" class="hero-uni-label">🎓 Your campus:</label>
+            <select id="homeUniversity" class="uni-selector">
+              <option value="">Select your campus…</option>
+            </select>
           </div>
           <div class="hero-stats reveal reveal-delay-4">
             <div class="hero-stat">
@@ -143,7 +147,7 @@
           <div class="event-card-body">
             <div class="event-card-date">📅 March 10, 2025 · 4:00 PM</div>
             <h3 class="event-card-title">Faculty of Arts Cultural Night</h3>
-            <p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of UNN Arts.</p>
+<p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.</p>
           </div>
           <div class="event-card-footer">
             <div class="event-card-price">₦2,500 <small>/ ticket</small></div>
@@ -218,7 +222,7 @@
       <div class="footer-grid">
         <div class="footer-brand">
           <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
-          <p class="footer-brand-desc">The official event ticket selling platform for the University of Nigeria, Nsukka.</p>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
         </div>
         <div>
           <div class="footer-col-label">Quick Links</div>
@@ -316,33 +320,70 @@
         if (heroDate) heroDate.textContent = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
       }
 
-      fetch('/api/events')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var events = (data && data.success && data.events) || [];
-          if (!events.length) {
-            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No featured events yet. Check back soon!</p></div>';
-            if (heroSub) heroSub.innerHTML = 'No events yet<br>Check back soon!';
-            if (heroDate) heroDate.textContent = '—';
-            return;
-          }
-          // Prefer featured events; fall back to the first 3 events.
-          var featured = events.filter(function(e) { return e.featured; });
-          var shown = (featured.length ? featured : events).slice(0, 3);
-          var html = '';
-          shown.forEach(function(ev, i) {
-            var delay = i === 0 ? '' : ' reveal-delay-' + i;
-            html += cardHtml(ev, delay);
+// Load featured events for the selected university (or all if none selected).
+      function loadFeatured() {
+        var uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+        var url = '/api/events';
+        if (uni && (uni.slug || uni.id)) {
+          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
+        }
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            if (!events.length) {
+              grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No featured events yet for this campus. Check back soon!</p></div>';
+              if (heroSub) heroSub.innerHTML = 'No events yet<br>Check back soon!';
+              if (heroDate) heroDate.textContent = '—';
+              return;
+            }
+            // Prefer featured events; fall back to the first 3 events.
+            var featured = events.filter(function(e) { return e.featured; });
+            var shown = (featured.length ? featured : events).slice(0, 3);
+            var html = '';
+            shown.forEach(function(ev, i) {
+              var delay = i === 0 ? '' : ' reveal-delay-' + i;
+              html += cardHtml(ev, delay);
+            });
+            grid.innerHTML = html;
+            if (typeof revealObserver !== 'undefined') {
+              grid.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+            }
+            updateHero(events[0]);
+          })
+          .catch(function() {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load featured events. Please refresh the page.</p></div>';
           });
-          grid.innerHTML = html;
-          if (typeof revealObserver !== 'undefined') {
-            grid.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
-          }
-          updateHero(events[0]);
-        })
-        .catch(function() {
-          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load featured events. Please refresh the page.</p></div>';
-        });
+      }
+
+// Re-run when the user changes their university.
+      window.onUniversityChange = function() { loadFeatured(); };
+
+      // Populate the home university selector from /api/universities.
+      var homeUni = document.getElementById('homeUniversity');
+      if (homeUni) {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.universities) || [];
+            var html = '<option value="">Select your campus…</option>';
+            list.forEach(function(u) {
+              html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
+            });
+            homeUni.innerHTML = html;
+            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            if (cur && (cur.slug || cur.id)) homeUni.value = cur.slug || cur.id;
+            homeUni.addEventListener('change', function() {
+              var val = homeUni.value;
+              var found = list.find(function(u) { return (u.slug || u.id) === val; });
+              if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+              if (window.onUniversityChange) window.onUniversityChange();
+            });
+          })
+          .catch(function() {});
+      }
+
+      loadFeatured();
     })();
   </script>
 </body>

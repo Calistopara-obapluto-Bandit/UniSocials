@@ -1,5 +1,5 @@
 /*
-Unisocials — Event Ticket Selling Platform for University of Nigeria
+Unisocials — Event Ticket Selling Platform for Universities
 Rebranded from TemplateMo 622 Clearwave
 https://templatemo.com/tm-622-clearwave
 Free for personal and commercial use
@@ -380,7 +380,38 @@ Free for personal and commercial use
       font-size: 1.0625rem; line-height: 1.75;
       color: var(--text-2); max-width: 480px; margin-bottom: 40px;
     }
-    .hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    /* University picker (home hero) */
+    .hero-uni-picker {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 26px;
+      flex-wrap: wrap;
+    }
+    .hero-uni-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-2);
+    }
+    .uni-selector {
+      padding: 11px 16px;
+      border: 1.5px solid var(--accent-border);
+      border-radius: 100px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      font-weight: 600;
+      background: var(--surface-2);
+      color: var(--text-1);
+      cursor: pointer;
+      min-width: 240px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .uni-selector:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
     .btn-primary-lg {
       font-size: 0.9375rem; font-weight: 600; color: #fff;
       background: var(--accent); padding: 14px 32px; border-radius: 100px;
@@ -509,7 +540,34 @@ Free for personal and commercial use
       background: var(--accent); padding: 8px 20px; border-radius: 100px;
       transition: background 0.3s, transform 0.3s;
     }
-    .btn-buy:hover { background: var(--accent-mid); transform: scale(1.05); }
+.btn-buy:hover { background: var(--accent-mid); transform: scale(1.05); }
+
+    /* "Notify me" button on event cards */
+    .btn-notify {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--surface-2);
+      border: 1.5px solid var(--accent-border);
+      padding: 8px 16px;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: background 0.3s, color 0.3s, border-color 0.3s, transform 0.3s;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .btn-notify:hover { background: var(--accent-ghost); border-color: var(--accent); transform: scale(1.02); }
+    .event-card-uni {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 100px;
+      margin-bottom: 8px;
+    }
 
     /* ══════════════════════════════════════════
        PRICING / TICKET PACKAGES
