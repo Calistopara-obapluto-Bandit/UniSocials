@@ -9,5 +9,5 @@ Commit pending feature changes and push to GitHub so Render auto-deploys the upd
 - [x] Verify `data/` (buyer PII) stays gitignored (not committed).
 - [x] Stage the 5 modified files.
 - [x] Commit with a descriptive deploy message.
-- [ ] Push `main` to GitHub (triggers Render auto-deploy).
-- [ ] Confirm push reached `origin/main`.
+- [x] Push `main` to GitHub (triggers Render auto-deploy).
+- [x] Confirm push reached `origin/main`.

@@ -1332,7 +1332,7 @@ Free for personal and commercial use
       .checkout-summary { order: 1; }
       .checkout-summary-sticky { position: static; }
     }
-    @media (max-width: 768px) {
+@media (max-width: 768px) {
       .page-header { padding: 90px 0 40px; }
       .container { padding: 0 20px; }
       .nav-inner { padding: 0 20px; }
@@ -1340,6 +1340,11 @@ Free for personal and commercial use
       .nav-hamburger { display: flex; margin-left: 8px; }
       .nav-mobile-auth { display: inline-flex; align-items: center; }
       .nav-mobile-signin { display: inline-flex; align-items: center; }
+      /* Compact mobile nav — slim the bar, logo, and sign-in button on small screens */
+      .nav { padding: 10px 0; }
+      .nav-logo { font-size: 1.05rem; }
+      .nav-mobile-signin { padding: 6px 12px; font-size: 0.75rem; box-shadow: 0 2px 8px rgba(27,94,32,0.2); }
+      .nav-mobile-logout { width: 30px; height: 30px; font-size: 0.85rem; }
       .footer-grid { grid-template-columns: 1fr; }
       .cta-inner { padding: 32px 24px; }
       .pricing-grid { max-width: 100%; }
@@ -1401,9 +1406,14 @@ Free for personal and commercial use
     @media (max-width: 480px) {
       html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
       .page-header { padding: 80px 0 28px; }
-      .container { padding: 0 14px; }
+.container { padding: 0 14px; }
       .nav-inner { padding: 0 14px; }
-      .nav { padding: 12px 0; }
+      .nav { padding: 8px 0; }
+      .nav-logo { font-size: 1rem; }
+      .nav-mobile-signin { padding: 5px 10px; font-size: 0.72rem; }
+      .nav-mobile-logout { width: 28px; height: 28px; font-size: 0.8rem; }
+      .nav-hamburger { width: 24px; gap: 4px; }
+      .nav-hamburger span { height: 2px; }
       .section-label { font-size: 10px; padding: 5px 12px; margin-bottom: 16px; }
       .section-title { font-size: clamp(1.5rem, 5vw, 2rem); }
       .section-sub { font-size: 0.9rem; margin-top: 12px; }
