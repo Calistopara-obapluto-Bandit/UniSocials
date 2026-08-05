@@ -183,6 +183,70 @@
       background: var(--accent-ghost);
     }
 
+/* ── Top tab bar ── */
+    .admin-tabs {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-tabs-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .admin-tabs-inner::-webkit-scrollbar { display: none; }
+    .admin-tab {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 14px 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.25s, border-color 0.25s, background 0.25s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .admin-tab:hover { color: var(--accent); background: var(--accent-ghost); }
+    .admin-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 700;
+    }
+    .admin-tab .tab-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: none;
+    }
+    .admin-tab .tab-dot.show { display: inline-block; }
+    .admin-panel { display: none; }
+    .admin-panel.active { display: block; }
+    .admin-panel-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .admin-panel-heading h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-1); }
+    .admin-panel-heading p { font-size: 0.85rem; color: var(--text-3); margin-top: 3px; }
+    @media (max-width: 768px) {
+      .admin-tabs-inner { padding: 0 16px; }
+      .admin-tab { padding: 12px 12px; font-size: 0.8rem; }
+    }
+
     /* ── Login screen ── */
     .admin-login-wrap {
       min-height: calc(100vh - 90px);
@@ -629,167 +693,191 @@
     </div>
 
     <!-- ── DASHBOARD ── -->
-    <div class="admin-dash" id="dashboard">
+<div class="admin-dash" id="dashboard">
+      <!-- ── TOP TAB BAR ── -->
+      <div class="admin-tabs">
+        <div class="admin-tabs-inner">
+          <button class="admin-tab active" data-tab="overview">📊 Overview</button>
+          <button class="admin-tab" data-tab="checkin">🎫 Check-in</button>
+          <button class="admin-tab" data-tab="events">🎤 Events</button>
+          <button class="admin-tab" data-tab="universities">🏛 Universities</button>
+          <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
+        </div>
+      </div>
+
       <div class="container">
-        <div class="admin-heading">
-          <h1>📊 Orders Dashboard</h1>
-          <p id="lastUpdated">Loading orders…</p>
-        </div>
-
-        <div class="admin-stats">
-          <div class="admin-stat">
-            <div class="admin-stat-label">Total Orders</div>
-            <div class="admin-stat-value" id="statTotal">0</div>
-          </div>
-          <div class="admin-stat pending">
-            <div class="admin-stat-label">Pending</div>
-            <div class="admin-stat-value" id="statPending">0</div>
-          </div>
-          <div class="admin-stat verified">
-            <div class="admin-stat-label">Verified</div>
-            <div class="admin-stat-value" id="statVerified">0</div>
-          </div>
-          <div class="admin-stat revenue">
-            <div class="admin-stat-label">Revenue (Verified)</div>
-            <div class="admin-stat-value" id="statRevenue">₦0</div>
-          </div>
-        </div>
-
-        <div class="admin-toolbar">
-          <div class="admin-filters">
-            <button class="admin-filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
-            <button class="admin-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
-            <button class="admin-filter-btn" data-filter="verified" onclick="setFilter('verified')">✅ Verified</button>
-            <button class="admin-filter-btn" data-filter="rejected" onclick="setFilter('rejected')">❌ Rejected</button>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
-            <button class="admin-refresh-btn" id="refreshBtn" onclick="loadOrders()">↻ Refresh</button>
-          </div>
-        </div>
-
-        <div class="admin-cat-filters" id="catFilters">
-          <div class="admin-cat-filter">
-            <label for="eventFilterSel">🎤 Filter by Event</label>
-            <select id="eventFilterSel" onchange="setEventFilter(this.value)">
-              <option value="">All Events</option>
-            </select>
-          </div>
-          <div class="admin-cat-filter">
-            <label for="categoryFilterSel">🏷 Filter by Category</label>
-            <select id="categoryFilterSel" onchange="setCategoryFilter(this.value)">
-              <option value="">All Categories</option>
-            </select>
-          </div>
-          <button class="admin-cat-clear" onclick="clearCatFilters()">✕ Clear Filters</button>
-        </div>
-
-<!-- ── GATE SCAN / CHECK-IN ── -->
-        <div class="admin-scan-panel">
-          <div class="admin-scan-header">
+        <!-- ── OVERVIEW PANEL ── -->
+        <div class="admin-panel active" id="panel-overview">
+          <div class="admin-panel-heading">
             <div>
-              <h3>🎫 Gate Check-in / Scan Ticket</h3>
+              <h1>📊 Orders Overview</h1>
+              <p id="lastUpdated">Loading orders…</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
+              <button class="admin-refresh-btn" id="refreshBtn" onclick="loadOrders()">↻ Refresh</button>
+            </div>
+          </div>
+
+          <div class="admin-stats">
+            <div class="admin-stat">
+              <div class="admin-stat-label">Total Orders</div>
+              <div class="admin-stat-value" id="statTotal">0</div>
+            </div>
+            <div class="admin-stat pending">
+              <div class="admin-stat-label">Pending</div>
+              <div class="admin-stat-value" id="statPending">0</div>
+            </div>
+            <div class="admin-stat verified">
+              <div class="admin-stat-label">Verified</div>
+              <div class="admin-stat-value" id="statVerified">0</div>
+            </div>
+            <div class="admin-stat revenue">
+              <div class="admin-stat-label">Revenue (Verified)</div>
+              <div class="admin-stat-value" id="statRevenue">₦0</div>
+            </div>
+          </div>
+
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <button class="admin-filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+              <button class="admin-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
+              <button class="admin-filter-btn" data-filter="verified" onclick="setFilter('verified')">✅ Verified</button>
+              <button class="admin-filter-btn" data-filter="rejected" onclick="setFilter('rejected')">❌ Rejected</button>
+            </div>
+          </div>
+
+          <div class="admin-cat-filters" id="catFilters">
+            <div class="admin-cat-filter">
+              <label for="eventFilterSel">🎤 Filter by Event</label>
+              <select id="eventFilterSel" onchange="setEventFilter(this.value)">
+                <option value="">All Events</option>
+              </select>
+            </div>
+            <div class="admin-cat-filter">
+              <label for="categoryFilterSel">🏷 Filter by Category</label>
+              <select id="categoryFilterSel" onchange="setCategoryFilter(this.value)">
+                <option value="">All Categories</option>
+              </select>
+            </div>
+            <button class="admin-cat-clear" onclick="clearCatFilters()">✕ Clear Filters</button>
+          </div>
+
+          <div class="admin-orders" id="ordersList"></div>
+        </div>
+
+        <!-- ── CHECK-IN PANEL ── -->
+        <div class="admin-panel" id="panel-checkin">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🎫 Gate Check-in / Scan Ticket</h1>
               <p>Enter the Order ID and ticket code, or tap <strong>📷 Scan QR</strong> to scan the buyer's ticket QR code with your camera. The ticket will be marked as used and cannot be reused.</p>
             </div>
           </div>
-          <div class="admin-scan-inputs">
-            <div class="form-group">
-              <label for="scanOrderId">Order ID</label>
-              <input type="text" id="scanOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
+          <div class="admin-scan-panel">
+            <div class="admin-scan-inputs">
+              <div class="form-group">
+                <label for="scanOrderId">Order ID</label>
+                <input type="text" id="scanOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label for="scanCode">Ticket Code</label>
+                <input type="text" id="scanCode" placeholder="TKT-XXXXXX" autocomplete="off" />
+              </div>
+              <button class="btn-submit" style="white-space:nowrap;" onclick="scanTicket()">✅ Check In</button>
+              <button class="admin-filter-btn" id="qrScanBtn" onclick="toggleQRScanner()" style="display:inline-flex;align-items:center;gap:6px;">📷 Scan QR</button>
             </div>
-            <div class="form-group">
-              <label for="scanCode">Ticket Code</label>
-              <input type="text" id="scanCode" placeholder="TKT-XXXXXX" autocomplete="off" />
+            <div class="admin-scan-camera" id="scanCameraWrap" style="display:none;">
+              <div class="admin-scan-camera-inner">
+                <video id="qrVideo" autoplay playsinline muted></video>
+                <canvas id="qrCanvas" style="display:none;"></canvas>
+                <div class="admin-scan-camera-overlay" id="scanOverlay">Point camera at the ticket QR code</div>
+              </div>
+              <button class="action-btn action-reject" onclick="stopQRScanner()" style="margin-top:8px;">✕ Stop Camera</button>
             </div>
-            <button class="btn-submit" style="white-space:nowrap;" onclick="scanTicket()">✅ Check In</button>
-            <button class="admin-filter-btn" id="qrScanBtn" onclick="toggleQRScanner()" style="display:inline-flex;align-items:center;gap:6px;">📷 Scan QR</button>
+            <div class="admin-scan-result" id="scanResult"></div>
           </div>
-          <div class="admin-scan-camera" id="scanCameraWrap" style="display:none;">
-            <div class="admin-scan-camera-inner">
-              <video id="qrVideo" autoplay playsinline muted></video>
-              <canvas id="qrCanvas" style="display:none;"></canvas>
-              <div class="admin-scan-camera-overlay" id="scanOverlay">Point camera at the ticket QR code</div>
-            </div>
-            <button class="action-btn action-reject" onclick="stopQRScanner()" style="margin-top:8px;">✕ Stop Camera</button>
-          </div>
-          <div class="admin-scan-result" id="scanResult"></div>
         </div>
 
-        <!-- ── EVENTS MANAGER ── -->
-        <div class="admin-scan-panel">
-          <div class="admin-scan-header">
+        <!-- ── EVENTS PANEL ── -->
+        <div class="admin-panel" id="panel-events">
+          <div class="admin-panel-heading">
             <div>
-              <h3>🎤 Manage Events</h3>
+              <h1>🎤 Manage Events</h1>
               <p>Add or remove events. New events appear instantly on the Events page, Tickets page, and Home page for buyers.</p>
             </div>
           </div>
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-            <div class="form-group"><label for="evName">Event Name</label><input type="text" id="evName" placeholder="e.g. Medical Dinner Night" /></div>
-            <div class="form-group"><label for="evUniversity">University</label><select id="evUniversity" onchange="updateUniCategories()">
-              <option value="">Select university...</option>
-            </select></div>
-            <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
-              <option value="General">General</option>
-            </select></div>
-            <div class="form-group"><label for="evPrice">Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
-            <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
-            <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
-            <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
-            <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
-            <div class="form-group"><label for="evIcon">Icon (emoji)</label><input type="text" id="evIcon" placeholder="🎉" /></div>
-            <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="evName">Event Name</label><input type="text" id="evName" placeholder="e.g. Medical Dinner Night" /></div>
+              <div class="form-group"><label for="evUniversity">University</label><select id="evUniversity" onchange="updateUniCategories()">
+                <option value="">Select university...</option>
+              </select></div>
+              <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
+                <option value="General">General</option>
+              </select></div>
+              <div class="form-group"><label for="evPrice">Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
+              <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
+              <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
+              <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
+              <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
+              <div class="form-group"><label for="evIcon">Icon (emoji)</label><input type="text" id="evIcon" placeholder="🎉" /></div>
+              <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
+              <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
-            <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
-            <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
-          </div>
-<div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
         </div>
 
-        <!-- ── UNIVERSITIES MANAGER ── -->
-        <div class="admin-scan-panel">
-          <div class="admin-scan-header">
+        <!-- ── UNIVERSITIES PANEL ── -->
+        <div class="admin-panel" id="panel-universities">
+          <div class="admin-panel-heading">
             <div>
-              <h3>🏛 Universities Manager</h3>
+              <h1>🏛 Universities Manager</h1>
               <p>Add or remove universities. Each university has its own categories used across the site. Events and tickets are scoped per university.</p>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-            <div class="form-group"><label for="uniName">University Name</label><input type="text" id="uniName" placeholder="e.g. University of Lagos" /></div>
-            <div class="form-group"><label for="uniLocation">Location</label><input type="text" id="uniLocation" placeholder="e.g. Akoka, Lagos" /></div>
-            <div class="form-group"><label for="uniState">State</label><input type="text" id="uniState" placeholder="e.g. Lagos" /></div>
-            <div class="form-group"><label for="uniCategories">Categories (comma separated)</label><input type="text" id="uniCategories" placeholder="Law, Medicine, Social Sciences, Engineering, General" /></div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="uniName">University Name</label><input type="text" id="uniName" placeholder="e.g. University of Lagos" /></div>
+              <div class="form-group"><label for="uniLocation">Location</label><input type="text" id="uniLocation" placeholder="e.g. Akoka, Lagos" /></div>
+              <div class="form-group"><label for="uniState">State</label><input type="text" id="uniState" placeholder="e.g. Lagos" /></div>
+              <div class="form-group"><label for="uniCategories">Categories (comma separated)</label><input type="text" id="uniCategories" placeholder="Law, Medicine, Social Sciences, Engineering, General" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addUniversityItem()">➕ Add University</button>
+              <button class="admin-refresh-btn" onclick="loadManagedUniversities()">↻ Refresh</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="uniManageCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="managedUniversitiesList" style="margin-top:14px;"></div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button class="btn-submit" style="white-space:nowrap;" onclick="addUniversityItem()">➕ Add University</button>
-            <button class="admin-refresh-btn" onclick="loadManagedUniversities()">↻ Refresh</button>
-            <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="uniManageCount"></span>
-          </div>
-          <div class="admin-ticket-codes" id="managedUniversitiesList" style="margin-top:14px;"></div>
         </div>
 
-        <!-- ── SUBSCRIBERS ── -->
-        <div class="admin-scan-panel">
-          <div class="admin-scan-header">
+        <!-- ── SUBSCRIBERS PANEL ── -->
+        <div class="admin-panel" id="panel-subscribers">
+          <div class="admin-panel-heading">
             <div>
-              <h3>📧 Subscribers (Event Notifications)</h3>
+              <h1>📧 Subscribers (Event Notifications)</h1>
               <p>Users who opted in to receive event notifications. When you create an event, subscribers of that university are emailed automatically.</p>
             </div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
-            <div class="admin-cat-filter" style="flex:1;min-width:220px;">
-              <label for="subFilterUni">Filter by University</label>
-              <select id="subFilterUni" onchange="loadSubscribers()">
-                <option value="">All Universities</option>
-              </select>
+          <div class="admin-scan-panel">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+              <div class="admin-cat-filter" style="flex:1;min-width:220px;">
+                <label for="subFilterUni">Filter by University</label>
+                <select id="subFilterUni" onchange="loadSubscribers()">
+                  <option value="">All Universities</option>
+                </select>
+              </div>
+              <button class="admin-refresh-btn" onclick="loadSubscribers()">↻ Refresh</button>
             </div>
-            <button class="admin-refresh-btn" onclick="loadSubscribers()">↻ Refresh</button>
+            <div class="admin-ticket-codes" id="subscribersList" style="margin-top:14px;"></div>
           </div>
-          <div class="admin-ticket-codes" id="subscribersList" style="margin-top:14px;"></div>
         </div>
-
-        <div class="admin-orders" id="ordersList"></div>
       </div>
     </div>
   </div>
@@ -1809,7 +1897,7 @@ window.deleteManagedEvent = function(eventId) {
         .finally(function() { if (btn) { btn.disabled = false; btn.textContent = '📧 Notify'; } });
       };
 
-      // Load events on login — also load universities and subscribers
+// Load events on login — also load universities and subscribers
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn2();
@@ -1817,6 +1905,28 @@ window.deleteManagedEvent = function(eventId) {
         loadManagedUniversities();
         loadSubscribers();
       };
+
+      // ── Tab switching ──
+      var tabButtons = document.querySelectorAll('.admin-tab');
+      var panels = document.querySelectorAll('.admin-panel');
+      function switchTab(name) {
+        tabButtons.forEach(function(btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === name);
+        });
+        panels.forEach(function(p) {
+          p.classList.toggle('active', p.id === 'panel-' + name);
+        });
+        // Stop the camera if leaving the check-in tab
+        if (name !== 'checkin' && typeof window.stopQRScanner === 'function') {
+          try { window.stopQRScanner(); } catch(e) {}
+        }
+      }
+      tabButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          switchTab(btn.getAttribute('data-tab'));
+        });
+      });
+      window.switchTab = switchTab;
 
       // Initial state
       if (getToken()) {

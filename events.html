@@ -493,9 +493,11 @@
             uniSel.addEventListener('change', function() {
               var val = uniSel.value;
               var found = list.find(function(u) { return (u.slug || u.id) === val; });
-              if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
               if (window.onUniversityChange) window.onUniversityChange(found || null);
             });
+            // Enable the searchable university selector (search box + button).
+            if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);
           })
           .catch(function() {});
       }

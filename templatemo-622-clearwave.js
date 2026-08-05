@@ -87,6 +87,106 @@ window.UNUniversity = {
 })();
 
 /* ══════════════════════════════════════════
+   UNIVERSITY SEARCH — searchable selector
+   Adds a live search box + "Search" button beside a
+   university <select>. Filters the options as you type
+   (matched by name/shortName/state/location) and keeps
+   the placeholder option ("Select your campus…") visible.
+   Usage: window.UNUniversitySearch(document.getElementById('...'));
+   ══════════════════════════════════════════ */
+(function() {
+  function UNUniversitySearch(selectEl) {
+    if (!selectEl || !selectEl.tagName || selectEl.tagName.toLowerCase() !== 'select') return;
+    if (selectEl.dataset.uniSearchReady === '1') return; // guard against double-init
+    selectEl.dataset.uniSearchReady = '1';
+
+    // Wrap the select so we can prepend the search box + button.
+    var wrap = document.createElement('div');
+    wrap.className = 'uni-search-wrap';
+    selectEl.parentNode.insertBefore(wrap, selectEl);
+    wrap.appendChild(selectEl);
+
+    // Search button
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'uni-search-btn';
+    btn.innerHTML = '\uD83D\uDD0D Search';
+    btn.setAttribute('aria-label', 'Search universities');
+
+    // Search input inside a pill container
+    var box = document.createElement('div');
+    box.className = 'uni-search-box';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'uni-search-input';
+    input.placeholder = 'Search for your university\u2026';
+    input.setAttribute('aria-label', 'Search universities');
+    box.appendChild(input);
+    box.appendChild(btn);
+
+    // Result count hint
+    var count = document.createElement('div');
+    count.className = 'uni-search-count';
+    count.style.display = 'none';
+
+    wrap.appendChild(box);
+    wrap.appendChild(count);
+
+    function applyFilter() {
+      var q = (input.value || '').toLowerCase().trim();
+      var options = selectEl.options;
+      var firstOpt = options.length ? options[0] : null;
+      var visible = 0;
+
+      for (var i = 0; i < options.length; i++) {
+        var opt = options[i];
+        // Always keep the placeholder ("Select your campus…") visible.
+        if (i === 0) { opt.style.display = ''; continue; }
+        var text = (opt.textContent || opt.text || '').toLowerCase();
+        var match = !q || text.indexOf(q) !== -1;
+        opt.style.display = match ? '' : 'none';
+        if (match) visible++;
+      }
+
+      // If the currently selected option is being filtered out, reset to placeholder.
+      if (selectEl.selectedIndex > 0 && options[selectEl.selectedIndex].style.display === 'none') {
+        selectEl.selectedIndex = 0;
+        if (selectEl.onchange) selectEl.onchange();
+      }
+
+      if (q) {
+        count.style.display = '';
+        count.textContent = visible === 0
+          ? 'No universities match \u201C' + input.value + '\u201D.'
+          : visible + ' universit' + (visible === 1 ? 'y' : 'ies') + ' match \u201C' + input.value + '\u201D.';
+      } else {
+        count.style.display = 'none';
+      }
+    }
+
+    input.addEventListener('input', applyFilter);
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); applyFilter(); }
+    });
+    btn.addEventListener('click', applyFilter);
+
+    // Expose a way to clear the search (e.g. after choosing from another page).
+    selectEl.clearSearch = function() {
+      input.value = '';
+      applyFilter();
+    };
+
+    // Re-run whenever new options are loaded (after /api/universities fills the select).
+    selectEl.addEventListener('change', function() {
+      // Keep the filter applied in case options changed.
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(applyFilter);
+    });
+  }
+
+  window.UNUniversitySearch = UNUniversitySearch;
+})();
+
+/* ══════════════════════════════════════════
    NOTIFY — subscribe to event email notifications
    ══════════════════════════════════════════ */
 (function() {

@@ -327,98 +327,176 @@ async function deleteEvent(eventId) {
 }
 
 /* ── Universities (multi-tenant) ── */
-const DEFAULT_UNIVERSITIES = [
-  {
-    id: 'uni-unn',
-    slug: 'unn',
-    name: 'University of Nigeria, Nsukka',
-    shortName: 'UNN',
-    location: 'Nsukka, Enugu State',
-    state: 'Enugu',
-    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-    contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'uni-unilag',
-    slug: 'unilag',
-    name: 'University of Lagos',
-    shortName: 'UNILAG',
-    location: 'Akoka, Lagos State',
-    state: 'Lagos',
-    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-    contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'uni-ui',
-    slug: 'ui',
-    name: 'University of Ibadan',
-    shortName: 'UI',
-    location: 'Ibadan, Oyo State',
-    state: 'Oyo',
-    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-    contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'uni-oau',
-    slug: 'oau',
-    name: 'Obafemi Awolowo University',
-    shortName: 'OAU',
-    location: 'Ile-Ife, Osun State',
-    state: 'Osun',
-    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-    contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'uni-uniben',
-    slug: 'uniben',
-    name: 'University of Benin',
-    shortName: 'UNIBEN',
-    location: 'Benin City, Edo State',
-    state: 'Edo',
-    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-    contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'uni-lasu',
-    slug: 'lasu',
-    name: 'Lagos State University',
-    shortName: 'LASU',
-    location: 'Ojo, Lagos State',
-    state: 'Lagos',
-    categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-    contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'uni-covenant',
-    slug: 'covenant',
-    name: 'Covenant University',
-    shortName: 'CU',
-    location: 'Ota, Ogun State',
-    state: 'Ogun',
-categories: ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'],
-contactEmail: 'support.sbiamautos@gmail.com',
-    createdAt: new Date().toISOString()
-  }
-];
+const UNI_CATEGORIES = ['Arts & Culture', 'Engineering', 'Business', 'Music', 'Academic', 'Sports', 'Medical', 'General'];
+
+// Comprehensive list of universities across Nigeria (federal, state & private).
+function uniDefaults() {
+  const nowStamp = new Date().toISOString();
+  const rows = [
+    // ── Federal Universities ──
+    ['unn', 'University of Nigeria, Nsukka', 'UNN', 'Nsukka', 'Enugu'],
+    ['unilag', 'University of Lagos', 'UNILAG', 'Akoka', 'Lagos'],
+    ['ui', 'University of Ibadan', 'UI', 'Ibadan', 'Oyo'],
+    ['oau', 'Obafemi Awolowo University', 'OAU', 'Ile-Ife', 'Osun'],
+    ['uniben', 'University of Benin', 'UNIBEN', 'Benin City', 'Edo'],
+    ['abu', 'Ahmadu Bello University', 'ABU', 'Zaria', 'Kaduna'],
+    ['unimaid', 'University of Maiduguri', 'UNIMAID', 'Maiduguri', 'Borno'],
+    ['fuoye', 'Federal University Oye-Ekiti', 'FUOYE', 'Oye-Ekiti', 'Ekiti'],
+    ['futo', 'Federal University of Technology, Owerri', 'FUTO', 'Owerri', 'Imo'],
+    ['futminna', 'Federal University of Technology, Minna', 'FUT MINNA', 'Minna', 'Niger'],
+    ['futa', 'Federal University of Technology, Akure', 'FUTA', 'Akure', 'Ondo'],
+    ['eksu-federal', 'Federal University, Lokoja', 'FUL', 'Lokoja', 'Kogi'],
+    ['fudutsinma', 'Federal University Dutsin-Ma', 'FUDMA', 'Dutsin-Ma', 'Katsina'],
+    ['fud', 'Federal University Dutse', 'FUD', 'Dutse', 'Jigawa'],
+    ['fuo', 'Federal University of Agriculture, Abeokuta', 'FUNAAB', 'Abeokuta', 'Ogun'],
+    ['fumam', 'Federal University of Agriculture, Makurdi', 'FUAM', 'Makurdi', 'Benue'],
+    ['unilokoja', 'Federal University, Lokoja', 'FULOKOJA', 'Lokoja', 'Kogi'],
+    ['fugusau', 'Federal University, Gusau', 'FUGUS', 'Gusau', 'Zamfara'],
+    ['fugashua', 'Federal University, Gashua', 'FUGASHUA', 'Gashua', 'Yobe'],
+    ['fukashere', 'Federal University, Kashere', 'FUK', 'Kashere', 'Gombe'],
+    ['funai', 'Federal University, Ndufu-Alike Ikwo', 'FUNAI', 'Ndufu-Alike', 'Ebonyi'],
+    ['fuwukari', 'Federal University, Wukari', 'FUW', 'Wukari', 'Taraba'],
+    ['fubirnin-kebbi', 'Federal University, Birnin Kebbi', 'FUBK', 'Birnin Kebbi', 'Kebbi'],
+    ['fufuf', 'Federal University, Lafia', 'FULAFIA', 'Lafia', 'Nasarawa'],
+    ['fuotas', 'Federal University, Otuoke', 'FUO', 'Otuoke', 'Bayelsa'],
+    ['fudutsin', 'Federal University, Dutsin-Ma', 'FUDMA', 'Dutsin-Ma', 'Katsina'],
+    ['unu', 'National Open University of Nigeria', 'NOUN', 'Lagos', 'Lagos'],
+    ['university-of-calabar', 'University of Calabar', 'UNICAL', 'Calabar', 'Cross River'],
+    ['uniport', 'University of Port Harcourt', 'UNIPORT', 'Port Harcourt', 'Rivers'],
+    ['unijos', 'University of Jos', 'UNIJOS', 'Jos', 'Plateau'],
+    ['unilorin', 'University of Ilorin', 'UNILORIN', 'Ilorin', 'Kwara'],
+    ['unimaiden', 'University of Maiduguri', 'UNIMAID', 'Maiduguri', 'Borno'],
+    ['unabuja', 'University of Abuja', 'UNIABUJA', 'Gwagwalada', 'FCT'],
+    ['uniben2', 'University of Benin', 'UNIBEN', 'Benin City', 'Edo'],
+    ['uniami', 'University of Uyo', 'UNIUYO', 'Uyo', 'Akwa Ibom'],
+    ['unig', 'University of Ibadan', 'UI', 'Ibadan', 'Oyo'],
+    ['unibayero', 'Bayero University Kano', 'BUK', 'Kano', 'Kano'],
+    ['unimaid2', 'University of Maiduguri', 'UNIMAID', 'Maiduguri', 'Borno'],
+    ['unizik', 'Nnamdi Azikiwe University', 'UNIZIK', 'Awka', 'Anambra'],
+    ['unial', 'Alvan Ikoku Federal College of Education', 'AIFCE', 'Owerri', 'Imo'],
+    // ── State Universities ──
+    ['lasu', 'Lagos State University', 'LASU', 'Ojo', 'Lagos'],
+    ['unilag-state', 'Lagos State University of Education', 'LASUED', 'Ijanikin', 'Lagos'],
+    ['kaduna-state', 'Kaduna State University', 'KASU', 'Kaduna', 'Kaduna'],
+    ['oun', 'Olabisi Onabanjo University', 'OOU', 'Ago-Iwoye', 'Ogun'],
+    ['run', 'Rivers State University', 'RSU', 'Port Harcourt', 'Rivers'],
+    ['ekiti-state', 'Ekiti State University', 'EKSU', 'Ado-Ekiti', 'Ekiti'],
+    ['abia-state', 'Abia State University', 'ABSU', 'Uturu', 'Abia'],
+    ['ndu', 'Niger Delta University', 'NDU', 'Amassoma', 'Bayelsa'],
+    ['del-su', 'Delta State University', 'DELSU', 'Abraka', 'Delta'],
+    ['enasu', 'Enugu State University of Science and Technology', 'ESUT', 'Enugu', 'Enugu'],
+    ['imsu', 'Imo State University', 'IMSU', 'Owerri', 'Imo'],
+    ['tasued', 'Tai Solarin University of Education', 'TASUED', 'Ijagun', 'Ogun'],
+    ['ojukwu', 'Ondo State University of Science and Technology', 'OSUSTECH', 'Okitipupa', 'Ondo'],
+    ['adekunle', 'Adekunle Ajasin University', 'AAUA', 'Akungba-Akoko', 'Ondo'],
+    ['tarba', 'Taraba State University', 'TSU', 'Jalingo', 'Taraba'],
+    ['yobe-state', 'Yobe State University', 'YSU', 'Damaturu', 'Yobe'],
+    ['plateau-state', 'University of Jos', 'PLASU', 'Jos', 'Plateau'],
+    ['kogi-state', 'Kogi State University', 'KSU', 'Anyigba', 'Kogi'],
+    ['kwara-state', 'Kwara State University', 'KWASU', 'Malete', 'Kwara'],
+    ['nassarawa-state', 'Nasarawa State University', 'NSUK', 'Keffi', 'Nasarawa'],
+    ['sokoto-state', 'Usmanu Danfodiyo University', 'UDUS', 'Sokoto', 'Sokoto'],
+    ['zamfara-state', 'Federal University, Gusau', 'FUGUS', 'Gusau', 'Zamfara'],
+    ['borno-state', 'University of Maiduguri', 'UNIMAID', 'Maiduguri', 'Borno'],
+    ['bauchi-state', 'Abubakar Tafawa Balewa University', 'ATBU', 'Bauchi', 'Bauchi'],
+    ['gombe-state', 'Gombe State University', 'GSU', 'Gombe', 'Gombe'],
+    ['adamawa-state', 'Modibbo Adama University', 'MAU', 'Yola', 'Adamawa'],
+    ['katsina-state', 'Umaru Musa Yar\u2019Adua University', 'UMYU', 'Katsina', 'Katsina'],
+    ['jigawa-state', 'Federal University Dutse', 'FUD', 'Dutse', 'Jigawa'],
+    ['kebbi-state', 'Usmanu Danfodiyo University', 'UDUS', 'Sokoto', 'Sokoto'],
+    ['benue-state', 'Benue State University', 'BSU', 'Makurdi', 'Benue'],
+    ['cross-river-state', 'University of Calabar', 'UNICAL', 'Calabar', 'Cross River'],
+    ['akwa-ibom-state', 'University of Uyo', 'UNIUYO', 'Uyo', 'Akwa Ibom'],
+    ['ebonyi-state', 'Ebonyi State University', 'EBSU', 'Abakaliki', 'Ebonyi'],
+    ['anambra-state', 'Nnamdi Azikiwe University', 'UNIZIK', 'Awka', 'Anambra'],
+    ['bayelsa-state', 'Niger Delta University', 'NDU', 'Amassoma', 'Bayelsa'],
+    ['edo-state', 'University of Benin', 'UNIBEN', 'Benin City', 'Edo'],
+    ['ogun-state', 'Olabisi Onabanjo University', 'OOU', 'Ago-Iwoye', 'Ogun'],
+    ['ondo-state', 'Adekunle Ajasin University', 'AAUA', 'Akungba-Akoko', 'Ondo'],
+    ['osun-state', 'Osun State University', 'UNIOSUN', 'Osogbo', 'Osun'],
+    ['oyo-state', 'Ladoke Akintola University of Technology', 'LAUTECH', 'Ogbomoso', 'Oyo'],
+    // ── Private Universities ──
+    ['covenant', 'Covenant University', 'CU', 'Ota', 'Ogun'],
+    ['babcock', 'Babcock University', 'BU', 'Ilishan-Remo', 'Ogun'],
+    ['bells', 'Bells University of Technology', 'BUT', 'Ota', 'Ogun'],
+    ['bowen', 'Bowen University', 'BU', 'Iwo', 'Osun'],
+    ['abuad', 'Afe Babalola University', 'ABUAD', 'Ado-Ekiti', 'Ekiti'],
+    ['aau', 'Ajayi Crowther University', 'ACU', 'Oyo', 'Oyo'],
+    ['acs', 'Achievers University', 'AU', 'Owo', 'Ondo'],
+    ['american', 'American University of Nigeria', 'AUN', 'Yola', 'Adamawa'],
+    ['baze', 'Baze University', 'BU', 'Abuja', 'FCT'],
+    ['bingham', 'Bingham University', 'BU', 'Karu', 'Nasarawa'],
+    ['bu', 'Benson Idahosa University', 'BIU', 'Benin City', 'Edo'],
+    ['crescent', 'Crescent University', 'CU', 'Abeokuta', 'Ogun'],
+    ['elizade', 'Elizade University', 'EU', 'Ilara-Mokin', 'Ondo'],
+    ['gmu', 'Godfrey Okoye University', 'GOU', 'Enugu', 'Enugu'],
+    ['gregory', 'Gregory University', 'GUU', 'Uturu', 'Abia'],
+    ['hallmark', 'Hallmark University', 'HU', 'Ijebu-Itele', 'Ogun'],
+    ['lcu', 'Lead City University', 'LCU', 'Ibadan', 'Oyo'],
+    ['mfamu', 'Mountain Top University', 'MTU', 'Mowe', 'Ogun'],
+    ['nginar', 'Nigerian Turkish Niler University', 'NTNU', 'Abuja', 'FCT'],
+    ['pan-atlantic', 'Pan-Atlantic University', 'PAU', 'Lekki', 'Lagos'],
+    ['redeemers', 'Redeemer\u2019s University', 'RUN', 'Ede', 'Osun'],
+    ['southwestern', 'Southwestern University', 'SWU', 'Ogun', 'Ogun'],
+    ['summit', 'Summit University', 'SU', 'Offa', 'Kwara'],
+    ['veritas', 'Veritas University', 'VU', 'Abuja', 'FCT'],
+    ['wellspring', 'Wellspring University', 'WU', 'Irhirhi', 'Edo'],
+    ['wesley', 'Wesley University', 'WU', 'Ondo', 'Ondo'],
+    ['landmark', 'Landmark University', 'LMU', 'Omu-Aran', 'Kwara'],
+    ['crawford', 'Crawford University', 'CU', 'Igbesa', 'Ogun'],
+    ['joseph-ayo', 'Joseph Ayo Babalola University', 'JABU', 'Ikeji-Arakeji', 'Osun'],
+    ['kwararafa', 'Kwararafa University', 'KU', 'Wukari', 'Taraba'],
+    ['michael', 'Michael and Cecilia Ibru University', 'MCIU', 'Agbara-Otor', 'Delta'],
+    ['novena', 'Novena University', 'NU', 'Ogume', 'Delta'],
+    ['oduduwa', 'Oduduwa University', 'OU', 'Ipetumodu', 'Osun'],
+    ['paul', 'Paul University', 'PU', 'Awka', 'Anambra'],
+    ['rhema', 'Rhema University', 'RU', 'Aba', 'Abia'],
+    ['salem', 'Salem University', 'SU', 'Lokoja', 'Kogi'],
+    ['samuel', 'Samuel Adegboyega University', 'SAU', 'Ogwa', 'Edo'],
+    ['tansian', 'Tansian University', 'TU', 'Umunya', 'Anambra'],
+    ['trinity', 'Trinity University', 'TU', 'Yaba', 'Lagos'],
+    ['unimed', 'University of Medical Sciences, Ondo', 'UNIMED', 'Ondo', 'Ondo']
+  ];
+
+  return rows.map(function(r) {
+    return {
+      id: 'uni-' + r[0],
+      slug: r[0],
+      name: r[1],
+      shortName: r[2],
+      location: r[3],
+      state: r[4],
+      categories: UNI_CATEGORIES.slice(),
+      contactEmail: 'support.sbiamautos@gmail.com',
+      createdAt: nowStamp
+    };
+  });
+}
+const DEFAULT_UNIVERSITIES = uniDefaults();
 
 async function readUniversities() {
+  let list;
   if (usePg) {
     const r = await db.query('SELECT data FROM universities ORDER BY data->>\'name\' ASC');
-    return r.rows.map(row => row.data);
+    list = r.rows.map(row => row.data);
+  } else {
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'universities.json'), 'utf8');
+      list = JSON.parse(raw);
+      if (!Array.isArray(list)) list = [];
+    } catch (e) {
+      list = [];
+    }
   }
-  try {
-    const raw = fs.readFileSync(path.join(DATA_DIR, 'universities.json'), 'utf8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return DEFAULT_UNIVERSITIES;
+  // Auto-seed the full Nigerian university catalog when the store is empty
+  // (e.g. first run, an empty JSON file, or an empty PostgreSQL table), so the
+  // campus selectors are never empty.
+  if (list.length === 0) {
+    list = DEFAULT_UNIVERSITIES.slice();
+    await writeUniversities(list);
+    console.log('Seeded ' + list.length + ' default universities.');
   }
+  return list;
 }
 async function writeUniversities(list) {
   if (usePg) {

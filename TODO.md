@@ -1,15 +1,20 @@
-# TODO — Remove FAQ from header nav + verify admin + deploy
+# Task Progress
 
-## Goals
-1. Remove the **FAQ link from the header navigation** (desktop top nav + mobile menu) on all pages, while keeping the FAQ page accessible via the footer.
-2. Verify the admin dashboard can add events to universities (Events Manager) and verify all pages work.
-3. Push to git and deploy to Render.
+## Search Button in University Selector
 
-## ✅ Done
-- [x] Analyze project structure and understand nav pattern across all pages
-- [x] Confirm admin Events Manager (add event per university) is implemented in admin.html + server.js
-- [x] Remove FAQ link from desktop nav + mobile menu on all 13 HTML pages
-- [x] Verify admin event-adding works (tested POST/DELETE /api/admin/events with universityId + universitySlug)
-- [x] Confirm server runs and `/api/universities` + `/api/events` respond correctly
-- [x] Commit changes and push to git
-- [x] Push to main triggered auto-deploy on Render (render.yaml branch: main)
+### Step 1: Add searchable university search component (CSS)
+- [x] Add `.uni-search-wrap`, `.uni-search-box`, `.uni-search-input`, `.uni-search-btn` styles to templatemo-622-clearwave.css
+
+### Step 2: Add shared search JS helper
+- [x] Add `window.UNUniversitySearch(selectEl)` to templatemo-622-clearwave.js
+
+### Step 3: Wire search to selectors on each page
+- [x] index.html (homeUniversity)
+- [x] events.html (universityFilter)
+- [x] tickets.html (ticketUniversity)
+
+### Step 4: Git commit & push
+- [ ] Commit all changes and push to origin/main
+
+### Step 5: Deploy to Render
+- [ ] Deploy to Render (via GitHub connection)
