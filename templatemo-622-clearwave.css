@@ -535,9 +535,24 @@ Free for personal and commercial use
       flex: 1 1 100%;
     }
 @media (max-width: 540px) {
-      .uni-search-box { flex: 1 1 100%; }
-      .uni-search-btn { flex: 0 0 auto; justify-content: center; }
-      .uni-search-input { font-size: 0.8rem; }
+      .uni-search-box {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        padding: 6px;
+      }
+      .uni-search-input {
+        flex: 1 1 100%;
+        padding: 8px 10px;
+        font-size: 0.8rem;
+      }
+      .uni-search-btn {
+        flex: 1 1 100%;
+        width: 100%;
+        justify-content: center;
+        padding: 10px 12px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
     }
     .btn-primary-lg {
       font-size: 0.9375rem; font-weight: 600; color: #fff;
