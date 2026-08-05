@@ -397,11 +397,15 @@ Free for personal and commercial use
       border-radius: 50%;
       pointer-events: none;
     }
-    .hero-inner {
+.hero-inner {
       position: relative; z-index: 1;
       display: grid; grid-template-columns: 1fr 1fr;
       align-items: center; gap: 64px;
     }
+    /* Allow hero grid items to shrink below their content so the hero
+       (and the campus selector) never overflow on small screens. */
+    .hero-content, .hero-visual { min-width: 0; }
+    .hero-content { max-width: 100%; }
     .hero-badge {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--surface-2); border: 1px solid var(--accent-border);
@@ -535,10 +539,20 @@ Free for personal and commercial use
       flex: 1 1 100%;
     }
 @media (max-width: 540px) {
+      .uni-search-wrap {
+        min-width: 0;
+        width: 100%;
+      }
+      .uni-search-wrap .uni-selector {
+        min-width: 0;
+        width: 100%;
+      }
       .uni-search-box {
         flex: 1 1 100%;
         flex-wrap: wrap;
         padding: 6px;
+        min-width: 0;
+        width: 100%;
       }
       .uni-search-input {
         flex: 1 1 100%;
