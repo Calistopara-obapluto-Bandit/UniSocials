@@ -14,7 +14,7 @@
 - [x] tickets.html (ticketUniversity)
 
 ### Step 4: Git commit & push
-- [ ] Commit all changes and push to origin/main
+- [x] Commit all changes and push to origin/main (commit f8bf275)
 
 ### Step 5: Deploy to Render
 - [ ] Deploy to Render (via GitHub connection)
