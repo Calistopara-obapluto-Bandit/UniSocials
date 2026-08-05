@@ -255,9 +255,58 @@ Free for personal and commercial use
       box-shadow: 0 3px 12px rgba(27,94,32,0.25);
       transition: background 0.3s, transform 0.3s;
     }
-    .nav-mobile-signin:hover {
+.nav-mobile-signin:hover {
       background: var(--accent-mid);
       transform: scale(1.03);
+    }
+    /* Mobile top-bar auth cluster (sign-in / account + logout). Shown ≤768px. */
+    .nav-mobile-auth {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      margin-right: 8px;
+    }
+    .nav-mobile-logout {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      color: var(--text-3);
+      font-size: 0.95rem;
+      font-weight: 700;
+      background: var(--surface-2);
+      text-decoration: none;
+      transition: border-color 0.3s, color 0.3s, background 0.3s;
+      flex-shrink: 0;
+    }
+    .nav-mobile-logout:hover {
+      color: #B71C1C;
+      border-color: #F5C6CB;
+      background: #FDECEA;
+    }
+    /* Logout link inside the mobile menu */
+    .mobile-menu-logout {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #B71C1C;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      padding: 12px 0;
+      border-radius: 100px;
+      max-width: 220px;
+      width: 100%;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.3s, color 0.3s;
+    }
+    .mobile-menu-logout:hover {
+      background: #B71C1C;
+      color: #fff;
     }
     .btn-ghost {
       font-size: 0.875rem; font-weight: 500; color: var(--text-2);
@@ -485,9 +534,10 @@ Free for personal and commercial use
       min-width: 240px;
       flex: 1 1 100%;
     }
-    @media (max-width: 540px) {
+@media (max-width: 540px) {
       .uni-search-box { flex: 1 1 100%; }
-      .uni-search-btn { flex: 1 1 100%; justify-content: center; }
+      .uni-search-btn { flex: 0 0 auto; justify-content: center; }
+      .uni-search-input { font-size: 0.8rem; }
     }
     .btn-primary-lg {
       font-size: 0.9375rem; font-weight: 600; color: #fff;
@@ -942,7 +992,123 @@ Free for personal and commercial use
       white-space: nowrap;
       transition: color 0.3s, border-color 0.3s;
     }
-    .btn-cta-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+.btn-cta-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+
+    /* ══════════════════════════════════════════
+       SUBSCRIBE / NEWSLETTER (Home)
+    ══════════════════════════════════════════ */
+    .subscribe-section {
+      padding: 0 0 80px;
+    }
+    .subscribe-inner {
+      background: var(--surface-2);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius-lg);
+      padding: 48px 40px;
+      text-align: center;
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+    }
+    .subscribe-inner::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(ellipse at center, rgba(102,187,106,0.14) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .subscribe-title {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      color: var(--text-1);
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .subscribe-title em {
+      font-style: italic;
+      font-family: 'Playfair Display', serif;
+      color: var(--accent);
+    }
+    .subscribe-sub {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: var(--text-2);
+      max-width: 520px;
+      margin: 0 auto 28px;
+      position: relative;
+      z-index: 1;
+    }
+    .subscribe-form {
+      display: flex;
+      gap: 10px;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+      flex-wrap: wrap;
+    }
+    .subscribe-input {
+      flex: 1;
+      min-width: 0;
+      padding: 13px 20px;
+      border: 1.5px solid var(--accent-border);
+      border-radius: 100px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      background: var(--bg);
+      color: var(--text-1);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .subscribe-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .subscribe-input::placeholder { color: var(--text-3); }
+    .subscribe-btn {
+      flex-shrink: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      padding: 13px 26px;
+      border-radius: 100px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+      box-shadow: 0 4px 16px rgba(27,94,32,0.25);
+    }
+    .subscribe-btn:hover {
+      background: var(--accent-mid);
+      transform: scale(1.02);
+    }
+    .subscribe-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    .subscribe-status {
+      margin-top: 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      position: relative;
+      z-index: 1;
+      min-height: 1.2em;
+    }
+    @media (max-width: 540px) {
+      .subscribe-inner { padding: 32px 20px; }
+      .subscribe-form { flex-direction: column; }
+      .subscribe-input { width: 100%; }
+      .subscribe-btn { width: 100%; justify-content: center; }
+    }
 
     /* ══════════════════════════════════════════
        FOOTER
@@ -1155,8 +1321,9 @@ Free for personal and commercial use
       .page-header { padding: 90px 0 40px; }
       .container { padding: 0 20px; }
       .nav-inner { padding: 0 20px; }
-      .nav-links, .nav-cta { display: none; }
+.nav-links, .nav-cta { display: none; }
       .nav-hamburger { display: flex; margin-left: 8px; }
+      .nav-mobile-auth { display: inline-flex; align-items: center; }
       .nav-mobile-signin { display: inline-flex; align-items: center; }
       .footer-grid { grid-template-columns: 1fr; }
       .cta-inner { padding: 32px 24px; }

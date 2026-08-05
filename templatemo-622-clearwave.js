@@ -311,25 +311,40 @@ window.UNUniversity = {
       }
     });
 
-    // Mobile top-bar sign-in button — visible on small screens (CSS hides it on desktop).
-    // Injected here so it stays in sync with login/logout state on every page.
+// Mobile top-bar auth cluster — visible on small screens (CSS hides it on desktop).
+    // Shows Sign In when logged out, or the account link + a logout button when
+    // logged in. Injected here so it stays in sync with login/logout state on every page.
     document.querySelectorAll('.nav-inner').forEach(function(inner) {
-      var existing = inner.querySelector('.nav-mobile-signin');
+      var existing = inner.querySelector('.nav-mobile-auth');
       if (existing) existing.remove();
       var user = getCachedUser();
-      var link = document.createElement('a');
-      link.className = 'nav-mobile-signin';
+      var cluster = document.createElement('div');
+      cluster.className = 'nav-mobile-auth';
       if (user) {
-        link.href = 'my-tickets.html';
-        link.title = 'My Tickets';
-        link.textContent = '🎟 ' + esc((user.name || 'Account').split(' ')[0]);
+        var accLink = document.createElement('a');
+        accLink.href = 'my-tickets.html';
+        accLink.title = 'My Tickets';
+        accLink.className = 'nav-mobile-signin';
+        accLink.textContent = '🎟 ' + esc((user.name || 'Account').split(' ')[0]);
+        var logoutBtn = document.createElement('a');
+        logoutBtn.href = '#';
+        logoutBtn.className = 'nav-mobile-logout';
+        logoutBtn.title = 'Log out';
+        logoutBtn.setAttribute('aria-label', 'Log out');
+        logoutBtn.innerHTML = '⎋';
+        logoutBtn.addEventListener('click', function(e) { window.UNNAuth.logout(e); });
+        cluster.appendChild(accLink);
+        cluster.appendChild(logoutBtn);
       } else {
-        link.href = 'login.html';
-        link.textContent = 'Sign In';
+        var signin = document.createElement('a');
+        signin.href = 'login.html';
+        signin.className = 'nav-mobile-signin';
+        signin.textContent = 'Sign In';
+        cluster.appendChild(signin);
       }
       var hamburger = inner.querySelector('.nav-hamburger');
-      if (hamburger) inner.insertBefore(link, hamburger);
-      else inner.appendChild(link);
+      if (hamburger) inner.insertBefore(cluster, hamburger);
+      else inner.appendChild(cluster);
     });
   }
 
@@ -339,7 +354,7 @@ window.UNUniversity = {
     });
   }
 
-  window.UNNAuth.renderNavAccount = renderNavAccount;
+window.UNNAuth.renderNavAccount = renderNavAccount;
   window.UNNAuth.logout = function(e) {
     if (e) e.preventDefault();
     var token = getToken();
@@ -351,11 +366,41 @@ window.UNUniversity = {
     }
     clearAuth();
     renderNavAccount();
+    syncMobileMenuLogout();
     if (window.location.pathname.endsWith('my-tickets.html')) window.location.reload();
   };
 
+  // Inject + sync a "Log out" link inside the mobile menu on every page.
+  // Keeps the in-menu logout consistent with the top-bar logout button.
+  function syncMobileMenuLogout() {
+    var menu = document.getElementById('mobileMenu');
+    if (!menu) return;
+    var existing = menu.querySelector('.mobile-menu-logout');
+    if (!existing) {
+      var link = document.createElement('a');
+      link.href = '#';
+      link.className = 'mobile-menu-logout';
+      link.id = 'mobileMenuLogout';
+      link.textContent = 'Log out';
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.UNNAuth.logout(e);
+        if (menu.classList) menu.classList.remove('open');
+        if (document.body) document.body.style.overflow = '';
+      });
+      menu.appendChild(link);
+      existing = link;
+    }
+    var loggedIn = !!getToken();
+    existing.style.display = loggedIn ? 'block' : 'none';
+  }
+
 // Render on every page load (handles login.html/register.html too)
-  document.addEventListener('DOMContentLoaded', renderNavAccount);
+  document.addEventListener('DOMContentLoaded', function() {
+    renderNavAccount();
+    syncMobileMenuLogout();
+  });
+  window.addEventListener('load', syncMobileMenuLogout);
 })();
 
 /* ── MOBILE MENU ── */

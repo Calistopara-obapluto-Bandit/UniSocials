@@ -1107,10 +1107,17 @@ async function sendEventEmailToSubscriber(sub, ev, type) {
     const to = sub && sub.email;
     if (!to || !ev) return false;
     const site = siteUrl();
-    const isReminder = type === 'reminder';
-    const subject = isReminder
-      ? '⏰ Reminder: ' + ev.name + ' — happening ' + (ev.date || 'soon') + '!'
-      : '🎉 New event on Unisocials: ' + ev.name;
+const isReminder = type === 'reminder' || type === 'today';
+    const isToday = type === 'today';
+    const headline = isToday ? '🎉 Happening Today' : (isReminder ? '⏰ Event Reminder' : '🎉 New Event Announced');
+    const intro = isToday
+      ? 'Great news — this event is happening today!'
+      : (isReminder ? 'Just a reminder that this event is happening:' : 'There is a new event at ' + escapeHtml(ev.universityName || 'your campus') + ':');
+    const subject = isToday
+      ? '🎉 Happening TODAY: ' + ev.name + ' — ' + (ev.date || '') + '!'
+      : isReminder
+        ? '⏰ Reminder: ' + ev.name + ' — happening ' + (ev.date || 'soon') + '!'
+        : '🎉 New event on Unisocials: ' + ev.name;
     const text =
       'Hi ' + (sub.name || 'there') + ',\n\n' +
       (isReminder ? 'This is a friendly reminder that this event is happening:\n\n'
@@ -1122,11 +1129,11 @@ async function sendEventEmailToSubscriber(sub, ev, type) {
       'Price: ₦' + Number(ev.price || 0).toLocaleString() + '\n\n' +
       'Get your tickets: ' + site + '/tickets.html?event=' + encodeURIComponent(ev.id || '') + '\n\n' +
       (isReminder ? 'See you there!\n\nUnisocials Team' : 'Don\'t miss out!\n\nUnisocials Team');
-    const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
-      '<div style="background:' + (isReminder ? '#E65100' : '#1B5E20') + ';color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">' + (isReminder ? '⏰ Event Reminder' : '🎉 New Event Announced') + '</div>' +
+const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:' + (isToday ? '#B71C1C' : (isReminder ? '#E65100' : '#1B5E20')) + ';color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">' + headline + '</div>' +
       '<div style="padding:24px">' +
       '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(sub.name || 'there') + '</strong>,</p>' +
-      '<p style="margin:0 0 16px;color:#475569">' + (isReminder ? 'Just a reminder that this event is happening:' : 'There is a new event at ' + escapeHtml(ev.universityName || 'your campus') + ':') + '</p>' +
+      '<p style="margin:0 0 16px;color:#475569">' + intro + '</p>' +
       '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
       rowHtml('Event', escapeHtml(ev.name)) +
       rowHtml('Category', escapeHtml(ev.category || '—')) +
@@ -1166,10 +1173,13 @@ console.log('Notified ' + sent + ' subscriber(s) about "' + ev.name + '"');
 }
 
 // Weekly reminder job — emails subscribers of events happening within the next 7 days.
+// Events happening TODAY get a special "happening now" reminder so subscribers are
+// pinged the day of the event (in addition to the standard up-to-7-days reminder).
 async function runEventReminders() {
   try {
     const events = await readEvents();
     const now = new Date();
+    const todayKey = now.toDateString();
     const upcoming = events.filter(function(ev) {
       if (!ev.date) return false;
       const d = new Date(ev.date);
@@ -1181,9 +1191,12 @@ async function runEventReminders() {
     const subs = await readSubscribers();
     let sent = 0;
     for (const ev of upcoming) {
+      const evDate = new Date(ev.date);
+      const isToday = !isNaN(evDate) && evDate.toDateString() === todayKey;
+      const type = isToday ? 'today' : 'reminder';
       const matched = subs.filter(s => !ev.universityId || s.universityId === ev.universityId);
       for (const s of matched) {
-        const ok = await sendEventEmailToSubscriber(s, ev, 'reminder');
+        const ok = await sendEventEmailToSubscriber(s, ev, type);
         if (ok) sent++;
       }
     }

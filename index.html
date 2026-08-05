@@ -17,7 +17,7 @@
     <span class="wa-tooltip">Chat with us</span>
   </a>
 
-  <!-- ── MOBILE MENU ── -->
+<!-- ── MOBILE MENU ── -->
   <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
     <a href="index.html">Home</a>
     <a href="events.html">Events</a>
@@ -25,6 +25,7 @@
 <a href="about.html">About</a>
     <a href="contact.html">Contact</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+    <a href="#" class="mobile-menu-logout" id="mobileMenuLogout" style="display:none;">Log out</a>
   </div>
 
   <!-- ── 1. NAV ── -->
@@ -214,6 +215,21 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         </div>
       </div>
     </div>
+</section>
+
+  <!-- ── NEWSLETTER / SUBSCRIBE ── -->
+  <section class="subscribe-section">
+    <div class="container">
+      <div class="subscribe-inner reveal">
+        <h2 class="subscribe-title">Get notified when <em>events go live</em></h2>
+        <p class="subscribe-sub">Pick your campus and we'll email you the moment a new event is announced — plus reminders before it happens.</p>
+        <form class="subscribe-form" id="subscribeForm" novalidate>
+          <input type="email" id="subscribeEmail" class="subscribe-input" placeholder="Your email address" required />
+          <button type="submit" class="subscribe-btn" id="subscribeBtn">🔔 Notify me</button>
+        </form>
+        <p class="subscribe-status" id="subscribeStatus"></p>
+      </div>
+    </div>
   </section>
 
   <!-- ── FOOTER ── -->
@@ -379,13 +395,74 @@ homeUni.addEventListener('change', function() {
               if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
               if (window.onUniversityChange) window.onUniversityChange();
             });
-            // Enable the searchable university selector (search box + button).
+// Enable the searchable university selector (search box + button).
             if (window.UNUniversitySearch) window.UNUniversitySearch(homeUni);
           })
           .catch(function() {});
       }
 
       loadFeatured();
+    })();
+
+    // ── Mobile menu logout ──
+    (function() {
+      var menuLogout = document.getElementById('mobileMenuLogout');
+      var menu = document.getElementById('mobileMenu');
+      function sync() {
+        if (!menuLogout) return;
+        var loggedIn = window.UNNAuth && window.UNNAuth.isLoggedIn();
+        menuLogout.style.display = loggedIn ? 'block' : 'none';
+      }
+      if (menuLogout) {
+        menuLogout.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (window.UNNAuth) window.UNNAuth.logout(e);
+          if (menu && menu.classList) menu.classList.remove('open');
+          if (document.body) document.body.style.overflow = '';
+        });
+      }
+      document.addEventListener('DOMContentLoaded', sync);
+      window.addEventListener('load', sync);
+    })();
+
+    // ── Newsletter / subscribe box ──
+    (function() {
+      var form = document.getElementById('subscribeForm');
+      if (!form) return;
+      var email = document.getElementById('subscribeEmail');
+      var btn = document.getElementById('subscribeBtn');
+      var status = document.getElementById('subscribeStatus');
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var val = email ? email.value.trim() : '';
+        if (!val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          if (status) { status.textContent = '⚠️ Please enter a valid email address.'; status.style.color = 'var(--unn-gold)'; }
+          return;
+        }
+        var uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+        if (!uni) {
+          if (status) { status.textContent = '⚠️ Please select your campus above first.'; status.style.color = 'var(--unn-gold)'; }
+          return;
+        }
+        if (btn) { btn.disabled = true; btn.textContent = 'Subscribing…'; }
+        if (!window.UNNotify) {
+          if (status) { status.textContent = '⚠️ Subscription is unavailable right now.'; status.style.color = 'var(--unn-gold)'; }
+          if (btn) { btn.disabled = false; btn.textContent = '🔔 Notify me'; }
+          return;
+        }
+        window.UNNotify.subscribe(val, uni.id || uni.slug, uni.name)
+          .then(function() {
+            if (status) { status.textContent = '✅ You\'re subscribed! We\'ll email you about events at ' + (uni.name || 'your campus') + '.'; status.style.color = 'var(--accent)'; }
+            if (email) email.value = '';
+          })
+          .catch(function() {
+            if (status) { status.textContent = '⚠️ Could not subscribe. Please try again.'; status.style.color = 'var(--unn-gold)'; }
+          })
+          .then(function() {
+            if (btn) { btn.disabled = false; btn.textContent = '🔔 Notify me'; }
+          });
+      });
     })();
   </script>
 </body>
