@@ -12,4 +12,4 @@
 - [x] Verify admin event-adding works (tested POST/DELETE /api/admin/events with universityId + universitySlug)
 - [x] Confirm server runs and `/api/universities` + `/api/events` respond correctly
 - [x] Commit changes and push to git
-- [ ] Deploy to Render (auto via render.yaml branch main)
+- [x] Push to main triggered auto-deploy on Render (render.yaml branch: main)
