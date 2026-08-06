@@ -4,7 +4,9 @@
   "description": "Unisocials — Event Ticket Selling Platform for University of Nigeria (Flutterwave-only, accounts, per-ticket QR codes, PostgreSQL persistence)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:min": "node build.js",
+    "build": "node build.js"
   },
   "engines": {
     "node": ">=18"
@@ -21,6 +23,8 @@
   "license": "MIT",
   "dependencies": {
     "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "terser": "^5.49.2"
   }
 }
-

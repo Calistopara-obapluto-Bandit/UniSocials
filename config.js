@@ -15,13 +15,16 @@ window.SITE_CONFIG = {
   // WhatsApp number that receives ticket orders & contact form messages
   WHATSAPP_ORDER_NUMBER: '2348122104576',
 
-  // Flutterwave public key — used for the inline payment checkout
-  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X',
+// Flutterwave public key — used for the inline payment checkout.
+  // NOTE: This is served dynamically by server.js from the FLUTTERWAVE_PUBLIC_KEY
+  // environment variable for production. The placeholder below is only a local fallback.
+  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
 
   // Flutterwave secret key — NEVER exposed to the browser. Used ONLY server-side
   // (server.js) to verify transactions so payments can't be faked/tampered with.
   // Get yours at https://dashboard.flutterwave.com → Settings → API Keys
-  FLUTTERWAVE_SECRET_KEY: 'FLWSECK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
+  // ⚠️ SECURITY: This must NOT contain a real key. It is provided via env vars only.
+  FLUTTERWAVE_SECRET_KEY: '',
 
   // Flutterwave bank account details (Bank Transfer payment)
   FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',

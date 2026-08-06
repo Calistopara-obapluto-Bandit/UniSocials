@@ -16,24 +16,24 @@ services:
       # Example value:
       #   DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
       # If DATABASE_URL is not set, the server falls back to JSON files in ./data.
+      #
+      # ⚠️ ALL SECRETS (Flutterwave keys, webhook hash, admin password, email API
+      # keys) are intentionally NOT committed. They must be set in the Render
+      # dashboard → Environment → Env Vars. This keeps them out of the repo and
+      # out of git history. See .env.example for the full list of variables.
       # ─────────────────────────────────────────────────────────────────────────
       - key: WHATSAPP_FLOAT_NUMBER
         value: 2348122104576
       - key: WHATSAPP_ORDER_NUMBER
         value: 2348122104576
-      - key: ADMIN_PASSWORD
-        value: CHANGE_ME_STRONG_PASSWORD
-      - key: FLUTTERWAVE_SECRET_KEY
-        value: FSTOU9su2xlF8UU8wU05kNvqEbI8v47S
+
+      # Non-secret public values (safe to commit)
       - key: FLUTTERWAVE_PUBLIC_KEY
-        value: FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X
+        sync: false
       - key: FLUTTERWAVE_BANK_NAME
         value: Flutterwave MfB (formerly ok mfb)
       - key: FLUTTERWAVE_ACCOUNT_NUMBER
         value: "9707788756"
-      # Flutterwave webhook secret hash (Dashboard → Settings → Webhooks)
-      - key: FLUTTERWAVE_WEBHOOK_HASH
-        value: Soludo123@
       - key: SITE_URL
         value: https://unisocials.onrender.com
       - key: CONTACT_EMAIL
@@ -44,24 +44,16 @@ services:
         value: https://unisocials.onrender.com/thank-you.html
 
       # ─────────────────────────────────────────────────────────────────────────
-      # EMAIL NOTIFICATIONS
-      #   • ADMIN_EMAIL gets an instant alert for every new order awaiting payment
-      #     verification AND for every confirmed payment (sent via Resend — works
-      #     because it only needs to reach YOUR inbox).
-      #   • Buyer gets a confirmation email with their ticket QR links. Sent via
-      #     BREVO (free tier, NO domain required — you only verify a sender email
-      #     address at https://app.brevo.com → Senders) so tickets reach clients.
-      #
-      # ⚠️ SECURITY: Set these in the Render dashboard (Environment → Env Vars),
-      #    never in the repo — GitHub secret scanning rejects live API keys.
-      #    See local .env / .env.example for the values.
-      #
-      # 👉 REQUIRED (Render dashboard → unisocials → Environment → Env Vars):
-      #    RESEND_API_KEY      = your Resend key (admin alerts)
-      #    BREVO_API_KEY       = your Brevo SMTP API key (buyer emails — no domain)
-      #    BREVO_SENDER_EMAIL  = the verified sender email (e.g. support.sbiamautos@gmail.com)
-      #    EMAIL_FROM          = Unisocials <onboarding@resend.dev> (Resend fallback)
+      # SECRETS — set these in the Render dashboard (Environment → Env Vars).
+      # They are listed here with sync:false so Render creates empty placeholders
+      # and you paste the real values in the dashboard. NEVER commit live values.
       # ─────────────────────────────────────────────────────────────────────────
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: FLUTTERWAVE_SECRET_KEY
+        sync: false
+      - key: FLUTTERWAVE_WEBHOOK_HASH
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: BREVO_API_KEY
@@ -74,5 +66,5 @@ services:
         value: soludobenedict5@gmail.com
       - key: EMAIL_FROM
         value: Unisocials <onboarding@resend.dev>
-
-
+      - key: DATABASE_URL
+        sync: false

@@ -23,8 +23,9 @@ data/
 .env.*
 !.env.example
 
+# Build artifacts (minified output) — dist only; assets/min is committed so
+# Render serves the obfuscated JS without needing a build step.
+dist/
 
 # Temporary test / helper scripts
 _*.js
-
-

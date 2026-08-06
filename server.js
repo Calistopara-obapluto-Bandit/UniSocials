@@ -634,16 +634,19 @@ async function isAdminOrSubadmin(req) {
   return null;
 }
 
-// Default configuration values (overridden by environment variables on Render)
+// Default configuration values (overridden by environment variables on Render).
+// ⚠️ SECURITY: NO live secrets are stored here. All secret values (Flutterwave
+// secret key, webhook hash, admin password, API keys) MUST be provided via
+// environment variables (set in the Render dashboard / local .env). See .env.example.
 const defaults = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
   WHATSAPP_ORDER_NUMBER: '2348122104576',
-  ADMIN_PASSWORD: 'admin1234',
-  FLUTTERWAVE_SECRET_KEY: 'FSTOU9su2xlF8UU8wU05kNvqEbI8v47S',
-  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-30d580ee6aef13a294e26a8c1145dc58-X',
+  ADMIN_PASSWORD: 'CHANGE_ME_STRONG_PASSWORD',
+  FLUTTERWAVE_SECRET_KEY: '',
+  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
   FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
   FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
-  FLUTTERWAVE_WEBHOOK_HASH: 'Soludo123@',
+  FLUTTERWAVE_WEBHOOK_HASH: '',
   SITE_URL: 'https://unisocials.onrender.com',
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
   FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
@@ -691,8 +694,50 @@ const MIME_TYPES = {
   '.map': 'application/json; charset=utf-8'
 };
 
+// ────────────────────────────────────────────
+// SECURITY HARDENING
+// ────────────────────────────────────────────
+// Security headers applied to every response.
+function securityHeaders() {
+  return {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+  };
+}
+
+// Very small in-memory rate limiter for sensitive endpoints (auth).
+// Keyed by IP + route. Returns true if the request is allowed.
+const rateBuckets = new Map();
+function rateLimit(req, route, limit, windowMs) {
+  const ip = req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : (req.socket && req.socket.remoteAddress) || 'unknown';
+  const key = ip + '|' + route;
+  const now = Date.now();
+  const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + windowMs };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + windowMs;
+  }
+  bucket.count++;
+  rateBuckets.set(key, bucket);
+  // Guard against unbounded growth
+  if (rateBuckets.size > 10000) {
+    const cutoff = Date.now() - 15 * 60 * 1000;
+    for (const [k, b] of rateBuckets) {
+      if (b.resetAt < cutoff) rateBuckets.delete(k);
+    }
+  }
+  return { allowed: bucket.count <= limit, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+}
+
+// Apply security headers to a plain header object.
+function withSecurityHeaders(headers) {
+  return Object.assign({}, headers, securityHeaders());
+}
+
 function sendJson(res, status, obj) {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.writeHead(status, withSecurityHeaders({ 'Content-Type': 'application/json' }));
   res.end(JSON.stringify(obj));
 }
 
@@ -1241,8 +1286,14 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // ── AUTH: Register ──
+// ── AUTH: Register (rate-limited) ──
     if (pathname === '/api/auth/register' && req.method === 'POST') {
+      const rl = rateLimit(req, 'register', 5, 60000); // 5/min per IP
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1273,8 +1324,14 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
-    // ── AUTH: Login ──
+// ── AUTH: Login (rate-limited) ──
     if (pathname === '/api/auth/login' && req.method === 'POST') {
+      const rl = rateLimit(req, 'login', 10, 60000); // 10/min per IP
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1352,8 +1409,14 @@ const user = {
       return sendJson(res, 200, { success: true });
     }
 
-    // ── AUTH: Forgot password (request OTP) ──
+// ── AUTH: Forgot password (request OTP) (rate-limited) ──
     if (pathname === '/api/auth/forgot' && req.method === 'POST') {
+      const rl = rateLimit(req, 'forgot', 3, 60000); // 3/min per IP
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1390,8 +1453,14 @@ const user = {
       return sendJson(res, 200, { success: true, message: 'If that email is registered, an OTP has been sent.' });
     }
 
-    // ── AUTH: Verify OTP (returns a one-time reset token) ──
+// ── AUTH: Verify OTP (returns a one-time reset token) (rate-limited) ──
     if (pathname === '/api/auth/verify-otp' && req.method === 'POST') {
+      const rl = rateLimit(req, 'verify-otp', 5, 60000); // 5/min per IP
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
