@@ -678,16 +678,10 @@
     <!-- ── LOGIN SCREEN ── -->
     <div class="admin-login-wrap" id="loginScreen">
       <div class="admin-login-card reveal visible">
-        <div class="admin-login-icon">🔐</div>
+<div class="admin-login-icon">🔐</div>
         <h2>Admin Access</h2>
-<p>Enter your admin password, or sign in with a sub-admin account to manage check-in &amp; events.</p>
+<p>Enter your admin password to manage orders, check-in, events &amp; more.</p>
         <div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
-
-        <!-- ── Login mode toggle ── -->
-        <div style="display:flex;gap:8px;margin-bottom:18px;">
-          <button type="button" class="admin-filter-btn active" id="loginModeAdmin" onclick="setLoginMode('admin')">🔐 Admin Password</button>
-          <button type="button" class="admin-filter-btn" id="loginModeSub" onclick="setLoginMode('sub')">👤 Sub-Admin</button>
-        </div>
 
         <!-- Master admin login -->
         <form id="loginForm" onsubmit="adminLogin(event)">
@@ -695,16 +689,12 @@
             <label for="adminPassword">Admin Password</label>
             <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="current-password" />
           </div>
-          <div class="form-group" id="subEmailGroup" style="display:none;">
-            <label for="subAdminEmail">Sub-Admin Email</label>
-            <input type="email" id="subAdminEmail" placeholder="subadmin@email.com" autocomplete="email" />
-          </div>
-          <div class="form-group" id="subPwdGroup" style="display:none;">
-            <label for="subAdminPassword">Password</label>
-            <input type="password" id="subAdminPassword" placeholder="Enter sub-admin password" autocomplete="current-password" />
-          </div>
           <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
         </form>
+
+        <p style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
+          Are you a sub-admin? <a href="subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sub-Admin Dashboard</a>
+        </p>
       </div>
     </div>
 
@@ -949,57 +939,7 @@ var loginScreen = document.getElementById('loginScreen');
       var notifBadge = document.getElementById('notifBadge');
       var notifCount = document.getElementById('notifCount');
 
-      // Role-based access: 'admin' (full) or 'subadmin' (check-in + events only)
-      var currentRole = 'admin';
-      var currentUser = null;
-      var SUB_KEY = 'unn_subadmin_token';
-      var SUB_USER_KEY = 'unn_subadmin_user';
-
-      function getSubToken() {
-        try { return localStorage.getItem(SUB_KEY) || ''; } catch(e) { return ''; }
-      }
-      function setSubAuth(token, user) {
-        try {
-          if (token) localStorage.setItem(SUB_KEY, token);
-          if (user) localStorage.setItem(SUB_USER_KEY, JSON.stringify(user));
-        } catch(e) {}
-      }
-      function getSubUser() {
-        try {
-          var raw = localStorage.getItem(SUB_USER_KEY);
-          return raw ? JSON.parse(raw) : null;
-        } catch(e) { return null; }
-      }
-      function clearSubAuth() {
-        try {
-          localStorage.removeItem(SUB_KEY);
-          localStorage.removeItem(SUB_USER_KEY);
-        } catch(e) {}
-      }
-
-      // Switch between master-admin and sub-admin login modes
-      window.setLoginMode = function(mode) {
-        var adminBtn = document.getElementById('loginModeAdmin');
-        var subBtn = document.getElementById('loginModeSub');
-        var adminPwd = document.getElementById('adminPwdGroup');
-        var subEmail = document.getElementById('subEmailGroup');
-        var subPwd = document.getElementById('subPwdGroup');
-        if (mode === 'sub') {
-          if (adminBtn) adminBtn.classList.remove('active');
-          if (subBtn) subBtn.classList.add('active');
-          if (adminPwd) adminPwd.style.display = 'none';
-          if (subEmail) subEmail.style.display = '';
-          if (subPwd) subPwd.style.display = '';
-        } else {
-          if (adminBtn) adminBtn.classList.add('active');
-          if (subBtn) subBtn.classList.remove('active');
-          if (adminPwd) adminPwd.style.display = '';
-          if (subEmail) subEmail.style.display = 'none';
-          if (subPwd) subPwd.style.display = 'none';
-        }
-      };
-
-      function fmtN(n) {
+function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
       function fmtDate(iso) {
@@ -1118,129 +1058,33 @@ var loginScreen = document.getElementById('loginScreen');
         .catch(function() {});
       }
 
-// Return the active auth token based on the current role
-      function getActiveToken() {
-        return currentRole === 'subadmin' ? getSubToken() : getToken();
-      }
-
-      // Return auth headers for API calls based on current role
+// Return auth headers for API calls (master admin only)
       function authHeaders(extra) {
         var h = extra || {};
-        var t = getActiveToken();
+        var t = getToken();
         if (t) h['Authorization'] = 'Bearer ' + t;
         if (!h['Content-Type']) h['Content-Type'] = 'application/json';
         return h;
       }
 
-      // Determine which login mode is currently selected
-      function getLoginMode() {
-        var adminBtn = document.getElementById('loginModeAdmin');
-        if (adminBtn && adminBtn.classList.contains('active')) return 'admin';
-        return 'sub';
-      }
+      // Login handler (exposed to form onsubmit) — master admin only
+      window.adminLogin = function(e) {
+        e.preventDefault();
 
-      // Apply role-based visibility of tabs
-      function applyRoleUI() {
-        var isSub = currentRole === 'subadmin';
-var tabs = {
-          overview: document.querySelector('.admin-tab[data-tab="overview"]'),
-          checkin: document.querySelector('.admin-tab[data-tab="checkin"]'),
-          events: document.querySelector('.admin-tab[data-tab="events"]'),
-          universities: document.querySelector('.admin-tab[data-tab="universities"]'),
-          subscribers: document.querySelector('.admin-tab[data-tab="subscribers"]'),
-          subadmins: document.querySelector('.admin-tab[data-tab="subadmins"]')
-        };
-        // Sub-admins: only Check-in + Events
-        if (tabs.overview) tabs.overview.style.display = isSub ? 'none' : '';
-        if (tabs.checkin) tabs.checkin.style.display = isSub ? '' : '';
-        if (tabs.events) tabs.events.style.display = isSub ? '' : '';
-        if (tabs.universities) tabs.universities.style.display = isSub ? 'none' : '';
-        if (tabs.subscribers) tabs.subscribers.style.display = isSub ? 'none' : '';
-        if (tabs.subadmins) tabs.subadmins.style.display = isSub ? 'none' : '';
-        // Hide the notification badge for sub-admins (no order access)
-        if (notifBadge) notifBadge.style.display = isSub ? 'none' : 'inline-flex';
-        // Sub-admin management is only shown to the master admin
-        if (currentRole === 'admin') loadSubAdmins();
-        // Default to the check-in tab for sub-admins
-        if (isSub) switchTab('checkin');
-      }
-
-      // Login handler (exposed to form onsubmit)
-    window.adminLogin = function(e) {
-      e.preventDefault();
-
-      // Determine intended role
-      var mode = getLoginMode();
-
-// If already logged in with this role, just continue
-      if ((mode === 'sub' && getSubToken()) || (mode === 'admin' && getToken())) {
-        currentRole = mode === 'sub' ? 'subadmin' : 'admin';
-        currentUser = mode === 'sub' ? getSubUser() : null;
-        showLoggedIn();
-        applyRoleUI();
-        if (currentRole === 'admin') { loadOrders(); pollUnseen(); }
-        else { loadManagedEvents(); loadManagedUniversities(); }
-        return;
-      }
-
-      var errBox = document.getElementById('loginError');
-      var btn = document.getElementById('loginBtn');
-      btn.disabled = true;
-      btn.textContent = 'Verifying…';
-
-if (mode === 'sub') {
-        // ── Sub-admin login ──
-        var email = (document.getElementById('subAdminEmail') ? document.getElementById('subAdminEmail').value : '').trim();
-        var spwd = (document.getElementById('subAdminPassword') ? document.getElementById('subAdminPassword').value : '').trim();
-        if (!email || !spwd) {
-          errBox.textContent = 'Enter your sub-admin email and password.';
-          errBox.classList.add('show');
-          btn.disabled = false;
-          btn.textContent = 'Login to Dashboard';
+        // If already logged in, just continue
+        if (getToken()) {
+          showLoggedIn();
+          loadOrders();
+          pollUnseen();
           return;
         }
-fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, password: spwd })
-        })
-        .then(function(res) {
-          if (res.status === 401) throw new Error('unauthorized');
-          if (!res.ok) throw new Error('network');
-          return res.json();
-        })
-        .then(function(data) {
-          if (!data || !data.success || !data.token) throw new Error('unauthorized');
-          // Only sub-admin accounts may use this login mode
-          if (!data.user || data.user.role !== 'subadmin') throw new Error('not-subadmin');
-          setSubAuth(data.token, data.user);
-          currentRole = 'subadmin';
-          currentUser = data.user;
-          errBox.classList.remove('show');
-          showLoggedIn();
-          applyRoleUI();
-          loadManagedEvents();
-          loadManagedUniversities();
-        })
-        .catch(function(err) {
-          if (err.message === 'not-subadmin') {
-            errBox.textContent = 'This account is not a sub-admin. Use the Admin Password mode instead.';
-            errBox.classList.add('show');
-          } else if (err.message === 'unauthorized') {
-            errBox.textContent = 'Incorrect sub-admin credentials.';
-            errBox.classList.add('show');
-          } else {
-            errBox.textContent = 'Cannot reach server. Check that the site is running.';
-            errBox.classList.add('show');
-          }
-          btn.disabled = false;
-          btn.textContent = 'Login to Dashboard';
-        });
-        return;
-      }
 
-      // ── Master admin login ──
-      var pwd = (document.getElementById('adminPassword') ? document.getElementById('adminPassword').value : '').trim();
+        var errBox = document.getElementById('loginError');
+        var btn = document.getElementById('loginBtn');
+        btn.disabled = true;
+        btn.textContent = 'Verifying\u2026';
+
+        var pwd = (document.getElementById('adminPassword') ? document.getElementById('adminPassword').value : '').trim();
         if (!pwd) {
           errBox.textContent = 'Enter your admin password.';
           errBox.classList.add('show');
@@ -1265,12 +1109,8 @@ fetch('/api/auth/login', {
         })
         .then(function(data) {
           setToken(pwd);
-          currentRole = 'admin';
-          currentUser = null;
-          clearSubAuth();
           errBox.classList.remove('show');
           showLoggedIn();
-          applyRoleUI();
           lastUnseenCount = (data && data.unseenCount) || 0;
           loadOrders();
           pollUnseen();
@@ -1286,15 +1126,8 @@ fetch('/api/auth/login', {
 
       logoutBtn.addEventListener('click', function() {
         clearToken();
-        clearSubAuth();
-        currentRole = 'admin';
-        currentUser = null;
         showLoggedOut();
         if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
-        setLoginMode('admin');
-        // Restore all tabs visible for next login
-        var tabBtns = document.querySelectorAll('.admin-tab');
-        for (var i = 0; i < tabBtns.length; i++) tabBtns[i].style.display = '';
       });
 
       // Set filter (exposed)
@@ -2228,23 +2061,11 @@ fetch('/api/admin/events/notify', {
       });
       window.switchTab = switchTab;
 
-// Initial state — restore either the master-admin (sessionStorage) OR the
-      // sub-admin (localStorage) session so a logged-in sub-admin stays logged in
-      // even after a page reload.
+// Initial state — restore the master-admin (sessionStorage) session if present.
       if (getToken()) {
-        currentRole = 'admin';
-        currentUser = null;
         showLoggedIn();
-        applyRoleUI();
         loadOrders();
         pollUnseen();
-      } else if (getSubToken()) {
-        currentRole = 'subadmin';
-        currentUser = getSubUser();
-        showLoggedIn();
-        applyRoleUI();
-        loadManagedEvents();
-        loadManagedUniversities();
       } else {
         showLoggedOut();
       }
