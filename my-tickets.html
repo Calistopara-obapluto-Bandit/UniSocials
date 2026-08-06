@@ -304,7 +304,15 @@
       return links;
     }
 
-    window.lookupOrder = function() {
+window.lookupOrder = function() {
+      // Require sign-in before returning any ticket codes.
+      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
+      if (!token) {
+        var next = window.location.pathname;
+        window.location.href = 'login.html?next=' + encodeURIComponent(next);
+        return;
+      }
+
       var orderId = document.getElementById('lookupOrderId').value.trim();
       var phone = document.getElementById('lookupPhone').value.trim();
       var errBox = document.getElementById('lookupError');
@@ -325,7 +333,7 @@
 
       fetch('/api/orders/lookup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: window.UNNAuth.authHeaders(),
         body: JSON.stringify({ orderId: orderId, phone: phone })
       })
       .then(function(res) { return res.json(); })

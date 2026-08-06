@@ -333,7 +333,7 @@
       var orderId = params.get('orderId') || '';
       var code = params.get('code') || '';
 
-      var ticketError = document.getElementById('ticketError');
+var ticketError = document.getElementById('ticketError');
       var ticketCard = document.getElementById('ticketCard');
       var ticketCode = document.getElementById('ticketCode');
       var ticketEventName = document.getElementById('ticketEventName');
@@ -348,6 +348,15 @@
       var ticketQrWrap = document.getElementById('ticketQrWrap');
       var ticketUsedBanner = document.getElementById('ticketUsedBanner');
       var ticketUsedAt = document.getElementById('ticketUsedAt');
+
+      // Require sign-in to view a ticket. If not logged in, send them to the
+      // login page and return them here with the same link after signing in.
+      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
+      if (!token) {
+        var next = window.location.pathname + window.location.search;
+        window.location.href = 'login.html?next=' + encodeURIComponent(next);
+        return;
+      }
 
       function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
@@ -435,7 +444,9 @@
         return;
       }
 
-      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code))
+      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code), {
+          headers: window.UNNAuth.authHeaders()
+        })
         .then(function(res) { return res.json(); })
         .then(function(data) {
           if (data && data.success && data.ticket) {

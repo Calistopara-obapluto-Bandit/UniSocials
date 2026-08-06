@@ -346,8 +346,10 @@
         if (verifiedActions) verifiedActions.style.display = 'none';
       }
 
-      function checkStatus() {
-        fetch('/api/orders/status?orderId=' + encodeURIComponent(orderId))
+function checkStatus() {
+        fetch('/api/orders/status?orderId=' + encodeURIComponent(orderId), {
+          headers: window.UNNAuth.authHeaders()
+        })
           .then(function(res) { return res.json(); })
           .then(function(data) {
             if (!data || !data.success || !data.order) return;

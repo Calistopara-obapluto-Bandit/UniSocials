@@ -614,11 +614,24 @@ function verifyPassword(pw, stored) {
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+}
 function isAdminAuthorized(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const expected = process.env.ADMIN_PASSWORD !== undefined ? process.env.ADMIN_PASSWORD : defaults.ADMIN_PASSWORD;
   return !!token && token === expected;
+}
+// Authorize either the master admin password OR a logged-in sub-admin account.
+// Sub-admins have limited privileges (check-in + add events).
+async function isAdminOrSubadmin(req) {
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const user = await getSessionUser(token);
+  if (user && user.role === 'subadmin') return { role: 'subadmin', user: user };
+  return null;
 }
 
 // Default configuration values (overridden by environment variables on Render)
@@ -1245,12 +1258,13 @@ const server = http.createServer(async (req, res) => {
       if (existing) {
         return sendJson(res, 409, { success: false, error: 'An account with this email already exists. Please log in.' });
       }
-      const user = {
+const user = {
         id: 'USR-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
         name: name,
         email: email,
         phone: phone,
         passwordHash: hashPassword(password),
+        role: 'buyer',
         createdAt: new Date().toISOString()
       };
       await addUser(user);
@@ -1278,12 +1292,168 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
+    // ── Admin (master only): list sub-admin accounts ──
+    if (pathname === '/api/admin/subadmins' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const subs = users.filter(u => u.role === 'subadmin').map(publicUser);
+      return sendJson(res, 200, { success: true, subadmins: subs });
+    }
+
+    // ── Admin (master only): create a sub-admin account ──
+    if (pathname === '/api/admin/subadmins' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      if (!name || !email || password.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) {
+        return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      }
+      const sub = {
+        id: 'SUB-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name: name,
+        email: email,
+        phone: '',
+        passwordHash: hashPassword(password),
+        role: 'subadmin',
+        createdAt: new Date().toISOString()
+      };
+      await addUser(sub);
+      return sendJson(res, 200, { success: true, subadmin: publicUser(sub) });
+    }
+
+    // ── Admin (master only): remove a sub-admin account ──
+    if (pathname === '/api/admin/subadmins' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 404, { success: false, error: 'Sub-admin not found' });
+      }
+      const users = await readUsers();
+      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
+    }
+
     // ── AUTH: Logout ──
     if (pathname === '/api/auth/logout' && req.method === 'POST') {
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       if (token) await deleteSession(token);
       return sendJson(res, 200, { success: true });
+    }
+
+    // ── AUTH: Forgot password (request OTP) ──
+    if (pathname === '/api/auth/forgot' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Please enter your email address.' });
+
+      const user = await findUserByEmail(email);
+      // Always return success to avoid leaking which emails are registered.
+      if (!user) return sendJson(res, 200, { success: true, message: 'If that email is registered, an OTP has been sent.' });
+
+      const otp = generateOtp();
+      const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+      user.otp = otp;
+      user.otpExpires = otpExpires;
+      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+
+      // Send OTP via Brevo (fallback: log to console for local testing)
+      const subject = 'Your Unisocials password reset OTP';
+      const text = 'Hi ' + (user.name || 'there') + ',\n\nYour password reset OTP is: ' + otp + '\n\nThis code expires in 10 minutes. If you did not request this, please ignore this email.\n\nUnisocials Team';
+      const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+        '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Password Reset</div>' +
+        '<div style="padding:24px">' +
+        '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(user.name || 'there') + '</strong>,</p>' +
+        '<p style="margin:0 0 16px;color:#475569">Use the OTP below to create a new password. It expires in 10 minutes.</p>' +
+        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;text-align:center;font-size:28px;font-weight:800;letter-spacing:0.2em;color:#166534;margin-bottom:16px">' + otp + '</div>' +
+        '<p style="font-size:12px;color:#94a3b8;margin:0">If you did not request this, you can safely ignore this email.</p>' +
+        '</div></div>';
+      const sent = await sendBrevoEmail(email, subject, text, html, user.name || '');
+      if (sent) {
+        console.log('Password reset OTP sent to', email);
+      } else {
+        console.log('OTP for ' + email + ' (no Brevo key — dev fallback):', otp);
+      }
+      return sendJson(res, 200, { success: true, message: 'If that email is registered, an OTP has been sent.' });
+    }
+
+    // ── AUTH: Verify OTP (returns a one-time reset token) ──
+    if (pathname === '/api/auth/verify-otp' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const otp = String(data.otp || '').trim();
+      if (!email || !otp) return sendJson(res, 400, { success: false, error: 'Email and OTP are required.' });
+
+      const user = await findUserByEmail(email);
+      if (!user || !user.otp || !user.otpExpires) {
+        return sendJson(res, 400, { success: false, error: 'No OTP was requested for this email. Please request a new one.' });
+      }
+      if (Date.now() > user.otpExpires) {
+        return sendJson(res, 400, { success: false, error: 'This OTP has expired. Please request a new one.' });
+      }
+      if (String(user.otp) !== String(otp)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid OTP. Please check and try again.' });
+      }
+
+      // Issue a one-time reset token (valid 15 minutes)
+      const resetToken = generateToken();
+      user.resetToken = resetToken;
+      user.resetTokenExpires = Date.now() + 15 * 60 * 1000;
+      user.otp = null;
+      user.otpExpires = null;
+      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+
+      return sendJson(res, 200, { success: true, resetToken: resetToken });
+    }
+
+    // ── AUTH: Reset password (with reset token) ──
+    if (pathname === '/api/auth/reset-password' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const resetToken = String(data.resetToken || '').trim();
+      const newPassword = String(data.password || '');
+      if (!email || !resetToken || newPassword.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Email, reset token, and a password of at least 6 characters are required.' });
+      }
+
+      const user = await findUserByEmail(email);
+      if (!user || !user.resetToken || !user.resetTokenExpires) {
+        return sendJson(res, 400, { success: false, error: 'No password reset was requested. Please start over.' });
+      }
+      if (Date.now() > user.resetTokenExpires) {
+        return sendJson(res, 400, { success: false, error: 'This reset link has expired. Please request a new OTP.' });
+      }
+      if (user.resetToken !== resetToken) {
+        return sendJson(res, 400, { success: false, error: 'Invalid reset token. Please start over.' });
+      }
+
+      user.passwordHash = hashPassword(newPassword);
+      user.resetToken = null;
+      user.resetTokenExpires = null;
+      user.otp = null;
+      user.otpExpires = null;
+      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      // Invalidate all existing sessions so the user must log in again
+      await deleteUserSessions(user.id);
+
+      return sendJson(res, 200, { success: true, message: 'Password updated. You can now sign in with your new password.' });
     }
 
     // ── AUTH: Me (current user + their orders) ──
@@ -1449,12 +1619,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, tx_ref: txRef });
     }
 
-    // ── Public status lookup (pending page) ──
+// ── Order status lookup (pending page) ──
+    // Requires login. The order's ticket codes are only revealed to the
+    // buyer who owns the order (matched by userId or buyerEmail).
     if (pathname === '/api/orders/status') {
       const orderId = String(url.searchParams.get('orderId') || '').trim();
       if (!orderId) return sendJson(res, 400, { success: false, error: 'Missing orderId' });
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user) return sendJson(res, 401, { success: false, error: 'Please sign in to track your order.' });
       const order = await getOrder(orderId);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      const ownsOrder = order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email;
+      if (!ownsOrder) return sendJson(res, 403, { success: false, error: 'You do not have access to this order.' });
       return sendJson(res, 200, {
         success: true,
         order: {
@@ -1475,7 +1653,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ── Buyer order lookup (Order ID + phone) ──
+    // Requires login AND matching the buyer's identity (userId or email).
     if (pathname === '/api/orders/lookup' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user) return sendJson(res, 401, { success: false, error: 'Please sign in to look up your order.' });
+
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1484,8 +1668,12 @@ const server = http.createServer(async (req, res) => {
       if (!orderId || !phone) return sendJson(res, 400, { success: false, error: 'Missing orderId or phone' });
 
       const orders = await readOrders();
-      const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
-      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID and phone number.' });
+      const order = orders.find(o =>
+        o.orderId === orderId &&
+        o.buyerPhone === phone &&
+        (o.userId === user.id || String(o.buyerEmail).toLowerCase() === user.email)
+      );
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID, phone number, and that you are signed in with the account used to buy it.' });
 
       return sendJson(res, 200, {
         success: true,
@@ -1507,13 +1695,21 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ── Get ticket by orderId + code (protected, per-ticket) ──
+    // Requires login AND ownership of the order.
     if (pathname === '/api/ticket' && req.method === 'GET') {
       const orderId = String(url.searchParams.get('orderId') || '').trim();
       const code = String(url.searchParams.get('code') || '').trim();
       if (!orderId || !code) return sendJson(res, 400, { success: false, error: 'Missing orderId or code' });
 
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user) return sendJson(res, 401, { success: false, error: 'Please sign in to view this ticket.' });
+
       const order = await getOrder(orderId);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      const ownsOrder = order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email;
+      if (!ownsOrder) return sendJson(res, 403, { success: false, error: 'You do not have access to this ticket.' });
       if (order.status !== 'verified') {
         return sendJson(res, 403, { success: false, error: 'Order not yet verified', status: order.status });
       }
@@ -1546,9 +1742,10 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // ── Admin: scan ticket at gate (check-in) ──
+// ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1674,9 +1871,10 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, events: events });
     }
 
-    // ── Admin: create/update an event ──
+// ── Admin/Sub-admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1913,6 +2111,7 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     phone: user.phone,
+    role: user.role || 'buyer',
     createdAt: user.createdAt
   };
 }
