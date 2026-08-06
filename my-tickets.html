@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+?<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Tickets â€” Unisocials</title>
+  <title>My Tickets — Unisocials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
@@ -172,25 +172,25 @@
     </div>
   </section>
 
-  <!-- â”€â”€ LOGGED-IN ORDERS â”€â”€ -->
+  <!-- ── LOGGED-IN ORDERS ── -->
   <section class="orders-section" id="ordersSection">
     <div class="container">
       <div id="ordersHeader" style="display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
-        <h2 style="font-size:1.3rem;font-weight:700;color:var(--text-1);">ðŸŽŸ My Orders</h2>
+        <h2 style="font-size:1.3rem;font-weight:700;color:var(--text-1);">🎟 My Orders</h2>
         <button class="btn-cta-ghost" onclick="UNNAuth.logout()" style="display:inline-flex;padding:10px 24px;font-size:0.85rem;cursor:pointer;">Log Out</button>
       </div>
       <div id="ordersList"></div>
     </div>
   </section>
 
-  <!-- â”€â”€ LOOKUP â”€â”€ -->
+  <!-- ── LOOKUP ── -->
   <section class="lookup-section" id="lookupSection">
     <div class="container">
       <div class="auth-prompt" id="authPrompt">
         <strong>Tip:</strong> <a href="login.html" style="color:var(--accent);text-decoration:underline;">Sign in</a> or <a href="register.html" style="color:var(--accent);text-decoration:underline;">create an account</a> to see all your tickets in one place without entering your Order ID.
       </div>
       <div class="lookup-card reveal">
-        <h2>ðŸ” Order Lookup</h2>
+        <h2>🔍 Order Lookup</h2>
         <p>Enter your Order ID and the phone number you used to buy the ticket.</p>
 
         <div class="form-group">
@@ -260,7 +260,7 @@
   </footer>
 
   <script src="config.js"></script>
-  <script src="templatemo-622-clearwave.min.js"></script>
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
   <script>
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -405,7 +405,7 @@ window.lookupOrder = function() {
               '<span class="order-id">' + esc(o.orderId) + '</span>' + orderStatusBadge(o.status) +
             '</div>' +
             '<div class="order-card-title">' + esc(o.eventName || '\u2014') + '</div>' +
-            '<div class="order-card-meta">' + (o.eventDate ? 'ðŸ“… ' + esc(o.eventDate) : '') + (o.eventVenue ? ' &middot; ðŸ“ ' + esc(o.eventVenue) : '') + ' &middot; ' + fmtN(o.amount) + '</div>' +
+            '<div class="order-card-meta">' + (o.eventDate ? '📅 ' + esc(o.eventDate) : '') + (o.eventVenue ? ' &middot; 📍 ' + esc(o.eventVenue) : '') + ' &middot; ' + fmtN(o.amount) + '</div>' +
             '<div class="order-codes">' + ticketLinks(o) + '</div>' +
             '</div>';
         });

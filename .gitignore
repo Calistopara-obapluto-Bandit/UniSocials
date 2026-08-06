@@ -29,3 +29,11 @@ dist/
 
 # Temporary test / helper scripts
 _*.js
+
+# Mojibake backup folder (temporary)
+.mojibake-backup/
+
+# Temporary helper results
+_*result*.txt
+_scan_result.txt
+_remaining_result.txt
