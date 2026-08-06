@@ -1721,13 +1721,17 @@ const user = {
       });
     }
 
-    // ── Buyer order lookup (Order ID + phone) ──
-    // Requires login AND matching the buyer's identity (userId or email).
+// ── Buyer order lookup (Order ID + phone) ──
+    // Allows lookup WITHOUT signing in. The order's basic details (event, date,
+    // venue, qty, amount, status) are returned to anyone who knows the Order ID
+    // and phone. However, the actual ticket codes are ONLY revealed when the
+    // requester is signed in AND owns the order (matched by userId or email).
+    // Viewing a ticket/QR always requires sign-in via /api/ticket.
     if (pathname === '/api/orders/lookup' && req.method === 'POST') {
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      const user = await getSessionUser(token);
-      if (!user) return sendJson(res, 401, { success: false, error: 'Please sign in to look up your order.' });
+      let user = null;
+      if (token) user = await getSessionUser(token);
 
       const body = await readBody(req);
       let data = {};
@@ -1737,30 +1741,29 @@ const user = {
       if (!orderId || !phone) return sendJson(res, 400, { success: false, error: 'Missing orderId or phone' });
 
       const orders = await readOrders();
-      const order = orders.find(o =>
-        o.orderId === orderId &&
-        o.buyerPhone === phone &&
-        (o.userId === user.id || String(o.buyerEmail).toLowerCase() === user.email)
-      );
-      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID, phone number, and that you are signed in with the account used to buy it.' });
+      const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID and phone number.' });
 
-      return sendJson(res, 200, {
-        success: true,
-        order: {
-          orderId: order.orderId,
-          status: order.status,
-          eventName: order.eventName,
-          eventDate: order.eventDate,
-          eventVenue: order.eventVenue,
-          qty: order.qty,
-          amount: order.amount,
-          currency: order.currency,
-          paymentMethod: order.paymentMethod,
-          verifiedAt: order.verifiedAt,
-          ticketCodes: order.ticketCodes || [],
-          ticketCode: order.ticketCode || null
-        }
-      });
+      // If signed in, confirm they own this order before revealing ticket codes.
+      const ownsOrder = user && (order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email);
+
+      const payload = {
+        orderId: order.orderId,
+        status: order.status,
+        eventName: order.eventName,
+        eventDate: order.eventDate,
+        eventVenue: order.eventVenue,
+        qty: order.qty,
+        amount: order.amount,
+        currency: order.currency,
+        paymentMethod: order.paymentMethod,
+        verifiedAt: order.verifiedAt,
+        // Only include ticket codes when the requester is signed in AND owns the order.
+        ticketCodes: ownsOrder ? (order.ticketCodes || []) : [],
+        ticketCode: ownsOrder ? (order.ticketCode || null) : null,
+        requiresSignIn: !ownsOrder
+      };
+      return sendJson(res, 200, { success: true, order: payload });
     }
 
     // ── Get ticket by orderId + code (protected, per-ticket) ──
@@ -1830,7 +1833,7 @@ const user = {
       const idx = codes.findIndex(t => t.code === code);
       if (idx === -1) return sendJson(res, 403, { success: false, error: 'Invalid ticket code' });
 
-      const entry = codes[idx];
+const entry = codes[idx];
       if (entry.used) {
         return sendJson(res, 200, {
           success: true,
@@ -1841,13 +1844,55 @@ const user = {
       }
       entry.used = true;
       entry.usedAt = new Date().toISOString();
+      // Record which staff member performed the check-in (for sub-admin audit).
+      if (authCtx.role === 'subadmin' && authCtx.user) {
+        entry.checkedInBy = authCtx.user.name || authCtx.user.email;
+      } else {
+        entry.checkedInBy = 'Admin';
+      }
       codes[idx] = entry;
       const updated = await patchOrder(orderId, { ticketCodes: codes });
       return sendJson(res, 200, {
         success: true,
         message: '✅ Check-in successful for ' + order.buyerName,
-        ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length }
+        ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length, checkedInBy: entry.checkedInBy }
       });
+    }
+
+    // ── Sub-admin: list the check-ins performed by this sub-admin account ──
+    // Returns a summary of every ticket this sub-admin has scanned (checked-in),
+    // so they can see their own activity. Requires a logged-in sub-admin session
+    // (master admin is NOT allowed here — the admin dashboard has its own view).
+    if (pathname === '/api/subadmin/checkins' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const staffName = user.name || user.email;
+      const orders = await readOrders();
+      const checkins = [];
+      orders.forEach(function(o) {
+        (o.ticketCodes || []).forEach(function(t) {
+          if (t.used && (t.checkedInBy === staffName || t.checkedInBy === user.email)) {
+            checkins.push({
+              orderId: o.orderId,
+              ticketCode: t.code,
+              usedAt: t.usedAt,
+              checkedInBy: t.checkedInBy,
+              eventName: o.eventName,
+              buyerName: o.buyerName,
+              qty: o.qty
+            });
+          }
+        });
+      });
+      // Sort newest first
+      checkins.sort(function(a, b) {
+        return new Date(b.usedAt || 0) - new Date(a.usedAt || 0);
+      });
+      return sendJson(res, 200, { success: true, checkins: checkins, total: checkins.length });
     }
 
     // ── Admin: mark orders seen ──
@@ -1938,6 +1983,58 @@ const user = {
         return sendJson(res, 200, { success: true, events: filtered });
       }
       return sendJson(res, 200, { success: true, events: events });
+    }
+
+    // ── Public site stats (events, tickets sold, faculties) ──
+    // Computed live from the events catalog + verified orders so the home page
+    // counters are always accurate (no hardcoded numbers).
+    if (pathname === '/api/stats' && req.method === 'GET') {
+      const events = await readEvents();
+      const orders = await readOrders();
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      // Events happening this month (parse the event date string)
+      let eventsThisMonth = 0;
+      events.forEach(function(ev) {
+        if (!ev.date) return;
+        const d = new Date(ev.date);
+        if (isNaN(d)) return;
+        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) eventsThisMonth++;
+      });
+
+      // Upcoming events (date >= today)
+      const upcomingEvents = events.filter(function(ev) {
+        if (!ev.date) return false;
+        const d = new Date(ev.date);
+        if (isNaN(d)) return false;
+        return d >= now;
+      }).length;
+
+      // Tickets sold = sum of qty for verified orders
+      let ticketsSold = 0;
+      orders.forEach(function(o) {
+        if (o.status === 'verified') ticketsSold += (parseInt(o.qty) || 0);
+      });
+
+      // Faculties = unique event categories
+      const facultySet = {};
+      events.forEach(function(ev) {
+        if (ev.category) facultySet[String(ev.category).trim()] = true;
+      });
+      const faculties = Object.keys(facultySet).length;
+
+      return sendJson(res, 200, {
+        success: true,
+        stats: {
+          totalEvents: events.length,
+          eventsThisMonth: eventsThisMonth,
+          upcomingEvents: upcomingEvents,
+          ticketsSold: ticketsSold,
+          faculties: faculties
+        }
+      });
     }
 
 // ── Admin/Sub-admin: create/update an event ──

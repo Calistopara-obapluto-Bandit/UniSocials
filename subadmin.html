@@ -368,7 +368,8 @@
     <div class="admin-dash" id="dashboard">
       <div class="admin-tabs">
         <div class="admin-tabs-inner">
-          <button class="admin-tab active" data-tab="checkin">🎫 Check-in</button>
+<button class="admin-tab active" data-tab="checkin">🎫 Check-in</button>
+          <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
         </div>
       </div>
@@ -404,6 +405,41 @@
               <button class="action-btn action-reject" onclick="stopQRScanner()" style="margin-top:8px;font-size:0.78rem;font-weight:600;padding:8px 16px;border-radius:100px;cursor:pointer;background:transparent;color:#B71C1C;border-color:#F5C6CB;border:1.5px solid #F5C6CB;">✕ Stop Camera</button>
             </div>
             <div class="admin-scan-result" id="scanResult"></div>
+          </div>
+        </div>
+
+        <!-- ── MY CHECK-INS / OVERVIEW PANEL ── -->
+        <div class="admin-panel" id="panel-overview">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>📊 My Check-ins Overview</h1>
+              <p>Every ticket you have checked in at the gate, so you can track your own activity.</p>
+            </div>
+            <button class="admin-refresh-btn" onclick="loadMyCheckins()">↻ Refresh</button>
+          </div>
+
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinTotal">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Total Check-ins</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinEvents">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Events</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinLast">—</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Last Check-in</div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px;">
+              <div class="admin-ticket-codes-label">🧾 Checked-in Tickets</div>
+              <input type="text" id="checkinSearch" placeholder="Search ticket or attendee…" style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-size:0.82rem;color:var(--text-1);min-width:220px;" onkeyup="filterCheckins()" />
+            </div>
+
+            <div id="checkinList" class="admin-ticket-codes" style="margin-top:4px;"></div>
           </div>
         </div>
 
@@ -636,6 +672,75 @@
             resultBox.innerHTML = '<div class="scan-result-box error">❌ Network error checking in ticket.</div>';
           }
           showToast('Network error checking in', true);
+        });
+      };
+
+      // ── My Check-ins overview (tickets this sub-admin has scanned) ──
+      var allCheckins = [];
+
+      window.loadMyCheckins = function() {
+        var user = getSubUser();
+        var list = document.getElementById('checkinList');
+        if (list) list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">Loading your check-ins…</div>';
+        fetch('/api/subadmin/checkins', { headers: authHeaders() })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            allCheckins = (data && data.success && data.checkins) || [];
+            renderCheckins();
+          })
+          .catch(function() {
+            if (list) list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">Could not load your check-ins.</div>';
+          });
+      };
+
+      window.renderCheckins = function() {
+        var list = document.getElementById('checkinList');
+        var totalEl = document.getElementById('checkinTotal');
+        var eventsEl = document.getElementById('checkinEvents');
+        var lastEl = document.getElementById('checkinLast');
+        var total = allCheckins.length;
+        if (totalEl) totalEl.textContent = total;
+        var uniqueEvents = {};
+        allCheckins.forEach(function(c) { if (c.eventName) uniqueEvents[c.eventName] = true; });
+        if (eventsEl) eventsEl.textContent = Object.keys(uniqueEvents).length;
+        if (lastEl) {
+          var last = allCheckins[0];
+          if (last && last.usedAt) {
+            var d = new Date(last.usedAt);
+            lastEl.textContent = isNaN(d) ? last.usedAt : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+          } else {
+            lastEl.textContent = '—';
+          }
+        }
+        if (!list) return;
+        if (!total) {
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:0.85rem;">You haven\u2019t checked in any tickets yet.</div>';
+          return;
+        }
+        var html = '';
+        allCheckins.forEach(function(c) {
+          html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;border-bottom:1px dashed var(--border);">' +
+            '<div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;">' +
+              '<span>🎟️</span>' +
+              '<strong>' + esc(c.buyerName || '—') + '</strong>' +
+              '<code style="font-family:monospace;font-weight:700;color:var(--accent);">' + esc(c.ticketCode) + '</code>' +
+              '<span style="font-size:0.78rem;color:var(--text-3);">' + esc(c.eventName || '—') + '</span>' +
+              '<span style="font-size:0.78rem;color:var(--text-3);">' + esc(c.usedAt || '') + '</span>' +
+            '</div>' +
+            '<span style="font-size:0.72rem;font-weight:700;padding:2px 10px;border-radius:100px;background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;align-self:center;">✓</span>' +
+          '</div>';
+        });
+        list.innerHTML = html;
+      };
+
+      window.filterCheckins = function() {
+        var q = (document.getElementById('checkinSearch').value || '').toLowerCase().trim();
+        var list = document.getElementById('checkinList');
+        if (!list) return;
+        if (!q) { renderCheckins(); return; }
+        var rows = list.querySelectorAll('.admin-ticket-code');
+        rows.forEach(function(row) {
+          row.style.display = (row.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
         });
       };
 

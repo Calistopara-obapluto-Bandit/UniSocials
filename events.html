@@ -33,11 +33,34 @@
       color: var(--text-1);
       cursor: pointer;
     }
-    .uni-picker-bar select:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
+.uni-picker-bar select:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
     @media (max-width: 540px) {
       .uni-picker-bar { flex-wrap: wrap; }
       .uni-picker-bar select { flex: 1 1 100%; }
     }
+
+    /* Per-month event summary strip */
+    .events-month-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .month-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-2);
+    }
+    .month-chip .month-name { color: var(--text-1); font-weight: 700; text-transform: capitalize; }
+    .month-chip .month-count { color: var(--accent); font-weight: 700; }
   </style>
 </head>
 <body>
@@ -117,7 +140,8 @@
   <!-- ── EVENTS GRID ── -->
   <section class="events-section">
     <div class="container">
-      <div id="eventsCount" class="events-count reveal">Showing <strong>6</strong> events</div>
+<div id="eventsCount" class="events-count reveal">Showing <strong>6</strong> events</div>
+      <div id="eventsMonthSummary" class="events-month-summary reveal" style="margin-bottom:18px;"></div>
       <div class="events-grid" id="eventsGrid">
 
         <!-- Event 1: Arts Cultural Night -->
@@ -303,7 +327,7 @@
       <div class="cta-inner reveal">
         <div class="cta-content">
           <h2 class="cta-title">Want to host your own event?<br><em>We make it easy.</em></h2>
-          <p class="cta-sub">Faculty associations and student organizations can list and sell tickets on Unisocials at zero cost.</p>
+<p class="cta-sub">Faculty associations and student organizations can list and sell tickets on Unisocials with ease.</p>
         </div>
         <div class="cta-actions">
           <a href="contact.html" class="btn-cta-primary">
@@ -380,8 +404,35 @@
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
         });
       }
-      function fmtN(n) {
+function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+
+      // Render a per-month summary strip (e.g. "March: 4 events · April: 2 events").
+      var monthSummaryEl = document.getElementById('eventsMonthSummary');
+      var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      function renderMonthSummary(events) {
+        if (!monthSummaryEl) return;
+        if (!events || !events.length) { monthSummaryEl.innerHTML = ''; return; }
+        var counts = {};
+        events.forEach(function(ev) {
+          if (!ev.date) return;
+          var d = new Date(ev.date);
+          if (isNaN(d)) return;
+          var key = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        var keys = Object.keys(counts);
+        if (!keys.length) { monthSummaryEl.innerHTML = ''; return; }
+        // Sort by date ascending (most recent months first is nicer for upcoming events).
+        keys.sort(function(a, b) {
+          return new Date(a) - new Date(b);
+        });
+        var html = '<span style="font-size:0.8rem;color:var(--text-3);font-weight:600;margin-right:4px;">By month:</span>';
+        keys.forEach(function(k) {
+          html += '<span class="month-chip"><span class="month-name">' + esc(k) + '</span>&nbsp;·&nbsp;<span class="month-count">' + counts[k] + ' event' + (counts[k] !== 1 ? 's' : '') + '</span></span>';
+        });
+        monthSummaryEl.innerHTML = html;
       }
 
       // Rebuild the category dropdown from the selected university's categories.
@@ -393,7 +444,8 @@
         categorySel.innerHTML = html;
       }
 
-      function renderEvents(events) {
+function renderEvents(events) {
+        renderMonthSummary(events);
         if (!events || !events.length) {
           grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No events available for this campus yet. Check back soon!</p></div>';
           if (countEl) countEl.innerHTML = 'Showing <strong>0</strong> events';

@@ -79,17 +79,17 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
               <option value="">Select your campus…</option>
             </select>
           </div>
-          <div class="hero-stats reveal reveal-delay-4">
+<div class="hero-stats reveal reveal-delay-4">
             <div class="hero-stat">
-              <div class="hero-stat-val">1,200+</div>
+              <div class="hero-stat-val" id="heroTicketsSold">0</div>
               <div class="hero-stat-label">Tickets Sold</div>
             </div>
             <div class="hero-stat">
-              <div class="hero-stat-val">24</div>
+              <div class="hero-stat-val" id="heroUpcomingEvents">0</div>
               <div class="hero-stat-label">Upcoming Events</div>
             </div>
             <div class="hero-stat">
-              <div class="hero-stat-val">6</div>
+              <div class="hero-stat-val" id="heroFaculties">0</div>
               <div class="hero-stat-label">Faculties</div>
             </div>
           </div>
@@ -113,19 +113,19 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
     <div class="container">
       <div class="stats-grid">
         <div class="stat-card reveal">
-          <div class="stat-value"><span class="stat-num" data-target="24">0</span></div>
+          <div class="stat-value"><span class="stat-num" data-target="0" data-stat-gen="eventsThisMonth">0</span></div>
           <div class="stat-label">Events This Month</div>
         </div>
         <div class="stat-card reveal reveal-delay-1">
-          <div class="stat-value"><span class="stat-num" data-target="1200">0</span><span class="stat-suffix">+</span></div>
-          <div class="stat-label">Happy Attendees</div>
+          <div class="stat-value"><span class="stat-num" data-target="0" data-stat-gen="ticketsSold">0</span><span class="stat-suffix">+</span></div>
+          <div class="stat-label">Tickets Sold</div>
         </div>
         <div class="stat-card reveal reveal-delay-2">
-          <div class="stat-value"><span class="stat-num" data-target="6">0</span></div>
+          <div class="stat-value"><span class="stat-num" data-target="0" data-stat-gen="faculties">0</span></div>
           <div class="stat-label">Faculties Participating</div>
         </div>
         <div class="stat-card reveal reveal-delay-3">
-          <div class="stat-value"><span class="stat-num" data-target="15">0</span><span class="stat-suffix">k+</span></div>
+          <div class="stat-value"><span class="stat-num" data-target="15" data-stat-static="1">15</span><span class="stat-suffix">k+</span></div>
           <div class="stat-label">Social Reach</div>
         </div>
       </div>
@@ -204,7 +204,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
       <div class="cta-inner reveal">
         <div class="cta-content">
           <h2 class="cta-title">Want to host an event?<br><em>We make it easy.</em></h2>
-          <p class="cta-sub">Faculty associations and student organizations can create and sell tickets on Unisocials at zero cost.</p>
+<p class="cta-sub">Faculty associations and student organizations can create and sell tickets on Unisocials with ease.</p>
         </div>
         <div class="cta-actions">
           <a href="contact.html" class="btn-cta-primary">
@@ -423,6 +423,32 @@ homeUni.addEventListener('change', function() {
       }
       document.addEventListener('DOMContentLoaded', sync);
       window.addEventListener('load', sync);
+    })();
+
+// ── Live stats (hero + animated counters) from /api/stats ──
+    (function() {
+      function setNum(el, val) {
+        if (!el) return;
+        el.textContent = Number(val || 0).toLocaleString();
+      }
+      fetch('/api/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data || !data.success) return;
+          var s = data.stats || {};
+          // Hero stats
+          setNum(document.getElementById('heroTicketsSold'), s.ticketsSold);
+          setNum(document.getElementById('heroUpcomingEvents'), s.upcomingEvents);
+          setNum(document.getElementById('heroFaculties'), s.faculties);
+          // Animated counters — set real data-target, then animate.
+          document.querySelectorAll('.stat-num[data-stat-gen]').forEach(function(el) {
+            var key = el.getAttribute('data-stat-gen');
+            var val = Number(s[key]) || 0;
+            el.setAttribute('data-target', val);
+            if (typeof animateCounter === 'function') animateCounter(el);
+          });
+        })
+        .catch(function() {});
     })();
 
     // ── Newsletter / subscribe box ──

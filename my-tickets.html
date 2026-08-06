@@ -290,7 +290,10 @@
 
     function ticketLinks(o) {
       var links = '';
-      if (o.status === 'verified') {
+      if (o.requiresSignIn) {
+        // Not signed in as the owner — show only basic details, hide QR/codes.
+        links = '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;justify-content:center;" href="login.html?next=' + encodeURIComponent(window.location.pathname) + '">\ud83d\udd12 Sign in to view your QR ticket</a>';
+      } else if (o.status === 'verified') {
         var codes = (o.ticketCodes && o.ticketCodes.length) ? o.ticketCodes : (o.ticketCode ? [{ code: o.ticketCode }] : []);
         codes.forEach(function(tc, i) {
           var used = !!(tc && tc.used);
@@ -305,14 +308,6 @@
     }
 
 window.lookupOrder = function() {
-      // Require sign-in before returning any ticket codes.
-      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
-      if (!token) {
-        var next = window.location.pathname;
-        window.location.href = 'login.html?next=' + encodeURIComponent(next);
-        return;
-      }
-
       var orderId = document.getElementById('lookupOrderId').value.trim();
       var phone = document.getElementById('lookupPhone').value.trim();
       var errBox = document.getElementById('lookupError');
@@ -340,6 +335,13 @@ window.lookupOrder = function() {
       .then(function(data) {
         if (data && data.success && data.order) {
           var o = data.order;
+          // If the lookup matched but the requester is not signed in as the owner,
+          // show only the order details (no QR/ticket codes) and prompt to sign in.
+          var codesHtml = o.requiresSignIn
+            ? '<div class="auth-prompt" style="display:block;margin-top:14px;">🔒 <strong>Sign in required to view your QR code and ticket number.</strong> ' +
+              '<a href="login.html?next=' + encodeURIComponent(window.location.pathname) + '" style="color:var(--accent);text-decoration:underline;">Sign in</a> ' +
+              'or <a href="register.html" style="color:var(--accent);text-decoration:underline;">create an account</a> with the email used to buy this ticket.</div>'
+            : ticketLinks(o);
           resultBox.innerHTML =
             '<div style="text-align:center;margin-bottom:14px;">' + orderStatusBadge(o.status) + '</div>' +
             '<div class="lookup-order-row"><span>Order ID</span><strong>' + esc(o.orderId) + '</strong></div>' +
@@ -350,7 +352,7 @@ window.lookupOrder = function() {
             '<div class="lookup-order-row"><span>Total</span><strong>' + fmtN(o.amount) + '</strong></div>' +
             '<div class="lookup-order-row"><span>Payment</span><strong>Flutterwave</strong></div>' +
             (o.status === 'verified' ? '<div class="lookup-order-row"><span>Verified</span><strong>' + fmtDate(o.verifiedAt) + '</strong></div>' : '') +
-            '<div class="lookup-actions">' + ticketLinks(o) +
+            '<div class="lookup-actions">' + codesHtml +
             '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="events.html">Browse Events</a>' +
             '</div>';
           resultBox.classList.add('show');
