@@ -1,13 +1,13 @@
-# Unisocials — Client Fixes TODO
+# Unisocials — VIP/Table (VVIP & Table) Ticket Tier Fix
 
 ## Tasks
-- [x] 1. Server: /api/stats (live events, tickets sold, faculties) — already in server.js
-- [x] 2. Server: /api/orders/lookup shows details w/o sign-in, hides codes unless owner — already in server.js
-- [x] 3. Server: /api/subadmin/checkins + /api/ticket/scan records checkedInBy — already in server.js
-- [x] 4. index.html — wire hero + stats counters to /api/stats (live numbers)
-- [x] 5. events.html — show month-by-month count of events happening each month (when events are added)
-- [x] 6. my-tickets.html — remove forced login redirect on lookup; show details + "sign in to view QR/code" prompt if not the owner
-- [x] 7. subadmin.html — add "My Check-ins / Overview" tab (who the sub-admin checked in)
-- [x] 8. Rebuild minified JS (npm run build)
-- [x] 9. Stage, commit, push to GitHub (origin/main) to trigger Render deploy
+- [ ] 1. tickets.html — set `data-vvip-price`/`data-table-price` on each dynamic event `<option>`
+- [ ] 2. tickets.html — add Ticket Type selector UI (Regular / VIP / Table) with live price
+- [ ] 3. server.js — add sensible `vvipPrice`/`tablePrice` to `DEFAULT_EVENTS`
+- [ ] 4. server.js — store `ticketTier` on the order object in `/api/orders`
+- [ ] 5. templatemo-622-clearwave.js — pass `ticketTier` in order payload; wire tier selector to refresh price
+- [ ] 6. Add CSS for ticket-type selector cards
+- [ ] 7. Rebuild minified JS (npm run build)
+- [ ] 8. Verify server starts without errors
+- [ ] 9. Stage, commit, push to GitHub (origin) to trigger Render deploy
 

@@ -1,4 +1,4 @@
-?<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -8,6 +8,77 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    /* Ticket type / tier selector */
+    .ticket-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .ticket-type-option {
+      position: relative;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface-2);
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .ticket-type-option:hover { border-color: var(--accent-border); background: var(--accent-ghost); }
+    .ticket-type-option.selected {
+      border-color: var(--accent);
+      background: var(--accent-ghost);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .ticket-type-option input { position: absolute; opacity: 0; pointer-events: none; }
+    .ticket-type-name { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-1); margin-bottom: 4px; }
+    .ticket-type-price { display: block; font-size: 0.78rem; font-weight: 600; color: var(--accent); }
+    .ticket-type-badge {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #fff;
+      background: var(--unn-gold);
+      padding: 2px 8px;
+      border-radius: 100px;
+      margin-bottom: 6px;
+    }
+    .ticket-type-card { display: none; }
+    .ticket-type-card.visible { display: block; }
+
+    /* Pricing table */
+    .pricing-table-wrap { margin-top: 16px; }
+    .pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .pricing-table th, .pricing-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .pricing-table th {
+      background: var(--accent-ghost);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+    .pricing-table tbody tr:last-child td { border-bottom: none; }
+    .pricing-table td.price { font-weight: 700; color: var(--accent); white-space: nowrap; }
+    .pricing-table .tier-name { font-weight: 700; color: var(--text-1); }
+    .pricing-table .tier-note { font-size: 0.78rem; color: var(--text-3); }
+  </style>
 </head>
 <body>
 
@@ -87,7 +158,42 @@
             <div class="event-preview-row"><span>📅</span> <span id="previewDate"></span></div>
             <div class="event-preview-row"><span>📍</span> <span id="previewVenue"></span></div>
           </div>
-          <div class="form-group">
+
+          <!-- Ticket Type / Tier selector (Regular / VIP / Table) -->
+          <div id="ticketTypeCard" class="ticket-type-card">
+            <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-1);margin-bottom:8px;">Ticket Type</label>
+            <div class="ticket-type-grid" id="ticketTypeGrid">
+              <label class="ticket-type-option selected">
+                <input type="radio" name="ticketTier" value="regular" checked onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-name">🎟 Regular</span>
+                <span class="ticket-type-price" data-tier-price="regular">—</span>
+              </label>
+              <label class="ticket-type-option" id="vipOption" style="display:none;">
+                <input type="radio" name="ticketTier" value="vip" onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-badge">VIP</span>
+                <span class="ticket-type-name">⭐ VIP</span>
+                <span class="ticket-type-price" data-tier-price="vip">—</span>
+              </label>
+              <label class="ticket-type-option" id="tableOption" style="display:none;">
+                <input type="radio" name="ticketTier" value="table" onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-badge">TABLE</span>
+                <span class="ticket-type-name">🪑 Table</span>
+                <span class="ticket-type-price" data-tier-price="table">—</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Pricing table -->
+          <div class="pricing-table-wrap" id="pricingTableWrap" style="display:none;">
+            <table class="pricing-table">
+              <thead>
+                <tr><th>Tier</th><th>Price per ticket</th><th>Included</th></tr>
+              </thead>
+              <tbody id="pricingTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="form-group" style="margin-top:16px;">
             <label for="qtySelect">Quantity (1 – 100 tickets)</label>
             <input type="number" id="qtySelect" min="1" max="100" step="1" value="1" inputmode="numeric" />
             <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">Enter how many tickets you want — up to 100 per order.</p>
@@ -192,6 +298,71 @@
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
 
+      function setSelectedTier(tier) {
+        var radios = document.querySelectorAll('input[name="ticketTier"]');
+        radios.forEach(function(r) {
+          r.checked = (r.value === tier);
+          if (r.closest) r.closest('.ticket-type-option').classList.toggle('selected', r.value === tier);
+        });
+      }
+
+      // Populate tier prices + pricing table from the selected event's data-vvip-price/data-table-price.
+      function updateTierPicker() {
+        var opt = eventSelect.options[eventSelect.selectedIndex];
+        var reg = parseFloat(opt.dataset.price || 0);
+        var vip = parseFloat(opt.dataset.vvipPrice || 0);
+        var table = parseFloat(opt.dataset.tablePrice || 0);
+        var priceEls = document.querySelectorAll('[data-tier-price]');
+        priceEls.forEach(function(el) {
+          var t = el.getAttribute('data-tier-price');
+          var p = t === 'vip' ? vip : (t === 'table' ? table : reg);
+          el.textContent = p > 0 ? fmtN(p) : '—';
+        });
+
+        var vipEl = document.getElementById('vipOption');
+        var tableEl = document.getElementById('tableOption');
+        if (vipEl) vipEl.style.display = vip > 0 ? '' : 'none';
+        if (tableEl) tableEl.style.display = table > 0 ? '' : 'none';
+
+        var card = document.getElementById('ticketTypeCard');
+        if (card) {
+          if (opt.value) { card.classList.add('visible'); }
+          else { card.classList.remove('visible'); setSelectedTier('regular'); }
+        }
+
+        // Pricing table
+        var wrap = document.getElementById('pricingTableWrap');
+        var body = document.getElementById('pricingTableBody');
+        if (wrap && body) {
+          if (opt.value) {
+            var rows = '';
+            rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + fmtN(reg) + '</td><td class="tier-note">Standard entry</td></tr>';
+            if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + fmtN(vip) + '</td><td class="tier-note">Premium access</td></tr>';
+            if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + fmtN(table) + '</td><td class="tier-note">Reserved table seating</td></tr>';
+            body.innerHTML = rows;
+            wrap.style.display = 'block';
+          } else {
+            body.innerHTML = '';
+            wrap.style.display = 'none';
+          }
+        }
+
+        // Ensure a valid tier is selected (if VIP/Table hidden, fall back to Regular).
+        var cur = document.querySelector('input[name="ticketTier"]:checked');
+        var curVal = cur ? cur.value : 'regular';
+        if (curVal !== 'regular') {
+          var stillVisible = document.getElementById(curVal + 'Option');
+          if (!stillVisible || stillVisible.style.display === 'none') {
+            setSelectedTier('regular');
+          }
+        }
+      }
+
+      window.selectTicketTier = function(tier) {
+        setSelectedTier(tier);
+        if (window.updateEventDetails) window.updateEventDetails();
+      };
+
       function loadEventsForUni(uni) {
         // Clear static options (keep placeholder)
         while (eventSelect.options.length > 1) eventSelect.remove(1);
@@ -210,6 +381,8 @@
               opt.value = ev.id || '';
               opt.setAttribute('data-category', ev.category || '');
               opt.setAttribute('data-price', String(ev.price || 0));
+              opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
+              opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
               opt.setAttribute('data-name', ev.name || '');
               opt.setAttribute('data-date', ev.date || '');
               opt.setAttribute('data-time', ev.time || '');
@@ -273,6 +446,13 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
           .catch(function() {});
       }
 
+      // Hook into updateEventDetails so the tier picker re-renders per event.
+      var baseUpdateEventDetails = window.updateEventDetails || function() {};
+      window.updateEventDetails = function() {
+        updateTierPicker();
+        baseUpdateEventDetails();
+      };
+
       // Initial load — use the selected university if any.
       var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
       loadEventsForUni(initialUni);
@@ -280,4 +460,3 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
   </script>
 </body>
 </html>
-

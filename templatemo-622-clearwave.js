@@ -644,6 +644,23 @@ if (nav) {
     if (continueBtn) continueBtn.disabled = !canContinue;
   }
 
+function getSelectedTier() {
+    var checked = document.querySelector('input[name="ticketTier"]:checked');
+    return checked ? checked.value : 'regular';
+  }
+
+  // Resolve the per-ticket price for the selected tier (Regular / VIP / Table).
+  function getTierPrice() {
+    const opt = getSelectedOption();
+    const tier = getSelectedTier();
+    const reg = parseFloat(opt.dataset.price || 0);
+    const vip = parseFloat(opt.dataset.vvipPrice || 0);
+    const table = parseFloat(opt.dataset.tablePrice || 0);
+    if (tier === 'vip') return vip > 0 ? vip : reg;
+    if (tier === 'table') return table > 0 ? table : reg;
+    return reg;
+  }
+
   window.continueToCheckout = function() {
     const opt = getSelectedOption();
     if (!opt.value) { alert('Please select an event.'); return; }
@@ -654,6 +671,9 @@ if (nav) {
     const qty = getQty();
     if (qty < 1 || qty > 100) { alert('Please enter a quantity between 1 and 100 tickets.'); return; }
 
+    const tier = getSelectedTier();
+    const tierPrice = getTierPrice();
+
     sessionStorage.setItem('checkoutData', JSON.stringify({
       eventValue: opt.value,
       eventName: opt.dataset.name,
@@ -661,7 +681,8 @@ if (nav) {
       eventTime: opt.dataset.time,
       eventVenue: opt.dataset.venue,
       eventCategory: opt.dataset.category || '',
-      eventPrice: parseFloat(opt.dataset.price || 0),
+      eventPrice: tierPrice,
+      ticketTier: tier,
       qty: qty,
       buyerName: name,
       buyerEmail: email,
@@ -722,6 +743,7 @@ if (nav) {
   const summaryDate = document.getElementById('summaryDate');
   const summaryVenue = document.getElementById('summaryVenue');
   const summaryQty = document.getElementById('summaryQty');
+  const summaryTier = document.getElementById('summaryTier');
   const summaryUnitPrice = document.getElementById('summaryUnitPrice');
   const summaryTotal = document.getElementById('summaryTotal');
   const summaryBuyer = document.getElementById('summaryBuyer');
@@ -764,6 +786,10 @@ if (nav) {
   if (summaryDate) summaryDate.textContent = checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '\u2014';
   if (summaryVenue) summaryVenue.textContent = checkoutData.eventVenue || '\u2014';
   if (summaryQty) summaryQty.textContent = checkoutData.qty + ' ticket' + (checkoutData.qty > 1 ? 's' : '');
+  if (summaryTier) {
+    const tierMap = { regular: '🎟 Regular', vip: '⭐ VIP', table: '🪑 Table' };
+    summaryTier.textContent = tierMap[checkoutData.ticketTier] || '🎟 Regular';
+  }
   if (summaryUnitPrice) summaryUnitPrice.textContent = '\u20A6' + (checkoutData.eventPrice || 0).toLocaleString();
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
@@ -857,7 +883,8 @@ if (nav) {
         buyerName: checkoutData.buyerName,
         buyerEmail: checkoutData.buyerEmail,
         buyerPhone: checkoutData.buyerPhone,
-        buyerFaculty: checkoutData.buyerFaculty || ''
+        buyerFaculty: checkoutData.buyerFaculty || '',
+        ticketTier: checkoutData.ticketTier || 'regular'
       })
     })
     .then(function(res) { return res.json(); })

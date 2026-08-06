@@ -206,6 +206,8 @@ id: 'arts-cultural-night',
     name: 'Faculty of Arts Cultural Night',
     category: 'Arts & Culture',
     price: 2500,
+    vvipPrice: 5000,
+    tablePrice: 10000,
     date: 'March 10, 2025',
     time: '4:00 PM',
     venue: 'Arts Theatre',
@@ -218,8 +220,10 @@ id: 'arts-cultural-night',
   {
     id: 'engineering-dinner',
     name: 'Engineering Annual Dinner',
-    category: 'Engineering',
+category: 'Engineering',
     price: 5000,
+    vvipPrice: 10000,
+    tablePrice: 25000,
     date: 'March 15, 2025',
     time: '5:00 PM',
     venue: 'Engineering Auditorium',
@@ -246,8 +250,10 @@ id: 'arts-cultural-night',
   {
 id: 'music-festival',
     name: 'Campus Music Festival',
-    category: 'Music',
+category: 'Music',
     price: 4000,
+    vvipPrice: 8000,
+    tablePrice: 20000,
     date: 'March 29, 2025',
     time: '6:00 PM',
     venue: 'Sports Complex',
@@ -1563,8 +1569,9 @@ const user = {
       const currency = String(data.currency || 'NGN');
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
-      const buyerPhone = String(data.buyerPhone || '').trim();
+const buyerPhone = String(data.buyerPhone || '').trim();
       const buyerFaculty = String(data.buyerFaculty || '').trim();
+      const ticketTier = String(data.ticketTier || '') || 'standard';
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1591,10 +1598,11 @@ const user = {
         amount: amount,
         currency: currency,
         paymentMethod: 'flutterwave',      // Flutterwave is the only method
-        buyerName: buyerName,
+buyerName: buyerName,
         buyerEmail: buyerEmail,
         buyerPhone: buyerPhone,
         buyerFaculty: buyerFaculty,
+        ticketTier: ticketTier,
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
@@ -2055,11 +2063,13 @@ const entry = codes[idx];
         const uni = await findUniversityById(universityId);
         if (uni) uniSlug = uni.slug || uni.id;
       }
-      const ev = {
+const ev = {
         id: id,
         name: name,
         category: String(data.category || '').trim() || 'General',
         price: parseFloat(data.price) || 0,
+        vvipPrice: parseFloat(data.vvipPrice) || 0,
+        tablePrice: parseFloat(data.tablePrice) || 0,
         date: String(data.date || '').trim(),
         time: String(data.time || '').trim(),
         venue: String(data.venue || '').trim(),
