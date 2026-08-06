@@ -9,8 +9,8 @@
 - [x] Update HTML pages to reference minified JS
 
 ## Deployment
-- [ ] Rebuild minified JS (npm run build)
-- [ ] Stage & commit all project changes
-- [ ] Verify GitHub CLI (gh) is installed & authenticated
-- [ ] Push to origin/main to trigger Render deploy
-- [ ] Confirm Render deploy triggers
+- [x] Rebuild minified JS (npm run build)
+- [x] Stage & commit all project changes
+- [x] Verify GitHub CLI (gh) is installed & authenticated (not needed — used git directly)
+- [x] Push to origin/main to trigger Render deploy
+- [ ] Confirm Render deploy triggers + set secret env vars in Render dashboard
