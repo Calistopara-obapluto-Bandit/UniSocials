@@ -833,7 +833,9 @@
               <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
                 <option value="General">General</option>
               </select></div>
-              <div class="form-group"><label for="evPrice">Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
+<div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -1637,9 +1639,11 @@ fetch('/api/ticket/scan', {
       };
 
 window.addEventItem = function() {
-        var name = document.getElementById('evName').value.trim();
+var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
+        var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
+        var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
@@ -1663,10 +1667,12 @@ window.addEventItem = function() {
           return;
         }
 
-        var ev = {
+var ev = {
           name: name,
           category: category,
           price: price,
+          vvipPrice: vvipPrice,
+          tablePrice: tablePrice,
           date: date,
           time: time,
           venue: venue,
@@ -1690,8 +1696,10 @@ fetch('/api/admin/events', {
         .then(function(data) {
           if (data && data.success) {
             showToast('Event "' + esc(name) + '" added!');
-            document.getElementById('evName').value = '';
+document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
+            document.getElementById('evVVIPPrice').value = '';
+            document.getElementById('evTablePrice').value = '';
             document.getElementById('evDate').value = '';
             document.getElementById('evTime').value = '';
             document.getElementById('evVenue').value = '';
@@ -2220,11 +2228,23 @@ fetch('/api/admin/events/notify', {
       });
       window.switchTab = switchTab;
 
-      // Initial state
+// Initial state — restore either the master-admin (sessionStorage) OR the
+      // sub-admin (localStorage) session so a logged-in sub-admin stays logged in
+      // even after a page reload.
       if (getToken()) {
+        currentRole = 'admin';
+        currentUser = null;
         showLoggedIn();
+        applyRoleUI();
         loadOrders();
         pollUnseen();
+      } else if (getSubToken()) {
+        currentRole = 'subadmin';
+        currentUser = getSubUser();
+        showLoggedIn();
+        applyRoleUI();
+        loadManagedEvents();
+        loadManagedUniversities();
       } else {
         showLoggedOut();
       }
