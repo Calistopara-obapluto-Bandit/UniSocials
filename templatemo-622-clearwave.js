@@ -671,8 +671,12 @@ function getSelectedTier() {
     const qty = getQty();
     if (qty < 1 || qty > 100) { alert('Please enter a quantity between 1 and 100 tickets.'); return; }
 
-    const tier = getSelectedTier();
+const tier = getSelectedTier();
     const tierPrice = getTierPrice();
+
+    // Attach the selected university (from the campus selector) to the order.
+    const uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+    const universityObj = uni && (uni.id || uni.slug) ? uni : null;
 
     sessionStorage.setItem('checkoutData', JSON.stringify({
       eventValue: opt.value,
@@ -687,7 +691,10 @@ function getSelectedTier() {
       buyerName: name,
       buyerEmail: email,
       buyerPhone: phone,
-      buyerFaculty: buyerFaculty ? buyerFaculty.value.trim() : ''
+      buyerFaculty: buyerFaculty ? buyerFaculty.value.trim() : '',
+      universityId: universityObj ? (universityObj.id || universityObj.slug || '') : '',
+      universityName: universityObj ? (universityObj.name || '') : '',
+      universitySlug: universityObj ? (universityObj.slug || universityObj.id || '') : ''
     }));
 
     window.location.href = 'checkout.html';
@@ -870,7 +877,7 @@ function getSelectedTier() {
     fetch('/api/orders', {
       method: 'POST',
       headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+body: JSON.stringify({
         orderId: orderId,
         eventName: checkoutData.eventName,
         eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '',
@@ -884,7 +891,10 @@ function getSelectedTier() {
         buyerEmail: checkoutData.buyerEmail,
         buyerPhone: checkoutData.buyerPhone,
         buyerFaculty: checkoutData.buyerFaculty || '',
-        ticketTier: checkoutData.ticketTier || 'regular'
+        ticketTier: checkoutData.ticketTier || 'regular',
+        universityId: checkoutData.universityId || '',
+        universityName: checkoutData.universityName || '',
+        universitySlug: checkoutData.universitySlug || ''
       })
     })
     .then(function(res) { return res.json(); })

@@ -832,6 +832,9 @@
               <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
               <div class="form-group"><label for="evIcon">Icon (emoji)</label><input type="text" id="evIcon" placeholder="🎉" /></div>
               <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedRegular">What's Included — Regular (comma separated)</label><input type="text" id="evIncludedRegular" placeholder="Standard entry, Welcome drink" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVip">What's Included — VVIP (comma separated)</label><input type="text" id="evIncludedVip" placeholder="VVIP lounge access, Meet &amp; greet, VIP parking" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
               <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
@@ -1308,15 +1311,35 @@ fetch('/api/ticket/scan', {
           if (!resultBox) return;
           resultBox.className = 'admin-scan-result show';
           if (data && data.success) {
-            if (data.alreadyUsed) {
-              resultBox.innerHTML = '<div class="scan-result-box warn">♻️ <strong>Already checked in.</strong> ' +
-                esc(data.message || '') + '</div>';
-              showToast('Ticket was already used', true);
-            } else {
-              resultBox.innerHTML = '<div class="scan-result-box success">✅ <strong>Check-in successful!</strong> ' +
-                esc(data.message || '') + '</div>';
-              showToast('Ticket checked in ✅');
+            var t = data.ticket || {};
+            var cls = data.alreadyUsed ? 'warn' : 'success';
+            var status = data.alreadyUsed ? '♻️ Already checked in' : '✅ Check-in successful!';
+            var rows = '';
+            function row(label, val) {
+              if (val === null || val === undefined || val === '') return '';
+              return '<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span style="opacity:0.75;">' + label + '</span><strong>' + val + '</strong></div>';
             }
+            rows += row('🎤 Event', esc((t.eventName || data.eventName || '\u2014')));
+            if (t.ticketIndex) rows += row('🎟 Ticket', '#' + esc(String(t.ticketIndex)) + ' of ' + esc(String(t.totalTickets || t.qty)));
+            if (t.ticketTier) rows += row('🪑 Tier', esc(String(t.ticketTier).replace(/^./, function(c) { return c.toUpperCase(); })));
+            if (t.qty) rows += row('📦 Qty', esc(String(t.qty)));
+            rows += row('📅 Date', esc((t.eventDate || t.eventDate || '\u2014')));
+            rows += row('📍 Venue', esc((t.eventVenue || '\u2014')));
+            rows += row('🏛 University', esc((t.universityName || '\u2014')));
+            rows += row('👤 Buyer', esc((t.buyerName || '\u2014')));
+            rows += row('📧 Email', esc((t.buyerEmail || '\u2014')));
+            rows += row('📞 Phone', esc((t.buyerPhone || '\u2014')));
+            if (t.amount) rows += row('💰 Amount', esc('\u20A6' + Number(t.amount).toLocaleString()));
+            rows += row('🧾 Order', esc((t.orderId || data.orderId || '\u2014')));
+            rows += row('🔑 Code', esc(code));
+            if (t.verifiedAt) rows += row('✅ Verified', esc(fmtDate(t.verifiedAt)));
+            if (t.usedAt) rows += row('♻️ Used at', esc(fmtDate(t.usedAt)));
+            if (t.checkedInBy) rows += row('👮 By', esc(String(t.checkedInBy)));
+            resultBox.innerHTML = '<div class="scan-result-box ' + cls + '">' +
+              '<div style="margin-bottom:8px;"><strong>' + status + '</strong> <span style="opacity:0.8;">' + esc(data.message || '') + '</span></div>' +
+              '<div style="border-top:1px dashed rgba(0,0,0,0.2);margin:8px 0;padding-top:8px;">' + rows + '</div>' +
+              '</div>';
+            showToast(data.alreadyUsed ? 'Ticket was already used' : 'Ticket checked in ✅', data.alreadyUsed);
             loadOrders();
             if (document.getElementById('scanOrderId')) document.getElementById('scanOrderId').value = '';
             if (document.getElementById('scanCode')) document.getElementById('scanCode').value = '';
@@ -1483,6 +1506,9 @@ var name = document.getElementById('evName').value.trim();
         var desc = document.getElementById('evDesc').value.trim();
         var icon = document.getElementById('evIcon').value.trim() || '🎤';
         var tags = document.getElementById('evTags').value.trim();
+        var includedRegular = (document.getElementById('evIncludedRegular') ? document.getElementById('evIncludedRegular').value : '').trim();
+        var includedVip = (document.getElementById('evIncludedVip') ? document.getElementById('evIncludedVip').value : '').trim();
+        var includedTable = (document.getElementById('evIncludedTable') ? document.getElementById('evIncludedTable').value : '').trim();
 
         // Selected university (required to scope the event to a campus)
         var uniSel = document.getElementById('evUniversity');
@@ -1506,6 +1532,9 @@ var ev = {
           price: price,
           vvipPrice: vvipPrice,
           tablePrice: tablePrice,
+          includedRegular: includedRegular,
+          includedVip: includedVip,
+          includedTable: includedTable,
           date: date,
           time: time,
           venue: venue,
@@ -1537,8 +1566,11 @@ document.getElementById('evName').value = '';
             document.getElementById('evTime').value = '';
             document.getElementById('evVenue').value = '';
             document.getElementById('evDesc').value = '';
-            document.getElementById('evIcon').value = '';
+document.getElementById('evIcon').value = '';
             document.getElementById('evTags').value = '';
+            if (document.getElementById('evIncludedRegular')) document.getElementById('evIncludedRegular').value = '';
+            if (document.getElementById('evIncludedVip')) document.getElementById('evIncludedVip').value = '';
+            if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
             loadManagedEvents();
           } else {
             showToast((data && data.error) || 'Failed to add event', true);

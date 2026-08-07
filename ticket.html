@@ -229,6 +229,10 @@
               <span>📅 Date</span>
               <strong id="ticketDate">—</strong>
             </div>
+<div class="ticket-detail">
+              <span>🏛 University</span>
+              <strong id="ticketUniversity">—</strong>
+            </div>
             <div class="ticket-detail">
               <span>📍 Venue</span>
               <strong id="ticketVenue">—</strong>
@@ -338,7 +342,8 @@ var ticketError = document.getElementById('ticketError');
       var ticketCode = document.getElementById('ticketCode');
       var ticketEventName = document.getElementById('ticketEventName');
       var ticketOrderId = document.getElementById('ticketOrderId');
-      var ticketDate = document.getElementById('ticketDate');
+var ticketDate = document.getElementById('ticketDate');
+      var ticketUniversity = document.getElementById('ticketUniversity');
       var ticketVenue = document.getElementById('ticketVenue');
       var ticketQty = document.getElementById('ticketQty');
       var ticketAmount = document.getElementById('ticketAmount');
@@ -415,7 +420,8 @@ var ticketError = document.getElementById('ticketError');
         if (ticketCode) ticketCode.textContent = t.ticketCode;
         if (ticketEventName) ticketEventName.textContent = t.eventName;
         if (ticketOrderId) ticketOrderId.textContent = t.orderId;
-        if (ticketDate) ticketDate.textContent = t.eventDate;
+if (ticketDate) ticketDate.textContent = t.eventDate;
+        if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014';
         if (ticketVenue) ticketVenue.textContent = t.eventVenue;
         if (ticketQty) ticketQty.textContent = t.qty + ' ticket' + (t.qty > 1 ? 's' : '');
         if (ticketAmount) ticketAmount.textContent = fmtN(t.amount);

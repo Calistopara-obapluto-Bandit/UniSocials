@@ -534,6 +534,12 @@
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
         });
       }
+      function fmtDate(iso) {
+        if (!iso) return '\u2014';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
       function showToast(msg, isError) {
         var t = document.getElementById('adminToast');
         t.textContent = msg;
@@ -647,17 +653,36 @@
         .then(function(res) { return res.json(); })
         .then(function(data) {
           if (!resultBox) return;
-          resultBox.className = 'admin-scan-result show';
+resultBox.className = 'admin-scan-result show';
           if (data && data.success) {
-            if (data.alreadyUsed) {
-              resultBox.innerHTML = '<div class="scan-result-box warn">♻️ <strong>Already checked in.</strong> ' +
-                esc(data.message || '') + '</div>';
-              showToast('Ticket was already used', true);
-            } else {
-              resultBox.innerHTML = '<div class="scan-result-box success">✅ <strong>Check-in successful!</strong> ' +
-                esc(data.message || '') + '</div>';
-              showToast('Ticket checked in ✅');
+            var t = data.ticket || {};
+            var cls = data.alreadyUsed ? 'warn' : 'success';
+            var status = data.alreadyUsed ? '♻️ Already checked in' : '✅ Check-in successful!';
+            var rows = '';
+            function row(label, val) {
+              if (val === null || val === undefined || val === '') return '';
+              return '<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span style="opacity:0.75;">' + label + '</span><strong>' + val + '</strong></div>';
             }
+            rows += row('🎤 Event', esc((t.eventName || '\u2014')));
+            if (t.ticketIndex) rows += row('🎟 Ticket', '#' + esc(String(t.ticketIndex)) + ' of ' + esc(String(t.totalTickets || t.qty)));
+            if (t.ticketTier) rows += row('🪑 Tier', esc(String(t.ticketTier).replace(/^./, function(c) { return c.toUpperCase(); })));
+            if (t.qty) rows += row('📦 Qty', esc(String(t.qty)));
+            rows += row('📅 Date', esc((t.eventDate || '\u2014')));
+            rows += row('📍 Venue', esc((t.eventVenue || '\u2014')));
+            rows += row('🏛 University', esc((t.universityName || '\u2014')));
+            rows += row('👤 Buyer', esc((t.buyerName || '\u2014')));
+            rows += row('📧 Email', esc((t.buyerEmail || '\u2014')));
+            rows += row('📞 Phone', esc((t.buyerPhone || '\u2014')));
+            if (t.amount) rows += row('💰 Amount', esc('\u20A6' + Number(t.amount).toLocaleString()));
+            rows += row('🧾 Order', esc((t.orderId || '\u2014')));
+            rows += row('🔑 Code', esc(code));
+            if (data.checkedInBy) rows += row('👮 By', esc(String(data.checkedInBy)));
+            if (t.usedAt) rows += row('♻️ Used at', esc(fmtDate(t.usedAt)));
+            resultBox.innerHTML = '<div class="scan-result-box ' + cls + '">' +
+              '<div style="margin-bottom:8px;"><strong>' + status + '</strong> <span style="opacity:0.8;">' + esc(data.message || '') + '</span></div>' +
+              '<div style="border-top:1px dashed rgba(0,0,0,0.2);margin:8px 0;padding-top:8px;">' + rows + '</div>' +
+              '</div>';
+            showToast(data.alreadyUsed ? 'Ticket was already used' : 'Ticket checked in ✅', data.alreadyUsed);
             document.getElementById('scanOrderId').value = '';
             document.getElementById('scanCode').value = '';
           } else {

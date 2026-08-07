@@ -807,6 +807,34 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
   });
 }
 
+// Build a rich ticket summary for the gate scan result panel (admin/sub-admin).
+// Includes the full order context so staff can verify the ticket at a glance.
+function scanTicketDetails(order, entry, idx, codes, alreadyUsed) {
+  return {
+    orderId: order.orderId,
+    ticketCode: entry.code,
+    ticketIndex: idx + 1,
+    totalTickets: codes.length,
+    used: alreadyUsed ? true : !!entry.used,
+    usedAt: entry.usedAt || null,
+    checkedInBy: entry.checkedInBy || null,
+    eventName: order.eventName,
+    eventCategory: order.eventCategory || '',
+    eventDate: order.eventDate,
+    eventVenue: order.eventVenue,
+    universityName: order.universityName || '',
+    ticketTier: order.ticketTier || 'regular',
+    qty: order.qty,
+    amount: order.amount,
+    currency: order.currency,
+    buyerName: order.buyerName,
+    buyerEmail: order.buyerEmail,
+    buyerPhone: order.buyerPhone,
+    buyerFaculty: order.buyerFaculty || '',
+    verifiedAt: order.verifiedAt
+  };
+}
+
 // Mark an order verified + ensure tickets exist
 function verifyOrderTicketData(order) {
   if (!order.ticketCodes || !order.ticketCodes.length) {
@@ -1570,8 +1598,11 @@ const user = {
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
 const buyerPhone = String(data.buyerPhone || '').trim();
-      const buyerFaculty = String(data.buyerFaculty || '').trim();
+const buyerFaculty = String(data.buyerFaculty || '').trim();
       const ticketTier = String(data.ticketTier || '') || 'standard';
+      const universityId = String(data.universityId || '').trim();
+      const universityName = String(data.universityName || '').trim();
+      const universitySlug = String(data.universitySlug || '').trim();
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1601,8 +1632,11 @@ const buyerPhone = String(data.buyerPhone || '').trim();
 buyerName: buyerName,
         buyerEmail: buyerEmail,
         buyerPhone: buyerPhone,
-        buyerFaculty: buyerFaculty,
+buyerFaculty: buyerFaculty,
         ticketTier: ticketTier,
+        universityId: universityId,
+        universityName: universityName,
+        universitySlug: universitySlug,
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
@@ -1810,9 +1844,10 @@ buyerName: buyerName,
           totalTickets: codes.length,
           used: !!entry.used,
           usedAt: entry.usedAt || null,
-          eventName: order.eventName,
+eventName: order.eventName,
           eventDate: order.eventDate,
           eventVenue: order.eventVenue,
+          universityName: order.universityName || '',
           qty: order.qty,
           amount: order.amount,
           currency: order.currency,
@@ -1847,7 +1882,7 @@ const entry = codes[idx];
           success: true,
           alreadyUsed: true,
           message: 'This ticket was already scanned on ' + (entry.usedAt || 'earlier') + '.',
-          ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length }
+          ticket: scanTicketDetails(order, entry, idx, codes, true)
         });
       }
       entry.used = true;
@@ -1858,12 +1893,12 @@ const entry = codes[idx];
       } else {
         entry.checkedInBy = 'Admin';
       }
-      codes[idx] = entry;
+codes[idx] = entry;
       const updated = await patchOrder(orderId, { ticketCodes: codes });
       return sendJson(res, 200, {
         success: true,
         message: '✅ Check-in successful for ' + order.buyerName,
-        ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length, checkedInBy: entry.checkedInBy }
+        ticket: scanTicketDetails(order, entry, idx, codes, false)
       });
     }
 
@@ -2070,6 +2105,9 @@ const ev = {
         price: parseFloat(data.price) || 0,
         vvipPrice: parseFloat(data.vvipPrice) || 0,
         tablePrice: parseFloat(data.tablePrice) || 0,
+        includedRegular: String(data.includedRegular || '').trim(),
+        includedVip: String(data.includedVip || '').trim(),
+        includedTable: String(data.includedTable || '').trim(),
         date: String(data.date || '').trim(),
         time: String(data.time || '').trim(),
         venue: String(data.venue || '').trim(),
