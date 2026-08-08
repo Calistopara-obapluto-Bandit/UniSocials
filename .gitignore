@@ -17,6 +17,8 @@ node_modules/
 # Runtime data (contains buyer PII — never commit)
 orders.json
 data/
+# EXCEPT the events seed script (no PII; needed to seed the DB catalog on deploy)
+!data/events_seed.sql
 
 # Local secrets (live API keys — NEVER commit)
 .env

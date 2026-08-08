@@ -215,7 +215,10 @@ id: 'arts-cultural-night',
     tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
     icon: '🎭',
     featured: true,
-    seats: '150 seats left'
+    seats: '150 seats left',
+    universityId: 'uni-unn',
+    universityName: 'University of Nigeria, Nsukka',
+    universitySlug: 'unn'
   },
   {
     id: 'engineering-dinner',
@@ -231,7 +234,10 @@ category: 'Engineering',
     tags: ['🏆 Awards', '🍽️ Dinner', '🤝 Networking'],
     icon: '⚙️',
     featured: true,
-    seats: '80 seats left'
+    seats: '80 seats left',
+    universityId: 'uni-unn',
+    universityName: 'University of Nigeria, Nsukka',
+    universitySlug: 'unn'
   },
   {
     id: 'entrepreneurship-summit',
@@ -245,7 +251,10 @@ category: 'Engineering',
     tags: ['💡 Pitching', '💰 Funding', '📈 Workshops'],
     icon: '💼',
     featured: true,
-    seats: '200 seats left'
+    seats: '200 seats left',
+    universityId: 'uni-unn',
+    universityName: 'University of Nigeria, Nsukka',
+    universitySlug: 'unn'
   },
   {
 id: 'music-festival',
@@ -261,7 +270,10 @@ category: 'Music',
     tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
     icon: '🎵',
     featured: true,
-    seats: '300 seats left'
+    seats: '300 seats left',
+    universityId: 'uni-unn',
+    universityName: 'University of Nigeria, Nsukka',
+    universitySlug: 'unn'
   },
   {
     id: 'law-moot-court',
@@ -275,7 +287,10 @@ category: 'Music',
     tags: ['⚖️ Mock Trial', '📜 Legal Debate', '🏅 Competition'],
     icon: '📚',
     featured: false,
-    seats: '100 seats left'
+    seats: '100 seats left',
+    universityId: 'uni-unn',
+    universityName: 'University of Nigeria, Nsukka',
+    universitySlug: 'unn'
   },
   {
     id: 'sports-day',
@@ -289,19 +304,33 @@ venue: 'Main Stadium',
     tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
     icon: '⚽',
     featured: false,
-    seats: 'Unlimited'
+    seats: 'Unlimited',
+    universityId: 'uni-unn',
+    universityName: 'University of Nigeria, Nsukka',
+    universitySlug: 'unn'
   }
 ];
 
 async function readEvents() {
   if (usePg) {
     const r = await db.query('SELECT data FROM events ORDER BY data->>\'date\' ASC');
-    return r.rows.map(row => row.data);
+    const list = r.rows.map(row => row.data);
+    // Auto-seed the default UNN events catalog when the events table is empty
+    // (e.g. first run or an empty PostgreSQL table) so events are never missing.
+    if (list.length === 0) {
+      for (const ev of DEFAULT_EVENTS) {
+        await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
+          [ev.id, JSON.stringify(ev)]);
+      }
+      console.log('Seeded ' + DEFAULT_EVENTS.length + ' default events into PostgreSQL.');
+      return DEFAULT_EVENTS.slice();
+    }
+    return list;
   }
   try {
     const raw = fs.readFileSync(path.join(DATA_DIR, 'events.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed : DEFAULT_EVENTS;
   } catch (e) {
     return DEFAULT_EVENTS;
   }

@@ -1,12 +1,12 @@
-# Task: Make "What's Included" show on tickets
-
-Bug: "What's Included" data is captured in admin and stored on events, but never
-flows through to the buyer's digital ticket.
+# TODO — Fix events showing correctly per university in checkout flow
 
 ## Steps
-- [x] 1. tickets.html — populate `data-included-*` attributes + render real included in pricing table
-- [x] 2. templatemo-622-clearwave.js — pass included data through checkoutData + createOrderViaApi
-- [x] 3. server.js — store `included` on order (`/api/orders`) and return it (`/api/ticket`)
-- [x] 4. ticket.html — add & render "What's Included" section on the ticket
-- [x] 5. Rebuild assets/min/templatemo-622-clearwave.min.js (`npm run build`)
-- [x] 6. Commit to GitHub
+1. [x] Add `universityId`, `universityName`, `universitySlug` fields to each `DEFAULT_EVENTS` entry in `server.js` (associate with UNN).
+2. [x] Seed the events database table with `DEFAULT_EVENTS` when empty (PostgreSQL mode), so events are available server-side.
+3. [x] Update `data/events.json` with the same university fields for JSON-file storage mode.
+4. [x] Verify `/api/events?university=unn` returns the events.
+5. [x] Commit changes to GitHub and redeploy to Render.
+
+## Extra (seed DB)
+- [x] Added `data/events_seed.sql` — a ready-to-run PostgreSQL seed script that creates the `events` table (if missing) and upserts the 6 default UNN events with full data (including university fields).
+- [x] Confirmed `data/events.json` now matches `DEFAULT_EVENTS` in `server.js` (added `vvipPrice`/`tablePrice` where defined, plus university fields).
