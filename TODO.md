@@ -9,4 +9,4 @@ flows through to the buyer's digital ticket.
 - [x] 3. server.js — store `included` on order (`/api/orders`) and return it (`/api/ticket`)
 - [x] 4. ticket.html — add & render "What's Included" section on the ticket
 - [x] 5. Rebuild assets/min/templatemo-622-clearwave.min.js (`npm run build`)
-- [ ] 6. Commit to GitHub
+- [x] 6. Commit to GitHub
