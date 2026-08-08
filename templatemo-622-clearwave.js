@@ -674,6 +674,11 @@ function getSelectedTier() {
 const tier = getSelectedTier();
     const tierPrice = getTierPrice();
 
+    // Resolve the "What's Included" list for the selected tier.
+    const included = tier === 'vip' ? (opt.dataset.includedVip || '')
+      : tier === 'table' ? (opt.dataset.includedTable || '')
+      : (opt.dataset.includedRegular || '');
+
     // Attach the selected university (from the campus selector) to the order.
     const uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
     const universityObj = uni && (uni.id || uni.slug) ? uni : null;
@@ -687,6 +692,7 @@ const tier = getSelectedTier();
       eventCategory: opt.dataset.category || '',
       eventPrice: tierPrice,
       ticketTier: tier,
+      included: included,
       qty: qty,
       buyerName: name,
       buyerEmail: email,
@@ -892,6 +898,7 @@ body: JSON.stringify({
         buyerPhone: checkoutData.buyerPhone,
         buyerFaculty: checkoutData.buyerFaculty || '',
         ticketTier: checkoutData.ticketTier || 'regular',
+        included: checkoutData.included || '',
         universityId: checkoutData.universityId || '',
         universityName: checkoutData.universityName || '',
         universitySlug: checkoutData.universitySlug || ''

@@ -1599,7 +1599,8 @@ const user = {
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
 const buyerPhone = String(data.buyerPhone || '').trim();
 const buyerFaculty = String(data.buyerFaculty || '').trim();
-      const ticketTier = String(data.ticketTier || '') || 'standard';
+const ticketTier = String(data.ticketTier || '') || 'standard';
+      const included = String(data.included || '').trim();
       const universityId = String(data.universityId || '').trim();
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
@@ -1634,6 +1635,7 @@ buyerName: buyerName,
         buyerPhone: buyerPhone,
 buyerFaculty: buyerFaculty,
         ticketTier: ticketTier,
+        included: included,
         universityId: universityId,
         universityName: universityName,
         universitySlug: universitySlug,
@@ -1848,6 +1850,8 @@ eventName: order.eventName,
           eventDate: order.eventDate,
           eventVenue: order.eventVenue,
           universityName: order.universityName || '',
+          ticketTier: order.ticketTier || 'regular',
+          included: order.included || '',
           qty: order.qty,
           amount: order.amount,
           currency: order.currency,

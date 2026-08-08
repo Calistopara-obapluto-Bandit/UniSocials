@@ -233,9 +233,17 @@
               <span>🏛 University</span>
               <strong id="ticketUniversity">—</strong>
             </div>
-            <div class="ticket-detail">
+<div class="ticket-detail">
               <span>📍 Venue</span>
               <strong id="ticketVenue">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>🎟 Ticket Type</span>
+              <strong id="ticketTier">—</strong>
+            </div>
+            <div class="ticket-detail">
+              <span>🎁 Included</span>
+              <strong id="ticketIncluded">—</strong>
             </div>
             <div class="ticket-detail">
               <span>🎟 Quantity</span>
@@ -343,8 +351,10 @@ var ticketError = document.getElementById('ticketError');
       var ticketEventName = document.getElementById('ticketEventName');
       var ticketOrderId = document.getElementById('ticketOrderId');
 var ticketDate = document.getElementById('ticketDate');
-      var ticketUniversity = document.getElementById('ticketUniversity');
+var ticketUniversity = document.getElementById('ticketUniversity');
       var ticketVenue = document.getElementById('ticketVenue');
+      var ticketTier = document.getElementById('ticketTier');
+      var ticketIncluded = document.getElementById('ticketIncluded');
       var ticketQty = document.getElementById('ticketQty');
       var ticketAmount = document.getElementById('ticketAmount');
       var ticketHolder = document.getElementById('ticketHolder');
@@ -421,8 +431,14 @@ var ticketDate = document.getElementById('ticketDate');
         if (ticketEventName) ticketEventName.textContent = t.eventName;
         if (ticketOrderId) ticketOrderId.textContent = t.orderId;
 if (ticketDate) ticketDate.textContent = t.eventDate;
-        if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014';
+if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014';
         if (ticketVenue) ticketVenue.textContent = t.eventVenue;
+        if (ticketTier) {
+          var tier = t.ticketTier || 'regular';
+          var tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+          ticketTier.textContent = tierLabel;
+        }
+        if (ticketIncluded) ticketIncluded.textContent = t.included || '—';
         if (ticketQty) ticketQty.textContent = t.qty + ' ticket' + (t.qty > 1 ? 's' : '');
         if (ticketAmount) ticketAmount.textContent = fmtN(t.amount);
         if (ticketHolder) ticketHolder.textContent = t.buyerName;
