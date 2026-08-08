@@ -298,12 +298,24 @@
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
 
-      function setSelectedTier(tier) {
+function setSelectedTier(tier) {
         var radios = document.querySelectorAll('input[name="ticketTier"]');
         radios.forEach(function(r) {
           r.checked = (r.value === tier);
           if (r.closest) r.closest('.ticket-type-option').classList.toggle('selected', r.value === tier);
         });
+      }
+
+      // Convert a comma/pipe-separated "What's Included" string into a small bullet list.
+      function includedNote(raw) {
+        if (!raw) return '\u2014';
+        var items = String(raw).split(',');
+        if (items.length === 1) items = String(raw).split('|');
+        items = items.map(function(s) { return s.trim(); }).filter(Boolean);
+        if (!items.length) return '\u2014';
+        return '<ul style="margin:0;padding-left:16px;list-style:disc;">' +
+          items.map(function(it) { return '<li>' + esc(it) + '</li>'; }).join('') +
+          '</ul>';
       }
 
       // Populate tier prices + pricing table from the selected event's data-vvip-price/data-table-price.
@@ -330,15 +342,18 @@
           else { card.classList.remove('visible'); setSelectedTier('regular'); }
         }
 
-        // Pricing table
+// Pricing table — show the real "What's Included" for each tier.
         var wrap = document.getElementById('pricingTableWrap');
         var body = document.getElementById('pricingTableBody');
         if (wrap && body) {
           if (opt.value) {
+            var incReg = opt.dataset.includedRegular || '';
+            var incVip = opt.dataset.includedVip || '';
+            var incTable = opt.dataset.includedTable || '';
             var rows = '';
-            rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + fmtN(reg) + '</td><td class="tier-note">Standard entry</td></tr>';
-            if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + fmtN(vip) + '</td><td class="tier-note">Premium access</td></tr>';
-            if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + fmtN(table) + '</td><td class="tier-note">Reserved table seating</td></tr>';
+            rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + fmtN(reg) + '</td><td class="tier-note">' + includedNote(incReg) + '</td></tr>';
+            if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + fmtN(vip) + '</td><td class="tier-note">' + includedNote(incVip) + '</td></tr>';
+            if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + fmtN(table) + '</td><td class="tier-note">' + includedNote(incTable) + '</td></tr>';
             body.innerHTML = rows;
             wrap.style.display = 'block';
           } else {
@@ -383,6 +398,9 @@
               opt.setAttribute('data-price', String(ev.price || 0));
               opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
               opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
+              opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
+              opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
+              opt.setAttribute('data-included-table', String(ev.includedTable || ''));
               opt.setAttribute('data-name', ev.name || '');
               opt.setAttribute('data-date', ev.date || '');
               opt.setAttribute('data-time', ev.time || '');
