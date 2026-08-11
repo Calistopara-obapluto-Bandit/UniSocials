@@ -159,7 +159,7 @@
             <div class="event-preview-row"><span>📍</span> <span id="previewVenue"></span></div>
           </div>
 
-          <!-- Ticket Type / Tier selector (Regular / VIP / Table) -->
+          <!-- Ticket Type / Tier selector (Regular / VIP / VVIP / Table) -->
           <div id="ticketTypeCard" class="ticket-type-card">
             <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-1);margin-bottom:8px;">Ticket Type</label>
             <div class="ticket-type-grid" id="ticketTypeGrid">
@@ -173,6 +173,12 @@
                 <span class="ticket-type-badge">VIP</span>
                 <span class="ticket-type-name">⭐ VIP</span>
                 <span class="ticket-type-price" data-tier-price="vip">—</span>
+              </label>
+              <label class="ticket-type-option" id="vvipOption" style="display:none;">
+                <input type="radio" name="ticketTier" value="vvip" onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-badge">VVIP</span>
+                <span class="ticket-type-name">👑 VVIP</span>
+                <span class="ticket-type-price" data-tier-price="vvip">—</span>
               </label>
               <label class="ticket-type-option" id="tableOption" style="display:none;">
                 <input type="radio" name="ticketTier" value="table" onchange="selectTicketTier(this.value)" />
@@ -318,22 +324,25 @@ function setSelectedTier(tier) {
           '</ul>';
       }
 
-      // Populate tier prices + pricing table from the selected event's data-vvip-price/data-table-price.
+      // Populate tier prices + pricing table from the selected event's VIP/VVIP/Table prices.
       function updateTierPicker() {
         var opt = eventSelect.options[eventSelect.selectedIndex];
         var reg = parseFloat(opt.dataset.price || 0);
-        var vip = parseFloat(opt.dataset.vvipPrice || 0);
+        var vip = parseFloat(opt.dataset.vipPrice || 0);
+        var vvip = parseFloat(opt.dataset.vvipPrice || 0);
         var table = parseFloat(opt.dataset.tablePrice || 0);
         var priceEls = document.querySelectorAll('[data-tier-price]');
         priceEls.forEach(function(el) {
           var t = el.getAttribute('data-tier-price');
-          var p = t === 'vip' ? vip : (t === 'table' ? table : reg);
+          var p = t === 'vip' ? vip : (t === 'vvip' ? vvip : (t === 'table' ? table : reg));
           el.textContent = p > 0 ? fmtN(p) : '—';
         });
 
         var vipEl = document.getElementById('vipOption');
+        var vvipEl = document.getElementById('vvipOption');
         var tableEl = document.getElementById('tableOption');
         if (vipEl) vipEl.style.display = vip > 0 ? '' : 'none';
+        if (vvipEl) vvipEl.style.display = vvip > 0 ? '' : 'none';
         if (tableEl) tableEl.style.display = table > 0 ? '' : 'none';
 
         var card = document.getElementById('ticketTypeCard');
@@ -349,10 +358,12 @@ function setSelectedTier(tier) {
           if (opt.value) {
             var incReg = opt.dataset.includedRegular || '';
             var incVip = opt.dataset.includedVip || '';
+            var incVvip = opt.dataset.includedVvip || '';
             var incTable = opt.dataset.includedTable || '';
             var rows = '';
             rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + fmtN(reg) + '</td><td class="tier-note">' + includedNote(incReg) + '</td></tr>';
             if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + fmtN(vip) + '</td><td class="tier-note">' + includedNote(incVip) + '</td></tr>';
+            if (vvip > 0) rows += '<tr><td class="tier-name">👑 VVIP</td><td class="price">' + fmtN(vvip) + '</td><td class="tier-note">' + includedNote(incVvip) + '</td></tr>';
             if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + fmtN(table) + '</td><td class="tier-note">' + includedNote(incTable) + '</td></tr>';
             body.innerHTML = rows;
             wrap.style.display = 'block';
@@ -362,7 +373,7 @@ function setSelectedTier(tier) {
           }
         }
 
-        // Ensure a valid tier is selected (if VIP/Table hidden, fall back to Regular).
+        // Ensure a valid tier is selected (if VIP/VVIP/Table hidden, fall back to Regular).
         var cur = document.querySelector('input[name="ticketTier"]:checked');
         var curVal = cur ? cur.value : 'regular';
         if (curVal !== 'regular') {
@@ -396,10 +407,12 @@ function setSelectedTier(tier) {
               opt.value = ev.id || '';
               opt.setAttribute('data-category', ev.category || '');
               opt.setAttribute('data-price', String(ev.price || 0));
+              opt.setAttribute('data-vip-price', String(ev.vipPrice || 0));
               opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
               opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
               opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
               opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
+              opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
               opt.setAttribute('data-included-table', String(ev.includedTable || ''));
               opt.setAttribute('data-name', ev.name || '');
               opt.setAttribute('data-date', ev.date || '');

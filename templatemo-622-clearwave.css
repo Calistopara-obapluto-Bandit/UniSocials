@@ -600,8 +600,29 @@ Free for personal and commercial use
       padding: 32px;
       text-align: center;
     }
-    .hero-card-icon {
-      font-size: 3rem; margin-bottom: 16px;
+    .hero-card-media {
+      width: 100%;
+      height: 240px;
+      margin-bottom: 16px;
+      border-radius: 20px;
+      overflow: hidden;
+      background: var(--accent-ghost);
+      position: relative;
+    }
+    .hero-card-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
+    .hero-card-media .hero-card-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
     }
     .hero-card-title {
       font-size: 1.5rem; font-weight: 700; color: var(--accent);
@@ -660,12 +681,34 @@ Free for personal and commercial use
       display: flex; align-items: center; justify-content: center;
       font-size: 3rem;
       position: relative;
+      overflow: hidden;
+    }
+    .event-card-image-photo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+    }
+    .event-card-image.has-photo::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(10,26,10,0.06) 0%, rgba(10,26,10,0.18) 100%);
+      pointer-events: none;
+    }
+    .event-card-image .event-card-fallback {
+      position: relative;
+      z-index: 1;
     }
     .event-card-badge {
       position: absolute; top: 12px; left: 12px;
       background: var(--accent); color: #fff;
       font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
       text-transform: uppercase; padding: 4px 12px; border-radius: 100px;
+      z-index: 2;
     }
     .event-card-body { padding: 24px; }
     .event-card-date {
@@ -1436,7 +1479,7 @@ Free for personal and commercial use
       .hero-sub { font-size: 0.95rem; margin-bottom: 28px; }
       .hero-card { padding: 20px 16px; }
       .hero-card-title { font-size: 1.3rem; }
-      .hero-card-icon { font-size: 2.5rem; }
+      .hero-card-media { height: 180px; }
       .hero-actions { gap: 10px; }
       .hero-actions .btn-primary-lg,
       .hero-actions .btn-outline-lg { width: 100%; justify-content: center; }

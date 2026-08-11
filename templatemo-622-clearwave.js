@@ -649,14 +649,16 @@ function getSelectedTier() {
     return checked ? checked.value : 'regular';
   }
 
-  // Resolve the per-ticket price for the selected tier (Regular / VIP / Table).
+  // Resolve the per-ticket price for the selected tier (Regular / VIP / VVIP / Table).
   function getTierPrice() {
     const opt = getSelectedOption();
     const tier = getSelectedTier();
     const reg = parseFloat(opt.dataset.price || 0);
-    const vip = parseFloat(opt.dataset.vvipPrice || 0);
+    const vip = parseFloat(opt.dataset.vipPrice || 0);
+    const vvip = parseFloat(opt.dataset.vvipPrice || 0);
     const table = parseFloat(opt.dataset.tablePrice || 0);
     if (tier === 'vip') return vip > 0 ? vip : reg;
+    if (tier === 'vvip') return vvip > 0 ? vvip : reg;
     if (tier === 'table') return table > 0 ? table : reg;
     return reg;
   }
@@ -676,6 +678,7 @@ const tier = getSelectedTier();
 
     // Resolve the "What's Included" list for the selected tier.
     const included = tier === 'vip' ? (opt.dataset.includedVip || '')
+      : tier === 'vvip' ? (opt.dataset.includedVvip || '')
       : tier === 'table' ? (opt.dataset.includedTable || '')
       : (opt.dataset.includedRegular || '');
 
@@ -800,7 +803,7 @@ const tier = getSelectedTier();
   if (summaryVenue) summaryVenue.textContent = checkoutData.eventVenue || '\u2014';
   if (summaryQty) summaryQty.textContent = checkoutData.qty + ' ticket' + (checkoutData.qty > 1 ? 's' : '');
   if (summaryTier) {
-    const tierMap = { regular: '🎟 Regular', vip: '⭐ VIP', table: '🪑 Table' };
+    const tierMap = { regular: '🎟 Regular', vip: '⭐ VIP', vvip: '👑 VVIP', table: '🪑 Table' };
     summaryTier.textContent = tierMap[checkoutData.ticketTier] || '🎟 Regular';
   }
   if (summaryUnitPrice) summaryUnitPrice.textContent = '\u20A6' + (checkoutData.eventPrice || 0).toLocaleString();
