@@ -461,14 +461,25 @@
                 <option value="General">General</option>
               </select></div>
               <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div>
               <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
               <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
               <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
-              <div class="form-group"><label for="evIcon">Icon (emoji)</label><input type="text" id="evIcon" placeholder="🎉" /></div>
+              <div class="form-group" style="grid-column:1/-1;">
+                <label for="evImage">Event Picture</label>
+                <input type="file" id="evImage" accept="image/*" onchange="handleEventImageUpload(this)" />
+                <div style="margin-top:10px;">
+                  <img id="evImagePreview" alt="Event image preview" style="display:none;width:100%;max-width:320px;height:160px;object-fit:cover;border-radius:14px;border:1px solid var(--border);background:var(--bg);" />
+                </div>
+              </div>
               <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVip">What's Included — VIP (comma separated)</label><input type="text" id="evIncludedVip" placeholder="VIP lounge access, Meet &amp; greet, VIP parking" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVVIP">What's Included — VVIP (comma separated)</label><input type="text" id="evIncludedVVIP" placeholder="VVIP lounge access, premium seating, concierge service" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedRegular">What's Included — Regular (comma separated)</label><input type="text" id="evIncludedRegular" placeholder="Standard entry, Welcome drink" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
               <button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
@@ -859,6 +870,79 @@ resultBox.className = 'admin-scan-result show';
         if (overlay) overlay.textContent = 'Point camera at the ticket QR code';
       };
 
+      var selectedEventImage = '';
+
+      function setEventImagePreview(src) {
+        var preview = document.getElementById('evImagePreview');
+        if (!preview) return;
+        if (src) {
+          preview.src = src;
+          preview.style.display = 'block';
+        } else {
+          preview.removeAttribute('src');
+          preview.style.display = 'none';
+        }
+      }
+
+      function clearEventImage() {
+        selectedEventImage = '';
+        var input = document.getElementById('evImage');
+        if (input) input.value = '';
+        setEventImagePreview('');
+      }
+
+      function resizeImageFile(file, maxSize) {
+        maxSize = maxSize || 1280;
+        return new Promise(function(resolve, reject) {
+          var img = new Image();
+          var url = URL.createObjectURL(file);
+          img.onload = function() {
+            try {
+              var ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
+              var width = Math.max(1, Math.round(img.width * ratio));
+              var height = Math.max(1, Math.round(img.height * ratio));
+              var canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              URL.revokeObjectURL(url);
+              resolve(canvas.toDataURL('image/jpeg', 0.84));
+            } catch (err) {
+              URL.revokeObjectURL(url);
+              reject(err);
+            }
+          };
+          img.onerror = function() {
+            URL.revokeObjectURL(url);
+            reject(new Error('Could not read image'));
+          };
+          img.src = url;
+        });
+      }
+
+      window.handleEventImageUpload = function(input) {
+        var file = input && input.files && input.files[0];
+        if (!file) {
+          clearEventImage();
+          return;
+        }
+        if (!/^image\//.test(file.type || '')) {
+          showToast('Please choose an image file.', true);
+          input.value = '';
+          return;
+        }
+        resizeImageFile(file).then(function(dataUrl) {
+          selectedEventImage = dataUrl;
+          setEventImagePreview(dataUrl);
+        }).catch(function() {
+          selectedEventImage = '';
+          setEventImagePreview('');
+          showToast('Could not prepare that image. Try another file.', true);
+          input.value = '';
+        });
+      };
+
       // ── Events Manager ──
       window.loadManagedEvents = function() {
         fetch('/api/events')
@@ -876,12 +960,18 @@ resultBox.className = 'admin-scan-result show';
             var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
               var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+              var vipValue = parseFloat(ev.vipPrice || 0) || 0;
+              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0;
+              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ₦' + vipValue.toLocaleString() + '</span>' : '';
+              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ₦' + vvipValue.toLocaleString() + '</span>' : '';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
-                '<span>' + esc(ev.icon || '🎤') + '</span>' +
+                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
+                vipHtml +
+                vvipHtml +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
@@ -899,14 +989,18 @@ resultBox.className = 'admin-scan-result show';
         var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
+        var vipPrice = parseFloat(document.getElementById('evVIPPrice').value) || 0;
         var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
         var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
         var desc = document.getElementById('evDesc').value.trim();
-        var icon = document.getElementById('evIcon').value.trim() || '🎤';
         var tags = document.getElementById('evTags').value.trim();
+        var includedRegular = (document.getElementById('evIncludedRegular') ? document.getElementById('evIncludedRegular').value : '').trim();
+        var includedVip = (document.getElementById('evIncludedVip') ? document.getElementById('evIncludedVip').value : '').trim();
+        var includedVVIP = (document.getElementById('evIncludedVVIP') ? document.getElementById('evIncludedVVIP').value : '').trim();
+        var includedTable = (document.getElementById('evIncludedTable') ? document.getElementById('evIncludedTable').value : '').trim();
 
         var uniSel = document.getElementById('evUniversity');
         var uniId = uniSel ? uniSel.value : '';
@@ -927,13 +1021,18 @@ resultBox.className = 'admin-scan-result show';
           name: name,
           category: category,
           price: price,
+          vipPrice: vipPrice,
           vvipPrice: vvipPrice,
           tablePrice: tablePrice,
+          includedRegular: includedRegular,
+          includedVip: includedVip,
+          includedVVIP: includedVVIP,
+          includedTable: includedTable,
           date: date,
           time: time,
           venue: venue,
           description: desc,
-          icon: icon,
+          image: selectedEventImage,
           tags: tags ? tags.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [],
           universityId: uniId,
           universityName: uniName,
@@ -954,14 +1053,19 @@ resultBox.className = 'admin-scan-result show';
             showToast('Event "' + esc(name) + '" added!');
             document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
+            document.getElementById('evVIPPrice').value = '';
             document.getElementById('evVVIPPrice').value = '';
             document.getElementById('evTablePrice').value = '';
             document.getElementById('evDate').value = '';
             document.getElementById('evTime').value = '';
             document.getElementById('evVenue').value = '';
             document.getElementById('evDesc').value = '';
-            document.getElementById('evIcon').value = '';
             document.getElementById('evTags').value = '';
+            if (document.getElementById('evIncludedRegular')) document.getElementById('evIncludedRegular').value = '';
+            if (document.getElementById('evIncludedVip')) document.getElementById('evIncludedVip').value = '';
+            if (document.getElementById('evIncludedVVIP')) document.getElementById('evIncludedVVIP').value = '';
+            if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
+            clearEventImage();
             loadManagedEvents();
           } else {
             showToast((data && data.error) || 'Failed to add event', true);

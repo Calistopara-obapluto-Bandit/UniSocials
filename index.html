@@ -96,7 +96,9 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         </div>
         <div class="hero-visual reveal reveal-delay-2">
           <div class="hero-card">
-            <div class="hero-card-icon" id="heroEventIcon">🎉</div>
+            <div class="hero-card-media" id="heroEventMedia">
+              <div class="hero-card-fallback" id="heroEventIcon">🎉</div>
+            </div>
             <div class="hero-card-title">Next Big Event</div>
             <div class="hero-card-sub" id="heroEventSub">Loading the next<br>campus event…</div>
             <div class="hero-card-date">
@@ -141,8 +143,8 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
 
       <div class="events-grid" id="featuredGrid">
         <div class="event-card reveal">
-          <div class="event-card-image" style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9);">
-            <span>🎭</span>
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-01.jpg" alt="Faculty of Arts Cultural Night" />
             <div class="event-card-badge">Arts &amp; Culture</div>
           </div>
           <div class="event-card-body">
@@ -157,8 +159,8 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         </div>
 
         <div class="event-card reveal reveal-delay-1">
-          <div class="event-card-image" style="background: linear-gradient(135deg, #FFF3E0, #FFE0B2);">
-            <span>⚙️</span>
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-02.jpg" alt="Engineering Annual Dinner" />
             <div class="event-card-badge">Engineering</div>
           </div>
           <div class="event-card-body">
@@ -173,8 +175,8 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         </div>
 
         <div class="event-card reveal reveal-delay-2">
-          <div class="event-card-image" style="background: linear-gradient(135deg, #E3F2FD, #BBDEFB);">
-            <span>💼</span>
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-03.jpg" alt="Entrepreneurship Summit" />
             <div class="event-card-badge">Business</div>
           </div>
           <div class="event-card-body">
@@ -291,6 +293,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
       var grid = document.getElementById('featuredGrid');
       if (!grid) return;
 
+      var heroMedia = document.getElementById('heroEventMedia');
       var heroIcon = document.getElementById('heroEventIcon');
       var heroSub = document.getElementById('heroEventSub');
       var heroDate = document.getElementById('heroEventDate');
@@ -303,6 +306,20 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
       function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
+      function eventImageHtml(ev, fallback, gradient) {
+        var img = String(ev.image || '').trim();
+        var badge = esc(ev.category || 'General');
+        if (img) {
+          return '<div class="event-card-image has-photo">' +
+            '<img class="event-card-image-photo" src="' + esc(img) + '" alt="' + esc(ev.name || 'Event image') + '">' +
+            '<div class="event-card-badge">' + badge + '</div>' +
+          '</div>';
+        }
+        return '<div class="event-card-image" style="background: ' + (gradient || 'linear-gradient(135deg, #E8F5E9, #C8E6C9)') + '">' +
+          '<span class="event-card-fallback">' + esc(fallback || ev.icon || '\uD83C\uDF9F\uFE0F') + '</span>' +
+          '<div class="event-card-badge">' + badge + '</div>' +
+        '</div>';
+      }
       function cardHtml(ev, delay) {
         var dateLine = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
         var tagsHtml = '';
@@ -312,10 +329,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
           }).join('') + '</div>';
         }
         return '<div class="event-card reveal' + delay + '">' +
-          '<div class="event-card-image" style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9);">' +
-            '<span>' + esc(ev.icon || '\uD83C\uDF9F\uFE0F') + '</span>' +
-            '<div class="event-card-badge">' + esc(ev.category || 'General') + '</div>' +
-          '</div>' +
+          eventImageHtml(ev, ev.icon || '\uD83C\uDF9F\uFE0F') +
           '<div class="event-card-body">' +
             '<div class="event-card-date">\uD83D\uDCC5 ' + esc(dateLine) + '</div>' +
             '<h3 class="event-card-title">' + esc(ev.name) + '</h3>' +
@@ -331,7 +345,14 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
 
       function updateHero(ev) {
         if (!ev) return;
-        if (heroIcon) heroIcon.textContent = ev.icon || '\uD83C\uDF9F\uFE0F';
+        if (heroMedia) {
+          var image = String(ev.image || '').trim();
+          if (image) {
+            heroMedia.innerHTML = '<img src="' + esc(image) + '" alt="' + esc(ev.name || 'Featured event') + '">';
+          } else {
+            heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">' + esc(ev.icon || '\uD83C\uDF9F\uFE0F') + '</div>';
+          }
+        }
         if (heroSub) heroSub.innerHTML = esc(ev.name || 'Next Big Event');
         if (heroDate) heroDate.textContent = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
       }
@@ -349,6 +370,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
             var events = (data && data.success && data.events) || [];
             if (!events.length) {
               grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No featured events yet for this campus. Check back soon!</p></div>';
+              if (heroMedia) heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">🎉</div>';
               if (heroSub) heroSub.innerHTML = 'No events yet<br>Check back soon!';
               if (heroDate) heroDate.textContent = '—';
               return;
@@ -369,6 +391,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
           })
           .catch(function() {
             grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load featured events. Please refresh the page.</p></div>';
+            if (heroMedia) heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">🎉</div>';
           });
       }
 
