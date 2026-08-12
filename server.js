@@ -59,6 +59,7 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
@@ -197,6 +198,76 @@ async function deleteUserSessions(userId) {
     if (uid === userId) delete sessions[t];
   }
   await writeSessions(sessions);
+}
+
+/* ── Referral Links (subadmin referral tracking) ── */
+async function readReferralLinks() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM referral_links');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'referral_links.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writeReferralLinks(links) {
+  if (usePg) {
+    await db.query('DELETE FROM referral_links');
+    for (const l of links) {
+      await db.query('INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [l.code, JSON.stringify(l)]);
+    }
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
+}
+async function getReferralLinkByCode(code) {
+  const links = await readReferralLinks();
+  return links.find(l => l.code === code) || null;
+}
+async function getReferralLinkBySubadminId(subadminId) {
+  const links = await readReferralLinks();
+  return links.find(l => l.subadminId === subadminId) || null;
+}
+async function generateReferralLink(subadminId, subadminName, subadminEmail) {
+  const links = await readReferralLinks();
+  // Check if this subadmin already has a referral link
+  const existing = links.find(l => l.subadminId === subadminId);
+  if (existing) return existing;
+  
+  // Generate unique code
+  let code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+  while (links.find(l => l.code === code)) {
+    code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+  }
+  
+  const link = {
+    code: code,
+    subadminId: subadminId,
+    subadminName: subadminName,
+    subadminEmail: subadminEmail,
+    createdAt: new Date().toISOString(),
+    totalOrders: 0,
+    totalRevenue: 0
+  };
+  links.push(link);
+  await writeReferralLinks(links);
+  return link;
+}
+async function updateReferralStats(referralCode) {
+  if (!referralCode) return;
+  const links = await readReferralLinks();
+  const link = links.find(l => l.code === referralCode);
+  if (!link) return;
+  
+  const orders = await readOrders();
+  const referredOrders = orders.filter(o => o.referralCode === referralCode && o.status === 'verified');
+  
+  link.totalOrders = referredOrders.length;
+  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+  
+  await writeReferralLinks(links);
 }
 
 /* ── Events (admin-managed catalog shown on client pages) ── */
@@ -1638,13 +1709,14 @@ const user = {
       const currency = String(data.currency || 'NGN');
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
-const buyerPhone = String(data.buyerPhone || '').trim();
-const buyerFaculty = String(data.buyerFaculty || '').trim();
-const ticketTier = String(data.ticketTier || '') || 'standard';
+      const buyerPhone = String(data.buyerPhone || '').trim();
+      const buyerFaculty = String(data.buyerFaculty || '').trim();
+      const ticketTier = String(data.ticketTier || '') || 'standard';
       const included = String(data.included || '').trim();
       const universityId = String(data.universityId || '').trim();
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
+      const referralCode = String(data.referralCode || '').trim();  // Optional referral tracking
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1680,6 +1752,7 @@ buyerFaculty: buyerFaculty,
         universityId: universityId,
         universityName: universityName,
         universitySlug: universitySlug,
+        referralCode: referralCode || null,  // Track which subadmin referred this order
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
@@ -1690,6 +1763,10 @@ buyerFaculty: buyerFaculty,
       };
       order.ticketCode = order.ticketCodes[0].code;
       await addOrder(order);
+      // Update referral stats if this order came from a referral link
+      if (referralCode) {
+        await updateReferralStats(referralCode);
+      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
@@ -1983,6 +2060,57 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, checkins: checkins, total: checkins.length });
     }
 
+    // ── Sub-admin: generate/get referral link ──
+    if (pathname === '/api/subadmin/referral-link' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      
+      let link = await getReferralLinkBySubadminId(user.id);
+      if (!link) {
+        link = await generateReferralLink(user.id, user.name, user.email);
+      } else {
+        // Refresh stats
+        await updateReferralStats(link.code);
+        link = await getReferralLinkBySubadminId(user.id);
+      }
+      
+      return sendJson(res, 200, { success: true, link: link });
+    }
+
+    // ── Sub-admin: get referral stats ──
+    if (pathname === '/api/subadmin/referral-stats' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      
+      const link = await getReferralLinkBySubadminId(user.id);
+      if (!link) {
+        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, link: null } });
+      }
+      
+      const orders = await readOrders();
+      const referredOrders = orders.filter(o => o.referralCode === link.code && o.status === 'verified');
+      const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+      const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+      
+      return sendJson(res, 200, { 
+        success: true, 
+        stats: { 
+          totalOrders: referredOrders.length,
+          totalRevenue: totalRevenue,
+          totalTickets: totalTickets,
+          link: link
+        } 
+      });
+    }
+
     // ── Admin: mark orders seen ──
     if (pathname === '/api/admin/orders/seen' && req.method === 'POST') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
@@ -2143,7 +2271,7 @@ codes[idx] = entry;
         const uni = await findUniversityById(universityId);
         if (uni) uniSlug = uni.slug || uni.id;
       }
-const ev = {
+      const ev = {
         id: id,
         name: name,
         category: String(data.category || '').trim() || 'General',
@@ -2168,25 +2296,13 @@ const ev = {
         universityName: universityName,
         universitySlug: uniSlug
       };
-      await addEvent(ev);
-      // Notify subscribers about the new event (best-effort)
-      try { notifySubscribersAboutEvent(ev); } catch (e) {}
-      return sendJson(res, 200, { success: true, event: ev });
-    }
-
-    // ── Admin: delete an event ──
-    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const eventId = String(url.searchParams.get('eventId') || '').trim();
-      if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
-
-      // Capture the event (to know its name) before deleting it, so we can also
-      // remove any orders/tickets that belong to this event.
-      const events = await readEvents();
-      const ev = events.find(e => e.id === eventId);
-      const deleted = await deleteEvent(eventId);
-
-      // "Tickets will be deleted after the event" — any orders placed for this
+      try {
+        await addEvent(ev);
+        console.log('✓ Event created:', ev.id, '—', ev.name, '(', ev.universityName, ')');
+      } catch (e) {
+        console.error('✗ Error creating event:', e.message);
+        return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
+      }
       // event are removed along with it, so stale tickets never outlive the event.
       let ordersDeleted = 0;
       if (deleted && ev && ev.name) {
