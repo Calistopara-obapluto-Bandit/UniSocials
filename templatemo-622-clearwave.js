@@ -883,13 +883,17 @@ const tier = getSelectedTier();
   }
 
   function createOrderViaApi(orderId, orderTotal, successCallback) {
+    // Extract referral code from URL if present
+    const urlParams = new URLSearchParams(window.location.search);
+    const referralCode = urlParams.get('ref') || '';
+    
     fetch('/api/orders', {
       method: 'POST',
       headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
-body: JSON.stringify({
+      body: JSON.stringify({
         orderId: orderId,
         eventName: checkoutData.eventName,
-        eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '',
+        eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' · ' + (checkoutData.eventTime || '')) : '',
         eventVenue: checkoutData.eventVenue || '',
         eventCategory: checkoutData.eventCategory || '',
         qty: checkoutData.qty,
@@ -904,7 +908,8 @@ body: JSON.stringify({
         included: checkoutData.included || '',
         universityId: checkoutData.universityId || '',
         universityName: checkoutData.universityName || '',
-        universitySlug: checkoutData.universitySlug || ''
+        universitySlug: checkoutData.universitySlug || '',
+        referralCode: referralCode  // Add referral code to order
       })
     })
     .then(function(res) { return res.json(); })
