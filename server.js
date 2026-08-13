@@ -1499,7 +1499,24 @@ const user = {
     if (pathname === '/api/admin/subadmins' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const users = await readUsers();
-      const subs = users.filter(u => u.role === 'subadmin').map(publicUser);
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const subs = users.filter(u => u.role === 'subadmin').map(u => {
+        const link = links.find(l => l.subadminId === u.id) || null;
+        const referredOrders = link ? orders.filter(o => o.referralCode === link.code && o.status === 'verified') : [];
+        const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+        const sub = publicUser(u);
+        return {
+          ...sub,
+          referralCode: link ? link.code : null,
+          referralStats: {
+            totalOrders: referredOrders.length,
+            totalRevenue: totalRevenue,
+            totalTickets: totalTickets
+          }
+        };
+      });
       return sendJson(res, 200, { success: true, subadmins: subs });
     }
 
@@ -1529,7 +1546,15 @@ const user = {
         createdAt: new Date().toISOString()
       };
       await addUser(sub);
-      return sendJson(res, 200, { success: true, subadmin: publicUser(sub) });
+      const referralLink = await generateReferralLink(sub.id, sub.name, sub.email);
+      return sendJson(res, 200, {
+        success: true,
+        subadmin: {
+          ...publicUser(sub),
+          referralCode: referralLink.code,
+          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0 }
+        }
+      });
     }
 
     // ── Admin (master only): remove a sub-admin account ──
