@@ -255,6 +255,12 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
   await writeReferralLinks(links);
   return link;
 }
+function isReferralOrderCounted(order, referralCode) {
+  if (!order || order.referralCode !== referralCode) return false;
+  const status = String(order.status || '').toLowerCase();
+  return !['rejected', 'cancelled', 'failed'].includes(status);
+}
+
 async function updateReferralStats(referralCode) {
   if (!referralCode) return;
   const links = await readReferralLinks();
@@ -262,7 +268,7 @@ async function updateReferralStats(referralCode) {
   if (!link) return;
   
   const orders = await readOrders();
-  const referredOrders = orders.filter(o => o.referralCode === referralCode && o.status === 'verified');
+  const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
   
   link.totalOrders = referredOrders.length;
   link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -1503,7 +1509,7 @@ const user = {
       const orders = await readOrders();
       const subs = users.filter(u => u.role === 'subadmin').map(u => {
         const link = links.find(l => l.subadminId === u.id) || null;
-        const referredOrders = link ? orders.filter(o => o.referralCode === link.code && o.status === 'verified') : [];
+        const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
         const sub = publicUser(u);
@@ -2121,7 +2127,7 @@ codes[idx] = entry;
       }
       
       const orders = await readOrders();
-      const referredOrders = orders.filter(o => o.referralCode === link.code && o.status === 'verified');
+      const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
       const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
       
