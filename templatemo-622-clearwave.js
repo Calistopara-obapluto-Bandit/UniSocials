@@ -11,6 +11,16 @@ Free for personal and commercial use
 (function() {
   const cfg = window.SITE_CONFIG || {};
 
+  // Preserve referral tracking when a user lands on a referral link on any page,
+  // then continues to checkout or another page in the same browser session.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const referralCode = (params.get('ref') || '').trim();
+    if (referralCode) {
+      sessionStorage.setItem('referralCode', referralCode);
+    }
+  } catch (e) {}
+
   // WhatsApp floating buttons — update all wa.me links to the configured number
   const floatNumber = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
   document.querySelectorAll('.whatsapp-float').forEach(function(link) {
@@ -882,10 +892,25 @@ const tier = getSelectedTier();
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
+  function getReferralCodeFromUrlOrSession() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      let referralCode = (urlParams.get('ref') || '').trim();
+      if (!referralCode) {
+        referralCode = (sessionStorage.getItem('referralCode') || '').trim();
+      }
+      if (referralCode) {
+        sessionStorage.setItem('referralCode', referralCode);
+      }
+      return referralCode;
+    } catch (e) {
+      return '';
+    }
+  }
+
   function createOrderViaApi(orderId, orderTotal, successCallback) {
-    // Extract referral code from URL if present
-    const urlParams = new URLSearchParams(window.location.search);
-    const referralCode = urlParams.get('ref') || '';
+    // Extract referral code from URL or session so it survives navigation to checkout.
+    const referralCode = getReferralCodeFromUrlOrSession();
     
     fetch('/api/orders', {
       method: 'POST',
