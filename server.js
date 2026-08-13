@@ -258,7 +258,8 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
 function isReferralOrderCounted(order, referralCode) {
   if (!order || order.referralCode !== referralCode) return false;
   const status = String(order.status || '').toLowerCase();
-  return !['rejected', 'cancelled', 'failed'].includes(status);
+  // Only count verified (paid) orders for referral stats
+  return status === 'verified';
 }
 
 async function updateReferralStats(referralCode) {
