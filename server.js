@@ -1818,23 +1818,23 @@ buyerFaculty: buyerFaculty,
 
       const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
 
-      if (result.success) {
-        const wasVerified = order.status === 'verified';
-        const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
-        console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
-        if (!wasVerified) notifyOrderVerified(updated);
-        return sendJson(res, 200, { success: true, order: updated });
-      }
-
-      return sendJson(res, 200, {
-        success: false,
-        error: result.amountOk && result.currencyOk ? 'Payment not verified yet' : 'Payment amount/currency mismatch',
-        status: result.status,
-        amountOk: result.amountOk,
-        currencyOk: result.currencyOk,
-        tx_ref: txRef
-      });
+  if (result.success) {
+  const wasVerified = order.status === 'verified';
+  const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
+  console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
+  
+  if (!wasVerified) {
+    notifyOrderVerified(updated);
+    
+    // ✅ FIX: Update referral stats now that order is verified
+    if (updated.referralCode) {
+      await updateReferralStats(updated.referralCode);
+      console.log(`Referral stats updated for code: ${updated.referralCode}`);
     }
+  }
+  
+  return sendJson(res, 200, { success: true, order: updated });
+}
 
     // ── Flutterwave webhook (server-to-server) ──
     if (pathname === '/api/webhook/flutterwave' && req.method === 'POST') {
