@@ -17,7 +17,7 @@ Free for personal and commercial use
     const params = new URLSearchParams(window.location.search);
     const referralCode = (params.get('ref') || '').trim();
     if (referralCode) {
-      sessionStorage.setItem('referralCode', referralCode);
+      sessionStorage.setItem('referralCode', referralCode.toUpperCase());
     }
   } catch (e) {}
 
@@ -908,6 +908,7 @@ const tier = getSelectedTier();
         referralCode = (sessionStorage.getItem('referralCode') || '').trim();
       }
       if (referralCode) {
+        referralCode = referralCode.toUpperCase();
         sessionStorage.setItem('referralCode', referralCode);
       }
       return referralCode;
