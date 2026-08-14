@@ -274,7 +274,23 @@ async function updateReferralStats(referralCode) {
   link.totalOrders = referredOrders.length;
   link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
   
+  console.log(`updateReferralStats: code=${referralCode} totalOrders=${link.totalOrders} totalRevenue=${link.totalRevenue}`);
   await writeReferralLinks(links);
+}
+
+async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
+  const referralCode = String(order && order.referralCode ? order.referralCode : '').trim();
+  const currentStatus = String(order && order.status ? order.status : '').toLowerCase();
+  const prevStatus = String(previousStatus || '').toLowerCase();
+
+  console.log(`refreshReferralStatsForVerifiedOrder called - code=${referralCode} prev=${prevStatus} current=${currentStatus}`);
+
+  if (!referralCode) return;
+  if (currentStatus !== 'verified') return;
+  if (prevStatus === 'verified') return;
+
+  await updateReferralStats(referralCode);
+  console.log(`refreshReferralStatsForVerifiedOrder completed for code=${referralCode}`);
 }
 
 /* ── Events (admin-managed catalog shown on client pages) ── */
@@ -1825,15 +1841,13 @@ buyerFaculty: buyerFaculty,
   
   if (!wasVerified) {
     notifyOrderVerified(updated);
-    
-    // ✅ FIX: Update referral stats now that order is verified
-    if (updated.referralCode) {
-      await updateReferralStats(updated.referralCode);
-      console.log(`Referral stats updated for code: ${updated.referralCode}`);
-    }
+    await refreshReferralStatsForVerifiedOrder(updated, order.status);
   }
   
   return sendJson(res, 200, { success: true, order: updated });
+  }
+
+  return sendJson(res, 400, { success: false, error: 'Payment verification failed' });
 }
 
     // ── Flutterwave webhook (server-to-server) ──
@@ -1875,6 +1889,7 @@ buyerFaculty: buyerFaculty,
           const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
           console.log('Webhook verified order:', txRef);
           notifyOrderVerified(updated);
+          await refreshReferralStatsForVerifiedOrder(updated, order.status);
         } else {
           return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
         }
@@ -2213,7 +2228,10 @@ codes[idx] = entry;
       if (newStatus === 'verified') {
         const wasVerified = order.status === 'verified';
         const updated = await patchOrder(orderId, verifyOrderTicketData(Object.assign({}, order)));
-        if (!wasVerified) notifyOrderVerified(updated);
+        if (!wasVerified) {
+          notifyOrderVerified(updated);
+          await refreshReferralStatsForVerifiedOrder(updated, order.status);
+        }
         return sendJson(res, 200, { success: true, order: updated });
       }
       const updated = await patchOrder(orderId, { status: newStatus });
@@ -2480,6 +2498,17 @@ const events = await readEvents();
     let urlPath = decodeURIComponent(pathname);
     if (urlPath === '/') urlPath = '/index.html';
     const filePath = path.join(PUBLIC_DIR, urlPath);
+    // Shortlink referral handler: /r/REF-XXXX  (optionally ?to=/path)
+    if (urlPath && urlPath.toLowerCase().startsWith('/r/')) {
+      const rawCode = decodeURIComponent(urlPath.slice(3) || '').trim();
+      const code = String(rawCode || '').toUpperCase();
+      const to = String(url.searchParams.get('to') || '/');
+      const safeTo = to && to.startsWith('/') ? to : '/';
+      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", '" + code + "');}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    }
     if (!filePath.startsWith(PUBLIC_DIR)) {
       res.writeHead(403);
       res.end('Forbidden');
