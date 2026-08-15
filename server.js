@@ -787,10 +787,11 @@ const defaults = {
   // just verify a sender email at https://app.brevo.com). Never exposed to browser.
   BREVO_API_KEY: '',
   BREVO_SENDER_EMAIL: 'support.sbiamautos@gmail.com',
-  BREVO_SENDER_NAME: 'Unisocials'
+  BREVO_SENDER_NAME: 'Unisocials',
   // NOTE: RESEND_API_KEY is intentionally NOT hardcoded here. Set it in the
   // Render dashboard (Environment → Env Vars) so it's never committed to the
   // repo — GitHub secret scanning rejects live Resend keys in commits.
+  RESEND_API_KEY: ''
 };
 
 function getConfig() {

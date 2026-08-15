@@ -4,120 +4,44 @@ node_modules/
 # Logs and temp files
 *.log
 *.tmp
-*.swp
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.
 
 # Editors
 .vscode/
-.idea/
 
-# Python
-__pycache__/
+# Compiled and build artifacts
 *.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git*
-.pytest_cache/
-.hypothesis/
-
-# Build results
-dist/
-build/
-*.egg-info/
-.eggs/
-.installed.cfg
-lib/
-lib64/
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-Icon?
-.directory
-.folders~
-metadata.json
-
-# Compiled and binary files
+__pycache__/
 *.o
 *.obj
+dist/
+build/
+target/
+*.class
 *.exe
 *.dll
 *.so
 *.a
 *.out
-*.class
-*.jar
-*.war
-*.ear
-*.bin
 
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-
-# Coverage reports
+# Python specific
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.coverage
 coverage/
 htmlcov/
-lcov.info
 
-# IDE specific
-.vs/
-*.swp
-*.swo
-*~
-
-# Gradle
+# Java/Gradle
 .gradle/
-build/
 
-# Maven
-target/
-
-# Temporary files
-tmp/
-temp/
+# System files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
