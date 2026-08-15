@@ -1,41 +1,47 @@
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Editor folders
-.idea/
-.vscode/
-
-# Logs
-*.log
-npm-debug.log*
-
-# Node
+# Dependencies
 node_modules/
 
-# Runtime data (contains buyer PII — never commit)
-orders.json
-data/
-# EXCEPT the events seed script (no PII; needed to seed the DB catalog on deploy)
-!data/events_seed.sql
+# Logs and temp files
+*.log
+*.tmp
 
-# Local secrets (live API keys — NEVER commit)
+# Environment
 .env
-.env.*
-!.env.example
+.env.local
+.env.
 
-# Build artifacts (minified output) — dist only; assets/min is committed so
-# Render serves the obfuscated JS without needing a build step.
+# Editors
+.vscode/
+
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
 dist/
+build/
+target/
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
-# Temporary test / helper scripts
-_*.js
+# Python specific
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
 
-# Mojibake backup folder (temporary)
-.mojibake-backup/
+# Java/Gradle
+.gradle/
 
-# Temporary helper results
-_*result*.txt
-_scan_result.txt
-_remaining_result.txt
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
