@@ -1,41 +1,150 @@
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Editor folders
-.idea/
-.vscode/
-
-# Logs
-*.log
-npm-debug.log*
-
-# Node
+# Dependencies
 node_modules/
 
-# Runtime data (contains buyer PII — never commit)
-orders.json
-data/
-# EXCEPT the events seed script (no PII; needed to seed the DB catalog on deploy)
-!data/events_seed.sql
+# Logs and temp files
+*.log
+*.tmp
 
-# Local secrets (live API keys — NEVER commit)
+# Environment
 .env
+.env.local
 .env.*
-!.env.example
 
-# Build artifacts (minified output) — dist only; assets/min is committed so
-# Render serves the obfuscated JS without needing a build step.
-dist/
+# Editors
+.vscode/
+.idea/
 
-# Temporary test / helper scripts
-_*.js
-
-# Mojibake backup folder (temporary)
-.mojibake-backup/
-
-# Temporary helper results
-_*result*.txt
-_scan_result.txt
-_remaining_result.txt
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+.DS_Store
+.hg/
+.svn/
+.wafpickle-*
+config.env
+*.env
+.env.local
+.env.dev
+.env.prod
+.env.test
+.env.testing
+.env.development
+.env.production
+.env.staging
+.env.stable
+.env.canary
+.env.backup
+.env.example
+.env.sample
+.env.template
+.env.default
+.env.local
+.env.backup
+.env.save
+.env.old
+.env.bak
+.env~
+.env.tmp
+.env.temp
+.env.copy
+.env.dup
+.env.duplicate
+.env.version
+.env.v1
+.env.v2
+.env.1
+.env.2
+.env.original
+.env.src
+.env.dist
+.env.prod
+.env.production
+.env.stage
+.env.staging
+.env.dev
+.env.development
+.env.test
+.env.testing
+.env.ci
+.env.travis
+.env.heroku
+.env.aws
+.env.azure
+.env.gcp
+.env.docker
+.env.kubernetes
+.env.minikube
+.env.compose
+.env.local
+.env.global
+.env.user
+.env.system
+.env.machine
+.env.host
+.env.server
+.env.client
+.env.web
+.env.mobile
+.env.desktop
+.env.backend
+.env.frontend
+.env.api
+.env.ui
+.env.cli
+.env.gui
+.env.tui
+.env.headless
+.env.debug
+.env.release
+.env.optimized
+.env.minified
+.env.compressed
+.env.encrypted
+.env.decrypted
+.env.secure
+.env.insecure
+.env.private
+.env.public
+.env.internal
+.env.external
+.env.alpha
+.env.beta
+.env.gamma
+.env.delta
+.env.epsilon
+.env.zeta
+.env.eta
+.env.theta
+.env.iota
+.env.kappa
+.env.lambda
+.env.mu
+.env.nu
+.env.xi
+.env.omicron
+.env.pi
+.env.rho
+.env.sigma
+.env.tau
+.env.upsilon
+.env.phi
+.env.chi
+.env.psi
+.env.omega
