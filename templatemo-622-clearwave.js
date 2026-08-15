@@ -892,12 +892,19 @@ const tier = getSelectedTier();
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  function getReferralCodeFromUrlOrSession() {
+  function getReferralCodeFromUrlOrSessionOrInput() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       let referralCode = (urlParams.get('ref') || '').trim();
       if (!referralCode) {
         referralCode = (sessionStorage.getItem('referralCode') || '').trim();
+      }
+      // Also check the input field on checkout page
+      if (!referralCode) {
+        const inputEl = document.getElementById('referralCodeInput');
+        if (inputEl && inputEl.value) {
+          referralCode = inputEl.value.trim();
+        }
       }
       if (referralCode) {
         referralCode = referralCode.toUpperCase();
@@ -910,8 +917,8 @@ const tier = getSelectedTier();
   }
 
   function createOrderViaApi(orderId, orderTotal, successCallback) {
-    // Extract referral code from URL or session so it survives navigation to checkout.
-    const referralCode = getReferralCodeFromUrlOrSession();
+    // Extract referral code from URL, session, or input field so it survives navigation to checkout.
+    const referralCode = getReferralCodeFromUrlOrSessionOrInput();
     
     fetch('/api/orders', {
       method: 'POST',
