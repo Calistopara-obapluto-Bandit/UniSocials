@@ -924,9 +924,26 @@ const tier = getSelectedTier();
     }
   }
 
+<<<<<<< HEAD
   function createOrderViaApi(orderId, orderTotal, successCallback) {
+<<<<<<< HEAD
     // Extract referral code from URL or session so it survives navigation to checkout.
     const referralCode = getReferralCodeFromUrlOrSession();
+=======
+    // Extract referral code from URL, session, or input field so it survives navigation to checkout.
+    const referralCode = getReferralCodeFromUrlOrSessionOrInput();
+=======
+    function createOrderViaApi(orderId, orderTotal, successCallback) {
+    // Priority: 1. Manual Input field, 2. URL/Session
+    let referralCode = '';
+    const refInput = document.getElementById('checkoutReferralCode');
+    if (refInput && refInput.value.trim()) {
+      referralCode = refInput.value.trim();
+    } else {
+      referralCode = getReferralCodeFromUrlOrSession();
+    }
+>>>>>>> 8368b8a (Fix server logic for Render and implement referral tracking system)
+>>>>>>> f232237 (Fix server logic for Render and implement referral tracking system)
     
     fetch('/api/orders', {
       method: 'POST',
