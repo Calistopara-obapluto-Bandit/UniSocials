@@ -1787,8 +1787,10 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
                       '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>' +
                       (o.buyerPhone ? ' &middot; ' + esc(o.buyerPhone) : '') +
                       (o.buyerFaculty ? ' &middot; ' + esc(o.buyerFaculty) : '') + '</div>';
-          var paidFlag = (o.paymentNotified && o.status === 'pending') ?
+                    var paidFlag = (o.paymentNotified && o.status === 'pending') ?
                       '<span class="admin-paid-flag">💸 Payment claimed</span>' : '';
+          var referralFlag = o.referralCode ? 
+                      '<span class="admin-paid-flag" style="color:var(--accent);background:var(--accent-ghost);border-color:var(--accent-border);">🏷 ' + esc(o.referralCode) + '</span>' : '';
           var ticket = (o.status === 'verified' && o.ticketCode) ?
                       '<span class="admin-order-badge" style="background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;">🎟 ' + esc(o.ticketCode) + '</span>' : '';
           var isNew = o.notifyAdmin && !o.seenByAdmin;
@@ -1827,8 +1829,8 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
                     '<div class="admin-order-main">' +
                       '<div class="admin-order-top">' +
                         '<span class="admin-order-id">' + esc(o.orderId) + '</span>' +
-                        '<span class="admin-order-badge ' + esc(o.status) + '">' + esc(o.status) + '</span>' +
-                        paidFlag + ticket +
+                                                '<span class="admin-order-badge ' + esc(o.status) + '">' + esc(o.status) + '</span>' +
+                        paidFlag + referralFlag + ticket +
                       '</div>' +
                       '<div class="admin-order-event">' + esc(o.eventName || '—') + '</div>' +
                       '<div class="admin-order-meta">' +

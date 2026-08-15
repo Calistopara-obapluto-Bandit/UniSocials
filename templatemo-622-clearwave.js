@@ -820,6 +820,14 @@ const tier = getSelectedTier();
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
   if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '\u2014';
+
+  // Pre-fill referral code from session/URL if available
+  const refInput = document.getElementById('checkoutReferralCode');
+  if (refInput) {
+    const savedRef = (sessionStorage.getItem('referralCode') || '').trim();
+    if (savedRef) refInput.value = savedRef;
+  }
+
   if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
   if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
 
@@ -908,9 +916,15 @@ const tier = getSelectedTier();
     }
   }
 
-  function createOrderViaApi(orderId, orderTotal, successCallback) {
-    // Extract referral code from URL or session so it survives navigation to checkout.
-    const referralCode = getReferralCodeFromUrlOrSession();
+    function createOrderViaApi(orderId, orderTotal, successCallback) {
+    // Priority: 1. Manual Input field, 2. URL/Session
+    let referralCode = '';
+    const refInput = document.getElementById('checkoutReferralCode');
+    if (refInput && refInput.value.trim()) {
+      referralCode = refInput.value.trim();
+    } else {
+      referralCode = getReferralCodeFromUrlOrSession();
+    }
     
     fetch('/api/orders', {
       method: 'POST',

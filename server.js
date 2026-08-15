@@ -2328,14 +2328,27 @@ codes[idx] = entry;
         universityName: universityName,
         universitySlug: uniSlug
       };
-      try {
+            try {
         await addEvent(ev);
         console.log('✓ Event created:', ev.id, '—', ev.name, '(', ev.universityName, ')');
+        return sendJson(res, 200, { success: true, event: ev });
       } catch (e) {
         console.error('✗ Error creating event:', e.message);
         return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
       }
-      // event are removed along with it, so stale tickets never outlive the event.
+    }
+
+    // ── Admin/Sub-admin: delete an event ──
+    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const eventId = String(url.searchParams.get('eventId') || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+      
+      const events = await readEvents();
+      const ev = events.find(e => e.id === eventId);
+      const deleted = await deleteEvent(eventId);
+      
       let ordersDeleted = 0;
       if (deleted && ev && ev.name) {
         const orders = await readOrders();
