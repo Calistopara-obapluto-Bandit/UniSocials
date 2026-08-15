@@ -17,7 +17,7 @@ Free for personal and commercial use
     const params = new URLSearchParams(window.location.search);
     const referralCode = (params.get('ref') || '').trim();
     if (referralCode) {
-      sessionStorage.setItem('referralCode', referralCode);
+      sessionStorage.setItem('referralCode', referralCode.toUpperCase());
     }
   } catch (e) {}
 
@@ -900,14 +900,22 @@ const tier = getSelectedTier();
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  function getReferralCodeFromUrlOrSession() {
+  function getReferralCodeFromUrlOrSessionOrInput() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       let referralCode = (urlParams.get('ref') || '').trim();
       if (!referralCode) {
         referralCode = (sessionStorage.getItem('referralCode') || '').trim();
       }
+      // Also check the input field on checkout page
+      if (!referralCode) {
+        const inputEl = document.getElementById('referralCodeInput');
+        if (inputEl && inputEl.value) {
+          referralCode = inputEl.value.trim();
+        }
+      }
       if (referralCode) {
+        referralCode = referralCode.toUpperCase();
         sessionStorage.setItem('referralCode', referralCode);
       }
       return referralCode;
@@ -916,6 +924,15 @@ const tier = getSelectedTier();
     }
   }
 
+<<<<<<< HEAD
+  function createOrderViaApi(orderId, orderTotal, successCallback) {
+<<<<<<< HEAD
+    // Extract referral code from URL or session so it survives navigation to checkout.
+    const referralCode = getReferralCodeFromUrlOrSession();
+=======
+    // Extract referral code from URL, session, or input field so it survives navigation to checkout.
+    const referralCode = getReferralCodeFromUrlOrSessionOrInput();
+=======
     function createOrderViaApi(orderId, orderTotal, successCallback) {
     // Priority: 1. Manual Input field, 2. URL/Session
     let referralCode = '';
@@ -925,6 +942,8 @@ const tier = getSelectedTier();
     } else {
       referralCode = getReferralCodeFromUrlOrSession();
     }
+>>>>>>> 8368b8a (Fix server logic for Render and implement referral tracking system)
+>>>>>>> f232237 (Fix server logic for Render and implement referral tracking system)
     
     fetch('/api/orders', {
       method: 'POST',

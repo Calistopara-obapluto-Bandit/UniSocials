@@ -1,12 +1,52 @@
-# Dependencies
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor folders
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Node
 node_modules/
 
+<<<<<<< HEAD
+# Runtime data (contains buyer PII — never commit)
+orders.json
+data/
+# EXCEPT the events seed script (no PII; needed to seed the DB catalog on deploy)
+!data/events_seed.sql
+=======
 # Logs and temp files
 *.log
 *.tmp
+>>>>>>> b0c333b63530e96e630974767a5c5650728edc4f
 
-# Environment
+# Local secrets (live API keys — NEVER commit)
 .env
+<<<<<<< HEAD
+.env.*
+!.env.example
+
+# Build artifacts (minified output) — dist only; assets/min is committed so
+# Render serves the obfuscated JS without needing a build step.
+dist/
+
+# Temporary test / helper scripts
+_*.js
+
+# Mojibake backup folder (temporary)
+.mojibake-backup/
+
+# Temporary helper results
+_*result*.txt
+_scan_result.txt
+_remaining_result.txt
+=======
 .env.local
 .env.
 
@@ -45,3 +85,4 @@ htmlcov/
 Thumbs.db
 *.swp
 *.swo
+>>>>>>> b0c333b63530e96e630974767a5c5650728edc4f
