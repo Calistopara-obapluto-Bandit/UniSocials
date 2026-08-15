@@ -2101,7 +2101,8 @@ fetch('/api/admin/events/notify', {
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
                 '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(referralCode) + '</span>' +
-                '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span>' +
+                 '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
                 '</div>' +
                 '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
                 '</div>' +
@@ -2135,7 +2136,7 @@ fetch('/api/admin/events/notify', {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            showToast('Sub-admin "' + esc(name) + '" created!');
+            showToast('Sub-admin "' + esc(name) + '" created! Referral code: ' + ((data.subadmin && data.subadmin.referralCode) || '—'));
             if (document.getElementById('subName')) document.getElementById('subName').value = '';
             if (document.getElementById('subEmail')) document.getElementById('subEmail').value = '';
             if (document.getElementById('subPassword')) document.getElementById('subPassword').value = '';

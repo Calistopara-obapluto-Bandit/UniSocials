@@ -249,7 +249,9 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
     subadminEmail: subadminEmail,
     createdAt: new Date().toISOString(),
     totalOrders: 0,
-    totalRevenue: 0
+    totalRevenue: 0,
+    uniquePeople: 0,
+    totalTickets: 0
   };
   links.push(link);
   await writeReferralLinks(links);
@@ -1537,7 +1539,12 @@ const user = {
           referralStats: {
             totalOrders: referredOrders.length,
             totalRevenue: totalRevenue,
-            totalTickets: totalTickets
+            totalTickets: totalTickets,
+            uniquePeople: new Set(
+              referredOrders
+                .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+                .filter(Boolean)
+            ).size
           }
         };
       });
@@ -1576,7 +1583,7 @@ const user = {
         subadmin: {
           ...publicUser(sub),
           referralCode: referralLink.code,
-          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0 }
+          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 }
         }
       });
     }
@@ -1765,7 +1772,7 @@ const user = {
       const universityId = String(data.universityId || '').trim();
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
-      const referralCode = String(data.referralCode || '').trim();  // Optional referral tracking
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1774,6 +1781,15 @@ const user = {
       const existing = await getOrder(orderId);
       if (existing) {
         return sendJson(res, 409, { success: false, error: 'Order ID already exists' });
+      }
+
+      // Referral codes are server-validated so buyers cannot attach an arbitrary
+      // code that does not belong to an active sub-admin.
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) {
+          return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
+        }
       }
 
       // Attach user if logged in
@@ -2140,7 +2156,7 @@ codes[idx] = entry;
       
       const link = await getReferralLinkBySubadminId(user.id);
       if (!link) {
-        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, link: null } });
+        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
       }
       
       const orders = await readOrders();
@@ -2518,11 +2534,7 @@ const events = await readEvents();
       const code = String(rawCode || '').toUpperCase();
       const to = String(url.searchParams.get('to') || '/');
       const safeTo = to && to.startsWith('/') ? to : '/';
-<<<<<<< HEAD
-      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", '" + code + "');}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
-=======
       const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
->>>>>>> c0e048ef1c7c746d3bf9ae6df8b33d0722c49d13
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
@@ -2555,6 +2567,13 @@ const events = await readEvents();
       res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
       fs.createReadStream(filePath).pipe(res);
     });
+  } catch (err) {
+    console.error('Request handler error:', err);
+    if (!res.headersSent) {
+      sendJson(res, 500, { success: false, error: 'Internal server error' });
+    } else {
+      try { res.end(); } catch (e) {}
+    }
   }
 });
 
