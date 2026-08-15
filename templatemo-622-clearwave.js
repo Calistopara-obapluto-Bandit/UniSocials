@@ -11,6 +11,16 @@ Free for personal and commercial use
 (function() {
   const cfg = window.SITE_CONFIG || {};
 
+  // Preserve referral tracking when a user lands on a referral link on any page,
+  // then continues to checkout or another page in the same browser session.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const referralCode = (params.get('ref') || '').trim();
+    if (referralCode) {
+      sessionStorage.setItem('referralCode', referralCode);
+    }
+  } catch (e) {}
+
   // WhatsApp floating buttons — update all wa.me links to the configured number
   const floatNumber = cfg.WHATSAPP_FLOAT_NUMBER || '2348122104576';
   document.querySelectorAll('.whatsapp-float').forEach(function(link) {
@@ -810,6 +820,14 @@ const tier = getSelectedTier();
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
   if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '\u2014';
+
+  // Pre-fill referral code from session/URL if available
+  const refInput = document.getElementById('checkoutReferralCode');
+  if (refInput) {
+    const savedRef = (sessionStorage.getItem('referralCode') || '').trim();
+    if (savedRef) refInput.value = savedRef;
+  }
+
   if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
   if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
 
@@ -882,10 +900,31 @@ const tier = getSelectedTier();
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  function createOrderViaApi(orderId, orderTotal, successCallback) {
-    // Extract referral code from URL if present
-    const urlParams = new URLSearchParams(window.location.search);
-    const referralCode = urlParams.get('ref') || '';
+  function getReferralCodeFromUrlOrSession() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      let referralCode = (urlParams.get('ref') || '').trim();
+      if (!referralCode) {
+        referralCode = (sessionStorage.getItem('referralCode') || '').trim();
+      }
+      if (referralCode) {
+        sessionStorage.setItem('referralCode', referralCode);
+      }
+      return referralCode;
+    } catch (e) {
+      return '';
+    }
+  }
+
+    function createOrderViaApi(orderId, orderTotal, successCallback) {
+    // Priority: 1. Manual Input field, 2. URL/Session
+    let referralCode = '';
+    const refInput = document.getElementById('checkoutReferralCode');
+    if (refInput && refInput.value.trim()) {
+      referralCode = refInput.value.trim();
+    } else {
+      referralCode = getReferralCodeFromUrlOrSession();
+    }
     
     fetch('/api/orders', {
       method: 'POST',

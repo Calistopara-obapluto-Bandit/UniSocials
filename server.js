@@ -255,6 +255,13 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
   await writeReferralLinks(links);
   return link;
 }
+function isReferralOrderCounted(order, referralCode) {
+  if (!order || order.referralCode !== referralCode) return false;
+  const status = String(order.status || '').toLowerCase();
+  // Only count verified (paid) orders for referral stats
+  return status === 'verified';
+}
+
 async function updateReferralStats(referralCode) {
   if (!referralCode) return;
   const links = await readReferralLinks();
@@ -262,7 +269,7 @@ async function updateReferralStats(referralCode) {
   if (!link) return;
   
   const orders = await readOrders();
-  const referredOrders = orders.filter(o => o.referralCode === referralCode && o.status === 'verified');
+  const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
   
   link.totalOrders = referredOrders.length;
   link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -1500,7 +1507,24 @@ const user = {
     if (pathname === '/api/admin/subadmins' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const users = await readUsers();
-      const subs = users.filter(u => u.role === 'subadmin').map(publicUser);
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const subs = users.filter(u => u.role === 'subadmin').map(u => {
+        const link = links.find(l => l.subadminId === u.id) || null;
+        const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
+        const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+        const sub = publicUser(u);
+        return {
+          ...sub,
+          referralCode: link ? link.code : null,
+          referralStats: {
+            totalOrders: referredOrders.length,
+            totalRevenue: totalRevenue,
+            totalTickets: totalTickets
+          }
+        };
+      });
       return sendJson(res, 200, { success: true, subadmins: subs });
     }
 
@@ -1530,7 +1554,15 @@ const user = {
         createdAt: new Date().toISOString()
       };
       await addUser(sub);
-      return sendJson(res, 200, { success: true, subadmin: publicUser(sub) });
+      const referralLink = await generateReferralLink(sub.id, sub.name, sub.email);
+      return sendJson(res, 200, {
+        success: true,
+        subadmin: {
+          ...publicUser(sub),
+          referralCode: referralLink.code,
+          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0 }
+        }
+      });
     }
 
     // ── Admin (master only): remove a sub-admin account ──
@@ -1787,23 +1819,23 @@ buyerFaculty: buyerFaculty,
 
       const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
 
-      if (result.success) {
-        const wasVerified = order.status === 'verified';
-        const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
-        console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
-        if (!wasVerified) notifyOrderVerified(updated);
-        return sendJson(res, 200, { success: true, order: updated });
-      }
-
-      return sendJson(res, 200, {
-        success: false,
-        error: result.amountOk && result.currencyOk ? 'Payment not verified yet' : 'Payment amount/currency mismatch',
-        status: result.status,
-        amountOk: result.amountOk,
-        currencyOk: result.currencyOk,
-        tx_ref: txRef
-      });
+  if (result.success) {
+  const wasVerified = order.status === 'verified';
+  const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
+  console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
+  
+  if (!wasVerified) {
+    notifyOrderVerified(updated);
+    
+    // ✅ FIX: Update referral stats now that order is verified
+    if (updated.referralCode) {
+      await updateReferralStats(updated.referralCode);
+      console.log(`Referral stats updated for code: ${updated.referralCode}`);
     }
+  }
+  
+  return sendJson(res, 200, { success: true, order: updated });
+}
 
     // ── Flutterwave webhook (server-to-server) ──
     if (pathname === '/api/webhook/flutterwave' && req.method === 'POST') {
@@ -2097,7 +2129,7 @@ codes[idx] = entry;
       }
       
       const orders = await readOrders();
-      const referredOrders = orders.filter(o => o.referralCode === link.code && o.status === 'verified');
+      const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
       const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
       
@@ -2297,14 +2329,27 @@ codes[idx] = entry;
         universityName: universityName,
         universitySlug: uniSlug
       };
-      try {
+            try {
         await addEvent(ev);
         console.log('✓ Event created:', ev.id, '—', ev.name, '(', ev.universityName, ')');
+        return sendJson(res, 200, { success: true, event: ev });
       } catch (e) {
         console.error('✗ Error creating event:', e.message);
         return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
       }
-      // event are removed along with it, so stale tickets never outlive the event.
+    }
+
+    // ── Admin/Sub-admin: delete an event ──
+    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const eventId = String(url.searchParams.get('eventId') || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+      
+      const events = await readEvents();
+      const ev = events.find(e => e.id === eventId);
+      const deleted = await deleteEvent(eventId);
+      
       let ordersDeleted = 0;
       if (deleted && ev && ev.name) {
         const orders = await readOrders();
@@ -2477,11 +2522,12 @@ const events = await readEvents();
       res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
       fs.createReadStream(filePath).pipe(res);
     });
-  } catch (err) {
-    console.error('Request error:', err.message);
-    if (!res.headersSent) sendJson(res, 500, { success: false, error: 'Server error' });
-    else res.end();
   }
+});
+
+// Global error handler for uncaught exceptions in async request handlers
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err.message);
 });
 
 function publicUser(user) {

@@ -1787,8 +1787,10 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
                       '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>' +
                       (o.buyerPhone ? ' &middot; ' + esc(o.buyerPhone) : '') +
                       (o.buyerFaculty ? ' &middot; ' + esc(o.buyerFaculty) : '') + '</div>';
-          var paidFlag = (o.paymentNotified && o.status === 'pending') ?
+                    var paidFlag = (o.paymentNotified && o.status === 'pending') ?
                       '<span class="admin-paid-flag">💸 Payment claimed</span>' : '';
+          var referralFlag = o.referralCode ? 
+                      '<span class="admin-paid-flag" style="color:var(--accent);background:var(--accent-ghost);border-color:var(--accent-border);">🏷 ' + esc(o.referralCode) + '</span>' : '';
           var ticket = (o.status === 'verified' && o.ticketCode) ?
                       '<span class="admin-order-badge" style="background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;">🎟 ' + esc(o.ticketCode) + '</span>' : '';
           var isNew = o.notifyAdmin && !o.seenByAdmin;
@@ -1827,8 +1829,8 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
                     '<div class="admin-order-main">' +
                       '<div class="admin-order-top">' +
                         '<span class="admin-order-id">' + esc(o.orderId) + '</span>' +
-                        '<span class="admin-order-badge ' + esc(o.status) + '">' + esc(o.status) + '</span>' +
-                        paidFlag + ticket +
+                                                '<span class="admin-order-badge ' + esc(o.status) + '">' + esc(o.status) + '</span>' +
+                        paidFlag + referralFlag + ticket +
                       '</div>' +
                       '<div class="admin-order-event">' + esc(o.eventName || '—') + '</div>' +
                       '<div class="admin-order-meta">' +
@@ -2084,12 +2086,24 @@ fetch('/api/admin/events/notify', {
             var html = '<div class="admin-ticket-codes-label">🔑 Active Sub-Admins (' + subs.length + ')</div>';
             subs.forEach(function(u) {
               var id = (u.id || u._id || u.email || '').replace(/[^a-zA-Z0-9@.\-_]/g, '');
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+              var referralCode = u.referralCode || 'No referral link yet';
+              var stats = u.referralStats || { totalOrders: 0, totalRevenue: 0, totalTickets: 0 };
+              var usageText = stats.totalOrders > 0
+                ? 'Used by ' + stats.totalOrders + ' people • Purchases ' + fmtN(stats.totalRevenue)
+                : 'No purchases through this referral yet';
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span>👤</span>' +
                 '<strong>' + esc(u.name || '—') + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">Created ' + fmtDate(u.createdAt) + '</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(referralCode) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
                 '</div>' +
                 '<button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>';
@@ -2161,6 +2175,7 @@ fetch('/api/admin/events/notify', {
         loadManagedEvents();
         loadManagedUniversities();
         loadSubscribers();
+        loadSubAdmins();
       };
 
       // ── Tab switching ──

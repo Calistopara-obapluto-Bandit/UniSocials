@@ -1,4 +1,4 @@
-?<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -435,7 +435,13 @@ if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014
         if (ticketVenue) ticketVenue.textContent = t.eventVenue;
         if (ticketTier) {
           var tier = t.ticketTier || 'regular';
-          var tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+          var tierLabels = {
+            regular: 'Regular',
+            vip: 'VIP',
+            vvip: 'VVIP',
+            table: 'Table'
+          };
+          var tierLabel = tierLabels[tier] || (tier.charAt(0).toUpperCase() + tier.slice(1));
           ticketTier.textContent = tierLabel;
         }
         if (ticketIncluded) ticketIncluded.textContent = t.included || '—';
