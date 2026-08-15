@@ -2550,11 +2550,12 @@ const events = await readEvents();
       res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
       fs.createReadStream(filePath).pipe(res);
     });
-  } catch (err) {
-    console.error('Request error:', err.message);
-    if (!res.headersSent) sendJson(res, 500, { success: false, error: 'Server error' });
-    else res.end();
   }
+});
+
+// Global error handler for uncaught exceptions in async request handlers
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err.message);
 });
 
 function publicUser(user) {
