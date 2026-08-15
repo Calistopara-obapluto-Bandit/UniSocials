@@ -1,41 +1,123 @@
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Editor folders
-.idea/
-.vscode/
-
-# Logs
-*.log
-npm-debug.log*
-
-# Node
+# Dependencies
 node_modules/
 
-# Runtime data (contains buyer PII — never commit)
-orders.json
-data/
-# EXCEPT the events seed script (no PII; needed to seed the DB catalog on deploy)
-!data/events_seed.sql
+# Logs and temp files
+*.log
+*.tmp
+*.swp
 
-# Local secrets (live API keys — NEVER commit)
+# Environment
 .env
-.env.*
-!.env.example
+.env.local
+*.env.*
 
-# Build artifacts (minified output) — dist only; assets/min is committed so
-# Render serves the obfuscated JS without needing a build step.
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git*
+.pytest_cache/
+.hypothesis/
+
+# Build results
 dist/
+build/
+*.egg-info/
+.eggs/
+.installed.cfg
+lib/
+lib64/
 
-# Temporary test / helper scripts
-_*.js
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Icon?
+.directory
+.folders~
+metadata.json
 
-# Mojibake backup folder (temporary)
-.mojibake-backup/
+# Compiled and binary files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+*.class
+*.jar
+*.war
+*.ear
+*.bin
 
-# Temporary helper results
-_*result*.txt
-_scan_result.txt
-_remaining_result.txt
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+
+# Coverage reports
+coverage/
+htmlcov/
+lcov.info
+
+# IDE specific
+.vs/
+*.swp
+*.swo
+*~
+
+# Gradle
+.gradle/
+build/
+
+# Maven
+target/
+
+# Temporary files
+tmp/
+temp/
+.DS_Store
+Thumbs.db
