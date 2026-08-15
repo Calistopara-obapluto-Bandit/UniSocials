@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+.env.
+
+# Editors
+.vscode/
+
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+dist/
+build/
+target/
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Python specific
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Java/Gradle
+.gradle/
+
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

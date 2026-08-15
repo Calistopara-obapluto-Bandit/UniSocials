@@ -1,0 +1,578 @@
+?<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Events — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .uni-picker-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .uni-picker-label { font-size: 0.9rem; color: var(--text-3); white-space: nowrap; }
+    .uni-picker-bar select {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-1);
+      cursor: pointer;
+    }
+.uni-picker-bar select:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
+    @media (max-width: 540px) {
+      .uni-picker-bar { flex-wrap: wrap; }
+      .uni-picker-bar select { flex: 1 1 100%; }
+    }
+
+    /* Per-month event summary strip */
+    .events-month-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .month-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-2);
+    }
+    .month-chip .month-name { color: var(--text-1); font-weight: 700; text-transform: capitalize; }
+    .month-chip .month-count { color: var(--accent); font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <!-- ── WHATSAPP FLOAT ── -->
+  <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" class="whatsapp-float" aria-label="Chat on WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    <span class="wa-tooltip">Chat with us</span>
+  </a>
+
+  <!-- ── MOBILE MENU ── -->
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+<a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <!-- ── NAV ── -->
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+<li><a href="events.html" class="active">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── PAGE HEADER ── -->
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">Events</div>
+      <h1 class="section-title reveal reveal-delay-1">Discover <em>campus</em> events</h1>
+      <p class="section-sub reveal reveal-delay-2">Browse, filter, and pick your next unforgettable experience.</p>
+    </div>
+  </section>
+
+  <!-- ── SEARCH & FILTER BAR ── -->
+  <section class="filter-section">
+    <div class="container">
+<div class="filter-bar reveal">
+        <div class="filter-search">
+          <span class="filter-search-icon">🔍</span>
+          <input type="text" id="eventSearch" placeholder="Search events by name, faculty, or category..." />
+        </div>
+        <div class="filter-group">
+          <select id="universityFilter" class="uni-selector">
+            <option value="">Select your campus…</option>
+          </select>
+          <select id="categoryFilter">
+            <option value="all">All Categories</option>
+          </select>
+          <select id="priceFilter">
+            <option value="all">Any Price</option>
+            <option value="low">Under ₦2,000</option>
+            <option value="mid">₦2,000 – ₦4,000</option>
+            <option value="high">Above ₦4,000</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EVENTS GRID ── -->
+  <section class="events-section">
+    <div class="container">
+<div id="eventsCount" class="events-count reveal">Showing <strong>6</strong> events</div>
+      <div id="eventsMonthSummary" class="events-month-summary reveal" style="margin-bottom:18px;"></div>
+      <div class="events-grid" id="eventsGrid">
+
+        <!-- Event 1: Arts Cultural Night -->
+        <div class="event-card reveal" data-category="Arts &amp; Culture" data-price="2500" data-date="2025-03-10">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-01.jpg" alt="Faculty of Arts Cultural Night" />
+            <div class="event-card-badge">Arts &amp; Culture</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Mar 10 · 4:00 PM</span>
+              <span>📍 Arts Theatre</span>
+            </div>
+            <h3 class="event-card-title">Faculty of Arts Cultural Night</h3>
+<p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">💃 Performance</span>
+              <span class="event-tag">🎤 Live Music</span>
+              <span class="event-tag">🎭 Drama</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦2,500 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 150 seats left</div>
+            </div>
+            <a href="tickets.html?event=arts-cultural-night" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 2: Engineering Dinner -->
+        <div class="event-card reveal reveal-delay-1" data-category="Engineering" data-price="5000" data-date="2025-03-15">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-02.jpg" alt="Engineering Annual Dinner" />
+            <div class="event-card-badge">Engineering</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Mar 15 · 5:00 PM</span>
+              <span>📍 Engineering Auditorium</span>
+            </div>
+            <h3 class="event-card-title">Engineering Annual Dinner</h3>
+            <p class="event-card-desc">The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">🏆 Awards</span>
+              <span class="event-tag">🍽️ Dinner</span>
+              <span class="event-tag">🤝 Networking</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦5,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 80 seats left</div>
+            </div>
+            <a href="tickets.html?event=engineering-dinner" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 3: Entrepreneurship Summit -->
+        <div class="event-card reveal reveal-delay-2" data-category="Business" data-price="3000" data-date="2025-03-22">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-03.jpg" alt="Entrepreneurship Summit" />
+            <div class="event-card-badge">Business</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Mar 22 · 10:00 AM</span>
+              <span>📍 Business School Hall</span>
+            </div>
+            <h3 class="event-card-title">Entrepreneurship Summit</h3>
+            <p class="event-card-desc">Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">💡 Pitching</span>
+              <span class="event-tag">💰 Funding</span>
+              <span class="event-tag">📈 Workshops</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦3,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 200 seats left</div>
+            </div>
+            <a href="tickets.html?event=entrepreneurship-summit" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 4: Music Festival -->
+        <div class="event-card reveal reveal-delay-1" data-category="Music" data-price="4000" data-date="2025-03-29">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-04.jpg" alt="Campus Music Festival" />
+            <div class="event-card-badge">Music</div>
+          </div>
+          <div class="event-card-body">
+<div class="event-card-meta">
+              <span>📅 Mar 29 · 6:00 PM</span>
+              <span>📍 Sports Complex</span>
+            </div>
+            <h3 class="event-card-title">Campus Music Festival</h3>
+            <p class="event-card-desc">Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">🎸 Live Bands</span>
+              <span class="event-tag">🎧 DJ Sets</span>
+              <span class="event-tag">🍹 Refreshments</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦4,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 300 seats left</div>
+            </div>
+            <a href="tickets.html?event=music-festival" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 5: Law Moot Court -->
+        <div class="event-card reveal reveal-delay-2" data-category="Academic" data-price="1500" data-date="2025-04-05">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-05.jpg" alt="Faculty of Law Moot Court" />
+            <div class="event-card-badge">Academic</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Apr 5 · 9:00 AM</span>
+              <span>📍 Faculty of Law</span>
+            </div>
+            <h3 class="event-card-title">Faculty of Law Moot Court</h3>
+            <p class="event-card-desc">The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">⚖️ Mock Trial</span>
+              <span class="event-tag">📜 Legal Debate</span>
+              <span class="event-tag">🏅 Competition</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦1,500 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 100 seats left</div>
+            </div>
+            <a href="tickets.html?event=law-moot-court" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 6: Sports Day -->
+        <div class="event-card reveal reveal-delay-1" data-category="Sports" data-price="1000" data-date="2025-04-12">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-01.jpg" alt="Inter-Faculty Sports Day" />
+            <div class="event-card-badge">Sports</div>
+          </div>
+          <div class="event-card-body">
+<div class="event-card-meta">
+              <span>📅 Apr 12 · 8:00 AM</span>
+              <span>📍 Campus Stadium</span>
+            </div>
+            <h3 class="event-card-title">Inter-Faculty Sports Day</h3>
+            <p class="event-card-desc">A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!</p>
+            <div class="event-card-tags">
+              <span class="event-tag">⚽ Football</span>
+              <span class="event-tag">🏀 Basketball</span>
+              <span class="event-tag">🏃 Athletics</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦1,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ Unlimited</div>
+            </div>
+            <a href="tickets.html?event=sports-day" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+      </div>
+      <div id="noResults" class="no-results" style="display:none;">
+        <span>😕</span>
+        <p>No events match your search criteria.</p>
+        <button class="btn-outline-lg" onclick="resetFilters()">Clear Filters</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-inner reveal">
+        <div class="cta-content">
+          <h2 class="cta-title">Want to host your own event?<br><em>We make it easy.</em></h2>
+<p class="cta-sub">Faculty associations and student organizations can list and sell tickets on Unisocials with ease.</p>
+        </div>
+        <div class="cta-actions">
+          <a href="contact.html" class="btn-cta-primary">
+            Contact Us
+            <span>→</span>
+          </a>
+          <a href="faq.html" class="btn-cta-ghost">Read FAQ</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2026 Unisocials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+<script>
+    (function() {
+      var grid = document.getElementById('eventsGrid');
+      if (!grid) return;
+      var countEl = document.getElementById('eventsCount');
+      var categorySel = document.getElementById('categoryFilter');
+      var uniSel = document.getElementById('universityFilter');
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
+      }
+      function fmtN(n) {
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+      function eventImageHtml(ev, fallback, gradient) {
+        var img = String(ev.image || '').trim();
+        var badge = esc(ev.category || 'General');
+        if (img) {
+          return '<div class="event-card-image has-photo">' +
+            '<img class="event-card-image-photo" src="' + esc(img) + '" alt="' + esc(ev.name || 'Event image') + '">' +
+            '<div class="event-card-badge">' + badge + '</div>' +
+          '</div>';
+        }
+        return '<div class="event-card-image" style="background: ' + (gradient || 'linear-gradient(135deg, #E8F5E9, #C8E6C9)') + '">' +
+          '<span class="event-card-fallback">' + esc(fallback || ev.icon || '\uD83C\uDF9F\uFE0F') + '</span>' +
+          '<div class="event-card-badge">' + badge + '</div>' +
+        '</div>';
+      }
+
+      // Render a per-month summary strip (e.g. "March: 4 events · April: 2 events").
+      var monthSummaryEl = document.getElementById('eventsMonthSummary');
+      var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      function renderMonthSummary(events) {
+        if (!monthSummaryEl) return;
+        if (!events || !events.length) { monthSummaryEl.innerHTML = ''; return; }
+        var counts = {};
+        events.forEach(function(ev) {
+          if (!ev.date) return;
+          var d = new Date(ev.date);
+          if (isNaN(d)) return;
+          var key = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        var keys = Object.keys(counts);
+        if (!keys.length) { monthSummaryEl.innerHTML = ''; return; }
+        // Sort by date ascending (most recent months first is nicer for upcoming events).
+        keys.sort(function(a, b) {
+          return new Date(a) - new Date(b);
+        });
+        var html = '<span style="font-size:0.8rem;color:var(--text-3);font-weight:600;margin-right:4px;">By month:</span>';
+        keys.forEach(function(k) {
+          html += '<span class="month-chip"><span class="month-name">' + esc(k) + '</span>&nbsp;·&nbsp;<span class="month-count">' + counts[k] + ' event' + (counts[k] !== 1 ? 's' : '') + '</span></span>';
+        });
+        monthSummaryEl.innerHTML = html;
+      }
+
+      // Rebuild the category dropdown from the selected university's categories.
+      function rebuildCategoryFilter(uni) {
+        if (!categorySel) return;
+        var cats = (uni && uni.categories && uni.categories.length) ? uni.categories : [];
+        var html = '<option value="all">All Categories</option>';
+        cats.forEach(function(c) { html += '<option value="' + esc(c) + '">' + esc(c) + '</option>'; });
+        categorySel.innerHTML = html;
+      }
+
+function renderEvents(events) {
+        renderMonthSummary(events);
+        if (!events || !events.length) {
+          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No events available for this campus yet. Check back soon!</p></div>';
+          if (countEl) countEl.innerHTML = 'Showing <strong>0</strong> events';
+          return;
+        }
+        var html = '';
+        events.forEach(function(ev, i) {
+          var delay = (i % 3) === 0 ? '' : ' reveal-delay-' + (i % 3);
+          var tagsHtml = '';
+          if (ev.tags && ev.tags.length) {
+            tagsHtml = '<div class="event-card-tags">' + ev.tags.map(function(t) {
+              return '<span class="event-tag">' + esc(t) + '</span>';
+            }).join('') + '</div>';
+          }
+          var dateLine = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
+          var uniName = ev.universityName || ev.universityName || '';
+          var notifyBtn = '<button class="btn-notify" onclick="notifyMe(this)" data-event="' + esc(ev.id || '') + '" data-uni="' + esc(ev.universityId || '') + '" data-uni-name="' + esc(ev.universityName || '') + '" title="Get notified when this event is happening">🔔 Notify me</button>';
+          html +=
+            '<div class="event-card reveal' + delay + '" data-category="' + esc(ev.category || '') + '" data-price="' + (ev.price || 0) + '" data-date="' + esc(ev.date || '') + '">' +
+              eventImageHtml(ev, ev.icon || '\uD83C\uDF9F\uFE0F') +
+              '<div class="event-card-body">' +
+                '<div class="event-card-meta">' +
+                  '<span>\uD83D\uDCC5 ' + esc(dateLine) + '</span>' +
+                  '<span>\uD83D\uDCCD ' + esc(ev.venue || '—') + '</span>' +
+                '</div>' +
+                '<h3 class="event-card-title">' + esc(ev.name) + '</h3>' +
+                (uniName ? '<div class="event-card-uni">' + esc(uniName) + '</div>' : '') +
+                '<p class="event-card-desc">' + esc(ev.description || '') + '</p>' +
+                tagsHtml +
+              '</div>' +
+              '<div class="event-card-footer">' +
+                '<div class="event-card-footer-left">' +
+                  '<div class="event-card-price">' + fmtN(ev.price) + ' <small>/ ticket</small></div>' +
+                  '<div class="event-card-capacity">\uD83C\uDF9F\uFE0F ' + esc(ev.seats || '—') + '</div>' +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">' +
+                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Get Tickets</a>' +
+                  notifyBtn +
+                '</div>' +
+              '</div>' +
+            '</div>';
+        });
+        grid.innerHTML = html;
+        if (countEl) countEl.innerHTML = 'Showing <strong>' + events.length + '</strong> event' + (events.length !== 1 ? 's' : '');
+        if (typeof revealObserver !== 'undefined') {
+          grid.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+        }
+        if (window.filterEvents) window.filterEvents();
+      }
+
+      function loadEvents(uni) {
+        var url = '/api/events';
+        if (uni && (uni.id || uni.slug)) {
+          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
+        }
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) { renderEvents(data && data.success ? data.events : []); })
+          .catch(function() {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
+          });
+      }
+
+      // When the university changes, reload events + rebuild category filter.
+      window.onUniversityChange = function(uni) {
+        rebuildCategoryFilter(uni);
+        loadEvents(uni);
+      };
+
+// Exposed for the inline "Notify me" button.
+      window.notifyMe = function(btn) {
+        var email = prompt('Enter your email to get notified about events at this campus:');
+        if (!email) return;
+        var uniId = btn.getAttribute('data-uni') || (window.UNUniversity ? window.UNUniversity.universityId() : '');
+        var uniName = btn.getAttribute('data-uni-name') || '';
+        var eventId = btn.getAttribute('data-event') || '';
+        window.UNNotify.subscribe(email, uniId, uniName, eventId, btn);
+      };
+
+// Populate the university dropdown from /api/universities.
+      if (uniSel) {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.universities) || [];
+            var html = '<option value="">All Universities</option>';
+            list.forEach(function(u) {
+              html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
+            });
+            uniSel.innerHTML = html;
+            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            if (cur && (cur.slug || cur.id)) uniSel.value = cur.slug || cur.id;
+            // If the dropdown is used, selecting a campus updates the global selection.
+            uniSel.addEventListener('change', function() {
+              var val = uniSel.value;
+              var found = list.find(function(u) { return (u.slug || u.id) === val; });
+if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+              if (window.onUniversityChange) window.onUniversityChange(found || null);
+            });
+            // Enable the searchable university selector (search box + button).
+            if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);
+          })
+          .catch(function() {});
+      }
+
+      // Initial load — if a university is already selected, use it.
+      var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+      if (initialUni && initialUni.id) {
+        rebuildCategoryFilter(initialUni);
+      }
+      loadEvents(initialUni);
+    })();
+  </script>
+</body>
+</html>
+

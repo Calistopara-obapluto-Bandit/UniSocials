@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Get Tickets — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    /* Ticket type / tier selector */
+    .ticket-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .ticket-type-option {
+      position: relative;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface-2);
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .ticket-type-option:hover { border-color: var(--accent-border); background: var(--accent-ghost); }
+    .ticket-type-option.selected {
+      border-color: var(--accent);
+      background: var(--accent-ghost);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .ticket-type-option input { position: absolute; opacity: 0; pointer-events: none; }
+    .ticket-type-name { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-1); margin-bottom: 4px; }
+    .ticket-type-price { display: block; font-size: 0.78rem; font-weight: 600; color: var(--accent); }
+    .ticket-type-badge {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #fff;
+      background: var(--unn-gold);
+      padding: 2px 8px;
+      border-radius: 100px;
+      margin-bottom: 6px;
+    }
+    .ticket-type-card { display: none; }
+    .ticket-type-card.visible { display: block; }
+
+    /* Pricing table */
+    .pricing-table-wrap { margin-top: 16px; }
+    .pricing-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .pricing-table th, .pricing-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .pricing-table th {
+      background: var(--accent-ghost);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+    .pricing-table tbody tr:last-child td { border-bottom: none; }
+    .pricing-table td.price { font-weight: 700; color: var(--accent); white-space: nowrap; }
+    .pricing-table .tier-name { font-weight: 700; color: var(--text-1); }
+    .pricing-table .tier-note { font-size: 0.78rem; color: var(--text-3); }
+  </style>
+</head>
+<body>
+
+  <!-- ── WHATSAPP FLOAT ── -->
+  <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" class="whatsapp-float" aria-label="Chat on WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    <span class="wa-tooltip">Chat with us</span>
+  </a>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+<a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+<li><a href="tickets.html" class="active">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">Get Tickets</div>
+      <h1 class="section-title reveal reveal-delay-1">Pick your <em>event</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Choose an event, tell us who's attending, then continue to secure your tickets.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <div class="step-indicator reveal">
+      <div class="step active"><span>1</span> Select Event</div>
+      <div class="step-line"></div>
+      <div class="step"><span>2</span> Checkout &amp; Pay</div>
+    </div>
+  </div>
+
+  <section class="checkout-section">
+    <div class="container">
+      <div class="checkout-form reveal" style="max-width:760px;margin:0 auto;">
+<div class="checkout-card">
+          <h3 class="checkout-card-title">🎓 Select Your Campus</h3>
+          <div class="form-group">
+            <label for="ticketUniversity">University</label>
+            <select id="ticketUniversity" class="uni-selector">
+              <option value="">Select your campus…</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="checkout-card">
+          <h3 class="checkout-card-title">🎟️ Select Event</h3>
+          <div class="form-group">
+            <label for="eventSelect">Event</label>
+            <select id="eventSelect" onchange="updateEventDetails()">
+              <option value="">Choose an event...</option>
+            </select>
+          </div>
+          <div id="eventPreview" class="event-preview" style="display:none;">
+            <div class="event-preview-row"><span>📅</span> <span id="previewDate"></span></div>
+            <div class="event-preview-row"><span>📍</span> <span id="previewVenue"></span></div>
+          </div>
+
+          <!-- Ticket Type / Tier selector (Regular / VIP / VVIP / Table) -->
+          <div id="ticketTypeCard" class="ticket-type-card">
+            <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-1);margin-bottom:8px;">Ticket Type</label>
+            <div class="ticket-type-grid" id="ticketTypeGrid">
+              <label class="ticket-type-option selected">
+                <input type="radio" name="ticketTier" value="regular" checked onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-name">🎟 Regular</span>
+                <span class="ticket-type-price" data-tier-price="regular">—</span>
+              </label>
+              <label class="ticket-type-option" id="vipOption" style="display:none;">
+                <input type="radio" name="ticketTier" value="vip" onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-badge">VIP</span>
+                <span class="ticket-type-name">⭐ VIP</span>
+                <span class="ticket-type-price" data-tier-price="vip">—</span>
+              </label>
+              <label class="ticket-type-option" id="vvipOption" style="display:none;">
+                <input type="radio" name="ticketTier" value="vvip" onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-badge">VVIP</span>
+                <span class="ticket-type-name">👑 VVIP</span>
+                <span class="ticket-type-price" data-tier-price="vvip">—</span>
+              </label>
+              <label class="ticket-type-option" id="tableOption" style="display:none;">
+                <input type="radio" name="ticketTier" value="table" onchange="selectTicketTier(this.value)" />
+                <span class="ticket-type-badge">TABLE</span>
+                <span class="ticket-type-name">🪑 Table</span>
+                <span class="ticket-type-price" data-tier-price="table">—</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Pricing table -->
+          <div class="pricing-table-wrap" id="pricingTableWrap" style="display:none;">
+            <table class="pricing-table">
+              <thead>
+                <tr><th>Tier</th><th>Price per ticket</th><th>Included</th></tr>
+              </thead>
+              <tbody id="pricingTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="form-group" style="margin-top:16px;">
+            <label for="qtySelect">Quantity (1 – 100 tickets)</label>
+            <input type="number" id="qtySelect" min="1" max="100" step="1" value="1" inputmode="numeric" />
+            <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">Enter how many tickets you want — up to 100 per order.</p>
+          </div>
+        </div>
+
+        <div class="checkout-card">
+          <h3 class="checkout-card-title">👤 Buyer Information</h3>
+          <div class="form-group">
+            <label for="buyerName">Full Name</label>
+            <input type="text" id="buyerName" placeholder="e.g. Chidi Okonkwo" required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="buyerEmail">Email Address</label>
+<input type="email" id="buyerEmail" placeholder="you@university.edu.ng" required />
+            </div>
+            <div class="form-group">
+              <label for="buyerPhone">Phone Number</label>
+              <input type="tel" id="buyerPhone" placeholder="0812 345 6789" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="buyerFaculty">Faculty / Department</label>
+            <input type="text" id="buyerFaculty" placeholder="e.g. Faculty of Engineering" />
+          </div>
+        </div>
+
+        <div class="checkout-card">
+          <button class="btn-submit btn-submit-lg" id="continueBtn" onclick="continueToCheckout()" disabled>
+            Continue to Checkout
+            <span style="margin-left:8px;">→</span>
+          </button>
+          <p class="summary-note" style="margin-top:14px;">You'll review your order and choose a payment method on the next page.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2026 Unisocials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+<script>
+    (function() {
+      var eventSelect = document.getElementById('eventSelect');
+      if (!eventSelect) return;
+      var uniSel = document.getElementById('ticketUniversity');
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
+      }
+      function fmtN(n) {
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+
+function setSelectedTier(tier) {
+        var radios = document.querySelectorAll('input[name="ticketTier"]');
+        radios.forEach(function(r) {
+          r.checked = (r.value === tier);
+          if (r.closest) r.closest('.ticket-type-option').classList.toggle('selected', r.value === tier);
+        });
+      }
+
+      // Convert a comma/pipe-separated "What's Included" string into a small bullet list.
+      function includedNote(raw) {
+        if (!raw) return '\u2014';
+        var items = String(raw).split(',');
+        if (items.length === 1) items = String(raw).split('|');
+        items = items.map(function(s) { return s.trim(); }).filter(Boolean);
+        if (!items.length) return '\u2014';
+        return '<ul style="margin:0;padding-left:16px;list-style:disc;">' +
+          items.map(function(it) { return '<li>' + esc(it) + '</li>'; }).join('') +
+          '</ul>';
+      }
+
+      // Populate tier prices + pricing table from the selected event's VIP/VVIP/Table prices.
+      function updateTierPicker() {
+        var opt = eventSelect.options[eventSelect.selectedIndex];
+        var reg = parseFloat(opt.dataset.price || 0);
+        var vip = parseFloat(opt.dataset.vipPrice || 0);
+        var vvip = parseFloat(opt.dataset.vvipPrice || 0);
+        var table = parseFloat(opt.dataset.tablePrice || 0);
+        var priceEls = document.querySelectorAll('[data-tier-price]');
+        priceEls.forEach(function(el) {
+          var t = el.getAttribute('data-tier-price');
+          var p = t === 'vip' ? vip : (t === 'vvip' ? vvip : (t === 'table' ? table : reg));
+          el.textContent = p > 0 ? fmtN(p) : '—';
+        });
+
+        var vipEl = document.getElementById('vipOption');
+        var vvipEl = document.getElementById('vvipOption');
+        var tableEl = document.getElementById('tableOption');
+        if (vipEl) vipEl.style.display = vip > 0 ? '' : 'none';
+        if (vvipEl) vvipEl.style.display = vvip > 0 ? '' : 'none';
+        if (tableEl) tableEl.style.display = table > 0 ? '' : 'none';
+
+        var card = document.getElementById('ticketTypeCard');
+        if (card) {
+          if (opt.value) { card.classList.add('visible'); }
+          else { card.classList.remove('visible'); setSelectedTier('regular'); }
+        }
+
+// Pricing table — show the real "What's Included" for each tier.
+        var wrap = document.getElementById('pricingTableWrap');
+        var body = document.getElementById('pricingTableBody');
+        if (wrap && body) {
+          if (opt.value) {
+            var incReg = opt.dataset.includedRegular || '';
+            var incVip = opt.dataset.includedVip || '';
+            var incVvip = opt.dataset.includedVvip || '';
+            var incTable = opt.dataset.includedTable || '';
+            var rows = '';
+            rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + fmtN(reg) + '</td><td class="tier-note">' + includedNote(incReg) + '</td></tr>';
+            if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + fmtN(vip) + '</td><td class="tier-note">' + includedNote(incVip) + '</td></tr>';
+            if (vvip > 0) rows += '<tr><td class="tier-name">👑 VVIP</td><td class="price">' + fmtN(vvip) + '</td><td class="tier-note">' + includedNote(incVvip) + '</td></tr>';
+            if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + fmtN(table) + '</td><td class="tier-note">' + includedNote(incTable) + '</td></tr>';
+            body.innerHTML = rows;
+            wrap.style.display = 'block';
+          } else {
+            body.innerHTML = '';
+            wrap.style.display = 'none';
+          }
+        }
+
+        // Ensure a valid tier is selected (if VIP/VVIP/Table hidden, fall back to Regular).
+        var cur = document.querySelector('input[name="ticketTier"]:checked');
+        var curVal = cur ? cur.value : 'regular';
+        if (curVal !== 'regular') {
+          var stillVisible = document.getElementById(curVal + 'Option');
+          if (!stillVisible || stillVisible.style.display === 'none') {
+            setSelectedTier('regular');
+          }
+        }
+      }
+
+      window.selectTicketTier = function(tier) {
+        setSelectedTier(tier);
+        if (window.updateEventDetails) window.updateEventDetails();
+      };
+
+      function loadEventsForUni(uni) {
+        // Clear static options (keep placeholder)
+        while (eventSelect.options.length > 1) eventSelect.remove(1);
+        updateEventDetails();
+
+        var url = '/api/events';
+        if (uni && (uni.id || uni.slug)) {
+          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
+        }
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            events.forEach(function(ev) {
+              var opt = document.createElement('option');
+              opt.value = ev.id || '';
+              opt.setAttribute('data-category', ev.category || '');
+              opt.setAttribute('data-price', String(ev.price || 0));
+              opt.setAttribute('data-vip-price', String(ev.vipPrice || 0));
+              opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
+              opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
+              opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
+              opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
+              opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
+              opt.setAttribute('data-included-table', String(ev.includedTable || ''));
+              opt.setAttribute('data-name', ev.name || '');
+              opt.setAttribute('data-date', ev.date || '');
+              opt.setAttribute('data-time', ev.time || '');
+              opt.setAttribute('data-venue', ev.venue || '');
+              opt.setAttribute('data-university-id', ev.universityId || '');
+              opt.setAttribute('data-university-name', ev.universityName || '');
+              opt.textContent = ev.name + ' \u2014 ' + fmtN(ev.price);
+              eventSelect.appendChild(opt);
+            });
+            // Handle ?event= URL param now that dynamic options exist
+            var params = new URLSearchParams(window.location.search);
+            var eventParam = params.get('event');
+            if (eventParam) {
+              for (var i = 0; i < eventSelect.options.length; i++) {
+                if (eventSelect.options[i].value === eventParam) {
+                  eventSelect.selectedIndex = i;
+                  break;
+                }
+              }
+              var card = eventSelect.closest('.checkout-card');
+              if (card) {
+                setTimeout(function() {
+                  card.classList.add('checkout-card-highlight');
+                  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  setTimeout(function() { card.classList.remove('checkout-card-highlight'); }, 2600);
+                }, 300);
+              }
+            }
+            if (window.updateEventDetails) window.updateEventDetails();
+          })
+          .catch(function() {});
+      }
+
+      // When the university changes, reload the event list scoped to that campus.
+      window.onUniversityChange = function(uni) {
+        loadEventsForUni(uni);
+      };
+
+// Populate the university dropdown from /api/universities.
+      if (uniSel) {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.universities) || [];
+            var html = '<option value="">Select your campus…</option>';
+            list.forEach(function(u) {
+              html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
+            });
+            uniSel.innerHTML = html;
+            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            if (cur && (cur.slug || cur.id)) uniSel.value = cur.slug || cur.id;
+            uniSel.addEventListener('change', function() {
+              var val = uniSel.value;
+              var found = list.find(function(u) { return (u.slug || u.id) === val; });
+if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+              if (window.onUniversityChange) window.onUniversityChange(found || null);
+            });
+            // Enable the searchable university selector (search box + button).
+            if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);
+          })
+          .catch(function() {});
+      }
+
+      // Hook into updateEventDetails so the tier picker re-renders per event.
+      var baseUpdateEventDetails = window.updateEventDetails || function() {};
+      window.updateEventDetails = function() {
+        updateTierPicker();
+        baseUpdateEventDetails();
+      };
+
+      // Initial load — use the selected university if any.
+      var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+      loadEventsForUni(initialUni);
+    })();
+  </script>
+</body>
+</html>

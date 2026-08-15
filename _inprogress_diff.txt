@@ -1,0 +1,199 @@
+warning: in the working copy of 'templatemo-622-clearwave.js', LF will be replaced by CRLF the next time Git touches it
+diff --git a/server.js b/server.js
+index 51182a8..a3c6eff 100644
+--- a/server.js
++++ b/server.js
+@@ -807,6 +807,34 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
+   });
+ }
+ 
++// Build a rich ticket summary for the gate scan result panel (admin/sub-admin).
++// Includes the full order context so staff can verify the ticket at a glance.
++function scanTicketDetails(order, entry, idx, codes, alreadyUsed) {
++  return {
++    orderId: order.orderId,
++    ticketCode: entry.code,
++    ticketIndex: idx + 1,
++    totalTickets: codes.length,
++    used: alreadyUsed ? true : !!entry.used,
++    usedAt: entry.usedAt || null,
++    checkedInBy: entry.checkedInBy || null,
++    eventName: order.eventName,
++    eventCategory: order.eventCategory || '',
++    eventDate: order.eventDate,
++    eventVenue: order.eventVenue,
++    universityName: order.universityName || '',
++    ticketTier: order.ticketTier || 'regular',
++    qty: order.qty,
++    amount: order.amount,
++    currency: order.currency,
++    buyerName: order.buyerName,
++    buyerEmail: order.buyerEmail,
++    buyerPhone: order.buyerPhone,
++    buyerFaculty: order.buyerFaculty || '',
++    verifiedAt: order.verifiedAt
++  };
++}
++
+ // Mark an order verified + ensure tickets exist
+ function verifyOrderTicketData(order) {
+   if (!order.ticketCodes || !order.ticketCodes.length) {
+@@ -1570,8 +1598,11 @@ const user = {
+       const buyerName = String(data.buyerName || '').trim();
+       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
+ const buyerPhone = String(data.buyerPhone || '').trim();
+-      const buyerFaculty = String(data.buyerFaculty || '').trim();
++const buyerFaculty = String(data.buyerFaculty || '').trim();
+       const ticketTier = String(data.ticketTier || '') || 'standard';
++      const universityId = String(data.universityId || '').trim();
++      const universityName = String(data.universityName || '').trim();
++      const universitySlug = String(data.universitySlug || '').trim();
+ 
+       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
+         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
+@@ -1601,8 +1632,11 @@ const buyerPhone = String(data.buyerPhone || '').trim();
+ buyerName: buyerName,
+         buyerEmail: buyerEmail,
+         buyerPhone: buyerPhone,
+-        buyerFaculty: buyerFaculty,
++buyerFaculty: buyerFaculty,
+         ticketTier: ticketTier,
++        universityId: universityId,
++        universityName: universityName,
++        universitySlug: universitySlug,
+         userId: user ? user.id : null,
+         createdAt: new Date().toISOString(),
+         verifiedAt: null,
+@@ -1810,9 +1844,10 @@ buyerName: buyerName,
+           totalTickets: codes.length,
+           used: !!entry.used,
+           usedAt: entry.usedAt || null,
+-          eventName: order.eventName,
++eventName: order.eventName,
+           eventDate: order.eventDate,
+           eventVenue: order.eventVenue,
++          universityName: order.universityName || '',
+           qty: order.qty,
+           amount: order.amount,
+           currency: order.currency,
+@@ -1847,7 +1882,7 @@ const entry = codes[idx];
+           success: true,
+           alreadyUsed: true,
+           message: 'This ticket was already scanned on ' + (entry.usedAt || 'earlier') + '.',
+-          ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length }
++          ticket: scanTicketDetails(order, entry, idx, codes, true)
+         });
+       }
+       entry.used = true;
+@@ -1858,12 +1893,12 @@ const entry = codes[idx];
+       } else {
+         entry.checkedInBy = 'Admin';
+       }
+-      codes[idx] = entry;
++codes[idx] = entry;
+       const updated = await patchOrder(orderId, { ticketCodes: codes });
+       return sendJson(res, 200, {
+         success: true,
+         message: 'Γ£à Check-in successful for ' + order.buyerName,
+-        ticket: { eventName: order.eventName, ticketCode: entry.code, buyerName: order.buyerName, ticketIndex: idx + 1, totalTickets: codes.length, checkedInBy: entry.checkedInBy }
++        ticket: scanTicketDetails(order, entry, idx, codes, false)
+       });
+     }
+ 
+@@ -2070,6 +2105,9 @@ const ev = {
+         price: parseFloat(data.price) || 0,
+         vvipPrice: parseFloat(data.vvipPrice) || 0,
+         tablePrice: parseFloat(data.tablePrice) || 0,
++        includedRegular: String(data.includedRegular || '').trim(),
++        includedVip: String(data.includedVip || '').trim(),
++        includedTable: String(data.includedTable || '').trim(),
+         date: String(data.date || '').trim(),
+         time: String(data.time || '').trim(),
+         venue: String(data.venue || '').trim(),
+diff --git a/templatemo-622-clearwave.js b/templatemo-622-clearwave.js
+index d36e01b..decbe9f 100644
+--- a/templatemo-622-clearwave.js
++++ b/templatemo-622-clearwave.js
+@@ -671,9 +671,13 @@ function getSelectedTier() {
+     const qty = getQty();
+     if (qty < 1 || qty > 100) { alert('Please enter a quantity between 1 and 100 tickets.'); return; }
+ 
+-    const tier = getSelectedTier();
++const tier = getSelectedTier();
+     const tierPrice = getTierPrice();
+ 
++    // Attach the selected university (from the campus selector) to the order.
++    const uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
++    const universityObj = uni && (uni.id || uni.slug) ? uni : null;
++
+     sessionStorage.setItem('checkoutData', JSON.stringify({
+       eventValue: opt.value,
+       eventName: opt.dataset.name,
+@@ -687,7 +691,10 @@ function getSelectedTier() {
+       buyerName: name,
+       buyerEmail: email,
+       buyerPhone: phone,
+-      buyerFaculty: buyerFaculty ? buyerFaculty.value.trim() : ''
++      buyerFaculty: buyerFaculty ? buyerFaculty.value.trim() : '',
++      universityId: universityObj ? (universityObj.id || universityObj.slug || '') : '',
++      universityName: universityObj ? (universityObj.name || '') : '',
++      universitySlug: universityObj ? (universityObj.slug || universityObj.id || '') : ''
+     }));
+ 
+     window.location.href = 'checkout.html';
+@@ -870,7 +877,7 @@ function getSelectedTier() {
+     fetch('/api/orders', {
+       method: 'POST',
+       headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
+-      body: JSON.stringify({
++body: JSON.stringify({
+         orderId: orderId,
+         eventName: checkoutData.eventName,
+         eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '',
+@@ -884,7 +891,10 @@ function getSelectedTier() {
+         buyerEmail: checkoutData.buyerEmail,
+         buyerPhone: checkoutData.buyerPhone,
+         buyerFaculty: checkoutData.buyerFaculty || '',
+-        ticketTier: checkoutData.ticketTier || 'regular'
++        ticketTier: checkoutData.ticketTier || 'regular',
++        universityId: checkoutData.universityId || '',
++        universityName: checkoutData.universityName || '',
++        universitySlug: checkoutData.universitySlug || ''
+       })
+     })
+     .then(function(res) { return res.json(); })
+diff --git a/ticket.html b/ticket.html
+index ac110f9..ffb915f 100644
+--- a/ticket.html
++++ b/ticket.html
+@@ -229,6 +229,10 @@
+               <span>≡ƒôà Date</span>
+               <strong id="ticketDate">ΓÇö</strong>
+             </div>
++<div class="ticket-detail">
++              <span>≡ƒÅ¢ University</span>
++              <strong id="ticketUniversity">ΓÇö</strong>
++            </div>
+             <div class="ticket-detail">
+               <span>≡ƒôì Venue</span>
+               <strong id="ticketVenue">ΓÇö</strong>
+@@ -338,7 +342,8 @@ var ticketError = document.getElementById('ticketError');
+       var ticketCode = document.getElementById('ticketCode');
+       var ticketEventName = document.getElementById('ticketEventName');
+       var ticketOrderId = document.getElementById('ticketOrderId');
+-      var ticketDate = document.getElementById('ticketDate');
++var ticketDate = document.getElementById('ticketDate');
++      var ticketUniversity = document.getElementById('ticketUniversity');
+       var ticketVenue = document.getElementById('ticketVenue');
+       var ticketQty = document.getElementById('ticketQty');
+       var ticketAmount = document.getElementById('ticketAmount');
+@@ -415,7 +420,8 @@ var ticketError = document.getElementById('ticketError');
+         if (ticketCode) ticketCode.textContent = t.ticketCode;
+         if (ticketEventName) ticketEventName.textContent = t.eventName;
+         if (ticketOrderId) ticketOrderId.textContent = t.orderId;
+-        if (ticketDate) ticketDate.textContent = t.eventDate;
++if (ticketDate) ticketDate.textContent = t.eventDate;
++        if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014';
+         if (ticketVenue) ticketVenue.textContent = t.eventVenue;
+         if (ticketQty) ticketQty.textContent = t.qty + ' ticket' + (t.qty > 1 ? 's' : '');
+         if (ticketAmount) ticketAmount.textContent = fmtN(t.amount);

@@ -1,0 +1,518 @@
+?<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unisocials — Event Ticket Selling Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+</head>
+<body>
+
+  <!-- ── WHATSAPP FLOAT ── -->
+  <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" class="whatsapp-float" aria-label="Chat on WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    <span class="wa-tooltip">Chat with us</span>
+  </a>
+
+<!-- ── MOBILE MENU ── -->
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+<a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+    <a href="#" class="mobile-menu-logout" id="mobileMenuLogout" style="display:none;">Log out</a>
+  </div>
+
+  <!-- ── 1. NAV ── -->
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+<li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── 2. HERO ── -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-inner">
+        <div class="hero-content">
+          <div class="hero-badge reveal">
+            <div class="hero-badge-dot">✦</div>
+<span>Your University's <strong>Official Event Platform</strong></span>
+          </div>
+          <h1 class="hero-title reveal reveal-delay-1">
+            Your campus,<br><em>one event at a time.</em>
+          </h1>
+          <p class="hero-sub reveal reveal-delay-2">
+Unisocials is the ticket selling platform for university events across Nigeria. From department dinners to faculty galas — discover, book, and attend with ease.
+          </p>
+<div class="hero-actions reveal reveal-delay-3">
+            <a href="events.html" class="btn-primary-lg">
+              Browse Events
+              <span class="btn-arrow">→</span>
+            </a>
+            <a href="my-tickets.html" class="btn-outline-lg">
+              <span>✦</span> My Tickets
+            </a>
+          </div>
+          <div class="hero-uni-picker reveal reveal-delay-4">
+            <label for="homeUniversity" class="hero-uni-label">🎓 Your campus:</label>
+            <select id="homeUniversity" class="uni-selector">
+              <option value="">Select your campus…</option>
+            </select>
+          </div>
+<div class="hero-stats reveal reveal-delay-4">
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="heroTicketsSold">0</div>
+              <div class="hero-stat-label">Tickets Sold</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="heroUpcomingEvents">0</div>
+              <div class="hero-stat-label">Upcoming Events</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="heroFaculties">0</div>
+              <div class="hero-stat-label">Faculties</div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-visual reveal reveal-delay-2">
+          <div class="hero-card">
+            <div class="hero-card-media" id="heroEventMedia">
+              <div class="hero-card-fallback" id="heroEventIcon">🎉</div>
+            </div>
+            <div class="hero-card-title">Next Big Event</div>
+            <div class="hero-card-sub" id="heroEventSub">Loading the next<br>campus event…</div>
+            <div class="hero-card-date">
+              <span>📅</span> <span id="heroEventDate">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── STATS ── -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat-card reveal">
+          <div class="stat-value"><span class="stat-num" data-target="0" data-stat-gen="eventsThisMonth">0</span></div>
+          <div class="stat-label">Events This Month</div>
+        </div>
+        <div class="stat-card reveal reveal-delay-1">
+          <div class="stat-value"><span class="stat-num" data-target="0" data-stat-gen="ticketsSold">0</span><span class="stat-suffix">+</span></div>
+          <div class="stat-label">Tickets Sold</div>
+        </div>
+        <div class="stat-card reveal reveal-delay-2">
+          <div class="stat-value"><span class="stat-num" data-target="0" data-stat-gen="faculties">0</span></div>
+          <div class="stat-label">Faculties Participating</div>
+        </div>
+        <div class="stat-card reveal reveal-delay-3">
+          <div class="stat-value"><span class="stat-num" data-target="15" data-stat-static="1">15</span><span class="stat-suffix">k+</span></div>
+          <div class="stat-label">Social Reach</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FEATURED EVENTS ── -->
+  <section class="events-section" id="events">
+    <div class="container">
+      <div class="section-label reveal">Featured Events</div>
+      <h2 class="section-title reveal reveal-delay-1">Popular <em>upcoming</em> events</h2>
+      <p class="section-sub reveal reveal-delay-2">Don't miss out on the biggest campus events this month.</p>
+
+      <div class="events-grid" id="featuredGrid">
+        <div class="event-card reveal">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-01.jpg" alt="Faculty of Arts Cultural Night" />
+            <div class="event-card-badge">Arts &amp; Culture</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-date">📅 March 10, 2025 · 4:00 PM</div>
+            <h3 class="event-card-title">Faculty of Arts Cultural Night</h3>
+<p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.</p>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-price">₦2,500 <small>/ ticket</small></div>
+            <a href="tickets.html?event=arts-cultural-night" class="btn-buy">Buy Now</a>
+          </div>
+        </div>
+
+        <div class="event-card reveal reveal-delay-1">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-02.jpg" alt="Engineering Annual Dinner" />
+            <div class="event-card-badge">Engineering</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-date">📅 March 15, 2025 · 5:00 PM</div>
+            <h3 class="event-card-title">Engineering Annual Dinner</h3>
+            <p class="event-card-desc">The flagship engineering social event — awards, networking, dinner, and live entertainment.</p>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-price">₦5,000 <small>/ ticket</small></div>
+            <a href="tickets.html?event=engineering-dinner" class="btn-buy">Buy Now</a>
+          </div>
+        </div>
+
+        <div class="event-card reveal reveal-delay-2">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-03.jpg" alt="Entrepreneurship Summit" />
+            <div class="event-card-badge">Business</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-date">📅 March 22, 2025 · 10:00 AM</div>
+            <h3 class="event-card-title">Entrepreneurship Summit</h3>
+            <p class="event-card-desc">Connect with startup founders, investors, and industry leaders. Pitch your ideas and win funding.</p>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-price">₦3,000 <small>/ ticket</small></div>
+            <a href="tickets.html?event=entrepreneurship-summit" class="btn-buy">Buy Now</a>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 48px;" class="reveal">
+        <a href="events.html" class="btn-primary-lg">
+          View All Events
+          <span class="btn-arrow">→</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA BANNER ── -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-inner reveal">
+        <div class="cta-content">
+          <h2 class="cta-title">Want to host an event?<br><em>We make it easy.</em></h2>
+<p class="cta-sub">Faculty associations and student organizations can create and sell tickets on Unisocials with ease.</p>
+        </div>
+        <div class="cta-actions">
+          <a href="contact.html" class="btn-cta-primary">
+            Contact Us
+            <span>→</span>
+          </a>
+          <a href="about.html" class="btn-cta-ghost">Learn More</a>
+        </div>
+      </div>
+    </div>
+</section>
+
+  <!-- ── NEWSLETTER / SUBSCRIBE ── -->
+  <section class="subscribe-section">
+    <div class="container">
+      <div class="subscribe-inner reveal">
+        <h2 class="subscribe-title">Get notified when <em>events go live</em></h2>
+        <p class="subscribe-sub">Pick your campus and we'll email you the moment a new event is announced — plus reminders before it happens.</p>
+        <form class="subscribe-form" id="subscribeForm" novalidate>
+          <input type="email" id="subscribeEmail" class="subscribe-input" placeholder="Your email address" required />
+          <button type="submit" class="subscribe-btn" id="subscribeBtn">🔔 Notify me</button>
+        </form>
+        <p class="subscribe-status" id="subscribeStatus"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2026 Unisocials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+  <script>
+    (function() {
+      // ── Dynamic Featured Events (Home page) ──
+      // Events are loaded from /api/events so any event the admin adds or deletes
+      // in the Admin Dashboard is instantly reflected here — no hardcoded cards.
+      var grid = document.getElementById('featuredGrid');
+      if (!grid) return;
+
+      var heroMedia = document.getElementById('heroEventMedia');
+      var heroIcon = document.getElementById('heroEventIcon');
+      var heroSub = document.getElementById('heroEventSub');
+      var heroDate = document.getElementById('heroEventDate');
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
+      }
+      function fmtN(n) {
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+      function eventImageHtml(ev, fallback, gradient) {
+        var img = String(ev.image || '').trim();
+        var badge = esc(ev.category || 'General');
+        if (img) {
+          return '<div class="event-card-image has-photo">' +
+            '<img class="event-card-image-photo" src="' + esc(img) + '" alt="' + esc(ev.name || 'Event image') + '">' +
+            '<div class="event-card-badge">' + badge + '</div>' +
+          '</div>';
+        }
+        return '<div class="event-card-image" style="background: ' + (gradient || 'linear-gradient(135deg, #E8F5E9, #C8E6C9)') + '">' +
+          '<span class="event-card-fallback">' + esc(fallback || ev.icon || '\uD83C\uDF9F\uFE0F') + '</span>' +
+          '<div class="event-card-badge">' + badge + '</div>' +
+        '</div>';
+      }
+      function cardHtml(ev, delay) {
+        var dateLine = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
+        var tagsHtml = '';
+        if (ev.tags && ev.tags.length) {
+          tagsHtml = '<div class="event-card-tags">' + ev.tags.map(function(t) {
+            return '<span class="event-tag">' + esc(t) + '</span>';
+          }).join('') + '</div>';
+        }
+        return '<div class="event-card reveal' + delay + '">' +
+          eventImageHtml(ev, ev.icon || '\uD83C\uDF9F\uFE0F') +
+          '<div class="event-card-body">' +
+            '<div class="event-card-date">\uD83D\uDCC5 ' + esc(dateLine) + '</div>' +
+            '<h3 class="event-card-title">' + esc(ev.name) + '</h3>' +
+            '<p class="event-card-desc">' + esc(ev.description || '') + '</p>' +
+            tagsHtml +
+          '</div>' +
+          '<div class="event-card-footer">' +
+            '<div class="event-card-price">' + fmtN(ev.price) + ' <small>/ ticket</small></div>' +
+            '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Buy Now</a>' +
+          '</div>' +
+        '</div>';
+      }
+
+      function updateHero(ev) {
+        if (!ev) return;
+        if (heroMedia) {
+          var image = String(ev.image || '').trim();
+          if (image) {
+            heroMedia.innerHTML = '<img src="' + esc(image) + '" alt="' + esc(ev.name || 'Featured event') + '">';
+          } else {
+            heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">' + esc(ev.icon || '\uD83C\uDF9F\uFE0F') + '</div>';
+          }
+        }
+        if (heroSub) heroSub.innerHTML = esc(ev.name || 'Next Big Event');
+        if (heroDate) heroDate.textContent = (ev.date || '') + (ev.time ? ' \u00B7 ' + ev.time : '');
+      }
+
+// Load featured events for the selected university (or all if none selected).
+      function loadFeatured() {
+        var uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+        var url = '/api/events';
+        if (uni && (uni.slug || uni.id)) {
+          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
+        }
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            if (!events.length) {
+              grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No featured events yet for this campus. Check back soon!</p></div>';
+              if (heroMedia) heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">🎉</div>';
+              if (heroSub) heroSub.innerHTML = 'No events yet<br>Check back soon!';
+              if (heroDate) heroDate.textContent = '—';
+              return;
+            }
+            // Prefer featured events; fall back to the first 3 events.
+            var featured = events.filter(function(e) { return e.featured; });
+            var shown = (featured.length ? featured : events).slice(0, 3);
+            var html = '';
+            shown.forEach(function(ev, i) {
+              var delay = i === 0 ? '' : ' reveal-delay-' + i;
+              html += cardHtml(ev, delay);
+            });
+            grid.innerHTML = html;
+            if (typeof revealObserver !== 'undefined') {
+              grid.querySelectorAll('.reveal').forEach(function(el) { revealObserver.observe(el); });
+            }
+            updateHero(events[0]);
+          })
+          .catch(function() {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load featured events. Please refresh the page.</p></div>';
+            if (heroMedia) heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">🎉</div>';
+          });
+      }
+
+// Re-run when the user changes their university.
+      window.onUniversityChange = function() { loadFeatured(); };
+
+      // Populate the home university selector from /api/universities.
+      var homeUni = document.getElementById('homeUniversity');
+      if (homeUni) {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.universities) || [];
+            var html = '<option value="">Select your campus…</option>';
+            list.forEach(function(u) {
+              html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
+            });
+            homeUni.innerHTML = html;
+            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            if (cur && (cur.slug || cur.id)) homeUni.value = cur.slug || cur.id;
+homeUni.addEventListener('change', function() {
+              var val = homeUni.value;
+              var found = list.find(function(u) { return (u.slug || u.id) === val; });
+              if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+              if (window.onUniversityChange) window.onUniversityChange();
+            });
+// Enable the searchable university selector (search box + button).
+            if (window.UNUniversitySearch) window.UNUniversitySearch(homeUni);
+          })
+          .catch(function() {});
+      }
+
+      loadFeatured();
+    })();
+
+    // ── Mobile menu logout ──
+    (function() {
+      var menuLogout = document.getElementById('mobileMenuLogout');
+      var menu = document.getElementById('mobileMenu');
+      function sync() {
+        if (!menuLogout) return;
+        var loggedIn = window.UNNAuth && window.UNNAuth.isLoggedIn();
+        menuLogout.style.display = loggedIn ? 'block' : 'none';
+      }
+      if (menuLogout) {
+        menuLogout.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (window.UNNAuth) window.UNNAuth.logout(e);
+          if (menu && menu.classList) menu.classList.remove('open');
+          if (document.body) document.body.style.overflow = '';
+        });
+      }
+      document.addEventListener('DOMContentLoaded', sync);
+      window.addEventListener('load', sync);
+    })();
+
+// ── Live stats (hero + animated counters) from /api/stats ──
+    (function() {
+      function setNum(el, val) {
+        if (!el) return;
+        el.textContent = Number(val || 0).toLocaleString();
+      }
+      fetch('/api/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data || !data.success) return;
+          var s = data.stats || {};
+          // Hero stats
+          setNum(document.getElementById('heroTicketsSold'), s.ticketsSold);
+          setNum(document.getElementById('heroUpcomingEvents'), s.upcomingEvents);
+          setNum(document.getElementById('heroFaculties'), s.faculties);
+          // Animated counters — set real data-target, then animate.
+          document.querySelectorAll('.stat-num[data-stat-gen]').forEach(function(el) {
+            var key = el.getAttribute('data-stat-gen');
+            var val = Number(s[key]) || 0;
+            el.setAttribute('data-target', val);
+            if (typeof animateCounter === 'function') animateCounter(el);
+          });
+        })
+        .catch(function() {});
+    })();
+
+    // ── Newsletter / subscribe box ──
+    (function() {
+      var form = document.getElementById('subscribeForm');
+      if (!form) return;
+      var email = document.getElementById('subscribeEmail');
+      var btn = document.getElementById('subscribeBtn');
+      var status = document.getElementById('subscribeStatus');
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var val = email ? email.value.trim() : '';
+        if (!val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          if (status) { status.textContent = '⚠️ Please enter a valid email address.'; status.style.color = 'var(--unn-gold)'; }
+          return;
+        }
+        var uni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+        if (!uni) {
+          if (status) { status.textContent = '⚠️ Please select your campus above first.'; status.style.color = 'var(--unn-gold)'; }
+          return;
+        }
+        if (btn) { btn.disabled = true; btn.textContent = 'Subscribing…'; }
+        if (!window.UNNotify) {
+          if (status) { status.textContent = '⚠️ Subscription is unavailable right now.'; status.style.color = 'var(--unn-gold)'; }
+          if (btn) { btn.disabled = false; btn.textContent = '🔔 Notify me'; }
+          return;
+        }
+        window.UNNotify.subscribe(val, uni.id || uni.slug, uni.name)
+          .then(function() {
+            if (status) { status.textContent = '✅ You\'re subscribed! We\'ll email you about events at ' + (uni.name || 'your campus') + '.'; status.style.color = 'var(--accent)'; }
+            if (email) email.value = '';
+          })
+          .catch(function() {
+            if (status) { status.textContent = '⚠️ Could not subscribe. Please try again.'; status.style.color = 'var(--unn-gold)'; }
+          })
+          .then(function() {
+            if (btn) { btn.disabled = false; btn.textContent = '🔔 Notify me'; }
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

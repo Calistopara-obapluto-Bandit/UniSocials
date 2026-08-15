@@ -1,0 +1,70 @@
+services:
+  - type: web
+    name: unisocials
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      # ─────────────────────────────────────────────────────────────────────────
+      # PERSISTENT STORAGE — PostgreSQL (Neon external DB, connections survive
+      # Render free-tier restarts/redeploys). Tables are auto-created on boot.
+      #
+      # ⚠️ SECURITY: Set DATABASE_URL in the Render dashboard (Environment → Env Vars)
+      # instead of here, so the DB password is never committed to the repo.
+      # Example value:
+      #   DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+      # If DATABASE_URL is not set, the server falls back to JSON files in ./data.
+      #
+      # ⚠️ ALL SECRETS (Flutterwave keys, webhook hash, admin password, email API
+      # keys) are intentionally NOT committed. They must be set in the Render
+      # dashboard → Environment → Env Vars. This keeps them out of the repo and
+      # out of git history. See .env.example for the full list of variables.
+      # ─────────────────────────────────────────────────────────────────────────
+      - key: WHATSAPP_FLOAT_NUMBER
+        value: 2348122104576
+      - key: WHATSAPP_ORDER_NUMBER
+        value: 2348122104576
+
+      # Non-secret public values (safe to commit)
+      - key: FLUTTERWAVE_PUBLIC_KEY
+        sync: false
+      - key: FLUTTERWAVE_BANK_NAME
+        value: Flutterwave MfB (formerly ok mfb)
+      - key: FLUTTERWAVE_ACCOUNT_NUMBER
+        value: "9707788756"
+      - key: SITE_URL
+        value: https://unisocials.onrender.com
+      - key: CONTACT_EMAIL
+        value: support.sbiamautos@gmail.com
+      - key: FORMSUBMIT_KEY
+        value: support.sbiamautos@gmail.com
+      - key: REDIRECT_URL
+        value: https://unisocials.onrender.com/thank-you.html
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # SECRETS — set these in the Render dashboard (Environment → Env Vars).
+      # They are listed here with sync:false so Render creates empty placeholders
+      # and you paste the real values in the dashboard. NEVER commit live values.
+      # ─────────────────────────────────────────────────────────────────────────
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: FLUTTERWAVE_SECRET_KEY
+        sync: false
+      - key: FLUTTERWAVE_WEBHOOK_HASH
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        value: support.sbiamautos@gmail.com
+      - key: BREVO_SENDER_NAME
+        value: Unisocials
+      - key: ADMIN_EMAIL
+        value: soludobenedict5@gmail.com
+      - key: EMAIL_FROM
+        value: Unisocials <onboarding@resend.dev>
+      - key: DATABASE_URL
+        sync: false

@@ -1,0 +1,223 @@
+?<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .auth-section { padding: 56px 0 80px; }
+    .auth-card {
+      max-width: 440px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-lg);
+    }
+    .auth-card .auth-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 18px;
+    }
+    .auth-card h2 { font-size: 1.4rem; font-weight: 700; color: var(--text-1); text-align: center; margin-bottom: 6px; }
+    .auth-card .auth-sub { font-size: 0.86rem; color: var(--text-3); text-align: center; margin-bottom: 24px; line-height: 1.6; }
+    .auth-error {
+      display: none;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      color: #B71C1C;
+      font-size: 0.82rem;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .auth-error.show { display: block; }
+    .auth-switch { text-align: center; font-size: 0.85rem; color: var(--text-3); margin-top: 20px; }
+    .auth-switch a { color: var(--accent); text-decoration: underline; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+<a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+<li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">Account</div>
+      <h1 class="section-title reveal reveal-delay-1">Create your <em>account</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Sign up to keep all your tickets in one place.</p>
+    </div>
+  </section>
+
+  <section class="auth-section">
+    <div class="container">
+      <div class="auth-card reveal">
+        <div class="auth-icon">🎟️</div>
+        <h2>Create Account</h2>
+        <p class="auth-sub">Join Unisocials to view and manage all your tickets.</p>
+        <div class="auth-error" id="authError">Could not create account.</div>
+        <form id="registerForm" onsubmit="authRegister(event)">
+          <div class="form-group">
+            <label for="regName">Full Name</label>
+            <input type="text" id="regName" placeholder="e.g. Chidi Okonkwo" autocomplete="name" required />
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email Address</label>
+<input type="email" id="regEmail" placeholder="you@university.edu.ng" autocomplete="email" required />
+          </div>
+          <div class="form-group">
+            <label for="regPhone">Phone Number</label>
+            <input type="tel" id="regPhone" placeholder="0812 345 6789" autocomplete="tel" required />
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required />
+          </div>
+          <button type="submit" class="btn-submit" id="regBtn">Create Account</button>
+        </form>
+        <p class="auth-switch">Already have an account? <a href="login.html">Sign in</a></p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2026 Unisocials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+  <script>
+    window.authRegister = function(e) {
+      e.preventDefault();
+      var name = document.getElementById('regName').value.trim();
+      var email = document.getElementById('regEmail').value.trim();
+      var phone = document.getElementById('regPhone').value.trim();
+      var password = document.getElementById('regPassword').value;
+      var errBox = document.getElementById('authError');
+      var btn = document.getElementById('regBtn');
+
+      errBox.classList.remove('show');
+      if (!name || !email || !phone || !password) {
+        errBox.textContent = 'Please fill in all fields.';
+        errBox.classList.add('show');
+        return;
+      }
+      if (password.length < 6) {
+        errBox.textContent = 'Password must be at least 6 characters.';
+        errBox.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Creating account\u2026';
+
+      fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, email: email, phone: phone, password: password })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data && data.success && data.token) {
+          window.UNNAuth.setAuth(data.token, data.user);
+          if (window.UNNAuth.renderNavAccount) window.UNNAuth.renderNavAccount();
+          window.location.href = 'my-tickets.html';
+        } else {
+          errBox.textContent = (data && data.error) || 'Could not create account. Please try again.';
+          errBox.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = 'Create Account';
+        }
+      })
+      .catch(function() {
+        errBox.textContent = 'Cannot reach server. Please try again.';
+        errBox.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      });
+    };
+  </script>
+</body>
+</html>
+
