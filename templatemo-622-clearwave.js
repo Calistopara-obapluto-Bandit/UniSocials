@@ -17,7 +17,7 @@ Free for personal and commercial use
     const params = new URLSearchParams(window.location.search);
     const referralCode = (params.get('ref') || '').trim();
     if (referralCode) {
-      sessionStorage.setItem('referralCode', referralCode.toUpperCase());
+      sessionStorage.setItem('referralCode', referralCode);
     }
   } catch (e) {}
 
@@ -892,22 +892,14 @@ const tier = getSelectedTier();
     window.open('https://wa.me/' + waNumber + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  function getReferralCodeFromUrlOrSessionOrInput() {
+  function getReferralCodeFromUrlOrSession() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       let referralCode = (urlParams.get('ref') || '').trim();
       if (!referralCode) {
         referralCode = (sessionStorage.getItem('referralCode') || '').trim();
       }
-      // Also check the input field on checkout page
-      if (!referralCode) {
-        const inputEl = document.getElementById('referralCodeInput');
-        if (inputEl && inputEl.value) {
-          referralCode = inputEl.value.trim();
-        }
-      }
       if (referralCode) {
-        referralCode = referralCode.toUpperCase();
         sessionStorage.setItem('referralCode', referralCode);
       }
       return referralCode;
@@ -917,8 +909,8 @@ const tier = getSelectedTier();
   }
 
   function createOrderViaApi(orderId, orderTotal, successCallback) {
-    // Extract referral code from URL, session, or input field so it survives navigation to checkout.
-    const referralCode = getReferralCodeFromUrlOrSessionOrInput();
+    // Extract referral code from URL or session so it survives navigation to checkout.
+    const referralCode = getReferralCodeFromUrlOrSession();
     
     fetch('/api/orders', {
       method: 'POST',
