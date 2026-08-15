@@ -140,8 +140,18 @@
           </div>
         </div>
 
-        <!-- PLACE ORDER -->
+        <!-- REFERRAL CODE INPUT -->
         <div class="checkout-card reveal reveal-delay-2">
+          <h3 class="checkout-card-title">🎁 Referral Code (Optional)</h3>
+          <div class="form-group">
+            <label for="referralCodeInput">Have a referral code?</label>
+            <input type="text" id="referralCodeInput" placeholder="Enter referral code (e.g., REF-ABCD1234)" style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface-2);color:var(--text-1);" />
+            <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">If someone referred you, enter their code here. This helps us track referrals.</p>
+          </div>
+        </div>
+
+        <!-- PLACE ORDER -->
+        <div class="checkout-card reveal reveal-delay-3">
           <button class="btn-submit btn-submit-lg" onclick="placeOrder()" id="placeOrderBtn">
             🛒 Place Order — <span id="placeOrderTotal">₦0</span>
           </button>
