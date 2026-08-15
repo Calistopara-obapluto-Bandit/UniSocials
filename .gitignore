@@ -4,44 +4,120 @@ node_modules/
 # Logs and temp files
 *.log
 *.tmp
+*.swp
 
 # Environment
 .env
 .env.local
-.env.
+*.env.*
 
 # Editors
 .vscode/
+.idea/
 
-# Compiled and build artifacts
-*.pyc
+# Python
 __pycache__/
-*.o
-*.obj
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git*
+.pytest_cache/
+.hypothesis/
+
+# Build results
 dist/
 build/
-target/
-*.class
+*.egg-info/
+.eggs/
+.installed.cfg
+lib/
+lib64/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Icon?
+.directory
+.folders~
+metadata.json
+
+# Compiled and binary files
+*.o
+*.obj
 *.exe
 *.dll
 *.so
 *.a
 *.out
+*.class
+*.jar
+*.war
+*.ear
+*.bin
 
-# Python specific
-.venv/
-venv/
-.mypy_cache/
-.pytest_cache/
-.coverage
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+
+# Coverage reports
 coverage/
 htmlcov/
+lcov.info
 
-# Java/Gradle
-.gradle/
-
-# System files
-.DS_Store
-Thumbs.db
+# IDE specific
+.vs/
 *.swp
 *.swo
+*~
+
+# Gradle
+.gradle/
+build/
+
+# Maven
+target/
+
+# Temporary files
+tmp/
+temp/
+.DS_Store
+Thumbs.db
