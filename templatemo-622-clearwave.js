@@ -709,6 +709,13 @@ const tier = getSelectedTier();
       eventVenue: opt.dataset.venue,
       eventCategory: opt.dataset.category || '',
       eventPrice: tierPrice,
+      originalEventPrice: (function(){
+        const reg=parseFloat(opt.dataset.price||0), vip=parseFloat(opt.dataset.vipPrice||0), vvip=parseFloat(opt.dataset.vvipPrice||0), table=parseFloat(opt.dataset.tablePrice||0);
+        if (tier==='vip') return vip>0?vip:reg;
+        if (tier==='vvip') return vvip>0?vvip:reg;
+        if (tier==='table') return table>0?table:reg;
+        return reg;
+      })(),
       ticketTier: tier,
       included: included,
       qty: qty,
@@ -811,7 +818,9 @@ const tier = getSelectedTier();
     return;
   }
 
-  const total = checkoutData.eventPrice * checkoutData.qty;
+  const baseTotal = checkoutData.eventPrice * checkoutData.qty;
+  let total = baseTotal;
+  let appliedCoupon = null;
 
   if (summaryEventName) summaryEventName.textContent = checkoutData.eventName || 'Not selected';
   if (summaryDate) summaryDate.textContent = checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '\u2014';
@@ -821,8 +830,42 @@ const tier = getSelectedTier();
     const tierMap = { regular: '🎟 Regular', vip: '⭐ VIP', vvip: '👑 VVIP', table: '🪑 Table' };
     summaryTier.textContent = tierMap[checkoutData.ticketTier] || '🎟 Regular';
   }
-  if (summaryUnitPrice) summaryUnitPrice.textContent = '\u20A6' + (checkoutData.eventPrice || 0).toLocaleString();
+  if (summaryUnitPrice) {
+    const originalPrice = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
+    const payablePrice = Number(checkoutData.eventPrice || 0);
+    if (originalPrice > payablePrice) {
+      summaryUnitPrice.innerHTML = '<span style=\"text-decoration:line-through;opacity:.6;margin-right:8px;\">₦' + originalPrice.toLocaleString() + '</span><strong style=\"color:var(--accent);\">₦' + payablePrice.toLocaleString() + '</strong>';
+    } else {
+      summaryUnitPrice.textContent = '₦' + payablePrice.toLocaleString();
+    }
+  }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
+
+  function renderCouponTotal() {
+    if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
+    if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
+    if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
+    const box=document.getElementById('couponSummary'), baseEl=document.getElementById('couponBaseTotal'), discEl=document.getElementById('couponDiscountTotal'), finalEl=document.getElementById('couponFinalTotal');
+    if (box && appliedCoupon) { box.style.display='block'; if(baseEl)baseEl.textContent='\u20A6'+baseTotal.toLocaleString(); if(discEl)discEl.textContent='−\u20A6'+Number(appliedCoupon.amount||0).toLocaleString(); if(finalEl)finalEl.textContent='\u20A6'+total.toLocaleString(); }
+    else if(box) box.style.display='none';
+  }
+
+  const couponInput=document.getElementById('couponCodeInput');
+  const applyCouponBtn=document.getElementById('applyCouponBtn');
+  const couponMessage=document.getElementById('couponMessage');
+  if(applyCouponBtn) applyCouponBtn.addEventListener('click', function(){
+    const code=(couponInput&&couponInput.value||'').trim().toUpperCase();
+    if(!code){ appliedCoupon=null; total=baseTotal; renderCouponTotal(); if(couponMessage)couponMessage.textContent='Enter a coupon code first.'; return; }
+    applyCouponBtn.disabled=true; applyCouponBtn.textContent='Checking…';
+    fetch('/api/coupons/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,eventId:checkoutData.eventId||checkoutData.eventValue||'',ticketTier:checkoutData.ticketTier||'regular',qty:checkoutData.qty})})
+      .then(r=>r.json().then(d=>({ok:r.ok,data:d}))).then(function(x){
+        if(!x.ok||!x.data.success) throw new Error(x.data.error||'Invalid coupon');
+        appliedCoupon=x.data.coupon; total=Number(x.data.total)||baseTotal; if(couponMessage) {couponMessage.textContent='✓ Coupon applied — saved ₦'+Number(appliedCoupon.amount||0).toLocaleString(); couponMessage.style.color='var(--accent)';} renderCouponTotal();
+      }).catch(function(err){ appliedCoupon=null; total=baseTotal; renderCouponTotal(); if(couponMessage){couponMessage.textContent=err.message||'Invalid coupon code.';couponMessage.style.color='#B71C1C';} })
+      .finally(function(){applyCouponBtn.disabled=false;applyCouponBtn.textContent='Apply Coupon';});
+  });
+  if(couponInput) couponInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();if(applyCouponBtn)applyCouponBtn.click();}});
+
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
   if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '\u2014';
 
@@ -929,6 +972,12 @@ const tier = getSelectedTier();
   function createOrderViaApi(orderId, orderTotal, successCallback) {
     // Manual referral input takes priority; otherwise use the saved referral URL/session code.
     const referralCode = getReferralCodeFromUrlOrSessionOrInput();
+    if (!referralCode) {
+      const inputEl = document.getElementById('referralCodeInput');
+      if (inputEl) { inputEl.focus(); inputEl.style.borderColor = '#B71C1C'; }
+      alert('Referral code is required before checkout. Please enter a valid referral code.');
+      return;
+    }
 
     fetch('/api/orders', {
       method: 'POST',
@@ -953,7 +1002,8 @@ const tier = getSelectedTier();
         universityId: checkoutData.universityId || '',
         universityName: checkoutData.universityName || '',
         universitySlug: checkoutData.universitySlug || '',
-        referralCode: referralCode  // Add referral code to order
+        referralCode: referralCode,  // Add referral code to order
+        couponCode: appliedCoupon ? appliedCoupon.code : ''
       })
     })
     .then(function(res) { return res.json(); })

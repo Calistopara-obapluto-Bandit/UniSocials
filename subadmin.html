@@ -375,6 +375,7 @@
           <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
           <button class="admin-tab" data-tab="referral">📈 Referral Links</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
+          <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
       </div>
 
@@ -508,6 +509,19 @@
                 <strong>📊 What You Can Track:</strong> Number of unique people referred, paid orders, total tickets, and total revenue generated through your referral link.
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- ── COUPONS PANEL ── -->
+        <div class="admin-panel" id="panel-coupons">
+          <div class="admin-panel-heading"><div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons for customers. Example: ticket ₦4,000 + coupon ₦400 = ₦3,600 to pay.</p></div><button class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button></div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="couponCodeAdmin">Coupon Code</label><input type="text" id="couponCodeAdmin" placeholder="SAVE400" maxlength="40" /></div>
+              <div class="form-group"><label for="couponAmountAdmin">Discount Amount (₦)</label><input type="number" id="couponAmountAdmin" placeholder="400" min="1" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="saveCoupon()" id="couponSaveBtn">➕ Create Coupon</button><button type="button" class="admin-refresh-btn" onclick="cancelCouponEdit()" id="couponCancelBtn" style="display:none;">✕ Cancel Edit</button><span id="couponCount" style="font-size:.75rem;color:var(--text-3);align-self:center;"></span></div>
+            <div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
           </div>
         </div>
 
@@ -1365,6 +1379,28 @@ resultBox.className = 'admin-scan-result show';
         }
         document.body.removeChild(textarea);
       }
+
+      var editingCouponId = '';
+      window.cancelCouponEdit = function(){ editingCouponId=''; var c=document.getElementById('couponCodeAdmin'),a=document.getElementById('couponAmountAdmin'),b=document.getElementById('couponSaveBtn'),x=document.getElementById('couponCancelBtn'); if(c)c.value=''; if(a)a.value=''; if(b)b.textContent='➕ Create Coupon'; if(x)x.style.display='none'; };
+      window.loadCoupons = function(){
+        fetch('/api/admin/coupons',{headers:authHeaders()}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){
+          if(!x.ok||!x.d.success) throw new Error(x.d.error||'Could not load coupons');
+          var list=x.d.coupons||[], box=document.getElementById('couponsList'), count=document.getElementById('couponCount');
+          if(count) count.textContent=list.length+' coupon'+(list.length===1?'':'s');
+          if(!box) return;
+          if(!list.length){box.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-3);">No coupons created yet.</div>';return;}
+          box.innerHTML=list.map(function(c){
+            return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
+              '<div><strong>'+esc(c.code)+'</strong><span style="font-size:.78rem;color:var(--text-3);margin-left:10px;">−₦'+Number(c.amount||0).toLocaleString()+'</span><span style="font-size:.72rem;margin-left:10px;color:'+(c.active===false?'#B71C1C':'var(--accent)')+';">'+(c.active===false?'Inactive':'Active')+'</span></div>'+
+              '<div style="display:flex;gap:6px;"><button type="button" class="admin-ticket-copy coupon-edit-btn" data-id="'+esc(c.id)+'">✏️</button><button type="button" class="admin-ticket-copy coupon-delete-btn" data-id="'+esc(c.id)+'">🗑</button></div></div>';
+          }).join('');
+          box.querySelectorAll('.coupon-edit-btn').forEach(function(b){b.addEventListener('click',function(){editCoupon(b.getAttribute('data-id'));});});
+          box.querySelectorAll('.coupon-delete-btn').forEach(function(b){b.addEventListener('click',function(){deleteCoupon(b.getAttribute('data-id'));});});
+        }).catch(function(e){console.error(e);});
+      };
+      window.saveCoupon = function(){ var code=(document.getElementById('couponCodeAdmin').value||'').trim().toUpperCase(), amount=Number(document.getElementById('couponAmountAdmin').value||0); if(code.length<3||amount<=0){alert('Enter a coupon code and discount amount.');return;} var btn=document.getElementById('couponSaveBtn'); if(btn)btn.disabled=true; fetch('/api/admin/coupons',{method:'POST',headers:authHeaders(),body:JSON.stringify({id:editingCouponId||undefined,code:code,amount:amount,active:true})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Could not save coupon'); cancelCouponEdit(); loadCoupons(); alert('Coupon saved: '+code+' = ₦'+amount.toLocaleString()+' off.');}).catch(function(e){alert(e.message||'Could not save coupon.');}).finally(function(){if(btn)btn.disabled=false;}); };
+      window.editCoupon = function(id){ fetch('/api/admin/coupons',{headers:authHeaders()}).then(r=>r.json()).then(function(d){var c=(d.coupons||[]).find(function(x){return String(x.id)===String(id);});if(!c)throw new Error('Coupon not found');editingCouponId=c.id;document.getElementById('couponCodeAdmin').value=c.code;document.getElementById('couponAmountAdmin').value=c.amount;document.getElementById('couponSaveBtn').textContent='💾 Save Coupon';document.getElementById('couponCancelBtn').style.display='inline-flex';}).catch(function(e){alert(e.message);}); };
+      window.deleteCoupon = function(id){if(!confirm('Delete this coupon?'))return;fetch('/api/admin/coupons?id='+encodeURIComponent(id),{method:'DELETE',headers:authHeaders()}).then(r=>r.json()).then(function(d){if(!d.success)throw new Error(d.error||'Delete failed');loadCoupons();}).catch(function(e){alert(e.message);});};
 
       // ── Tab switching ──
       var tabButtons = document.querySelectorAll('.admin-tab');

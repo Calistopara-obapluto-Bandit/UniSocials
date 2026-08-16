@@ -60,6 +60,7 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
@@ -114,6 +115,41 @@ async function patchOrder(orderId, patch) {
   orders[idx] = Object.assign({}, orders[idx], patch);
   await writeOrders(orders);
   return orders[idx];
+}
+
+/* ── Coupons ── */
+async function readCoupons() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM coupons ORDER BY created_at DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'coupons.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writeCoupons(coupons) {
+  if (usePg) {
+    for (const c of coupons) {
+      await db.query('INSERT INTO coupons (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data', [c.id, JSON.stringify(c)]);
+    }
+    const ids = coupons.map(c => c.id);
+    if (ids.length) await db.query('DELETE FROM coupons WHERE NOT (id = ANY($1::text[]))', [ids]);
+    else await db.query('DELETE FROM coupons');
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'coupons.json'), JSON.stringify(coupons, null, 2), 'utf8');
+}
+async function getCouponByCode(code) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return null;
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.code || '').toUpperCase() === normalized && c.active !== false) || null;
+}
+async function getCouponById(id) {
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.id) === String(id)) || null;
 }
 
 /* ── Users ── */
@@ -1971,6 +2007,12 @@ const user = {
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      const couponCode = String(data.couponCode || '').trim().toUpperCase();
+      if (!referralCode) {
+        return sendJson(res, 400, { success: false, error: 'Referral code is required before checkout.' });
+      }
+      let couponDiscount = 0;
+      let baseAmountBeforeCoupon = amount;
 
       // Always calculate the payable amount from the server-side event price list.
       // A valid bonus/sale price is used only when it is lower than the original price.
@@ -1984,6 +2026,16 @@ const user = {
         const bonusUnit = tierBonuses[ticketTier] || 0;
         const payableUnit = (bonusUnit > 0 && bonusUnit < originalUnit) ? bonusUnit : originalUnit;
         amount = payableUnit * qty;
+        baseAmountBeforeCoupon = amount;
+      }
+
+      if (couponCode) {
+        const coupon = await getCouponByCode(couponCode);
+        if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+        couponDiscount = Math.max(0, Number(coupon.amount) || 0);
+        if (couponDiscount <= 0) return sendJson(res, 400, { success: false, error: 'Coupon discount is invalid.' });
+        if (couponDiscount >= baseAmountBeforeCoupon) return sendJson(res, 400, { success: false, error: 'Coupon discount cannot cover the full ticket price.' });
+        amount = Math.max(0, baseAmountBeforeCoupon - couponDiscount);
       }
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
@@ -2031,6 +2083,9 @@ buyerFaculty: buyerFaculty,
         universityName: universityName,
         universitySlug: universitySlug,
         referralCode: referralCode || null,  // Track which subadmin referred this order
+        couponCode: couponCode || null,
+        couponDiscount: couponDiscount || 0,
+        amountBeforeCoupon: baseAmountBeforeCoupon,
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
@@ -2493,6 +2548,62 @@ codes[idx] = entry;
       }
       const updated = await patchOrder(orderId, { status: newStatus });
       return sendJson(res, 200, { success: true, order: updated });
+    }
+
+    // ── Coupons: Main Admin + Sub-admin only ──
+    if (pathname === '/api/admin/coupons' && req.method === 'GET') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const coupons = await readCoupons();
+      return sendJson(res, 200, { success: true, coupons });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const id = String(data.id || '').trim() || 'cpn-' + Date.now().toString(36);
+      const code = String(data.code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      const amount = Math.max(0, Number(data.amount) || 0);
+      if (!code || code.length < 3) return sendJson(res, 400, { success: false, error: 'Coupon code must be at least 3 characters.' });
+      if (amount <= 0) return sendJson(res, 400, { success: false, error: 'Discount amount must be greater than 0.' });
+      const coupons = await readCoupons();
+      const duplicate = coupons.find(c => String(c.code || '').toUpperCase() === code && String(c.id) !== id);
+      if (duplicate) return sendJson(res, 409, { success: false, error: 'That coupon code already exists.' });
+      const existing = coupons.find(c => String(c.id) === id);
+      const coupon = Object.assign({}, existing || {}, { id, code, amount, active: data.active !== false, updatedAt: new Date().toISOString(), createdBy: existing && existing.createdBy ? existing.createdBy : (authCtx.user ? authCtx.user.id : 'admin') });
+      if (!coupon.createdAt) coupon.createdAt = new Date().toISOString();
+      const next = existing ? coupons.map(c => String(c.id) === id ? coupon : c) : [coupon].concat(coupons);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true, coupon });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const id = String(url.searchParams.get('id') || '').trim();
+      if (!id) return sendJson(res, 400, { success: false, error: 'Missing coupon id' });
+      const coupons = await readCoupons();
+      const next = coupons.filter(c => String(c.id) !== id);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true });
+    }
+    if (pathname === '/api/coupons/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      const eventId = String(data.eventId || '').trim();
+      const tier = String(data.ticketTier || 'regular').toLowerCase();
+      const qty = Math.max(1, parseInt(data.qty) || 1);
+      const coupon = await getCouponByCode(code);
+      if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+      const events = await readEvents(); const ev = events.find(e => String(e.id) === eventId);
+      if (!ev) return sendJson(res, 400, { success: false, error: 'Event not found.' });
+      const originals = {regular:Number(ev.price||0),vip:Number(ev.vipPrice||0),vvip:Number(ev.vvipPrice||0),table:Number(ev.tablePrice||0)};
+      const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
+      const originalUnit = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonusUnit = bonuses[tier] || 0;
+      const unit = (bonusUnit > 0 && bonusUnit < originalUnit) ? bonusUnit : originalUnit;
+      const baseTotal = unit * qty; const discount = Number(coupon.amount) || 0;
+      if (discount >= baseTotal) return sendJson(res, 400, { success:false, error:'Coupon discount cannot cover the full ticket price.' });
+      return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });
     }
 
     // ── Public events list (used by events.html, tickets.html, index.html) ──

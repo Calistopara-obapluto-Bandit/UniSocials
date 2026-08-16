@@ -133,11 +133,29 @@
 
         <!-- REFERRAL CODE INPUT -->
         <div class="checkout-card reveal reveal-delay-2">
-          <h3 class="checkout-card-title">🎁 Referral Code (Optional)</h3>
+          <h3 class="checkout-card-title">🎁 Referral Code (Required)</h3>
           <div class="form-group">
-            <label for="referralCodeInput">Have a referral code?</label>
-            <input type="text" id="referralCodeInput" placeholder="Enter referral code (e.g., REF-ABCD1234)" style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface-2);color:var(--text-1);" />
-            <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">If someone referred you, enter their code here. This helps us track referrals.</p>
+            <label for="referralCodeInput">Referral code <span style="color:#B71C1C">*</span></label>
+            <input type="text" id="referralCodeInput" required placeholder="Enter required referral code" style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface-2);color:var(--text-1);" />
+            <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">A valid referral code is required before you can place your order.</p>
+          </div>
+        </div>
+
+        <!-- COUPON CODE INPUT -->
+        <div class="checkout-card reveal reveal-delay-2">
+          <h3 class="checkout-card-title">🏷️ Coupon Code (Optional)</h3>
+          <div class="form-group">
+            <label for="couponCodeInput">Have a coupon?</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input type="text" id="couponCodeInput" placeholder="Enter coupon code" style="flex:1;min-width:180px;width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface-2);color:var(--text-1);" />
+              <button type="button" id="applyCouponBtn" class="admin-refresh-btn" style="white-space:nowrap;">Apply Coupon</button>
+            </div>
+            <p id="couponMessage" class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;"></p>
+          </div>
+          <div id="couponSummary" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);">
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span>Before coupon</span><strong id="couponBaseTotal">₦0</strong></div>
+            <div style="display:flex;justify-content:space-between;gap:12px;color:var(--accent);"><span>Coupon discount</span><strong id="couponDiscountTotal">−₦0</strong></div>
+            <div style="display:flex;justify-content:space-between;gap:12px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><span>To pay</span><strong id="couponFinalTotal">₦0</strong></div>
           </div>
         </div>
 
