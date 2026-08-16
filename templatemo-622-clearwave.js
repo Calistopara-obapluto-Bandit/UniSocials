@@ -829,7 +829,7 @@ const tier = getSelectedTier();
   const storedOriginal = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
   const storedBonus = Number(checkoutData.bonusEventPrice || 0);
   if (storedBonus > 0) checkoutData.eventPrice = storedBonus;
-  const baseTotal = Number(checkoutData.eventPrice || 0) * Number(checkoutData.qty || 1);
+  let baseTotal = Number(checkoutData.eventPrice || 0) * Number(checkoutData.qty || 1);
   let total = baseTotal;
   let appliedCoupon = null;
 
@@ -843,7 +843,10 @@ const tier = getSelectedTier();
   }
   if (summaryUnitPrice) {
     const payablePrice = Number(checkoutData.eventPrice || 0);
-    summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong>';
+    const originalPrice = Number(checkoutData.originalEventPrice || 0);
+    summaryUnitPrice.innerHTML = (originalPrice > payablePrice && payablePrice > 0)
+      ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + originalPrice.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong><small style="display:block;color:var(--text-3);font-size:.72em;margin-top:3px;">Bonus price</small>'
+      : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong>';
   }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
 
@@ -869,8 +872,11 @@ const tier = getSelectedTier();
       checkoutData.eventPrice = payable;
       try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
       total = payable * checkoutData.qty;
+      baseTotal = total;
       if (summaryUnitPrice) {
-        summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>';
+        summaryUnitPrice.innerHTML = (original > payable && payable > 0)
+          ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small style="display:block;color:var(--text-3);font-size:.72em;margin-top:3px;">Bonus price</small>'
+          : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>';
       }
       renderCouponTotal();
     } catch (e) {

@@ -431,7 +431,7 @@ function setSelectedTier(tier) {
             var incVvip = opt.dataset.includedVvip || '';
             var incTable = opt.dataset.includedTable || '';
             var rows = '';
-            var showPrice = function(original, bonus) { return (original > 0 && bonus > 0 && bonus < original) ? '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(original) + '</span><strong>' + fmtN(bonus) + '</strong><small style="display:block;font-size:.68em;opacity:.72;">Bonus price</small>' : fmtN(original); };
+            var showPrice = function(original, bonus) { return (original > 0 && bonus > 0) ? '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(original) + '</span><strong>' + fmtN(bonus) + '</strong><small style="display:block;font-size:.68em;opacity:.72;">Bonus price</small>' : fmtN(original); };
             rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + showPrice(reg, bonusReg) + '</td><td class="tier-note">' + includedNote(incReg) + '</td></tr>';
             if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + showPrice(vip, bonusVip) + '</td><td class="tier-note">' + includedNote(incVip) + '</td></tr>';
             if (vvip > 0) rows += '<tr><td class="tier-name">👑 VVIP</td><td class="price">' + showPrice(vvip, bonusVvip) + '</td><td class="tier-note">' + includedNote(incVvip) + '</td></tr>';
@@ -496,7 +496,7 @@ function setSelectedTier(tier) {
               opt.setAttribute('data-university-id', ev.universityId || '');
               opt.setAttribute('data-university-name', ev.universityName || '');
               var dropBonus = Number(ev.bonusPrice || 0);
-              opt.textContent = ev.name + ' — ' + ((dropBonus > 0 && dropBonus < Number(ev.price || 0)) ? fmtN(ev.price) + ' → ' + fmtN(dropBonus) : fmtN(ev.price));
+              opt.textContent = ev.name + ' — ' + ((dropBonus > 0) ? fmtN(ev.price) + ' → ' + fmtN(dropBonus) : fmtN(ev.price));
               eventSelect.appendChild(opt);
             });
             // Handle ?event= URL param now that dynamic options exist

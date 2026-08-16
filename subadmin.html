@@ -651,6 +651,7 @@
         logoutBtn.style.display = 'inline-block';
         viewSiteBtn.style.display = 'inline-block';
         connStatus.style.display = 'inline-flex';
+        if (typeof window.loadCoupons === 'function') window.loadCoupons();
       }
       function showLoggedOut() {
         loginScreen.style.display = 'flex';
@@ -672,6 +673,7 @@
           showLoggedIn();
           loadManagedEvents();
           loadManagedUniversities();
+          loadCoupons();
           return;
         }
 
@@ -705,6 +707,7 @@
           showLoggedIn();
           loadManagedEvents();
           loadManagedUniversities();
+          loadCoupons();
         })
         .catch(function(err) {
           if (err.message === 'not-subadmin') {
