@@ -822,6 +822,15 @@ async function isAdminOrInfluencerAdmin(req) {
   if (user && user.role === 'influencer_admin') return { role: user.role, user };
   return null;
 }
+
+// Influencer ownership is enforced server-side. Master admin can manage any
+// influencer; an influencer admin can manage only accounts whose createdBy
+// matches the authenticated influencer admin's user id.
+function canManageInfluencer(authCtx, influencer) {
+  if (!authCtx || !influencer || influencer.role !== 'influencer') return false;
+  if (authCtx.role === 'admin') return true;
+  return authCtx.role === 'influencer_admin' && influencer.createdBy === authCtx.user.id;
+}
 async function isAdminOrSubadmin(req) {
   if (isAdminAuthorized(req)) return { role: 'admin' };
   const auth = req.headers['authorization'] || '';
@@ -1638,7 +1647,7 @@ const user = {
       if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
       const user = await findUserByEmail(email);
       if (!user || user.role !== 'influencer') return sendJson(res, 404, { success: false, error: 'Influencer not found' });
-      if (authCtx.role !== 'admin' && user.createdBy !== authCtx.user.id) {
+      if (!canManageInfluencer(authCtx, user)) {
         return sendJson(res, 403, { success: false, error: 'You can only manage influencers you created.' });
       }
       const users = await readUsers();
