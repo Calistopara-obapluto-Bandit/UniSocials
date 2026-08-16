@@ -632,15 +632,15 @@
         })
         .then(function(data) {
           if (!data || !data.success || !data.token) throw new Error('unauthorized');
-          // Only sub-admin accounts may use this page
-          if (!data.user || !['subadmin','checkin_staff'].includes(data.user.role)) throw new Error('not-checkin-staff');
+          // Only dedicated check-in staff may use this page. Sub-admins have a separate dashboard.
+          if (!data.user || data.user.role !== 'checkin_staff') throw new Error('not-checkin-staff');
           setSubAuth(data.token, data.user);
           errBox.classList.remove('show');
           showLoggedIn();
           
         })
         .catch(function(err) {
-          if (err.message === 'not-subadmin') {
+          if (err.message === 'not-subadmin' || err.message === 'not-checkin-staff') {
             errBox.textContent = 'This account is not a sub-admin. Use the Admin Dashboard instead.';
             errBox.classList.add('show');
           } else if (err.message === 'unauthorized') {
@@ -1001,9 +1001,6 @@ resultBox.className = 'admin-scan-result show';
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
-                '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
-                '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
@@ -1306,15 +1303,30 @@ resultBox.className = 'admin-scan-result show';
         }
       }, 30000);
 
-      // Initial state — restore sub-admin session from localStorage
-      if (getSubToken()) {
-        showLoggedIn();
-        loadManagedEvents();
-        loadManagedUniversities();
-        loadReferralLink();  // Load referral link on dashboard load
-      } else {
-        showLoggedOut();
-      }
+      // Initial state — restore the dedicated check-in staff session from localStorage.
+      // Validate it against the database-backed session before showing the dashboard.
+      (async function restoreCheckinSession() {
+        var token = getSubToken();
+        if (!token) { showLoggedOut(); return; }
+        try {
+          var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+          var d = await r.json();
+          if (!r.ok || !d.success || !d.user || d.user.role !== 'checkin_staff') {
+            clearSubAuth();
+            showLoggedOut();
+            return;
+          }
+          setSubAuth(token, d.user);
+          showLoggedIn();
+          loadManagedEvents();
+          loadManagedUniversities();
+          loadReferralLink();
+        } catch (e) {
+          // A temporary network failure must NOT log the staff member out.
+          // Keep the local token and dashboard available for retry.
+          showLoggedIn();
+        }
+      })();
     })();
   </script>
 </body>

@@ -176,23 +176,43 @@ async function writeSessions(sessions) {
   fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify(sessions, null, 2), 'utf8');
 }
 async function createSession(token, userId) {
+  if (usePg) {
+    // Do not rewrite the entire sessions table. A full DELETE + INSERT cycle
+    // can race with another login/logout and accidentally remove a live session.
+    await db.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id', [token, userId]);
+    return;
+  }
   const sessions = await readSessions();
   sessions[token] = userId;
   await writeSessions(sessions);
 }
 async function getSessionUser(token) {
   if (!token) return null;
+  if (usePg) {
+    const r = await db.query('SELECT user_id FROM sessions WHERE token = $1 LIMIT 1', [token]);
+    if (!r.rows.length) return null;
+    return await findUserById(r.rows[0].user_id);
+  }
   const sessions = await readSessions();
   const userId = sessions[token];
   if (!userId) return null;
   return await findUserById(userId);
 }
 async function deleteSession(token) {
+  if (!token) return;
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE token = $1', [token]);
+    return;
+  }
   const sessions = await readSessions();
   delete sessions[token];
   await writeSessions(sessions);
 }
 async function deleteUserSessions(userId) {
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    return;
+  }
   const sessions = await readSessions();
   for (const [t, uid] of Object.entries(sessions)) {
     if (uid === userId) delete sessions[t];
@@ -2149,7 +2169,7 @@ eventName: order.eventName,
 // ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx || !['admin','subadmin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
+      if (!authCtx || !['admin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2507,10 +2527,10 @@ codes[idx] = entry;
       }
     }
 
-    // ── Admin/Sub-admin: delete an event ──
+    // ── Main Admin only: delete an event ──
+    // Sub-admins, Influencer Admins, Check-in Staff and Influencers may never delete events.
     if (pathname === '/api/admin/events' && req.method === 'DELETE') {
-      const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete events' });
       const eventId = String(url.searchParams.get('eventId') || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
       

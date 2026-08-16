@@ -1036,13 +1036,13 @@ function fmtN(n) {
       }
 
       function getToken() {
-        try { return sessionStorage.getItem(KEY) || ''; } catch(e) { return ''; }
+        try { return localStorage.getItem(KEY) || ''; } catch(e) { return ''; }
       }
       function setToken(t) {
-        try { sessionStorage.setItem(KEY, t); } catch(e) {}
+        try { localStorage.setItem(KEY, t); } catch(e) {}
       }
       function clearToken() {
-        try { sessionStorage.removeItem(KEY); } catch(e) {}
+        try { localStorage.removeItem(KEY); } catch(e) {}
       }
 
       function showLoggedIn() {
@@ -1052,6 +1052,12 @@ function fmtN(n) {
         viewSiteBtn.style.display = 'inline-block';
         connStatus.style.display = 'inline-flex';
         if (notifBadge) notifBadge.style.display = 'inline-flex';
+        try {
+          var rawUser = localStorage.getItem('unn_admin_user');
+          var u = rawUser ? JSON.parse(rawUser) : null;
+          var nameEl = document.getElementById('adminUserName');
+          if (nameEl && u) { nameEl.textContent = u.name || u.email || 'Influencer Admin'; nameEl.style.display = 'inline-flex'; }
+        } catch(e) {}
       }
       function showLoggedOut() {
         loginScreen.style.display = 'flex';
@@ -1130,7 +1136,7 @@ function fmtN(n) {
             if(!x.ok || !x.data || !x.data.success){throw new Error((x.data&&x.data.error)||'unauthorized');}
             var role=x.data.user&&x.data.user.role;
             if(role!=='influencer_admin' && role!=='admin') throw new Error('This account is not authorized for the Influencer Admin dashboard.');
-            setToken(x.data.token); sessionStorage.setItem('unn_admin_user',JSON.stringify(x.data.user||{}));
+            setToken(x.data.token); localStorage.setItem('unn_admin_user',JSON.stringify(x.data.user||{}));
             errBox.classList.remove('show'); showLoggedIn();
           })
           .catch(function(err){errBox.textContent=err.message||'Cannot sign in.';errBox.classList.add('show');btn.disabled=false;btn.textContent='Login to Dashboard';});
@@ -1694,13 +1700,27 @@ fetch('/api/admin/events/notify', {
       });
       window.switchTab = switchTab;
 
-// Initial state — restore the master-admin (sessionStorage) session if present.
-      if (getToken()) {
-        showLoggedIn();
-        try { var ru=JSON.parse(sessionStorage.getItem('unn_admin_user')||'{}'); if (ru.role==='admin') { loadOrders(); pollUnseen(); } } catch(e) {}
-      } else {
-        showLoggedOut();
-      }
+// Initial state — restore the database-backed session from persistent localStorage.
+      (async function restoreInfluencerAdminSession() {
+        var token = getToken();
+        if (!token) { showLoggedOut(); return; }
+        try {
+          var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+          var d = await r.json();
+          if (!r.ok || !d.success || !d.user || !['influencer_admin','admin'].includes(d.user.role)) {
+            clearToken();
+            try { localStorage.removeItem('unn_admin_user'); } catch(e) {}
+            showLoggedOut();
+            return;
+          }
+          try { localStorage.setItem('unn_admin_user', JSON.stringify(d.user)); } catch(e) {}
+          showLoggedIn();
+          if (d.user.role === 'admin') { loadOrders(); pollUnseen(); }
+        } catch (e) {
+          // Keep a valid stored session during temporary network/server hiccups.
+          showLoggedIn();
+        }
+      })();
     })();
   </script>
 

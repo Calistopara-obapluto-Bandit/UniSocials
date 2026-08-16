@@ -1053,9 +1053,6 @@ resultBox.className = 'admin-scan-result show';
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
-                '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
-                '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
