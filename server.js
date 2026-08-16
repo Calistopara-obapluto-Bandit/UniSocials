@@ -1769,6 +1769,37 @@ const user = {
       return sendJson(res,200,{success:true});
     }
 
+    // ── ADMIN: Reset password for an account this admin manages ──
+    // Main Admin can reset any non-main-admin account. Influencer Admin can
+    // reset only influencers that were created by that Influencer Admin.
+    if (pathname === '/api/admin/account-password' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const newPassword = String(data.password || '');
+      if (!email || newPassword.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Email and a new password of at least 6 characters are required.' });
+      }
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res, 404, { success: false, error: 'Account not found.' });
+      if (target.role === 'admin') return sendJson(res, 403, { success: false, error: 'The Main Admin password cannot be changed from this dashboard.' });
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx, target)) {
+        return sendJson(res, 403, { success: false, error: 'You can only reset passwords for influencers you created.' });
+      }
+      target.passwordHash = hashPassword(newPassword);
+      target.otp = null;
+      target.otpExpires = null;
+      target.resetToken = null;
+      target.resetTokenExpires = null;
+      const users = await readUsers();
+      await writeUsers(users.map(u => u.id === target.id ? target : u));
+      await deleteUserSessions(target.id);
+      return sendJson(res, 200, { success: true, message: 'Password reset successfully. The account must sign in again.' });
+    }
+
     // ── AUTH: Logout ──
     if (pathname === '/api/auth/logout' && req.method === 'POST') {
       const auth = req.headers['authorization'] || '';

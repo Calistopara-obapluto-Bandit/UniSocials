@@ -1812,7 +1812,7 @@ fetch('/api/admin/events/notify', {
                 '<div style="display:flex;flex-direction:column;gap:6px;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
-                '</div><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>';
+                '</div><div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || '') + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
             });
             container.innerHTML = html;
           }).catch(function() {});
@@ -1842,6 +1842,22 @@ fetch('/api/admin/events/notify', {
             if (data && data.success) { showToast('Influencer removed'); loadInfluencers(); }
             else showToast((data && data.error) || 'Failed to remove influencer', true);
           }).catch(function(){ showToast('Network error removing influencer', true); });
+      };
+
+      window.resetManagedPassword = function(email) {
+        if (!email) return;
+        var first = prompt('Enter a new password for ' + email + ' (minimum 6 characters):');
+        if (first === null) return;
+        var password = String(first).trim();
+        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
+        var second = prompt('Confirm the new password:');
+        if (second === null) return;
+        if (password !== String(second)) return showToast('Passwords do not match.', true);
+        fetch('/api/admin/account-password', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({email:email,password:password}) })
+          .then(function(r){return r.json();}).then(function(data){
+            if(data&&data.success) showToast('Password reset successfully. The account must log in again.');
+            else showToast((data&&data.error)||'Failed to reset password',true);
+          }).catch(function(){showToast('Network error resetting password',true);});
       };
 
 // Load events on login — also load universities and subscribers
