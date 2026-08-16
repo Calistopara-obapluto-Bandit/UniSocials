@@ -77,7 +77,70 @@
     .pricing-table tbody tr:last-child td { border-bottom: none; }
     .pricing-table td.price { font-weight: 700; color: var(--accent); white-space: nowrap; }
     .pricing-table .tier-name { font-weight: 700; color: var(--text-1); }
-    .pricing-table .tier-note { font-size: 0.78rem; color: var(--text-3); }
+    .pricing-table .tier-note { font-size: 0.78rem; color: var(--text-3); line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
+    .pricing-table .tier-note ul { margin: 0; padding-left: 1.1rem; }
+    .pricing-table .tier-note li { margin: 2px 0; }
+
+    /* Small-screen ticket pricing: turn the wide table into stacked cards. */
+    @media (max-width: 640px) {
+      .ticket-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .ticket-type-option { min-width: 0; padding: 12px 8px; }
+      .ticket-type-name, .ticket-type-price { overflow-wrap: anywhere; }
+
+      .pricing-table-wrap { margin-top: 12px; overflow: visible; }
+      .pricing-table { display: block; width: 100%; border: 0; background: transparent; }
+      .pricing-table thead { display: none; }
+      .pricing-table tbody { display: grid; gap: 10px; }
+      .pricing-table tr {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+        gap: 0;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+      }
+      .pricing-table td {
+        min-width: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+      }
+      .pricing-table td:nth-child(1) {
+        grid-column: 1 / -1;
+        border-bottom: 0;
+        padding-bottom: 4px;
+        font-size: 0.88rem;
+      }
+      .pricing-table td:nth-child(2) {
+        border-bottom: 0;
+        padding-top: 4px;
+      }
+      .pricing-table td:nth-child(3) {
+        grid-column: 1 / -1;
+        border-bottom: 0;
+        padding-top: 6px;
+        padding-bottom: 12px;
+        font-size: 0.8rem;
+      }
+      .pricing-table td:nth-child(3)::before {
+        content: 'What's included';
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text-1);
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .pricing-table td.price { white-space: normal; line-height: 1.45; }
+    }
+
+    @media (max-width: 380px) {
+      .ticket-type-grid { grid-template-columns: 1fr; }
+      .pricing-table td { padding-left: 10px; padding-right: 10px; }
+    }
   </style>
 </head>
 <body>

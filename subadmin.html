@@ -1049,20 +1049,16 @@ resultBox.className = 'admin-scan-result show';
             var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
               var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-              var bonusValue = parseFloat(ev.bonusPrice || 0) || 0;
               var vipValue = parseFloat(ev.vipPrice || 0) || 0;
-              var bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
-              var bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
               var vvipValue = parseFloat(ev.vvipPrice || 0) || 0;
-              var bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
-              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue>0 && bonusVipValue<vipValue) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
-              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue>0 && bonusVvipValue<vvipValue) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
+              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ₦' + vipValue.toLocaleString() + '</span>' : '';
+              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ₦' + vvipValue.toLocaleString() + '</span>' : '';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + ((ev.bonusPrice>0 && ev.bonusPrice<ev.price) ? '<s>₦'+Number(ev.price).toLocaleString()+'</s> <strong>₦'+Number(ev.bonusPrice).toLocaleString()+'</strong>' : '₦'+Number(ev.price||0).toLocaleString()) + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
                 vipHtml +
                 vvipHtml +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
