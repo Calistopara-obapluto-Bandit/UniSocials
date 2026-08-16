@@ -550,8 +550,9 @@
               <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
+              <button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="addEventItem()" id="eventSubmitBtn">➕ Add Event</button>
               <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
+              <button type="button" class="admin-refresh-btn" id="eventCancelEditBtn" onclick="cancelEditEvent()" style="display:none;">✕ Cancel Edit</button>
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
             </div>
             <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
@@ -1063,6 +1064,9 @@ resultBox.className = 'admin-scan-result show';
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'" + esc(id) + "\')" title="Edit event">✏️</button>' +
+                '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
@@ -1070,6 +1074,39 @@ resultBox.className = 'admin-scan-result show';
           .catch(function(err) {
             console.error('Error loading events:', err);
           });
+      };
+
+      var editingEventId = '';
+
+      window.cancelEditEvent = function() {
+        editingEventId = '';
+        var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
+        var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
+        ['evName','evPrice','evVIPPrice','evVVIPPrice','evTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        var uni=document.getElementById('evUniversity');if(uni)uni.value='';
+        if(typeof updateUniCategories==='function')updateUniCategories();
+        if(typeof clearEventImage==='function')clearEventImage();
+      };
+
+      window.editManagedEvent = function(eventId) {
+        if(!eventId)return;
+        fetch('/api/events',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
+          var events=(data&&data.success&&data.events)||[];
+          var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
+          if(!ev)throw new Error('Event not found');
+          editingEventId=String(ev.id||eventId);
+          var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
+          set('evName',ev.name);set('evPrice',ev.price);set('evVIPPrice',ev.vipPrice);set('evVVIPPrice',ev.vvipPrice);set('evTablePrice',ev.tablePrice);
+          set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
+          set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
+          set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
+          var uni=document.getElementById('evUniversity');if(uni){uni.value=ev.universityId||'';if(typeof updateUniCategories==='function')updateUniCategories();var cat=document.getElementById('evCategory');if(cat)cat.value=ev.category||'General';}
+          selectedEventImage=ev.image||'';if(typeof setEventImagePreview==='function')setEventImagePreview(selectedEventImage);
+          var btn=document.getElementById('eventSubmitBtn');if(btn)btn.textContent='💾 Save Event Changes';
+          var cancel=document.getElementById('eventCancelEditBtn');if(cancel)cancel.style.display='inline-flex';
+          var panel=document.getElementById('panel-events');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
+          showToast('Editing “'+(ev.name||'event')+'”. Update the fields and save.');
+        }).catch(function(err){showToast(err.message||'Could not load that event.',true);});
       };
 
       window.addEventItem = function() {
@@ -1105,6 +1142,7 @@ resultBox.className = 'admin-scan-result show';
         }
 
         var ev = {
+          id: editingEventId || undefined,
           name: name,
           category: category,
           price: price,
@@ -1158,6 +1196,7 @@ resultBox.className = 'admin-scan-result show';
             if (document.getElementById('evIncludedVVIP')) document.getElementById('evIncludedVVIP').value = '';
             if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
             clearEventImage();
+            cancelEditEvent();
             // Refresh event list
             setTimeout(function() {
               loadManagedEvents();
