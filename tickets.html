@@ -81,17 +81,99 @@
     .pricing-table .tier-note ul { margin: 0; padding-left: 1.1rem; }
     .pricing-table .tier-note li { margin: 2px 0; }
 
-    /* Small-screen ticket pricing: turn the wide table into stacked cards. */
+    /* Selected-tier "What's Included" panel — styled to match the Unisocials cards. */
+    .tier-included-panel {
+      position: relative;
+      margin-top: 14px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 2px);
+      background: linear-gradient(135deg, var(--surface-2), var(--surface));
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      animation: tierPanelIn .22s ease-out;
+    }
+    .tier-included-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: var(--accent);
+      border-radius: 4px 0 0 4px;
+    }
+    .tier-included-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .tier-included-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: var(--accent);
+    }
+    .tier-included-kicker::before { content: '✓'; font-size: .78rem; }
+    .tier-included-title {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.3;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+    .tier-included-content { color: var(--text-2); }
+    .tier-included-content ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+    }
+    .tier-included-content li {
+      position: relative;
+      margin: 0;
+      padding-left: 22px;
+      line-height: 1.5;
+      font-size: .84rem;
+      overflow-wrap: anywhere;
+    }
+    .tier-included-content li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      top: .05em;
+      width: 16px;
+      height: 16px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      color: var(--accent);
+      font-size: .66rem;
+      font-weight: 800;
+    }
+    .tier-included-empty {
+      margin: 0;
+      font-size: .82rem;
+      color: var(--text-3);
+    }
+    @keyframes tierPanelIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Small-screen ticket pricing: keep the tier selector compact and the inclusion card readable. */
     @media (max-width: 640px) {
       .ticket-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .ticket-type-option { min-width: 0; padding: 12px 8px; }
       .ticket-type-name, .ticket-type-price { overflow-wrap: anywhere; }
 
-      .tier-included-panel { margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); box-shadow: var(--shadow-sm); }
-      .tier-included-kicker { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin-bottom: 4px; }
-      .tier-included-title { font-size: 1rem; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
-      .tier-included-content ul { margin: 0; padding-left: 20px; }
-      .tier-included-content li { margin: 5px 0; color: var(--text-2); line-height: 1.45; }
+      .tier-included-panel { padding: 15px 16px; }
+      .tier-included-header { align-items: flex-start; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+      .tier-included-content ul { grid-template-columns: 1fr; gap: 8px; }
       .pricing-table-wrap { margin-top: 12px; overflow: visible; }
       .pricing-table { display: block; width: 100%; border: 0; background: transparent; }
       .pricing-table thead { display: none; }
@@ -259,8 +341,10 @@
 
           <!-- Selected tier details: click a ticket type above to reveal its inclusions. -->
           <div id="tierIncludedPanel" class="tier-included-panel" style="display:none;">
-            <div class="tier-included-kicker">What's included</div>
-            <div id="tierIncludedTitle" class="tier-included-title">🎟 Regular</div>
+            <div class="tier-included-header">
+              <div class="tier-included-kicker">What's included</div>
+              <div id="tierIncludedTitle" class="tier-included-title">🎟 Regular</div>
+            </div>
             <div id="tierIncludedContent" class="tier-included-content"></div>
           </div>
 
@@ -379,12 +463,12 @@ function setSelectedTier(tier) {
 
       // Convert a comma/pipe-separated "What's Included" string into a small bullet list.
       function includedNote(raw) {
-        if (!raw) return '\u2014';
+        if (!raw) return '<p class="tier-included-empty">No additional inclusions listed for this ticket.</p>';
         var items = String(raw).split(',');
         if (items.length === 1) items = String(raw).split('|');
         items = items.map(function(s) { return s.trim(); }).filter(Boolean);
-        if (!items.length) return '\u2014';
-        return '<ul style="margin:0;padding-left:16px;list-style:disc;">' +
+        if (!items.length) return '<p class="tier-included-empty">No additional inclusions listed for this ticket.</p>';
+        return '<ul>' +
           items.map(function(it) { return '<li>' + esc(it) + '</li>'; }).join('') +
           '</ul>';
       }
