@@ -87,6 +87,11 @@
       .ticket-type-option { min-width: 0; padding: 12px 8px; }
       .ticket-type-name, .ticket-type-price { overflow-wrap: anywhere; }
 
+      .tier-included-panel { margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); box-shadow: var(--shadow-sm); }
+      .tier-included-kicker { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin-bottom: 4px; }
+      .tier-included-title { font-size: 1rem; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
+      .tier-included-content ul { margin: 0; padding-left: 20px; }
+      .tier-included-content li { margin: 5px 0; color: var(--text-2); line-height: 1.45; }
       .pricing-table-wrap { margin-top: 12px; overflow: visible; }
       .pricing-table { display: block; width: 100%; border: 0; background: transparent; }
       .pricing-table thead { display: none; }
@@ -252,14 +257,11 @@
             </div>
           </div>
 
-          <!-- Pricing table -->
-          <div class="pricing-table-wrap" id="pricingTableWrap" style="display:none;">
-            <table class="pricing-table">
-              <thead>
-                <tr><th>Tier</th><th>Price per ticket</th><th>Included</th></tr>
-              </thead>
-              <tbody id="pricingTableBody"></tbody>
-            </table>
+          <!-- Selected tier details: click a ticket type above to reveal its inclusions. -->
+          <div id="tierIncludedPanel" class="tier-included-panel" style="display:none;">
+            <div class="tier-included-kicker">What's included</div>
+            <div id="tierIncludedTitle" class="tier-included-title">🎟 Regular</div>
+            <div id="tierIncludedContent" class="tier-included-content"></div>
           </div>
 
           <div class="form-group" style="margin-top:16px;">
@@ -421,27 +423,23 @@ function setSelectedTier(tier) {
           else { card.classList.remove('visible'); setSelectedTier('regular'); }
         }
 
-// Pricing table — show the real "What's Included" for each tier.
-        var wrap = document.getElementById('pricingTableWrap');
-        var body = document.getElementById('pricingTableBody');
-        if (wrap && body) {
-          if (opt.value) {
-            var incReg = opt.dataset.includedRegular || '';
-            var incVip = opt.dataset.includedVip || '';
-            var incVvip = opt.dataset.includedVvip || '';
-            var incTable = opt.dataset.includedTable || '';
-            var rows = '';
-            var showPrice = function(original, bonus) { return (original > 0 && bonus > 0) ? '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(original) + '</span><strong>' + fmtN(bonus) + '</strong><small style="display:block;font-size:.68em;opacity:.72;">Bonus price</small>' : fmtN(original); };
-            rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + showPrice(reg, bonusReg) + '</td><td class="tier-note">' + includedNote(incReg) + '</td></tr>';
-            if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + showPrice(vip, bonusVip) + '</td><td class="tier-note">' + includedNote(incVip) + '</td></tr>';
-            if (vvip > 0) rows += '<tr><td class="tier-name">👑 VVIP</td><td class="price">' + showPrice(vvip, bonusVvip) + '</td><td class="tier-note">' + includedNote(incVvip) + '</td></tr>';
-            if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + showPrice(table, bonusTable) + '</td><td class="tier-note">' + includedNote(incTable) + '</td></tr>';
-            body.innerHTML = rows;
-            wrap.style.display = 'block';
-          } else {
-            body.innerHTML = '';
-            wrap.style.display = 'none';
-          }
+// Show only the selected ticket tier's inclusions. No scrolling price list.
+        var includedPanel = document.getElementById('tierIncludedPanel');
+        var includedTitle = document.getElementById('tierIncludedTitle');
+        var includedContent = document.getElementById('tierIncludedContent');
+        if (includedPanel && includedTitle && includedContent) {
+          var selected = document.querySelector('input[name="ticketTier"]:checked');
+          var selectedTier = selected ? selected.value : 'regular';
+          var includedMap = {
+            regular: opt.dataset.includedRegular || '',
+            vip: opt.dataset.includedVip || '',
+            vvip: opt.dataset.includedVvip || '',
+            table: opt.dataset.includedTable || ''
+          };
+          var titleMap = {regular:'🎟 Regular', vip:'⭐ VIP', vvip:'👑 VVIP', table:'🪑 Table'};
+          includedTitle.textContent = titleMap[selectedTier] || '🎟 Regular';
+          includedContent.innerHTML = includedNote(includedMap[selectedTier] || '');
+          includedPanel.style.display = opt.value ? 'block' : 'none';
         }
 
         // Ensure a valid tier is selected (if VIP/VVIP/Table hidden, fall back to Regular).
@@ -458,6 +456,17 @@ function setSelectedTier(tier) {
       window.selectTicketTier = function(tier) {
         setSelectedTier(tier);
         if (window.updateEventDetails) window.updateEventDetails();
+        var opt = eventSelect.options[eventSelect.selectedIndex];
+        var panel = document.getElementById('tierIncludedPanel');
+        var title = document.getElementById('tierIncludedTitle');
+        var content = document.getElementById('tierIncludedContent');
+        if (opt && opt.value && panel && title && content) {
+          var map = {regular:opt.dataset.includedRegular||'', vip:opt.dataset.includedVip||'', vvip:opt.dataset.includedVvip||'', table:opt.dataset.includedTable||''};
+          var titles = {regular:'🎟 Regular', vip:'⭐ VIP', vvip:'👑 VVIP', table:'🪑 Table'};
+          title.textContent = titles[tier] || '🎟 Regular';
+          content.innerHTML = includedNote(map[tier] || '');
+          panel.style.display = 'block';
+        }
       };
 
       function loadEventsForUni(uni) {

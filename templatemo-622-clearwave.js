@@ -1014,13 +1014,9 @@ const tier = getSelectedTier();
 
   function createOrderViaApi(orderId, orderTotal, successCallback) {
     // Manual referral input takes priority; otherwise use the saved referral URL/session code.
+    // Referral is optional. If a referral link/session code exists, attach it;
+    // otherwise the order proceeds without a referral code.
     const referralCode = getReferralCodeFromUrlOrSessionOrInput();
-    if (!referralCode) {
-      const inputEl = document.getElementById('referralCodeInput');
-      if (inputEl) { inputEl.focus(); inputEl.style.borderColor = '#B71C1C'; }
-      alert('Referral code is required before checkout. Please enter a valid referral code.');
-      return;
-    }
 
     fetch('/api/orders', {
       method: 'POST',

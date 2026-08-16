@@ -2008,9 +2008,6 @@ const user = {
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
-      if (!referralCode) {
-        return sendJson(res, 400, { success: false, error: 'Referral code is required before checkout.' });
-      }
       let couponDiscount = 0;
       let baseAmountBeforeCoupon = amount;
 
