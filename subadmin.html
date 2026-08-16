@@ -27,6 +27,7 @@
     }
     .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
     .admin-topbar .nav-logo span { color: var(--accent-light); }
+    .admin-user-name { display:inline-flex; align-items:center; padding:7px 11px; border:1px solid rgba(255,255,255,.18); border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .admin-topbar-actions { display: flex; align-items: center; gap: 12px; }
     .admin-logout {
       font-size: 0.8rem;
@@ -327,6 +328,7 @@
     <div class="admin-topbar-inner">
       <a href="index.html" class="nav-logo">Uni<span>socials</span> · Sub-Admin</a>
       <div class="admin-topbar-actions">
+        <span class="admin-user-name" id="adminUserName" style="display:none;"></span>
         <span class="admin-topbar-status" id="connStatus" style="display:none;">
           <span class="pulse"></span> <span id="connStatusText">Connected</span>
         </span>
@@ -626,6 +628,9 @@
       }
 
       function showLoggedIn() {
+        var u = getSubUser();
+        var nameEl = document.getElementById('adminUserName');
+        if (nameEl) { nameEl.textContent = (u && (u.name || u.fullName || u.email)) ? (u.name || u.fullName || u.email) : 'Sub-Admin'; nameEl.style.display = 'inline-flex'; }
         loginScreen.style.display = 'none';
         dashboard.classList.add('visible');
         logoutBtn.style.display = 'inline-block';
@@ -638,6 +643,7 @@
         logoutBtn.style.display = 'none';
         viewSiteBtn.style.display = 'none';
         connStatus.style.display = 'none';
+        var nameEl = document.getElementById('adminUserName'); if (nameEl) nameEl.style.display = 'none';
       }
 
       // Login handler — sub-admin only (email + password)
