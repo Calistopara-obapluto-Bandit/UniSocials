@@ -768,12 +768,20 @@ function isAdminAuthorized(req) {
 }
 // Authorize either the master admin password OR a logged-in sub-admin account.
 // Sub-admins have limited privileges (check-in + add events).
+async function isAdminOrInfluencerAdmin(req) {
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const user = await getSessionUser(token);
+  if (user && user.role === 'influencer_admin') return { role: user.role, user };
+  return null;
+}
 async function isAdminOrSubadmin(req) {
   if (isAdminAuthorized(req)) return { role: 'admin' };
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && (user.role === 'subadmin' || user.role === 'influencer')) return { role: user.role, user: user };
+  if (user && ['subadmin','influencer','checkin_staff','influencer_admin'].includes(user.role)) return { role: user.role, user: user };
   return null;
 }
 
@@ -1523,7 +1531,7 @@ const user = {
 
     // ── Admin (master only): list influencer accounts ──
     if (pathname === '/api/admin/influencers' && req.method === 'GET') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!(await isAdminOrInfluencerAdmin(req))) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const users = await readUsers();
       const links = await readReferralLinks();
       const orders = await readOrders();
@@ -1548,7 +1556,7 @@ const user = {
 
     // ── Admin (master only): create influencer account ──
     if (pathname === '/api/admin/influencers' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!(await isAdminOrInfluencerAdmin(req))) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1574,7 +1582,7 @@ const user = {
 
     // ── Admin (master only): remove influencer account ──
     if (pathname === '/api/admin/influencers' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!(await isAdminOrInfluencerAdmin(req))) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
       if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
       const user = await findUserByEmail(email);
@@ -1665,6 +1673,37 @@ const user = {
       await writeUsers(users.filter(u => u.id !== user.id));
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
+    }
+
+    // ── Admin: dedicated staff accounts (check-in staff / influencer admin) ──
+    if (pathname === '/api/admin/staff' && (req.method === 'GET' || req.method === 'POST' || req.method === 'DELETE')) {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (req.method === 'GET') {
+        const users = await readUsers();
+        const staff = users.filter(u => ['checkin_staff','influencer_admin'].includes(u.role)).map(u => publicUser(u));
+        return sendJson(res, 200, { success: true, staff });
+      }
+      if (req.method === 'POST') {
+        const body = await readBody(req); let data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) {}
+        const name = String(data.name || '').trim();
+        const email = String(data.email || '').trim().toLowerCase();
+        const password = String(data.password || '');
+        const role = String(data.role || '').trim();
+        if (!name || !email || password.length < 6 || !['checkin_staff','influencer_admin'].includes(role)) {
+          return sendJson(res, 400, { success: false, error: 'Name, email, password (6+ characters), and a valid role are required.' });
+        }
+        if (await findUserByEmail(email)) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+        const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
+        await addUser(user);
+        return sendJson(res, 200, { success:true, staff: publicUser(user) });
+      }
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success:false, error:'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) return sendJson(res,404,{success:false,error:'Staff account not found'});
+      const users = await readUsers(); await writeUsers(users.filter(u => u.id !== user.id)); await deleteUserSessions(user.id);
+      return sendJson(res,200,{success:true});
     }
 
     // ── AUTH: Logout ──
@@ -2110,7 +2149,7 @@ eventName: order.eventName,
 // ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2138,7 +2177,7 @@ const entry = codes[idx];
       entry.used = true;
       entry.usedAt = new Date().toISOString();
       // Record which staff member performed the check-in (for sub-admin audit).
-      if (authCtx.role === 'subadmin' && authCtx.user) {
+      if (authCtx.user && ['subadmin','checkin_staff'].includes(authCtx.role)) {
         entry.checkedInBy = authCtx.user.name || authCtx.user.email;
       } else {
         entry.checkedInBy = 'Admin';
@@ -2191,8 +2230,8 @@ codes[idx] = entry;
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
-      if (!user || user.role !== 'subadmin') {
-        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      if (!user || !['subadmin','checkin_staff'].includes(user.role)) {
+        return sendJson(res, 403, { success: false, error: 'Check-in staff access only' });
       }
       const staffName = user.name || user.email;
       const orders = await readOrders();
@@ -2418,7 +2457,7 @@ codes[idx] = entry;
 // ── Admin/Sub-admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2471,7 +2510,7 @@ codes[idx] = entry;
     // ── Admin/Sub-admin: delete an event ──
     if (pathname === '/api/admin/events' && req.method === 'DELETE') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
       const eventId = String(url.searchParams.get('eventId') || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
       

@@ -710,6 +710,7 @@
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
+          <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
         </div>
       </div>
 
@@ -943,6 +944,28 @@
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
             </div>
             <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
+          </div>
+        <!-- ── DEDICATED STAFF ACCOUNTS ── -->
+        <div class="admin-panel" id="panel-staff">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>👥 Dedicated Staff Accounts</h1>
+              <p>Create separate login accounts for Check-in Staff and Influencer Admins. Each account only gets its assigned dashboard.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="staffRole">Account Type</label><select id="staffRole"><option value="checkin_staff">Check-in Staff</option><option value="influencer_admin">Influencer Admin</option></select></div>
+              <div class="form-group"><label for="staffName">Full Name</label><input type="text" id="staffName" placeholder="e.g. Event Staff" /></div>
+              <div class="form-group"><label for="staffEmail">Login Email</label><input type="email" id="staffEmail" placeholder="staff@unisocials.com" /></div>
+              <div class="form-group"><label for="staffPassword">Password</label><input type="password" id="staffPassword" placeholder="At least 6 characters" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" onclick="addStaffAccount()">➕ Create Account</button>
+              <button class="admin-refresh-btn" onclick="loadStaffAccounts()">↻ Refresh</button>
+              <span style="font-size:.75rem;color:var(--text-3);align-self:center;" id="staffCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="staffList" style="margin-top:14px;"></div>
           </div>
         </div>
       </div>
@@ -2243,11 +2266,51 @@ fetch('/api/admin/events/notify', {
           }).catch(function(){ showToast('Network error removing influencer', true); });
       };
 
+
+      // ── Dedicated staff accounts ──
+      window.loadStaffAccounts = function() {
+        fetch('/api/admin/staff', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json(); }).then(function(data){
+            var list=(data&&data.success&&data.staff)||[];
+            var el=document.getElementById('staffList'), count=document.getElementById('staffCount');
+            if(count) count.textContent=list.length+' account'+(list.length!==1?'s':'');
+            if(!el) return;
+            if(!list.length){ el.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-3);font-size:.85rem;">No dedicated staff accounts yet.</div>'; return; }
+            var html='<div class="admin-ticket-codes-label">👥 Active Accounts</div>';
+            list.forEach(function(u){
+              var label=u.role==='checkin_staff'?'Check-in Staff':'Influencer Admin';
+              html+='<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
+                '<div style="display:flex;flex-direction:column;gap:4px;"><div><strong>'+esc(u.name||'—')+'</strong> <span style="font-size:.72rem;color:var(--text-3);">'+esc(u.email||'')+'</span></div>'+                '<span style="font-size:.72rem;color:var(--accent);font-weight:700;">'+label+'</span></div>'+                '<button class="admin-ticket-copy" onclick="deleteStaffAccount(\''+esc(u.email||'')+'\')" title="Remove account" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>';
+            });
+            el.innerHTML=html;
+          }).catch(function(){ showToast('Could not load staff accounts',true); });
+      };
+      window.addStaffAccount = function(){
+        var role=(document.getElementById('staffRole')||{}).value||'';
+        var name=((document.getElementById('staffName')||{}).value||'').trim();
+        var email=((document.getElementById('staffEmail')||{}).value||'').trim();
+        var password=((document.getElementById('staffPassword')||{}).value||'').trim();
+        if(!name||!email||!password) return showToast('Name, Email, and Password are required.',true);
+        if(password.length<6) return showToast('Password must be at least 6 characters.',true);
+        fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({role:role,name:name,email:email,password:password})})
+          .then(function(r){return r.json();}).then(function(data){
+            if(data&&data.success){ showToast((role==='checkin_staff'?'Check-in Staff':'Influencer Admin')+' account created for '+name+'.'); ['staffName','staffEmail','staffPassword'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); loadStaffAccounts(); }
+            else showToast((data&&data.error)||'Failed to create account',true);
+          }).catch(function(){showToast('Network error creating account',true);});
+      };
+      window.deleteStaffAccount = function(email){
+        if(!email||!confirm('Remove staff account '+email+'?')) return;
+        fetch('/api/admin/staff?email='+encodeURIComponent(email),{method:'DELETE',headers:{'Authorization':'Bearer '+getToken()}})
+          .then(function(r){return r.json();}).then(function(data){ if(data&&data.success){showToast('Staff account removed');loadStaffAccounts();} else showToast((data&&data.error)||'Failed to remove account',true); })
+          .catch(function(){showToast('Network error removing account',true);});
+      };
+
 // Load events on login — also load universities and subscribers
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn2();
         loadManagedEvents();
+        loadStaffAccounts();
         loadManagedUniversities();
         loadSubscribers();
         loadSubAdmins();

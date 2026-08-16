@@ -633,7 +633,7 @@
         .then(function(data) {
           if (!data || !data.success || !data.token) throw new Error('unauthorized');
           // Only sub-admin accounts may use this page
-          if (!data.user || data.user.role !== 'subadmin') throw new Error('not-subadmin');
+          if (!data.user || !['subadmin','checkin_staff'].includes(data.user.role)) throw new Error('not-checkin-staff');
           setSubAuth(data.token, data.user);
           errBox.classList.remove('show');
           showLoggedIn();
