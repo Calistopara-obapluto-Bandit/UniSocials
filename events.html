@@ -492,7 +492,7 @@ function renderEvents(events) {
               '</div>' +
               '<div class="event-card-footer">' +
                 '<div class="event-card-footer-left">' +
-                  '<div class="event-card-price">' + fmtN(ev.price) + ' <small>/ ticket</small></div>' +
+                  '<div class="event-card-price">' + ((Number(ev.bonusPrice||0) > 0 && Number(ev.bonusPrice||0) < Number(ev.price||0)) ? '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(ev.price) + '</span><strong>' + fmtN(ev.bonusPrice) + '</strong>' : fmtN(ev.price)) + ' <small>/ ticket</small></div>' +
                   '<div class="event-card-capacity">\uD83C\uDF9F\uFE0F ' + esc(ev.seats || '—') + '</div>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">' +

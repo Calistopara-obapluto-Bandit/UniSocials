@@ -825,10 +825,10 @@
               <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
                 <option value="General">General</option>
               </select></div>
-              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
-              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div>
-              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
-              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
+              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦)</label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦)</label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦)</label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦)</label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -1611,18 +1611,22 @@ fetch('/api/ticket/scan', {
             var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
               var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-              var vipValue = parseFloat(ev.vipPrice || 0) || 0;
-              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0;
-              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ₦' + vipValue.toLocaleString() + '</span>' : '';
-              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ₦' + vvipValue.toLocaleString() + '</span>' : '';
+              var vipValue = parseFloat(ev.vipPrice || 0) || 0, bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
+              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0, bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
+              var bonusValue = parseFloat(ev.bonusPrice || 0) || 0, tableValue = parseFloat(ev.tablePrice || 0) || 0, bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
+              var priceHtml = (bonusValue > 0 && bonusValue < Number(ev.price||0)) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>';
+              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0 && bonusVipValue < vipValue) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
+              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0 && bonusVvipValue < vvipValue) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
+              var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0 && bonusTableValue < tableValue) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
+                priceHtml +
                 vipHtml +
                 vvipHtml +
+                tableHtml +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
@@ -1644,7 +1648,7 @@ fetch('/api/ticket/scan', {
         editingEventId = '';
         var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
         var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
-        ['evName','evPrice','evVIPPrice','evVVIPPrice','evTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
         var uni=document.getElementById('evUniversity');if(uni)uni.value='';
         if(typeof updateUniCategories==='function')updateUniCategories();
         if(typeof clearEventImage==='function')clearEventImage();
@@ -1658,7 +1662,7 @@ fetch('/api/ticket/scan', {
           if(!ev)throw new Error('Event not found');
           editingEventId=String(ev.id||eventId);
           var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
-          set('evName',ev.name);set('evPrice',ev.price);set('evVIPPrice',ev.vipPrice);set('evVVIPPrice',ev.vvipPrice);set('evTablePrice',ev.tablePrice);
+          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);
           set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
           set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
           set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
@@ -1675,9 +1679,13 @@ window.addEventItem = function() {
 var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
+        var bonusPrice = parseFloat(document.getElementById('evBonusPrice').value) || 0;
         var vipPrice = parseFloat(document.getElementById('evVIPPrice').value) || 0;
+        var bonusVipPrice = parseFloat(document.getElementById('evBonusVIPPrice').value) || 0;
         var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
+        var bonusVvipPrice = parseFloat(document.getElementById('evBonusVVIPPrice').value) || 0;
         var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
+        var bonusTablePrice = parseFloat(document.getElementById('evBonusTablePrice').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
@@ -1709,9 +1717,13 @@ var name = document.getElementById('evName').value.trim();
           name: name,
           category: category,
           price: price,
+          bonusPrice: bonusPrice,
           vipPrice: vipPrice,
+          bonusVipPrice: bonusVipPrice,
           vvipPrice: vvipPrice,
+          bonusVvipPrice: bonusVvipPrice,
           tablePrice: tablePrice,
+          bonusTablePrice: bonusTablePrice,
           includedRegular: includedRegular,
           includedVip: includedVip,
           includedVVIP: includedVVIP,

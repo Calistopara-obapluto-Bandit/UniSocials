@@ -337,7 +337,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
             tagsHtml +
           '</div>' +
           '<div class="event-card-footer">' +
-            '<div class="event-card-price">' + fmtN(ev.price) + ' <small>/ ticket</small></div>' +
+            '<div class="event-card-price">' + ((Number(ev.bonusPrice||0) > 0 && Number(ev.bonusPrice||0) < Number(ev.price||0)) ? '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(ev.price) + '</span><strong>' + fmtN(ev.bonusPrice) + '</strong>' : fmtN(ev.price)) + ' <small>/ ticket</small></div>' +
             '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Buy Now</a>' +
           '</div>' +
         '</div>';
