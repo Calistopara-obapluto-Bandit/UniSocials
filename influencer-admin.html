@@ -1038,6 +1038,10 @@ function fmtN(n) {
       function getToken() {
         try { return localStorage.getItem(KEY) || ''; } catch(e) { return ''; }
       }
+      function getCurrentUser() {
+        try { var raw = localStorage.getItem('unn_admin_user'); return raw ? JSON.parse(raw) : null; } catch(e) { return null; }
+      }
+      function getCurrentRole() { var u = getCurrentUser(); return u && u.role ? u.role : ''; }
       function setToken(t) {
         try { localStorage.setItem(KEY, t); } catch(e) {}
       }
@@ -1053,8 +1057,7 @@ function fmtN(n) {
         connStatus.style.display = 'inline-flex';
         if (notifBadge) notifBadge.style.display = 'inline-flex';
         try {
-          var rawUser = localStorage.getItem('unn_admin_user');
-          var u = rawUser ? JSON.parse(rawUser) : null;
+          var u = getCurrentUser();
           var nameEl = document.getElementById('adminUserName');
           if (nameEl && u) { nameEl.textContent = u.name || u.email || 'Influencer Admin'; nameEl.style.display = 'inline-flex'; }
         } catch(e) {}
@@ -1230,7 +1233,10 @@ function fmtN(n) {
             container.innerHTML = html;
           })
           .catch(function(err) {
-            if (err.message === 'unauthorized') { clearToken(); showLoggedOut(); return; }
+            if (err.message === 'unauthorized') {
+              container.innerHTML = '<div style="padding:14px;color:var(--text-3);">Session verification is temporarily unavailable. Your login has been kept. Please refresh this section.</div>';
+              return;
+            }
             container.innerHTML = '<div style="padding:14px;color:var(--danger,#ef4444);">Unable to load events. Please try again.</div>';
           });
       };
@@ -1313,8 +1319,9 @@ function fmtN(n) {
         })
         .then(function(res) {
           if (res.status === 401) {
-            clearToken();
-            showLoggedOut();
+            // Order management is Main Admin-only. Influencer Admins must not be
+            // logged out just because this optional admin-only endpoint rejects them.
+            if (getCurrentRole() === 'admin') { clearToken(); showLoggedOut(); }
             throw new Error('unauthorized');
           }
           if (res.ok) return res.json();
@@ -1460,12 +1467,12 @@ function fmtN(n) {
 
       // Auto-refresh every 30s when logged in
       setInterval(function() {
-        if (dashboard.classList.contains('visible')) loadOrders();
+        if (dashboard.classList.contains('visible') && getCurrentRole() === 'admin') loadOrders();
       }, 30000);
 
       // Poll unseen count every 8s for real-time alerts
       setInterval(function() {
-        if (dashboard.classList.contains('visible') && getToken()) pollUnseen();
+        if (dashboard.classList.contains('visible') && getToken() && getCurrentRole() === 'admin') pollUnseen();
       }, 8000);
 
       // Clicking the notification badge marks unseen orders as seen
@@ -1862,9 +1869,9 @@ fetch('/api/admin/events/notify', {
           var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
           var d = await r.json();
           if (!r.ok || !d.success || !d.user || !['influencer_admin','admin'].includes(d.user.role)) {
-            clearToken();
-            try { localStorage.removeItem('unn_admin_user'); } catch(e) {}
-            showLoggedOut();
+            // Never silently log out on a refresh. Keep the persistent token and
+            // let protected API calls decide authorization server-side.
+            showLoggedIn();
             return;
           }
           try { localStorage.setItem('unn_admin_user', JSON.stringify(d.user)); } catch(e) {}

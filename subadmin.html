@@ -1164,25 +1164,7 @@ resultBox.className = 'admin-scan-result show';
         .finally(function() { if (btn) btn.disabled = false; });
       };
 
-      window.deleteManagedEvent = function(eventId) {
-        if (!eventId) return;
-        if (!confirm('Delete this event? This cannot be undone.')) return;
-        fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
-          method: 'DELETE',
-          headers: authHeaders()
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            var extra = (data.ordersDeleted > 0) ? ' — ' + data.ordersDeleted + ' related order(s) removed too' : '';
-            showToast('Event deleted' + extra);
-            loadManagedEvents();
-          } else {
-            showToast((data && data.error) || 'Failed to delete event', true);
-          }
-        })
-        .catch(function() { showToast('Network error deleting event', true); });
-      };
+      // Event deletion is Main Admin-only. No delete handler is exposed here.
 
       // ── Universities Manager (for the event form selects) ──
       window.loadManagedUniversities = function() {

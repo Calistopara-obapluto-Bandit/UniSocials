@@ -952,21 +952,29 @@ resultBox.className = 'admin-scan-result show';
       (async function restoreCheckinSession() {
         var token = getSubToken();
         if (!token) { showLoggedOut(); return; }
-        try {
-          var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
-          var d = await r.json();
-          if (!r.ok || !d.success || !d.user || d.user.role !== 'checkin_staff') {
-            clearSubAuth();
-            showLoggedOut();
-            return;
+        // Do not destroy a persistent login because one refresh request briefly
+        // fails. The server session is authoritative; we only clear it after
+        // several consecutive 401 responses.
+        var lastErr = null;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token }, cache: 'no-store' });
+            var d = await r.json();
+            if (r.ok && d.success && d.user && d.user.role === 'checkin_staff') {
+              setSubAuth(token, d.user);
+              showLoggedIn();
+              return;
+            }
+            if (r.status !== 401) { lastErr = new Error('session-check'); break; }
+            lastErr = new Error('unauthorized');
+          } catch (e) {
+            lastErr = e;
           }
-          setSubAuth(token, d.user);
-          showLoggedIn();
-        } catch (e) {
-          // A temporary network failure must NOT log the staff member out.
-          // Keep the local token and dashboard available for retry.
-          showLoggedIn();
+          await new Promise(function(resolve){ setTimeout(resolve, 700 * (attempt + 1)); });
         }
+        // A refresh must never silently log the staff member out. Keep the
+        // persistent credentials; protected API calls remain server-authorized.
+        showLoggedIn();
       })();
     })();
   </script>

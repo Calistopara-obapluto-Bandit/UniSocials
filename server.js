@@ -2583,7 +2583,7 @@ codes[idx] = entry;
 
     // ── Admin: delete a university ──
 if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete universities' });
       const uniId = String(url.searchParams.get('uniId') || url.searchParams.get('universityId') || '').trim();
       if (!uniId) return sendJson(res, 400, { success: false, error: 'Missing uniId' });
       // Capture the university to derive its id/slug so we can remove its events too.
