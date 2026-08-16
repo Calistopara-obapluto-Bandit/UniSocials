@@ -841,6 +841,41 @@ const tier = getSelectedTier();
   }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
 
+  // Always refresh checkout pricing from the server so the checkout page uses
+  // the event's current original + bonus price, even if the ticket page was
+  // opened from an older browser tab/session.
+  (async function refreshAuthoritativePricing() {
+    try {
+      const eventId = checkoutData.eventId || checkoutData.eventValue || '';
+      if (!eventId) return;
+      const r = await fetch('/api/events');
+      const payload = await r.json();
+      const events = (payload && payload.success && payload.events) || [];
+      const ev = events.find(function(item) { return String(item.id || '') === String(eventId); });
+      if (!ev) return;
+      const tier = String(checkoutData.ticketTier || 'regular').toLowerCase();
+      const originals = { regular:Number(ev.price||0), vip:Number(ev.vipPrice||0), vvip:Number(ev.vvipPrice||0), table:Number(ev.tablePrice||0) };
+      const bonuses = { regular:Number(ev.bonusPrice||0), vip:Number(ev.bonusVipPrice||0), vvip:Number(ev.bonusVvipPrice||0), table:Number(ev.bonusTablePrice||0) };
+      const original = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonus = bonuses[tier] || 0;
+      const payable = bonus > 0 && bonus < original ? bonus : original;
+      checkoutData.originalEventPrice = original;
+      checkoutData.eventPrice = payable;
+      try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
+      total = payable * checkoutData.qty;
+      if (summaryUnitPrice) {
+        if (bonus > 0 && bonus < original) {
+          summaryUnitPrice.innerHTML = '<span style="text-decoration:line-through;opacity:.6;margin-right:8px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);">₦' + bonus.toLocaleString() + '</strong><small style="display:block;margin-top:3px;opacity:.72;">Bonus price</small>';
+        } else {
+          summaryUnitPrice.textContent = '₦' + original.toLocaleString();
+        }
+      }
+      renderCouponTotal();
+    } catch (e) {
+      // Keep the already stored checkout price if the refresh request fails.
+    }
+  })();
+
   function renderCouponTotal() {
     if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
     if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
