@@ -671,10 +671,10 @@ function getSelectedTier() {
     const bonusVvip = parseFloat(opt.dataset.bonusVvipPrice || 0);
     const table = parseFloat(opt.dataset.tablePrice || 0);
     const bonusTable = parseFloat(opt.dataset.bonusTablePrice || 0);
-    if (tier === 'vip') return (bonusVip > 0 && bonusVip < vip) ? bonusVip : (vip > 0 ? vip : reg);
-    if (tier === 'vvip') return (bonusVvip > 0 && bonusVvip < vvip) ? bonusVvip : (vvip > 0 ? vvip : reg);
-    if (tier === 'table') return (bonusTable > 0 && bonusTable < table) ? bonusTable : (table > 0 ? table : reg);
-    return (bonusReg > 0 && bonusReg < reg) ? bonusReg : reg;
+    if (tier === 'vip') return bonusVip > 0 ? bonusVip : (vip > 0 ? vip : reg);
+    if (tier === 'vvip') return bonusVvip > 0 ? bonusVvip : (vvip > 0 ? vvip : reg);
+    if (tier === 'table') return bonusTable > 0 ? bonusTable : (table > 0 ? table : reg);
+    return bonusReg > 0 ? bonusReg : reg;
   }
 
   window.continueToCheckout = function() {
@@ -699,7 +699,7 @@ const tier = getSelectedTier();
     const tierBonusPrice = (function(){
       const reg=parseFloat(opt.dataset.bonusPrice||0), vip=parseFloat(opt.dataset.bonusVipPrice||0), vvip=parseFloat(opt.dataset.bonusVvipPrice||0), table=parseFloat(opt.dataset.bonusTablePrice||0);
       const bonus = tier==='vip' ? vip : (tier==='vvip' ? vvip : (tier==='table' ? table : reg));
-      return bonus>0 && bonus<tierOriginalPrice ? bonus : 0;
+      return bonus>0 ? bonus : 0;
     })();
 
     // Resolve the "What's Included" list for the selected tier.

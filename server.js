@@ -2024,7 +2024,7 @@ const user = {
         const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
         const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
         const bonusUnit = tierBonuses[ticketTier] || 0;
-        const payableUnit = (bonusUnit > 0 && bonusUnit < originalUnit) ? bonusUnit : originalUnit;
+        const payableUnit = bonusUnit > 0 ? bonusUnit : originalUnit;
         amount = payableUnit * qty;
         baseAmountBeforeCoupon = amount;
       }
@@ -2600,7 +2600,7 @@ codes[idx] = entry;
       const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
       const originalUnit = originals[tier] > 0 ? originals[tier] : originals.regular;
       const bonusUnit = bonuses[tier] || 0;
-      const unit = (bonusUnit > 0 && bonusUnit < originalUnit) ? bonusUnit : originalUnit;
+      const unit = bonusUnit > 0 ? bonusUnit : originalUnit;
       const baseTotal = unit * qty; const discount = Number(coupon.amount) || 0;
       if (discount >= baseTotal) return sendJson(res, 400, { success:false, error:'Coupon discount cannot cover the full ticket price.' });
       return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });

@@ -403,7 +403,7 @@ function setSelectedTier(tier) {
           var t = el.getAttribute('data-tier-price');
           var p = t === 'vip' ? vip : (t === 'vvip' ? vvip : (t === 'table' ? table : reg));
           var bp = t === 'vip' ? bonusVip : (t === 'vvip' ? bonusVvip : (t === 'table' ? bonusTable : bonusReg));
-          if (p > 0 && bp > 0 && bp < p) {
+          if (p > 0 && bp > 0) {
             el.innerHTML = '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(p) + '</span><strong>' + fmtN(bp) + '</strong><small style="display:block;font-size:.68em;opacity:.72;">Bonus price</small>';
           } else { el.textContent = p > 0 ? fmtN(p) : '—'; }
         });
