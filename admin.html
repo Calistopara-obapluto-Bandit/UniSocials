@@ -1187,15 +1187,13 @@ function fmtN(n) {
       logoutBtn.addEventListener('click', function(e) {
         if (e) e.preventDefault();
         var token = getToken();
-        logoutBtn.disabled = true;
-        var req = token ? fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token } }) : Promise.resolve();
-        Promise.resolve(req).catch(function() {}).finally(function() {
-          clearToken();
-          try { sessionStorage.removeItem('unn_admin_user'); localStorage.removeItem('unn_admin_user'); } catch (_) {}
-          showLoggedOut();
-          logoutBtn.disabled = false;
-          if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
-        });
+        // Clear locally immediately. Logout must work even when the network is slow/offline.
+        clearToken();
+        try { sessionStorage.removeItem('unn_admin_user'); localStorage.removeItem('unn_admin_user'); } catch (_) {}
+        showLoggedOut();
+        logoutBtn.disabled = false;
+        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
+        if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
       });
 
       // Set filter (exposed)

@@ -17,7 +17,7 @@ Free for personal and commercial use
     const params = new URLSearchParams(window.location.search);
     const referralCode = (params.get('ref') || '').trim();
     if (referralCode) {
-      sessionStorage.setItem('referralCode', referralCode.toUpperCase());
+      sessionStorage.setItem('referralCode', referralCode.toUpperCase()); localStorage.setItem('unn_referral_code', referralCode.toUpperCase());
     }
   } catch (e) {}
 
@@ -824,7 +824,7 @@ const tier = getSelectedTier();
   // Pre-fill referral code from session/URL if available
   const refInput = document.getElementById('referralCodeInput');
   if (refInput) {
-    const savedRef = (sessionStorage.getItem('referralCode') || '').trim();
+    const savedRef = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
     if (savedRef) refInput.value = savedRef;
   }
 
@@ -903,20 +903,17 @@ const tier = getSelectedTier();
   function getReferralCodeFromUrlOrSessionOrInput() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      let referralCode = (urlParams.get('ref') || '').trim();
-      if (!referralCode) {
-        referralCode = (sessionStorage.getItem('referralCode') || '').trim();
-      }
-      // Also check the input field on checkout page
-      if (!referralCode) {
-        const inputEl = document.getElementById('referralCodeInput');
-        if (inputEl && inputEl.value) {
-          referralCode = inputEl.value.trim();
-        }
-      }
+      // A code typed by the buyer must take priority over a previously stored
+      // referral code. This prevents one buyer/session from accidentally
+      // attributing a later purchase to an old influencer.
+      const inputEl = document.getElementById('referralCodeInput');
+      let referralCode = inputEl && inputEl.value ? inputEl.value.trim() : '';
+      if (!referralCode) referralCode = (urlParams.get('ref') || '').trim();
+      if (!referralCode) referralCode = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
       if (referralCode) {
         referralCode = referralCode.toUpperCase();
         sessionStorage.setItem('referralCode', referralCode);
+        localStorage.setItem('unn_referral_code', referralCode);
       }
       return referralCode;
     } catch (e) {

@@ -1075,18 +1075,16 @@ function fmtN(n) {
       logoutBtn.addEventListener('click', function(e) {
         if (e) e.preventDefault();
         var token = getToken();
-        logoutBtn.disabled = true;
-        var req = token ? fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token } }) : Promise.resolve();
-        Promise.resolve(req).catch(function() {}).finally(function() {
-          clearToken();
-          try { localStorage.removeItem('unn_admin_user'); } catch (_) {}
-          showLoggedOut();
-          logoutBtn.disabled = false;
-          var email = document.getElementById('adminEmail');
-          if (email) email.value = '';
-          var password = document.getElementById('adminPassword');
-          if (password) password.value = '';
-        });
+        // Clear the browser session immediately; never wait for a network request.
+        clearToken();
+        try { localStorage.removeItem('unn_admin_user'); } catch (_) {}
+        showLoggedOut();
+        logoutBtn.disabled = false;
+        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
+        var email = document.getElementById('adminEmail');
+        if (email) email.value = '';
+        var password = document.getElementById('adminPassword');
+        if (password) password.value = '';
       });
 
       // Mark new orders as seen

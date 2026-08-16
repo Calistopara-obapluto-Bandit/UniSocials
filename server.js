@@ -234,13 +234,33 @@ async function readReferralLinks() {
 }
 async function writeReferralLinks(links) {
   if (usePg) {
-    await db.query('DELETE FROM referral_links');
+    // Keep the PostgreSQL table authoritative without deleting every referral
+    // row on each update. The old DELETE+INSERT approach could erase or race
+    // with another referral update and made statistics unreliable.
     for (const l of links) {
-      await db.query('INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [l.code, JSON.stringify(l)]);
+      await db.query(
+        'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [l.code, JSON.stringify(l)]
+      );
     }
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
+}
+
+async function writeReferralLink(link) {
+  if (!link) return;
+  if (usePg) {
+    await db.query(
+      'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [link.code, JSON.stringify(link)]
+    );
+    return;
+  }
+  const links = await readReferralLinks();
+  const idx = links.findIndex(l => l.code === link.code);
+  if (idx >= 0) links[idx] = link; else links.push(link);
+  await writeReferralLinks(links);
 }
 async function getReferralLinkByCode(code) {
   const links = await readReferralLinks();
@@ -294,10 +314,16 @@ async function updateReferralStats(referralCode) {
   const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
   
   link.totalOrders = referredOrders.length;
-  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-  
-  console.log(`updateReferralStats: code=${referralCode} totalOrders=${link.totalOrders} totalRevenue=${link.totalRevenue}`);
-  await writeReferralLinks(links);
+  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+  link.totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+  link.uniquePeople = new Set(
+    referredOrders
+      .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+      .filter(Boolean)
+  ).size;
+
+  console.log(`updateReferralStats: code=${referralCode} orders=${link.totalOrders} tickets=${link.totalTickets} people=${link.uniquePeople} revenue=${link.totalRevenue}`);
+  await writeReferralLink(link);
 }
 
 async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
@@ -1551,11 +1577,12 @@ const user = {
 
     // ── Admin (master only): list influencer accounts ──
     if (pathname === '/api/admin/influencers' && req.method === 'GET') {
-      if (!(await isAdminOrInfluencerAdmin(req))) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const users = await readUsers();
       const links = await readReferralLinks();
       const orders = await readOrders();
-      const influencers = users.filter(u => u.role === 'influencer').map(u => {
+      const influencers = users.filter(u => u.role === 'influencer' && (authCtx.role === 'admin' || u.createdBy === authCtx.user.id)).map(u => {
         const link = links.find(l => l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -1576,7 +1603,8 @@ const user = {
 
     // ── Admin (master only): create influencer account ──
     if (pathname === '/api/admin/influencers' && req.method === 'POST') {
-      if (!(await isAdminOrInfluencerAdmin(req))) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1590,7 +1618,9 @@ const user = {
       if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
       const influencer = {
         id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
-        name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer', createdAt: new Date().toISOString()
+        name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer',
+        createdBy: authCtx.role === 'admin' ? null : authCtx.user.id,
+        createdAt: new Date().toISOString()
       };
       await addUser(influencer);
       const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email);
@@ -1602,11 +1632,15 @@ const user = {
 
     // ── Admin (master only): remove influencer account ──
     if (pathname === '/api/admin/influencers' && req.method === 'DELETE') {
-      if (!(await isAdminOrInfluencerAdmin(req))) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
       if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
       const user = await findUserByEmail(email);
       if (!user || user.role !== 'influencer') return sendJson(res, 404, { success: false, error: 'Influencer not found' });
+      if (authCtx.role !== 'admin' && user.createdBy !== authCtx.user.id) {
+        return sendJson(res, 403, { success: false, error: 'You can only manage influencers you created.' });
+      }
       const users = await readUsers();
       await writeUsers(users.filter(u => u.id !== user.id));
       await deleteUserSessions(user.id);
@@ -2688,7 +2722,7 @@ const events = await readEvents();
       const code = String(rawCode || '').toUpperCase();
       const to = String(url.searchParams.get('to') || '/');
       const safeTo = to && to.startsWith('/') ? to : '/';
-      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
+      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");localStorage.setItem("unn_referral_code", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
