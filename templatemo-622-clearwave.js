@@ -689,6 +689,18 @@ function getSelectedTier() {
 
 const tier = getSelectedTier();
     const tierPrice = getTierPrice();
+    const tierOriginalPrice = (function(){
+      const reg=parseFloat(opt.dataset.price||0), vip=parseFloat(opt.dataset.vipPrice||0), vvip=parseFloat(opt.dataset.vvipPrice||0), table=parseFloat(opt.dataset.tablePrice||0);
+      if (tier==='vip') return vip>0?vip:reg;
+      if (tier==='vvip') return vvip>0?vvip:reg;
+      if (tier==='table') return table>0?table:reg;
+      return reg;
+    })();
+    const tierBonusPrice = (function(){
+      const reg=parseFloat(opt.dataset.bonusPrice||0), vip=parseFloat(opt.dataset.bonusVipPrice||0), vvip=parseFloat(opt.dataset.bonusVvipPrice||0), table=parseFloat(opt.dataset.bonusTablePrice||0);
+      const bonus = tier==='vip' ? vip : (tier==='vvip' ? vvip : (tier==='table' ? table : reg));
+      return bonus>0 && bonus<tierOriginalPrice ? bonus : 0;
+    })();
 
     // Resolve the "What's Included" list for the selected tier.
     const included = tier === 'vip' ? (opt.dataset.includedVip || '')
@@ -708,14 +720,9 @@ const tier = getSelectedTier();
       eventTime: opt.dataset.time,
       eventVenue: opt.dataset.venue,
       eventCategory: opt.dataset.category || '',
-      eventPrice: tierPrice,
-      originalEventPrice: (function(){
-        const reg=parseFloat(opt.dataset.price||0), vip=parseFloat(opt.dataset.vipPrice||0), vvip=parseFloat(opt.dataset.vvipPrice||0), table=parseFloat(opt.dataset.tablePrice||0);
-        if (tier==='vip') return vip>0?vip:reg;
-        if (tier==='vvip') return vvip>0?vvip:reg;
-        if (tier==='table') return table>0?table:reg;
-        return reg;
-      })(),
+      eventPrice: tierBonusPrice || tierPrice,
+      originalEventPrice: tierOriginalPrice,
+      bonusEventPrice: tierBonusPrice,
       ticketTier: tier,
       included: included,
       qty: qty,
@@ -818,7 +825,11 @@ const tier = getSelectedTier();
     return;
   }
 
-  const baseTotal = checkoutData.eventPrice * checkoutData.qty;
+  // Bonus/sale price is the actual payable checkout price.
+  const storedOriginal = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
+  const storedBonus = Number(checkoutData.bonusEventPrice || 0);
+  if (storedBonus > 0 && storedBonus < storedOriginal) checkoutData.eventPrice = storedBonus;
+  const baseTotal = Number(checkoutData.eventPrice || 0) * Number(checkoutData.qty || 1);
   let total = baseTotal;
   let appliedCoupon = null;
 
@@ -831,13 +842,8 @@ const tier = getSelectedTier();
     summaryTier.textContent = tierMap[checkoutData.ticketTier] || '🎟 Regular';
   }
   if (summaryUnitPrice) {
-    const originalPrice = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
     const payablePrice = Number(checkoutData.eventPrice || 0);
-    if (originalPrice > payablePrice) {
-      summaryUnitPrice.innerHTML = '<span style=\"text-decoration:line-through;opacity:.6;margin-right:8px;\">₦' + originalPrice.toLocaleString() + '</span><strong style=\"color:var(--accent);\">₦' + payablePrice.toLocaleString() + '</strong>';
-    } else {
-      summaryUnitPrice.textContent = '₦' + payablePrice.toLocaleString();
-    }
+    summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.08em;">₦' + payablePrice.toLocaleString() + '</strong>' + (storedBonus > 0 && storedBonus < storedOriginal ? '<small style="display:block;margin-top:3px;opacity:.72;">Bonus price</small>' : '');
   }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
 
@@ -864,11 +870,7 @@ const tier = getSelectedTier();
       try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
       total = payable * checkoutData.qty;
       if (summaryUnitPrice) {
-        if (bonus > 0 && bonus < original) {
-          summaryUnitPrice.innerHTML = '<span style="text-decoration:line-through;opacity:.6;margin-right:8px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);">₦' + bonus.toLocaleString() + '</strong><small style="display:block;margin-top:3px;opacity:.72;">Bonus price</small>';
-        } else {
-          summaryUnitPrice.textContent = '₦' + original.toLocaleString();
-        }
+        summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.08em;">₦' + payable.toLocaleString() + '</strong>' + (bonus > 0 && bonus < original ? '<small style="display:block;margin-top:3px;opacity:.72;">Bonus price</small>' : '');
       }
       renderCouponTotal();
     } catch (e) {
