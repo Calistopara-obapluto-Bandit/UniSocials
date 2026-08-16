@@ -828,7 +828,7 @@ const tier = getSelectedTier();
   // Bonus/sale price is the actual payable checkout price.
   const storedOriginal = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
   const storedBonus = Number(checkoutData.bonusEventPrice || 0);
-  if (storedBonus > 0 && storedBonus < storedOriginal) checkoutData.eventPrice = storedBonus;
+  if (storedBonus > 0) checkoutData.eventPrice = storedBonus;
   const baseTotal = Number(checkoutData.eventPrice || 0) * Number(checkoutData.qty || 1);
   let total = baseTotal;
   let appliedCoupon = null;
@@ -843,7 +843,7 @@ const tier = getSelectedTier();
   }
   if (summaryUnitPrice) {
     const payablePrice = Number(checkoutData.eventPrice || 0);
-    summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.08em;">₦' + payablePrice.toLocaleString() + '</strong>' + (storedBonus > 0 && storedBonus < storedOriginal ? '<small style="display:block;margin-top:3px;opacity:.72;">Bonus price</small>' : '');
+    summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong>';
   }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
 
@@ -864,13 +864,13 @@ const tier = getSelectedTier();
       const bonuses = { regular:Number(ev.bonusPrice||0), vip:Number(ev.bonusVipPrice||0), vvip:Number(ev.bonusVvipPrice||0), table:Number(ev.bonusTablePrice||0) };
       const original = originals[tier] > 0 ? originals[tier] : originals.regular;
       const bonus = bonuses[tier] || 0;
-      const payable = bonus > 0 && bonus < original ? bonus : original;
+      const payable = bonus > 0 ? bonus : original;
       checkoutData.originalEventPrice = original;
       checkoutData.eventPrice = payable;
       try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
       total = payable * checkoutData.qty;
       if (summaryUnitPrice) {
-        summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.08em;">₦' + payable.toLocaleString() + '</strong>' + (bonus > 0 && bonus < original ? '<small style="display:block;margin-top:3px;opacity:.72;">Bonus price</small>' : '');
+        summaryUnitPrice.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>';
       }
       renderCouponTotal();
     } catch (e) {
