@@ -521,7 +521,7 @@
               <div class="form-group"><label for="couponAmountAdmin">Discount Amount (₦)</label><input type="number" id="couponAmountAdmin" placeholder="400" min="1" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="saveCoupon()" id="couponSaveBtn">➕ Create Coupon</button><button type="button" class="admin-refresh-btn" onclick="cancelCouponEdit()" id="couponCancelBtn" style="display:none;">✕ Cancel Edit</button><span id="couponCount" style="font-size:.75rem;color:var(--text-3);align-self:center;"></span></div>
-            <div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
+            <div id="couponLoadMessage" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:.82rem;"></div><div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
           </div>
         </div>
 
@@ -1399,7 +1399,12 @@ resultBox.className = 'admin-scan-result show';
           }).join('');
           box.querySelectorAll('.coupon-edit-btn').forEach(function(b){b.addEventListener('click',function(){editCoupon(b.getAttribute('data-id'));});});
           box.querySelectorAll('.coupon-delete-btn').forEach(function(b){b.addEventListener('click',function(){deleteCoupon(b.getAttribute('data-id'));});});
-        }).catch(function(e){console.error(e);});
+        }).catch(function(e){
+          console.error('Coupon load failed:', e);
+          var box=document.getElementById('couponsList'), msg=document.getElementById('couponLoadMessage');
+          if(msg){msg.style.display='block';msg.style.background='rgba(183,28,28,.08)';msg.style.color='#B71C1C';msg.textContent='Could not load coupons: '+(e.message||'Unauthorized or server error. Click Refresh to try again.');}
+          if(box && !box.innerHTML.trim()) box.innerHTML='<div style="padding:16px;text-align:center;color:#B71C1C;">Coupon list could not be loaded.</div>';
+        });
       };
       window.saveCoupon = function(){ var code=(document.getElementById('couponCodeAdmin').value||'').trim().toUpperCase(), amount=Number(document.getElementById('couponAmountAdmin').value||0); if(code.length<3||amount<=0){alert('Enter a coupon code and discount amount.');return;} var btn=document.getElementById('couponSaveBtn'); if(btn)btn.disabled=true; fetch('/api/admin/coupons',{method:'POST',headers:authHeaders(),body:JSON.stringify({id:editingCouponId||undefined,code:code,amount:amount,active:true})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Could not save coupon'); cancelCouponEdit(); loadCoupons(); alert('Coupon saved: '+code+' = ₦'+amount.toLocaleString()+' off.');}).catch(function(e){alert(e.message||'Could not save coupon.');}).finally(function(){if(btn)btn.disabled=false;}); };
       window.editCoupon = function(id){ fetch('/api/admin/coupons',{headers:authHeaders()}).then(r=>r.json()).then(function(d){var c=(d.coupons||[]).find(function(x){return String(x.id)===String(id);});if(!c)throw new Error('Coupon not found');editingCouponId=c.id;document.getElementById('couponCodeAdmin').value=c.code;document.getElementById('couponAmountAdmin').value=c.amount;document.getElementById('couponSaveBtn').textContent='💾 Save Coupon';document.getElementById('couponCancelBtn').style.display='inline-flex';}).catch(function(e){alert(e.message);}); };
