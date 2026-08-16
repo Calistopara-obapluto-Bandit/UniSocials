@@ -1142,10 +1142,164 @@ function fmtN(n) {
           .catch(function(err){errBox.textContent=err.message||'Cannot sign in.';errBox.classList.add('show');btn.disabled=false;btn.textContent='Login to Dashboard';});
       };
 
+
+      // ── Influencer Admin Events Manager ──
+      // Keep event management available to Influencer Admin, but never expose
+      // event deletion here. The server remains the final permission check.
+      var selectedEventImage = '';
+      var allUniversities = window.allUniversities || [];
+
+      function setEventImagePreview(src) {
+        var preview = document.getElementById('evImagePreview');
+        if (!preview) return;
+        if (src) { preview.src = src; preview.style.display = 'block'; }
+        else { preview.removeAttribute('src'); preview.style.display = 'none'; }
+      }
+      function clearEventImage() {
+        selectedEventImage = '';
+        var input = document.getElementById('evImage');
+        if (input) input.value = '';
+        setEventImagePreview('');
+      }
+      function resizeImageFile(file, maxSize) {
+        maxSize = maxSize || 1280;
+        return new Promise(function(resolve, reject) {
+          var img = new Image(), url = URL.createObjectURL(file);
+          img.onload = function() {
+            try {
+              var ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
+              var canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(img.width * ratio));
+              canvas.height = Math.max(1, Math.round(img.height * ratio));
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              URL.revokeObjectURL(url);
+              resolve(canvas.toDataURL('image/jpeg', 0.84));
+            } catch (e) { URL.revokeObjectURL(url); reject(e); }
+          };
+          img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
+          img.src = url;
+        });
+      }
+      window.handleEventImageUpload = function(input) {
+        var file = input && input.files && input.files[0];
+        if (!file) { clearEventImage(); return; }
+        if (!/^image\//.test(file.type || '')) {
+          showToast('Please choose an image file.', true); input.value = ''; return;
+        }
+        resizeImageFile(file).then(function(dataUrl) {
+          selectedEventImage = dataUrl; setEventImagePreview(dataUrl);
+        }).catch(function() {
+          selectedEventImage = ''; setEventImagePreview('');
+          showToast('Could not prepare that image. Try another file.', true);
+          input.value = '';
+        });
+      };
+
+      window.loadManagedEvents = function() {
+        var container = document.getElementById('managedEventsList');
+        var count = document.getElementById('eventsManageCount');
+        if (!container) return;
+        fetch('/api/events', { headers: authHeaders() })
+          .then(function(r) {
+            if (r.status === 401) throw new Error('unauthorized');
+            return r.json();
+          })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            if (count) count.textContent = events.length + ' event' + (events.length !== 1 ? 's' : '');
+            if (!events.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No events added yet. Add your first event above.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
+            events.forEach(function(ev) {
+              var vip = Number(ev.vipPrice || 0), vvip = Number(ev.vvipPrice || 0);
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;">' +
+                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' +
+                (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;">' : esc(ev.icon || '🎤')) +
+                '</span><strong>' + esc(ev.name || '') + '</strong>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.category || 'General') + '</span>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">₦' + Number(ev.price || 0).toLocaleString() + '</span>' +
+                (vip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VIP ₦' + vip.toLocaleString() + '</span>' : '') +
+                (vvip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VVIP ₦' + vvip.toLocaleString() + '</span>' : '') +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
+                '</div></div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function(err) {
+            if (err.message === 'unauthorized') { clearToken(); showLoggedOut(); return; }
+            container.innerHTML = '<div style="padding:14px;color:var(--danger,#ef4444);">Unable to load events. Please try again.</div>';
+          });
+      };
+
+      window.loadManagedUniversities = function() {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            allUniversities = (data && data.success && data.universities) || [];
+            window.allUniversities = allUniversities;
+            var sel = document.getElementById('evUniversity');
+            if (!sel) return;
+            var keep = sel.value;
+            sel.innerHTML = '<option value="">Select university...</option>' +
+              allUniversities.map(function(u) { return '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>'; }).join('');
+            if (keep) sel.value = keep;
+          }).catch(function() {});
+      };
+
+      window.updateUniCategories = function() {
+        var uniId = (document.getElementById('evUniversity') || {}).value || '';
+        var catSel = document.getElementById('evCategory');
+        if (!catSel) return;
+        var uni = allUniversities.find(function(u) { return u.id === uniId; });
+        var cats = (uni && Array.isArray(uni.categories) && uni.categories.length) ? uni.categories : ['General'];
+        catSel.innerHTML = cats.map(function(c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+      };
+
+      window.addEventItem = function() {
+        var get = function(id) { var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+        var name=get('evName'), date=get('evDate'), venue=get('evVenue'), desc=get('evDesc');
+        var uniId=get('evUniversity'), cat=get('evCategory') || 'General';
+        if (!uniId) return showToast('Please select a university for this event.', true);
+        if (!name || !date || !venue) return showToast('Event Name, Date, and Venue are required.', true);
+        var uni=allUniversities.find(function(u){return u.id===uniId;});
+        var ev={
+          name:name, category:cat,
+          price:parseFloat(get('evPrice'))||0,
+          vipPrice:parseFloat(get('evVIPPrice'))||0,
+          vvipPrice:parseFloat(get('evVVIPPrice'))||0,
+          tablePrice:parseFloat(get('evTablePrice'))||0,
+          date:date, time:get('evTime'), venue:venue, description:desc,
+          image:selectedEventImage,
+          tags:get('evTags') ? get('evTags').split(',').map(function(x){return x.trim();}).filter(Boolean) : [],
+          includedRegular:get('evIncludedRegular'), includedVip:get('evIncludedVip'),
+          includedVVIP:get('evIncludedVVIP'), includedTable:get('evIncludedTable'),
+          universityId:uniId, universityName:uni ? uni.name : '',
+          universitySlug:uni ? (uni.slug || uni.id) : ''
+        };
+        var btn=document.querySelector('#panel-events .btn-submit');
+        if (btn) btn.disabled=true;
+        fetch('/api/admin/events',{method:'POST',headers:authHeaders(),body:JSON.stringify(ev)})
+          .then(function(r){return r.json();})
+          .then(function(data){
+            if (!data || !data.success) throw new Error((data&&data.error)||'Failed to add event');
+            showToast('Event "' + name + '" added successfully.');
+            ['evName','evPrice','evVIPPrice','evVVIPPrice','evTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+            clearEventImage(); loadManagedEvents();
+          })
+          .catch(function(e){showToast(e.message || 'Failed to add event.',true);})
+          .finally(function(){if(btn)btn.disabled=false;});
+      };
+
+      // Load event data and universities whenever the Influencer Admin session is restored.
       // Load events on login
       var origShowLoggedIn = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn();
+        loadManagedUniversities();
         loadManagedEvents();
       };
 
