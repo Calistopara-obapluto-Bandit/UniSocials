@@ -1270,7 +1270,7 @@ function fmtN(n) {
 
       // Update order status (exposed)
       window.updateOrderStatus = function(orderId, status) {
-        var btn = event && event.target;
+        var btn = document.getElementById('eventSubmitBtn');
         if (btn) btn.disabled = true;
 
         fetch('/api/admin/orders/status', {
@@ -1627,7 +1627,7 @@ fetch('/api/ticket/scan', {
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'" + esc(id) + "\')" title="Edit event">✏️</button>' +
+                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
@@ -1738,7 +1738,7 @@ fetch('/api/admin/events', {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            showToast('Event "' + esc(name) + '" added!');
+            showToast(editingEventId ? 'Event "' + esc(name) + '" updated successfully!' : 'Event "' + esc(name) + '" added!');
 document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
             document.getElementById('evVIPPrice').value = '';

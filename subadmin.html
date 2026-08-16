@@ -1065,7 +1065,7 @@ resultBox.className = 'admin-scan-result show';
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'" + esc(id) + "\')" title="Edit event">✏️</button>' +
+                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
                 '</div>' +
                 '</div>';
             });
@@ -1164,7 +1164,7 @@ resultBox.className = 'admin-scan-result show';
           universitySlug: uniSlug
         };
 
-        var btn = event && event.target;
+        var btn = document.getElementById('eventSubmitBtn');
         if (btn) btn.disabled = true;
 
         fetch('/api/admin/events', {
@@ -1179,7 +1179,7 @@ resultBox.className = 'admin-scan-result show';
         .then(function(data) {
           console.log('Event creation response:', data);
           if (data && data.success) {
-            showToast('✅ Event "' + esc(name) + '" added successfully!');
+            showToast(editingEventId ? '✅ Event "' + esc(name) + '" updated successfully!' : '✅ Event "' + esc(name) + '" added successfully!');
             // Clear form fields
             document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
