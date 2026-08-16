@@ -1953,12 +1953,13 @@ const user = {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
 
       const orderId = String(data.orderId || '').trim();
+      const eventId = String(data.eventId || '').trim();
       const eventName = String(data.eventName || '').trim();
       const eventDate = String(data.eventDate || '').trim();
       const eventVenue = String(data.eventVenue || '').trim();
       const eventCategory = String(data.eventCategory || '').trim();
       const qty = parseInt(data.qty) || 1;
-      const amount = parseFloat(data.amount) || 0;
+      let amount = parseFloat(data.amount) || 0;
       const currency = String(data.currency || 'NGN');
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
@@ -1970,6 +1971,20 @@ const user = {
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
+
+      // Always calculate the payable amount from the server-side event price list.
+      // A valid bonus/sale price is used only when it is lower than the original price.
+      if (eventId) {
+        const eventCatalog = await readEvents();
+        const eventRecord = eventCatalog.find(e => String(e.id) === eventId);
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+        const tierOriginals = { regular: Number(eventRecord.price || 0), vip: Number(eventRecord.vipPrice || 0), vvip: Number(eventRecord.vvipPrice || 0), table: Number(eventRecord.tablePrice || 0) };
+        const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
+        const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
+        const bonusUnit = tierBonuses[ticketTier] || 0;
+        const payableUnit = (bonusUnit > 0 && bonusUnit < originalUnit) ? bonusUnit : originalUnit;
+        amount = payableUnit * qty;
+      }
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1997,6 +2012,7 @@ const user = {
       const order = {
         orderId: orderId,
         status: 'pending',                 // ALWAYS pending until server verification
+        eventId: eventId || null,
         eventName: eventName,
         eventCategory: eventCategory,
         eventDate: eventDate,
@@ -2025,10 +2041,6 @@ buyerFaculty: buyerFaculty,
       };
       order.ticketCode = order.ticketCodes[0].code;
       await addOrder(order);
-      // Update referral stats if this order came from a referral link
-      if (referralCode) {
-        await updateReferralStats(referralCode);
-      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
@@ -2571,9 +2583,13 @@ codes[idx] = entry;
         name: name,
         category: String(data.category || '').trim() || 'General',
         price: parseFloat(data.price) || 0,
+        bonusPrice: parseFloat(data.bonusPrice) || 0,
         vipPrice: parseFloat(data.vipPrice) || 0,
+        bonusVipPrice: parseFloat(data.bonusVipPrice) || 0,
         vvipPrice: parseFloat(data.vvipPrice) || 0,
+        bonusVvipPrice: parseFloat(data.bonusVvipPrice) || 0,
         tablePrice: parseFloat(data.tablePrice) || 0,
+        bonusTablePrice: parseFloat(data.bonusTablePrice) || 0,
         includedRegular: String(data.includedRegular || '').trim(),
         includedVip: String(data.includedVip || '').trim(),
         includedVVIP: String(data.includedVVIP || '').trim(),

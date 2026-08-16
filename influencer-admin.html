@@ -829,10 +829,10 @@
               <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
                 <option value="General">General</option>
               </select></div>
-              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
-              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div>
-              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
-              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
+              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -1291,9 +1291,13 @@ function fmtN(n) {
         var ev={
           name:name, category:cat,
           price:parseFloat(get('evPrice'))||0,
+          bonusPrice:parseFloat(get('evBonusPrice'))||0,
           vipPrice:parseFloat(get('evVIPPrice'))||0,
+          bonusVipPrice:parseFloat(get('evBonusVIPPrice'))||0,
           vvipPrice:parseFloat(get('evVVIPPrice'))||0,
+          bonusVvipPrice:parseFloat(get('evBonusVVIPPrice'))||0,
           tablePrice:parseFloat(get('evTablePrice'))||0,
+          bonusTablePrice:parseFloat(get('evBonusTablePrice'))||0,
           date:date, time:get('evTime'), venue:venue, description:desc,
           image:selectedEventImage,
           tags:get('evTags') ? get('evTags').split(',').map(function(x){return x.trim();}).filter(Boolean) : [],
@@ -1309,7 +1313,7 @@ function fmtN(n) {
           .then(function(data){
             if (!data || !data.success) throw new Error((data&&data.error)||'Failed to add event');
             showToast('Event "' + name + '" added successfully.');
-            ['evName','evPrice','evVIPPrice','evVVIPPrice','evTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+            ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
             clearEventImage(); loadManagedEvents();
           })
           .catch(function(e){showToast(e.message || 'Failed to add event.',true);})

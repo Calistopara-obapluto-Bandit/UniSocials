@@ -664,13 +664,17 @@ function getSelectedTier() {
     const opt = getSelectedOption();
     const tier = getSelectedTier();
     const reg = parseFloat(opt.dataset.price || 0);
+    const bonusReg = parseFloat(opt.dataset.bonusPrice || 0);
     const vip = parseFloat(opt.dataset.vipPrice || 0);
+    const bonusVip = parseFloat(opt.dataset.bonusVipPrice || 0);
     const vvip = parseFloat(opt.dataset.vvipPrice || 0);
+    const bonusVvip = parseFloat(opt.dataset.bonusVvipPrice || 0);
     const table = parseFloat(opt.dataset.tablePrice || 0);
-    if (tier === 'vip') return vip > 0 ? vip : reg;
-    if (tier === 'vvip') return vvip > 0 ? vvip : reg;
-    if (tier === 'table') return table > 0 ? table : reg;
-    return reg;
+    const bonusTable = parseFloat(opt.dataset.bonusTablePrice || 0);
+    if (tier === 'vip') return (bonusVip > 0 && bonusVip < vip) ? bonusVip : (vip > 0 ? vip : reg);
+    if (tier === 'vvip') return (bonusVvip > 0 && bonusVvip < vvip) ? bonusVvip : (vvip > 0 ? vvip : reg);
+    if (tier === 'table') return (bonusTable > 0 && bonusTable < table) ? bonusTable : (table > 0 ? table : reg);
+    return (bonusReg > 0 && bonusReg < reg) ? bonusReg : reg;
   }
 
   window.continueToCheckout = function() {
@@ -698,6 +702,7 @@ const tier = getSelectedTier();
 
     sessionStorage.setItem('checkoutData', JSON.stringify({
       eventValue: opt.value,
+      eventId: opt.value,
       eventName: opt.dataset.name,
       eventDate: opt.dataset.date,
       eventTime: opt.dataset.time,
@@ -930,6 +935,7 @@ const tier = getSelectedTier();
       headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         orderId: orderId,
+        eventId: checkoutData.eventId || checkoutData.eventValue || '',
         eventName: checkoutData.eventName,
         eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' · ' + (checkoutData.eventTime || '')) : '',
         eventVenue: checkoutData.eventVenue || '',
