@@ -675,7 +675,7 @@
           🔔 <span id="notifCount">0</span> new
         </span>
         <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
       </div>
     </div>
   </div>
@@ -1070,6 +1070,24 @@ function fmtN(n) {
         connStatus.style.display = 'none';
         if (notifBadge) notifBadge.style.display = 'none';
       }
+
+      // Explicit logout: revoke the server session, then clear the local token.
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getToken();
+        logoutBtn.disabled = true;
+        var req = token ? fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token } }) : Promise.resolve();
+        Promise.resolve(req).catch(function() {}).finally(function() {
+          clearToken();
+          try { localStorage.removeItem('unn_admin_user'); } catch (_) {}
+          showLoggedOut();
+          logoutBtn.disabled = false;
+          var email = document.getElementById('adminEmail');
+          if (email) email.value = '';
+          var password = document.getElementById('adminPassword');
+          if (password) password.value = '';
+        });
+      });
 
       // Mark new orders as seen
       function markOrdersSeen() {

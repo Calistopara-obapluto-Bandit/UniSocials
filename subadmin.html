@@ -333,7 +333,7 @@
           <span class="pulse"></span> <span id="connStatusText">Connected</span>
         </span>
         <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
       </div>
     </div>
   </div>
@@ -707,11 +707,20 @@
         });
       };
 
-      logoutBtn.addEventListener('click', function() {
-        clearSubAuth();
-        showLoggedOut();
-        document.getElementById('subAdminEmail').value = '';
-        document.getElementById('subAdminPassword').value = '';
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getSubToken();
+        logoutBtn.disabled = true;
+        var req = token ? fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token } }) : Promise.resolve();
+        Promise.resolve(req).catch(function() {}).finally(function() {
+          clearSubAuth();
+          showLoggedOut();
+          logoutBtn.disabled = false;
+          var email = document.getElementById('subAdminEmail');
+          if (email) email.value = '';
+          var password = document.getElementById('subAdminPassword');
+          if (password) password.value = '';
+        });
       });
 
       // ── Gate check-in: scan/validate a ticket code ──

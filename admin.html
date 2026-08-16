@@ -668,7 +668,7 @@
           🔔 <span id="notifCount">0</span> new
         </span>
         <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
       </div>
     </div>
   </div>
@@ -1184,10 +1184,18 @@ function fmtN(n) {
         });
       };
 
-      logoutBtn.addEventListener('click', function() {
-        clearToken();
-        showLoggedOut();
-        if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getToken();
+        logoutBtn.disabled = true;
+        var req = token ? fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token } }) : Promise.resolve();
+        Promise.resolve(req).catch(function() {}).finally(function() {
+          clearToken();
+          try { sessionStorage.removeItem('unn_admin_user'); localStorage.removeItem('unn_admin_user'); } catch (_) {}
+          showLoggedOut();
+          logoutBtn.disabled = false;
+          if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
+        });
       });
 
       // Set filter (exposed)
