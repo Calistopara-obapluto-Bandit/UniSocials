@@ -709,6 +709,7 @@
           <button class="admin-tab" data-tab="universities">🏛 Universities</button>
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
+          <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
         </div>
       </div>
 
@@ -919,6 +920,29 @@
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="subAdminCount"></span>
             </div>
             <div class="admin-ticket-codes" id="subAdminsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── INFLUENCERS PANEL (master admin only) ── -->
+        <div class="admin-panel" id="panel-influencers">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>📣 Influencers</h1>
+              <p>Create influencer login accounts. Influencers only see their referral dashboard and referral performance.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" /></div>
+              <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" /></div>
+              <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="At least 6 characters" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
+              <button class="admin-refresh-btn" onclick="loadInfluencers()">↻ Refresh</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
           </div>
         </div>
       </div>
@@ -2169,6 +2193,56 @@ fetch('/api/admin/events/notify', {
         .catch(function() { showToast('Network error removing sub-admin', true); });
       };
 
+      // ── Influencer Manager (master admin only) ──
+      window.loadInfluencers = function() {
+        fetch('/api/admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.influencers) || [];
+            var container = document.getElementById('influencersList');
+            var count = document.getElementById('influencerCount');
+            if (count) count.textContent = list.length + ' influencer' + (list.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!list.length) { container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No influencers yet. Create your first influencer above.</div>'; return; }
+            var html = '<div class="admin-ticket-codes-label">📣 Active Influencers (' + list.length + ')</div>';
+            list.forEach(function(u) {
+              var stats = u.referralStats || {};
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
+                '</div><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>';
+            });
+            container.innerHTML = html;
+          }).catch(function() {});
+      };
+
+      window.addInfluencer = function() {
+        var name = (document.getElementById('infName') || {}).value || '';
+        var email = (document.getElementById('infEmail') || {}).value || '';
+        var password = (document.getElementById('infPassword') || {}).value || '';
+        name = name.trim(); email = email.trim(); password = password.trim();
+        if (!name || !email || !password) return showToast('Name, Email, and Password are required.', true);
+        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
+        fetch('/api/admin/influencers', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({name:name,email:email,password:password}) })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) {
+              showToast('Influencer created! Referral code: ' + ((data.influencer && data.influencer.referralCode) || '—'));
+              ['infName','infEmail','infPassword'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+              loadInfluencers();
+            } else showToast((data && data.error) || 'Failed to create influencer', true);
+          }).catch(function(){ showToast('Network error creating influencer', true); });
+      };
+
+      window.deleteInfluencer = function(email) {
+        if (!email || !confirm('Remove influencer ' + email + '? They will no longer be able to sign in.')) return;
+        fetch('/api/admin/influencers?email=' + encodeURIComponent(email), { method:'DELETE', headers:{'Authorization':'Bearer '+getToken()} })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) { showToast('Influencer removed'); loadInfluencers(); }
+            else showToast((data && data.error) || 'Failed to remove influencer', true);
+          }).catch(function(){ showToast('Network error removing influencer', true); });
+      };
+
 // Load events on login — also load universities and subscribers
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
@@ -2177,6 +2251,7 @@ fetch('/api/admin/events/notify', {
         loadManagedUniversities();
         loadSubscribers();
         loadSubAdmins();
+        loadInfluencers();
       };
 
       // ── Tab switching ──

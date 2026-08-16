@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Influencer Dashboard — Unisocials</title>
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    body{background:var(--bg);color:var(--text-1)}
+    .wrap{max-width:1050px;margin:0 auto;padding:30px 20px 70px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:18px 20px;background:var(--text-1);color:#fff;border-radius:16px;margin-bottom:22px}
+    .brand{font-weight:700;font-size:1.1rem}.brand span{color:var(--accent-light)}
+    .logout{border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;border-radius:999px;padding:8px 16px;cursor:pointer;font-weight:600}
+    .login-card,.card{background:var(--surface-2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-sm)}
+    .login-card{max-width:430px;margin:80px auto;padding:28px}
+    h1{font-size:1.5rem;margin:0 0 7px}.muted{color:var(--text-3);font-size:.86rem;line-height:1.6}
+    .form-group{margin:16px 0}.form-group label{display:block;font-size:.78rem;font-weight:700;margin-bottom:7px}.form-group input{width:100%;box-sizing:border-box;padding:12px 13px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text-1)}
+    .btn{border:0;border-radius:10px;padding:12px 17px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;width:100%}
+    .error{color:#B71C1C;font-size:.82rem;margin-top:10px;display:none}.error.show{display:block}
+    .hidden{display:none!important}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0}.stat{padding:20px}.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700}.value{font-size:1.8rem;font-weight:800;color:var(--accent);margin-top:8px}
+    .ref{padding:22px}.ref-code{font-size:1.5rem;font-weight:800;letter-spacing:.08em;margin:10px 0}.linkbox{display:flex;gap:8px}.linkbox input{flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text-1)}.copy{padding:11px 15px;border:1px solid var(--accent-border);background:var(--accent-ghost);color:var(--accent);border-radius:10px;font-weight:700;cursor:pointer}
+    .notice{margin-top:15px;padding:12px 14px;border-radius:10px;background:var(--accent-ghost);color:var(--text-2);font-size:.8rem}
+    @media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.stats{grid-template-columns:1fr}.top{align-items:flex-start}.linkbox{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div id="loginView" class="login-card">
+    <h1>Influencer Login</h1>
+    <p class="muted">Sign in to view your referral dashboard.</p>
+    <form id="loginForm">
+      <div class="form-group"><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div>
+      <div class="form-group"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn" type="submit" id="loginBtn">Sign in</button>
+      <div class="error" id="loginError"></div>
+    </form>
+  </div>
+
+  <main id="dashboard" class="wrap hidden">
+    <div class="top"><div class="brand">UNISOCIAL<span>S</span> · Influencer</div><button class="logout" id="logoutBtn">Log out</button></div>
+    <div class="card ref">
+      <h1>Your Referral Dashboard</h1>
+      <p class="muted">Share your referral link or code. Your dashboard updates from verified/paid ticket orders.</p>
+      <div class="label" style="margin-top:18px">Referral Code</div>
+      <div class="ref-code" id="refCode">—</div>
+      <div class="label">Referral Link</div>
+      <div class="linkbox"><input id="refLink" readonly><button class="copy" id="copyBtn">Copy</button></div>
+    </div>
+    <section class="stats">
+      <div class="card stat"><div class="label">People Referred</div><div class="value" id="people">0</div></div>
+      <div class="card stat"><div class="label">Orders</div><div class="value" id="orders">0</div></div>
+      <div class="card stat"><div class="label">Tickets</div><div class="value" id="tickets">0</div></div>
+      <div class="card stat"><div class="label">Revenue</div><div class="value" id="revenue">₦0</div></div>
+    </section>
+    <div class="notice">Only referral performance is available on this account. Influencers cannot access orders, events, check-in, universities, subscribers, or admin settings.</div>
+  </main>
+
+<script>
+(function(){
+  var KEY='unn_influencer_token';
+  var loginView=document.getElementById('loginView'), dash=document.getElementById('dashboard');
+  function headers(){return {'Authorization':'Bearer '+(localStorage.getItem(KEY)||'')};}
+  function fmt(n){return '₦'+Number(n||0).toLocaleString();}
+  function showError(msg){var e=document.getElementById('loginError');e.textContent=msg;e.className='error show';}
+  async function load(){
+    var token=localStorage.getItem(KEY); if(!token)return false;
+    try{
+      var me=await fetch('/api/auth/me',{headers:headers()}); var md=await me.json();
+      if(!md.success || !md.user || md.user.role!=='influencer') throw new Error('invalid');
+      var r=await fetch('/api/influencer/referral-stats',{headers:headers()}); var d=await r.json();
+      if(!d.success) throw new Error(d.error||'Unable to load dashboard');
+      var st=d.stats||{}; var link=st.link||{};
+      document.getElementById('refCode').textContent=link.code||'—';
+      var full=(location.origin+'/r/'+(link.code||'')); document.getElementById('refLink').value=link.code?full:'';
+      document.getElementById('people').textContent=Number(st.uniquePeople||0).toLocaleString();
+      document.getElementById('orders').textContent=Number(st.totalOrders||0).toLocaleString();
+      document.getElementById('tickets').textContent=Number(st.totalTickets||0).toLocaleString();
+      document.getElementById('revenue').textContent=fmt(st.totalRevenue||0);
+      loginView.classList.add('hidden');dash.classList.remove('hidden');return true;
+    }catch(e){localStorage.removeItem(KEY);return false;}
+  }
+  document.getElementById('loginForm').addEventListener('submit',async function(e){
+    e.preventDefault();var btn=document.getElementById('loginBtn');btn.disabled=true;document.getElementById('loginError').className='error';
+    try{
+      var r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value})});
+      var d=await r.json(); if(!d.success)throw new Error(d.error||'Login failed');
+      if(!d.user || d.user.role!=='influencer') throw new Error('This account is not an influencer account.');
+      localStorage.setItem(KEY,d.token); if(!(await load()))throw new Error('Could not load dashboard');
+    }catch(err){showError(err.message||'Login failed');}finally{btn.disabled=false;}
+  });
+  document.getElementById('logoutBtn').onclick=function(){fetch('/api/auth/logout',{method:'POST',headers:headers()}).catch(function(){});localStorage.removeItem(KEY);location.reload();};
+  document.getElementById('copyBtn').onclick=function(){var input=document.getElementById('refLink');if(!input.value)return;navigator.clipboard.writeText(input.value).then(function(){document.getElementById('copyBtn').textContent='Copied!';setTimeout(function(){document.getElementById('copyBtn').textContent='Copy';},1500);});};
+  load();setInterval(function(){if(localStorage.getItem(KEY))load();},30000);
+})();
+</script>
+</body>
+</html>

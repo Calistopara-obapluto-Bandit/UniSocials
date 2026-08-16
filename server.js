@@ -773,7 +773,7 @@ async function isAdminOrSubadmin(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && user.role === 'subadmin') return { role: 'subadmin', user: user };
+  if (user && (user.role === 'subadmin' || user.role === 'influencer')) return { role: user.role, user: user };
   return null;
 }
 
@@ -1521,6 +1521,70 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
+    // ── Admin (master only): list influencer accounts ──
+    if (pathname === '/api/admin/influencers' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const influencers = users.filter(u => u.role === 'influencer').map(u => {
+        const link = links.find(l => l.subadminId === u.id) || null;
+        const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
+        const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+        return {
+          ...publicUser(u),
+          referralCode: link ? link.code : null,
+          referralStats: {
+            totalOrders: referredOrders.length,
+            totalRevenue,
+            totalTickets,
+            uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          }
+        };
+      });
+      return sendJson(res, 200, { success: true, influencers });
+    }
+
+    // ── Admin (master only): create influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      if (!name || !email || password.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      const influencer = {
+        id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer', createdAt: new Date().toISOString()
+      };
+      await addUser(influencer);
+      const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email);
+      return sendJson(res, 200, {
+        success: true,
+        influencer: { ...publicUser(influencer), referralCode: referralLink.code, referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 } }
+      });
+    }
+
+    // ── Admin (master only): remove influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'influencer') return sendJson(res, 404, { success: false, error: 'Influencer not found' });
+      const users = await readUsers();
+      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
+    }
+
     // ── Admin (master only): list sub-admin accounts ──
     if (pathname === '/api/admin/subadmins' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
@@ -2086,6 +2150,37 @@ codes[idx] = entry;
         message: '✅ Check-in successful for ' + order.buyerName,
         ticket: scanTicketDetails(order, entry, idx, codes, false)
       });
+    }
+
+    // ── Influencer: referral link ──
+    if (pathname === '/api/influencer/referral-link' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      let link = await getReferralLinkBySubadminId(user.id);
+      if (!link) link = await generateReferralLink(user.id, user.name, user.email);
+      else { await updateReferralStats(link.code); link = await getReferralLinkBySubadminId(user.id); }
+      return sendJson(res, 200, { success: true, link });
+    }
+
+    // ── Influencer: referral stats ──
+    if (pathname === '/api/influencer/referral-stats' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const link = await getReferralLinkBySubadminId(user.id);
+      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const orders = await readOrders();
+      const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
+      const uniquePeople = new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      return sendJson(res, 200, { success: true, stats: {
+        totalOrders: referredOrders.length,
+        totalRevenue: referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0),
+        totalTickets: referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0),
+        uniquePeople, link
+      }});
     }
 
     // ── Sub-admin: list the check-ins performed by this sub-admin account ──
