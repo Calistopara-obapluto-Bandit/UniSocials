@@ -911,6 +911,7 @@ const tier = getSelectedTier();
     const btn = document.getElementById('applyReferralBtn');
     const msg = document.getElementById('referralMessage');
     const code = String(input && input.value || '').trim().toUpperCase();
+    try { sessionStorage.removeItem('referralRemoved'); } catch(e) {}
     if (!code) {
       referralApplied = false; appliedReferralCode = '';
       if (msg) { msg.textContent = 'No referral applied. Your bonus price remains active.'; msg.className = 'form-hint referral-message'; }
@@ -953,6 +954,23 @@ const tier = getSelectedTier();
   const referralInput = document.getElementById('referralCodeInput');
   const applyReferralBtn = document.getElementById('applyReferralBtn');
   if (applyReferralBtn) applyReferralBtn.addEventListener('click', applyReferralCode);
+  const removeReferralBtn = document.getElementById('removeReferralBtn');
+  if (removeReferralBtn) removeReferralBtn.addEventListener('click', async function(){
+    referralApplied = false;
+    appliedReferralCode = '';
+    try {
+      sessionStorage.setItem('referralRemoved','1');
+      sessionStorage.removeItem('referralCode');
+      localStorage.removeItem('unn_referral_code');
+    } catch(e) {}
+    if (referralInput) referralInput.value = '';
+    const msg = document.getElementById('referralMessage');
+    if (msg) {
+      msg.textContent = 'Referral removed. Your bonus price is active.';
+      msg.className = 'form-hint referral-message';
+    }
+    await refreshReferralPricing();
+  });
   if (referralInput) referralInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyReferralCode(); } });
 
   function renderCouponTotal() {
@@ -987,7 +1005,7 @@ const tier = getSelectedTier();
   const refInput = document.getElementById('referralCodeInput');
   if (refInput) {
     const savedRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
-    if (savedRef) { refInput.value = savedRef.toUpperCase(); setTimeout(function(){ applyReferralCode(); }, 50); }
+    if (savedRef && sessionStorage.getItem('referralRemoved') !== '1') { refInput.value = savedRef.toUpperCase(); setTimeout(function(){ applyReferralCode(); }, 50); }
   }
 
   if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
@@ -1070,8 +1088,8 @@ const tier = getSelectedTier();
       // attributing a later purchase to an old influencer.
       const inputEl = document.getElementById('referralCodeInput');
       let referralCode = inputEl && inputEl.value ? inputEl.value.trim() : '';
-      if (!referralCode) referralCode = (urlParams.get('ref') || '').trim();
-      if (!referralCode) referralCode = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
+      if (!referralCode && sessionStorage.getItem('referralRemoved') !== '1') referralCode = (urlParams.get('ref') || '').trim();
+      if (!referralCode && sessionStorage.getItem('referralRemoved') !== '1') referralCode = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
       if (referralCode) {
         referralCode = referralCode.toUpperCase();
         sessionStorage.setItem('referralCode', referralCode);

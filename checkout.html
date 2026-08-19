@@ -14,7 +14,13 @@
 <style>
 .referral-input-row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}.referral-input-row input{flex:1;min-width:0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-1);font-size:.92rem;outline:none;transition:border-color .2s,box-shadow .2s}.referral-input-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}.referral-input-row button{min-width:92px}.referral-message{margin-top:8px}.referral-message.success{color:var(--accent)!important}.referral-message.error{color:#b71c1c!important}.referral-price-note{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:.72em;color:var(--text-3)}@media(max-width:520px){.referral-input-row{flex-direction:column}.referral-input-row button{width:100%}}
 </style>
-</head>
+<style>
+.referral-input-row{display:flex;gap:10px;align-items:stretch}
+.referral-input-row input{flex:1;min-width:0}
+.referral-remove-btn{background:transparent!important;border:1px solid rgba(255,255,255,.22)!important;color:inherit!important}
+.referral-remove-btn:hover{border-color:var(--accent)!important;color:var(--accent)!important}
+@media(max-width:560px){.referral-input-row{flex-wrap:wrap}.referral-input-row input{flex:1 1 100%}.referral-input-row button{flex:1}}
+</style></head>
 <body>
 
   <!-- ── WHATSAPP FLOAT ── -->
@@ -143,6 +149,7 @@
             <div class="referral-input-row">
               <input type="text" id="referralCodeInput" placeholder="Enter referral code" autocomplete="off" maxlength="64" />
               <button type="button" id="applyReferralBtn" class="admin-refresh-btn">Apply</button>
+              <button type="button" id="removeReferralBtn" class="admin-refresh-btn referral-remove-btn" aria-label="Remove referral code">Remove</button>
             </div>
             <p id="referralMessage" class="form-hint referral-message">Apply a valid referral code to use the original ticket price. Without one, your bonus price remains active.</p>
           </div>
