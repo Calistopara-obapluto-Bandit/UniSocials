@@ -376,6 +376,7 @@
           <button class="admin-tab" data-tab="referral">📈 Referral Links</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
+          <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
         </div>
       </div>
 
@@ -526,6 +527,11 @@
         </div>
 
         <!-- ── EVENTS PANEL ── -->
+        <div class="admin-panel" id="panel-influencers">
+          <div class="admin-panel-heading"><div><h1>📣 Influencers</h1><p>View all influencers created by any Influencer Admin, with the same referral performance information available to Influencer Admins.</p></div><button class="admin-refresh-btn" type="button" onclick="loadAllInfluencers()">↻ Refresh</button></div>
+          <div class="admin-card" style="padding:0;overflow:hidden;"><div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"><strong>All Influencers</strong><span id="allInfluencerCount" style="font-size:.78rem;color:var(--text-3);"></span></div><div id="allInfluencersList" style="padding:14px 16px;"><div style="text-align:center;padding:20px;color:var(--text-3);">Loading influencers…</div></div></div>
+        </div>
+
         <div class="admin-panel" id="panel-events">
           <div class="admin-panel-heading">
             <div>
@@ -546,6 +552,10 @@
               <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
               <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
               <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
+              <div class="form-group"><label for="evRegularTicketLimit">Regular Tickets Available</label><input type="number" id="evRegularTicketLimit" placeholder="e.g. 1000" min="0" step="1" /></div>
+              <div class="form-group"><label for="evVipTicketLimit">VIP Tickets Available</label><input type="number" id="evVipTicketLimit" placeholder="e.g. 200" min="0" step="1" /></div>
+              <div class="form-group"><label for="evVvipTicketLimit">VVIP Tickets Available</label><input type="number" id="evVvipTicketLimit" placeholder="e.g. 100" min="0" step="1" /></div>
+              <div class="form-group"><label for="evTableTicketLimit">Table Tickets Available</label><input type="number" id="evTableTicketLimit" placeholder="e.g. 20" min="0" step="1" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -652,6 +662,7 @@
         viewSiteBtn.style.display = 'inline-block';
         connStatus.style.display = 'inline-flex';
         if (typeof window.loadCoupons === 'function') window.loadCoupons();
+         if (typeof window.loadAllInfluencers === 'function') window.loadAllInfluencers();
       }
       function showLoggedOut() {
         loginScreen.style.display = 'flex';
@@ -1043,6 +1054,21 @@ resultBox.className = 'admin-scan-result show';
         });
       };
 
+      // ── Influencers overview: sub-admin can view all influencer-admin-created accounts ──
+      window.loadAllInfluencers = function() {
+        var token=getSubToken(), container=document.getElementById('allInfluencersList');
+        if(!token || !container) return;
+        container.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);">Loading influencers…</div>';
+        fetch('/api/admin/influencers',{headers:{'Authorization':'Bearer '+token}}).then(function(r){return r.json().then(function(d){if(!r.ok) throw new Error(d.error||'Unable to load influencers');return d;});}).then(function(data){
+          var list=(data&&data.success&&data.influencers)||[], count=document.getElementById('allInfluencerCount');
+          if(count) count.textContent=list.length+' influencer'+(list.length!==1?'s':'');
+          if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;color:var(--text-3);">No influencers have been created yet.</div>';return;}
+          var html='';
+          list.forEach(function(u){var st=u.referralStats||{}; html+='<div style="padding:14px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;color:var(--text-1);">'+esc(u.name||u.email||'Influencer')+'</div><div style="font-size:.78rem;color:var(--text-3);margin-top:3px;">'+esc(u.email||'')+'</div><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;"><span class="admin-ticket-code">Code: '+esc(u.referralCode||'—')+'</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style="font-size:.75rem;color:var(--text-3);">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div>';});
+          container.innerHTML=html;
+        }).catch(function(err){container.innerHTML='<div style="text-align:center;padding:20px;color:#e57373;">'+esc(err.message||'Unable to load influencers')+'</div>';});
+      };
+
       // ── Events Manager ──
       window.loadManagedEvents = function() {
         var token = getSubToken();
@@ -1099,7 +1125,7 @@ resultBox.className = 'admin-scan-result show';
         editingEventId = '';
         var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
         var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
-        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evRegularTicketLimit','evVipTicketLimit','evVvipTicketLimit','evTableTicketLimit','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
         var uni=document.getElementById('evUniversity');if(uni)uni.value='';
         if(typeof updateUniCategories==='function')updateUniCategories();
         if(typeof clearEventImage==='function')clearEventImage();
@@ -1113,7 +1139,7 @@ resultBox.className = 'admin-scan-result show';
           if(!ev)throw new Error('Event not found');
           editingEventId=String(ev.id||eventId);
           var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
-          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);
+          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);set('evRegularTicketLimit',ev.regularTicketLimit);set('evVipTicketLimit',ev.vipTicketLimit);set('evVvipTicketLimit',ev.vvipTicketLimit);set('evTableTicketLimit',ev.tableTicketLimit);
           set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
           set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
           set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
@@ -1137,6 +1163,10 @@ resultBox.className = 'admin-scan-result show';
         var bonusVvipPrice = parseFloat(document.getElementById('evBonusVVIPPrice').value) || 0;
         var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
         var bonusTablePrice = parseFloat(document.getElementById('evBonusTablePrice').value) || 0;
+        var regularTicketLimit = parseInt(document.getElementById('evRegularTicketLimit').value) || 0;
+        var vipTicketLimit = parseInt(document.getElementById('evVipTicketLimit').value) || 0;
+        var vvipTicketLimit = parseInt(document.getElementById('evVvipTicketLimit').value) || 0;
+        var tableTicketLimit = parseInt(document.getElementById('evTableTicketLimit').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
@@ -1174,6 +1204,10 @@ resultBox.className = 'admin-scan-result show';
           bonusVvipPrice: bonusVvipPrice,
           tablePrice: tablePrice,
           bonusTablePrice: bonusTablePrice,
+          regularTicketLimit: regularTicketLimit,
+          vipTicketLimit: vipTicketLimit,
+          vvipTicketLimit: vvipTicketLimit,
+          tableTicketLimit: tableTicketLimit,
           includedRegular: includedRegular,
           includedVip: includedVip,
           includedVVIP: includedVVIP,

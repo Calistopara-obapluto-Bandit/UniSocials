@@ -1627,7 +1627,8 @@ const user = {
       const users = await readUsers();
       const links = await readReferralLinks();
       const orders = await readOrders();
-      const influencers = users.filter(u => u.role === 'influencer' && (authCtx.role === 'admin' || u.createdBy === authCtx.user.id)).map(u => {
+      const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
+       const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || u.createdBy === authCtx.user.id)).map(u => {
         const link = links.find(l => l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -1982,7 +1983,20 @@ const user = {
       return sendJson(res, 200, { success: true, orders: mine });
     }
 
-    // ── Create order (PENDING until payment is server-verified) ──
+    
+function getTierInventory(event, tier, orders) {
+  const t = String(tier || 'regular').toLowerCase();
+  const names = {regular:'Regular', vip:'Vip', vvip:'Vvip', table:'Table'};
+  const n = names[t] || 'Regular';
+  const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
+  const list = Array.isArray(orders) ? orders : [];
+  const relevant = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && ['pending','verified'].includes(String(o.status || '').toLowerCase()));
+  const reserved = relevant.reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  const sold = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && String(o.status || '').toLowerCase() === 'verified').reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  return {total, sold, reserved, remaining: total > 0 ? Math.max(0,total-reserved) : 0, soldOut: total > 0 && reserved >= total};
+}
+
+// ── Create order (PENDING until payment is server-verified) ──
     if (pathname === '/api/orders' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
@@ -2028,6 +2042,11 @@ const user = {
         const eventCatalog = await readEvents();
         const eventRecord = eventCatalog.find(e => String(e.id) === eventId);
         if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+        const ordersForInventory = await readOrders();
+        const inv = getTierInventory(eventRecord, ticketTier, ordersForInventory);
+        if (inv.total > 0 && Number(qty) > inv.remaining) {
+          return sendJson(res, 409, { success:false, error: inv.remaining > 0 ? ('Only ' + inv.remaining + ' ' + ticketTier + ' ticket(s) remaining.') : (ticketTier.toUpperCase() + ' tickets are sold out.') });
+        }
         const tierOriginals = { regular: Number(eventRecord.price || 0), vip: Number(eventRecord.vipPrice || 0), vvip: Number(eventRecord.vvipPrice || 0), table: Number(eventRecord.tablePrice || 0) };
         const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
         const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
@@ -2625,13 +2644,22 @@ codes[idx] = entry;
     if (pathname === '/api/events' && req.method === 'GET') {
       const events = await readEvents();
       const uniSlug = String(url.searchParams.get('university') || '').trim();
+      const orders = await readOrders();
+      function enrich(ev) {
+        return Object.assign({}, ev, { inventory: {
+          regular: getTierInventory(ev,'regular',orders),
+          vip: getTierInventory(ev,'vip',orders),
+          vvip: getTierInventory(ev,'vvip',orders),
+          table: getTierInventory(ev,'table',orders)
+        }});
+      }
       if (uniSlug) {
         const filtered = events.filter(function(e) {
           return (e.universityId === uniSlug || e.universitySlug === uniSlug);
-        });
+        }).map(enrich);
         return sendJson(res, 200, { success: true, events: filtered });
       }
-      return sendJson(res, 200, { success: true, events: events });
+      return sendJson(res, 200, { success: true, events: events.map(enrich) });
     }
 
     // ── Public site stats (events, tickets sold, faculties) ──
@@ -2716,6 +2744,10 @@ codes[idx] = entry;
         bonusVvipPrice: parseFloat(data.bonusVvipPrice) || 0,
         tablePrice: parseFloat(data.tablePrice) || 0,
         bonusTablePrice: parseFloat(data.bonusTablePrice) || 0,
+        regularTicketLimit: Math.max(0, parseInt(data.regularTicketLimit) || 0),
+        vipTicketLimit: Math.max(0, parseInt(data.vipTicketLimit) || 0),
+        vvipTicketLimit: Math.max(0, parseInt(data.vvipTicketLimit) || 0),
+        tableTicketLimit: Math.max(0, parseInt(data.tableTicketLimit) || 0),
         includedRegular: String(data.includedRegular || '').trim(),
         includedVip: String(data.includedVip || '').trim(),
         includedVVIP: String(data.includedVVIP || '').trim(),

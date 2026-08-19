@@ -688,6 +688,9 @@ function getSelectedTier() {
     if (qty < 1 || qty > 100) { alert('Please enter a quantity between 1 and 100 tickets.'); return; }
 
 const tier = getSelectedTier();
+    var selectedOpt = document.querySelector('input[name=\"ticketTier\"][value=\"'+tier+'\"]');
+    var selectedCard = selectedOpt && selectedOpt.closest ? selectedOpt.closest('.ticket-type-option') : null;
+    if (selectedCard && selectedCard.classList.contains('sold-out')) { alert(tier.toUpperCase() + ' tickets are sold out.'); return; }
     const tierPrice = getTierPrice();
     const tierOriginalPrice = (function(){
       const reg=parseFloat(opt.dataset.price||0), vip=parseFloat(opt.dataset.vipPrice||0), vvip=parseFloat(opt.dataset.vvipPrice||0), table=parseFloat(opt.dataset.tablePrice||0);

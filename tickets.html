@@ -229,6 +229,8 @@
       .pricing-table td { padding-left: 10px; padding-right: 10px; }
     }
   </style>
+
+<style id="ticket-availability-style">.ticket-availability{display:inline-flex;margin-top:6px;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);font-size:.72rem;font-weight:700}.ticket-availability.sold-out{color:#ff7d88;background:rgba(220,53,69,.10);border-color:rgba(220,53,69,.3)}.ticket-type-option.sold-out{opacity:.55}</style>
 </head>
 <body>
 
@@ -497,6 +499,20 @@ function setSelectedTier(tier) {
         var vipEl = document.getElementById('vipOption');
         var vvipEl = document.getElementById('vvipOption');
         var tableEl = document.getElementById('tableOption');
+        var invMap = {regular:'regular',vip:'vip',vvip:'vvip',table:'table'};
+        Object.keys(invMap).forEach(function(t){
+          var i = opt.getAttribute('data-'+t+'-limit');
+          var sold = opt.getAttribute('data-'+t+'-sold');
+          var out = opt.getAttribute('data-'+t+'-soldout') === 'true';
+          var el = document.getElementById(t+'Option');
+          if (t === 'regular' && !el) { var rr = document.querySelector('input[name=\"ticketTier\"][value=\"regular\"]'); el = rr && rr.closest ? rr.closest('.ticket-type-option') : null; }
+          if (!el) return;
+          var badge = el.querySelector('.ticket-availability');
+          if (!badge) { badge=document.createElement('div'); badge.className='ticket-availability'; el.appendChild(badge); }
+          if (Number(i)>0) { badge.textContent = out ? 'SOLD OUT' : Number(sold).toLocaleString()+'/'+Number(i).toLocaleString()+' sold'; badge.classList.toggle('sold-out',out); } else { badge.textContent=''; badge.classList.remove('sold-out'); }
+          el.classList.toggle('sold-out',out);
+          var radio=el.querySelector('input[name=\"ticketTier\"]'); if(radio) radio.disabled=out;
+        });
         if (vipEl) vipEl.style.display = vip > 0 ? '' : 'none';
         if (vvipEl) vvipEl.style.display = vvip > 0 ? '' : 'none';
         if (tableEl) tableEl.style.display = table > 0 ? '' : 'none';
@@ -578,6 +594,8 @@ function setSelectedTier(tier) {
               opt.setAttribute('data-bonus-vvip-price', String(ev.bonusVvipPrice || 0));
               opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
               opt.setAttribute('data-bonus-table-price', String(ev.bonusTablePrice || 0));
+              var inv = ev.inventory || {};
+              ['regular','vip','vvip','table'].forEach(function(t){ var i=inv[t]||{}; opt.setAttribute('data-'+t+'-limit',String(i.total||0)); opt.setAttribute('data-'+t+'-sold',String(i.sold||0)); opt.setAttribute('data-'+t+'-remaining',String(i.remaining||0)); opt.setAttribute('data-'+t+'-soldout',String(!!i.soldOut)); });
               opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
               opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
               opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
