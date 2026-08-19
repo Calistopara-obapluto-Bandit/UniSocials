@@ -227,12 +227,14 @@ async function getSessionUser(token) {
   if (usePg) {
     const r = await db.query('SELECT user_id FROM sessions WHERE token = $1 LIMIT 1', [token]);
     if (!r.rows.length) return null;
-    return await findUserById(r.rows[0].user_id);
+    const user = await findUserById(r.rows[0].user_id);
+    return user && user.archived === true ? null : user;
   }
   const sessions = await readSessions();
   const userId = sessions[token];
   if (!userId) return null;
-  return await findUserById(userId);
+  const user = await findUserById(userId);
+  return user && user.archived === true ? null : user;
 }
 async function deleteSession(token) {
   if (!token) return;
@@ -1612,6 +1614,9 @@ const user = {
         return sendJson(res, 400, { success: false, error: 'Please enter your email and password.' });
       }
       const user = await findUserByEmail(email);
+      if (user && user.archived === true) {
+        return sendJson(res, 403, { success: false, error: 'This account has been archived and cannot be used. Please contact an administrator.' });
+      }
       if (!user || !verifyPassword(password, user.passwordHash)) {
         return sendJson(res, 401, { success: false, error: 'Invalid email or password.' });
       }
@@ -1773,6 +1778,35 @@ const user = {
       await writeUsers(users.filter(u => u.id !== user.id));
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
+    }
+
+    // ── Archive/unarchive managed accounts ──
+    if (pathname === '/api/admin/accounts/archive' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res,403,{success:false,error:'Only Admin, Sub-admin, or Influencer Admin can archive accounts'});
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const archived = data.archived !== false;
+      if (!email) return sendJson(res,400,{success:false,error:'Missing email'});
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res,404,{success:false,error:'Account not found'});
+      if (target.role === 'admin') return sendJson(res,403,{success:false,error:'The Main Admin account cannot be archived'});
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
+        return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
+      }
+      if (authCtx.role === 'subadmin' && target.createdBy && target.createdBy !== authCtx.user.id) {
+        return sendJson(res,403,{success:false,error:'You can only archive accounts you created.'});
+      }
+      const users = await readUsers();
+      const idx = users.findIndex(u => u.id === target.id);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Account not found'});
+      users[idx] = Object.assign({}, users[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeUsers(users);
+      if (archived) await deleteUserSessions(target.id);
+      return sendJson(res,200,{success:true,user:publicUser(users[idx])});
     }
 
     // ── Admin: dedicated staff accounts (check-in staff / influencer admin) ──
@@ -2642,7 +2676,17 @@ codes[idx] = entry;
 
     // ── Public events list (used by events.html, tickets.html, index.html) ──
     if (pathname === '/api/events' && req.method === 'GET') {
-      const events = await readEvents();
+      const allEvents = await readEvents();
+      const includeArchived = url.searchParams.get('includeArchived') === '1';
+      let events = allEvents;
+      if (!includeArchived) {
+        events = allEvents.filter(e => e.archived !== true);
+      } else {
+        const authCtx = await isAdminOrSubadmin(req);
+        if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+          events = allEvents.filter(e => e.archived !== true);
+        }
+      }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
       const orders = await readOrders();
       function enrich(ev) {
@@ -2760,6 +2804,7 @@ codes[idx] = entry;
         image: String(data.image || '').trim(),
         icon: data.icon || '🎟️',
         featured: !!data.featured,
+        archived: data.id ? !!data.archived : false,
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
@@ -2773,6 +2818,25 @@ codes[idx] = entry;
         console.error('✗ Error creating event:', e.message);
         return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
       }
+    }
+
+    // ── Archive/unarchive event: admin, sub-admin, or influencer admin ──
+    if (pathname === '/api/admin/events/archive' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res, 403, { success:false, error:'Only Admin, Sub-admin, or Influencer Admin can archive events' });
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const archived = data.archived !== false;
+      if (!eventId) return sendJson(res,400,{success:false,error:'Missing eventId'});
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
+      events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeEvents(events);
+      return sendJson(res,200,{success:true,event:events[idx]});
     }
 
     // ── Main Admin only: delete an event ──
@@ -2991,7 +3055,8 @@ function publicUser(user) {
     email: user.email,
     phone: user.phone,
     role: user.role || 'buyer',
-    createdAt: user.createdAt
+    createdAt: user.createdAt,
+    archived: user.archived === true
   };
 }
 
