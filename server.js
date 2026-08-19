@@ -1797,7 +1797,7 @@ const user = {
       if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
         return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
       }
-      if (authCtx.role === 'subadmin' && target.createdBy && target.createdBy !== authCtx.user.id) {
+      if (authCtx.role === 'subadmin' && target.role !== 'influencer' && target.createdBy && target.createdBy !== authCtx.user.id) {
         return sendJson(res,403,{success:false,error:'You can only archive accounts you created.'});
       }
       const users = await readUsers();
