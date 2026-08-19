@@ -2010,9 +2010,20 @@ const user = {
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
       let couponDiscount = 0;
       let baseAmountBeforeCoupon = amount;
+      let referralApplied = false;
 
-      // Always calculate the payable amount from the server-side event price list.
-      // A valid bonus/sale price is used only when it is lower than the original price.
+      // Validate referral before pricing. A valid referral intentionally switches
+      // this order from the event's bonus price to the selected tier's original price.
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) {
+          return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
+        }
+        referralApplied = true;
+      }
+
+      // Server-authoritative pricing: bonus is the default; a valid referral
+      // switches the selected tier back to its original price.
       if (eventId) {
         const eventCatalog = await readEvents();
         const eventRecord = eventCatalog.find(e => String(e.id) === eventId);
@@ -2021,7 +2032,7 @@ const user = {
         const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
         const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
         const bonusUnit = tierBonuses[ticketTier] || 0;
-        const payableUnit = bonusUnit > 0 ? bonusUnit : originalUnit;
+        const payableUnit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
         amount = payableUnit * qty;
         baseAmountBeforeCoupon = amount;
       }
@@ -2042,15 +2053,6 @@ const user = {
       const existing = await getOrder(orderId);
       if (existing) {
         return sendJson(res, 409, { success: false, error: 'Order ID already exists' });
-      }
-
-      // Referral codes are server-validated so buyers cannot attach an arbitrary
-      // code that does not belong to an active sub-admin.
-      if (referralCode) {
-        const referralLink = await getReferralLinkByCode(referralCode);
-        if (!referralLink) {
-          return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
-        }
       }
 
       // Attach user if logged in
@@ -2583,6 +2585,15 @@ codes[idx] = entry;
       await writeCoupons(next);
       return sendJson(res, 200, { success: true });
     }
+    if (pathname === '/api/referrals/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      if (!code) return sendJson(res, 400, { success:false, error:'Enter a referral code.' });
+      const link = await getReferralLinkByCode(code);
+      if (!link) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+      return sendJson(res, 200, { success:true, referral:{code:link.code, name:link.subadminName || link.name || ''} });
+    }
+
     if (pathname === '/api/coupons/validate' && req.method === 'POST') {
       const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
       const code = String(data.code || '').trim().toUpperCase();
@@ -2597,7 +2608,14 @@ codes[idx] = entry;
       const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
       const originalUnit = originals[tier] > 0 ? originals[tier] : originals.regular;
       const bonusUnit = bonuses[tier] || 0;
-      const unit = bonusUnit > 0 ? bonusUnit : originalUnit;
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      let referralApplied = false;
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+        referralApplied = true;
+      }
+      const unit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
       const baseTotal = unit * qty; const discount = Number(coupon.amount) || 0;
       if (discount >= baseTotal) return sendJson(res, 400, { success:false, error:'Coupon discount cannot cover the full ticket price.' });
       return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });

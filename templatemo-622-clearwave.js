@@ -825,13 +825,16 @@ const tier = getSelectedTier();
     return;
   }
 
-  // Bonus/sale price is the actual payable checkout price.
+  // Bonus price is the default checkout price. A VALID referral switches the
+  // selected tier back to its original price. Coupons are applied after that.
   const storedOriginal = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
   const storedBonus = Number(checkoutData.bonusEventPrice || 0);
-  if (storedBonus > 0) checkoutData.eventPrice = storedBonus;
-  let baseTotal = Number(checkoutData.eventPrice || 0) * Number(checkoutData.qty || 1);
+  let referralApplied = false;
+  let baseUnitPrice = storedBonus > 0 ? storedBonus : storedOriginal;
+  let baseTotal = baseUnitPrice * Number(checkoutData.qty || 1);
   let total = baseTotal;
   let appliedCoupon = null;
+  let appliedReferralCode = '';
 
   if (summaryEventName) summaryEventName.textContent = checkoutData.eventName || 'Not selected';
   if (summaryDate) summaryDate.textContent = checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '\u2014';
@@ -867,22 +870,90 @@ const tier = getSelectedTier();
       const bonuses = { regular:Number(ev.bonusPrice||0), vip:Number(ev.bonusVipPrice||0), vvip:Number(ev.bonusVvipPrice||0), table:Number(ev.bonusTablePrice||0) };
       const original = originals[tier] > 0 ? originals[tier] : originals.regular;
       const bonus = bonuses[tier] || 0;
-      const payable = bonus > 0 ? bonus : original;
+      const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
       checkoutData.originalEventPrice = original;
+      checkoutData.bonusEventPrice = bonus;
       checkoutData.eventPrice = payable;
       try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
-      total = payable * checkoutData.qty;
+      baseUnitPrice = payable;
+      total = payable * Number(checkoutData.qty || 1);
       baseTotal = total;
       if (summaryUnitPrice) {
-        summaryUnitPrice.innerHTML = (original > payable && payable > 0)
-          ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small style="display:block;color:var(--text-3);font-size:.72em;margin-top:3px;">Bonus price</small>'
-          : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>';
+        summaryUnitPrice.innerHTML = (!referralApplied && original > payable && payable > 0)
+          ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
+          : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
       }
       renderCouponTotal();
     } catch (e) {
       // Keep the already stored checkout price if the refresh request fails.
     }
   })();
+
+  function renderCheckoutPrice(original, bonus) {
+    const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
+    baseUnitPrice = payable;
+    baseTotal = payable * Number(checkoutData.qty || 1);
+    total = appliedCoupon ? Math.max(0, baseTotal - Number(appliedCoupon.amount || 0)) : baseTotal;
+    checkoutData.originalEventPrice = original;
+    checkoutData.bonusEventPrice = bonus;
+    checkoutData.eventPrice = payable;
+    try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
+    if (summaryUnitPrice) {
+      summaryUnitPrice.innerHTML = (!referralApplied && original > payable && payable > 0)
+        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
+        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
+    }
+    renderCouponTotal();
+  }
+
+  async function applyReferralCode() {
+    const input = document.getElementById('referralCodeInput');
+    const btn = document.getElementById('applyReferralBtn');
+    const msg = document.getElementById('referralMessage');
+    const code = String(input && input.value || '').trim().toUpperCase();
+    if (!code) {
+      referralApplied = false; appliedReferralCode = '';
+      if (msg) { msg.textContent = 'No referral applied. Your bonus price remains active.'; msg.className = 'form-hint referral-message'; }
+      await refreshReferralPricing();
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+    try {
+      const r = await fetch('/api/referrals/validate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'Invalid referral code.');
+      referralApplied = true; appliedReferralCode = code;
+      sessionStorage.setItem('referralCode', code); localStorage.setItem('unn_referral_code', code);
+      if (msg) { msg.textContent = '✓ Referral applied — original ticket price unlocked.'; msg.className = 'form-hint referral-message success'; }
+      await refreshReferralPricing();
+    } catch (e) {
+      referralApplied = false; appliedReferralCode = '';
+      if (msg) { msg.textContent = e.message || 'Invalid referral code.'; msg.className = 'form-hint referral-message error'; }
+      await refreshReferralPricing();
+    } finally { if (btn) { btn.disabled = false; btn.textContent = 'Apply'; } }
+  }
+
+  async function refreshReferralPricing() {
+    try {
+      const eventId = checkoutData.eventId || checkoutData.eventValue || '';
+      if (!eventId) return;
+      const r = await fetch('/api/events'); const payload = await r.json();
+      const events = (payload && payload.success && payload.events) || [];
+      const ev = events.find(function(item) { return String(item.id || '') === String(eventId); });
+      if (!ev) return;
+      const tier = String(checkoutData.ticketTier || 'regular').toLowerCase();
+      const originals = {regular:Number(ev.price||0),vip:Number(ev.vipPrice||0),vvip:Number(ev.vvipPrice||0),table:Number(ev.tablePrice||0)};
+      const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
+      const original = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonus = bonuses[tier] || 0;
+      renderCheckoutPrice(original, bonus);
+    } catch(e) {}
+  }
+
+  const referralInput = document.getElementById('referralCodeInput');
+  const applyReferralBtn = document.getElementById('applyReferralBtn');
+  if (applyReferralBtn) applyReferralBtn.addEventListener('click', applyReferralCode);
+  if (referralInput) referralInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyReferralCode(); } });
 
   function renderCouponTotal() {
     if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
@@ -900,7 +971,7 @@ const tier = getSelectedTier();
     const code=(couponInput&&couponInput.value||'').trim().toUpperCase();
     if(!code){ appliedCoupon=null; total=baseTotal; renderCouponTotal(); if(couponMessage)couponMessage.textContent='Enter a coupon code first.'; return; }
     applyCouponBtn.disabled=true; applyCouponBtn.textContent='Checking…';
-    fetch('/api/coupons/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,eventId:checkoutData.eventId||checkoutData.eventValue||'',ticketTier:checkoutData.ticketTier||'regular',qty:checkoutData.qty})})
+    fetch('/api/coupons/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,eventId:checkoutData.eventId||checkoutData.eventValue||'',ticketTier:checkoutData.ticketTier||'regular',qty:checkoutData.qty,referralCode:appliedReferralCode})})
       .then(r=>r.json().then(d=>({ok:r.ok,data:d}))).then(function(x){
         if(!x.ok||!x.data.success) throw new Error(x.data.error||'Invalid coupon');
         appliedCoupon=x.data.coupon; total=Number(x.data.total)||baseTotal; if(couponMessage) {couponMessage.textContent='✓ Coupon applied — saved ₦'+Number(appliedCoupon.amount||0).toLocaleString(); couponMessage.style.color='var(--accent)';} renderCouponTotal();
@@ -912,11 +983,11 @@ const tier = getSelectedTier();
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
   if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '\u2014';
 
-  // Pre-fill referral code from session/URL if available
+  // Pre-fill and automatically apply referral code from URL/session when present.
   const refInput = document.getElementById('referralCodeInput');
   if (refInput) {
-    const savedRef = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
-    if (savedRef) refInput.value = savedRef;
+    const savedRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
+    if (savedRef) { refInput.value = savedRef.toUpperCase(); setTimeout(function(){ applyReferralCode(); }, 50); }
   }
 
   if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
@@ -1047,7 +1118,7 @@ const tier = getSelectedTier();
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCodes : null);
+      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCodes : null, data && data.order ? Number(data.order.amount || 0) : 0);
     })
     .catch(function() {
       if (successCallback) successCallback(false, null);
@@ -1133,14 +1204,17 @@ email: email || 'customer@example.com',
     if (placeBtn) { placeBtn.disabled = true; placeBtn.textContent = 'Starting payment…'; }
 
     // 1) Create the pending order server-side FIRST
-    createOrderViaApi(orderId, total, function(success) {
+    createOrderViaApi(orderId, total, function(success, ticketCodes, serverAmount) {
       if (!success) {
         alert('Could not create your order. Please try again.');
         if (placeBtn) { placeBtn.disabled = false; placeBtn.textContent = '🛒 Place Order — ₦' + total.toLocaleString(); }
         return;
       }
       // 2) Open Flutterwave to pay for that exact order id
-      startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+      const paymentAmount = serverAmount > 0 ? serverAmount : total;
+      total = paymentAmount;
+      renderCouponTotal();
+      startFlutterwavePayment(orderId, eventName, qty, paymentAmount, name, email, phone);
       // Re-enable in case user closes modal
       setTimeout(function() {
         if (placeBtn) { placeBtn.disabled = false; placeBtn.textContent = '🛒 Place Order — ₦' + total.toLocaleString(); }

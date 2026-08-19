@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
   <!-- Flutterwave Inline Checkout -->
   <script src="https://checkout.flutterwave.com/v3.js"></script>
+
+<style>
+.referral-input-row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}.referral-input-row input{flex:1;min-width:0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-1);font-size:.92rem;outline:none;transition:border-color .2s,box-shadow .2s}.referral-input-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}.referral-input-row button{min-width:92px}.referral-message{margin-top:8px}.referral-message.success{color:var(--accent)!important}.referral-message.error{color:#b71c1c!important}.referral-price-note{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:.72em;color:var(--text-3)}@media(max-width:520px){.referral-input-row{flex-direction:column}.referral-input-row button{width:100%}}
+</style>
 </head>
 <body>
 
@@ -132,12 +136,15 @@
         </div>
 
         <!-- REFERRAL CODE INPUT -->
-        <div class="checkout-card reveal reveal-delay-2">
+        <div class="checkout-card reveal reveal-delay-2 referral-checkout-card">
           <h3 class="checkout-card-title">🎁 Referral Code</h3>
           <div class="form-group">
-            <label for="referralCodeInput">Referral code</label>
-            <input type="text" id="referralCodeInput" readonly aria-readonly="true" placeholder="Referral code (if provided)" style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface-2);color:var(--text-1);cursor:not-allowed;" />
-            <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">Referral codes are optional. If you arrived through a referral link, your code will appear here automatically.</p>
+            <label for="referralCodeInput">Have a referral code?</label>
+            <div class="referral-input-row">
+              <input type="text" id="referralCodeInput" placeholder="Enter referral code" autocomplete="off" maxlength="64" />
+              <button type="button" id="applyReferralBtn" class="admin-refresh-btn">Apply</button>
+            </div>
+            <p id="referralMessage" class="form-hint referral-message">Apply a valid referral code to use the original ticket price. Without one, your bonus price remains active.</p>
           </div>
         </div>
 
