@@ -952,7 +952,21 @@ const tier = getSelectedTier();
 
   const referralInput = document.getElementById('referralCodeInput');
   const applyReferralBtn = document.getElementById('applyReferralBtn');
+  const removeReferralBtn = document.getElementById('removeReferralBtn');
   if (applyReferralBtn) applyReferralBtn.addEventListener('click', applyReferralCode);
+  if (removeReferralBtn) removeReferralBtn.addEventListener('click', async function() {
+    referralApplied = false;
+    appliedReferralCode = '';
+    if (referralInput) referralInput.value = '';
+    try { sessionStorage.removeItem('referralCode'); } catch (e) {}
+    try { localStorage.removeItem('unn_referral_code'); } catch (e) {}
+    const msg = document.getElementById('referralMessage');
+    if (msg) {
+      msg.textContent = 'Referral removed. Your bonus price is active.';
+      msg.className = 'form-hint referral-message';
+    }
+    await refreshReferralPricing();
+  });
   if (referralInput) referralInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyReferralCode(); } });
 
   function renderCouponTotal() {
