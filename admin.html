@@ -2278,10 +2278,9 @@ fetch('/api/admin/events/notify', {
       window.deleteSubAdmin = function(email) {
         if (!email) return;
         if (!confirm('Remove sub-admin ' + email + '? They will no longer be able to sign in.')) return;
-        fetch('/api/admin/subadmins', {
+        fetch('/api/admin/subadmins?email=' + encodeURIComponent(email), {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-          body: JSON.stringify({ email: email })
+          headers: { 'Authorization': 'Bearer ' + getToken() }
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
