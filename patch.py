@@ -1,74 +1,49 @@
 from pathlib import Path
-p=Path('/mnt/data/unisocials_work')
+root=Path('/mnt/data/event_edit')
 
-s=(p/'server.js').read_text()
-s=s.replace("      if (authCtx.role === 'subadmin' && target.createdBy && target.createdBy !== authCtx.user.id) {\n        return sendJson(res,403,{success:false,error:'You can only archive accounts you created.'});\n      }", "      if (authCtx.role === 'subadmin' && target.role !== 'influencer' && target.createdBy && target.createdBy !== authCtx.user.id) {\n        return sendJson(res,403,{success:false,error:'You can only archive accounts you created.'});\n      }")
-(p/'server.js').write_text(s)
-
-# Replace subadmin event loader fetch and influencer renderer.
-f=p/'subadmin.html'; s=f.read_text()
-s=s.replace("fetch('/api/events', {\n          headers: authHeaders()\n        })", "fetch('/api/events?includeArchived=1', {\n          headers: authHeaders()\n        })", 1)
-old="""          var html='';\n          list.forEach(function(u){var st=u.referralStats||{}; html+='<div style=\"padding:14px 0;border-bottom:1px solid var(--border);\"><div style=\"font-weight:700;color:var(--text-1);\">'+esc(u.name||u.email||'Influencer')+'</div><div style=\"font-size:.78rem;color:var(--text-3);margin-top:3px;\">'+esc(u.email||'')+'</div><div style=\"display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;\"><span class=\"admin-ticket-code\">Code: '+esc(u.referralCode||'—')+'</span><span style=\"font-size:.75rem;color:var(--text-3);\">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style=\"font-size:.75rem;color:var(--text-3);\">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style=\"font-size:.75rem;color:var(--text-3);\">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style=\"font-size:.75rem;color:var(--text-3);\">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div>';});\n          container.innerHTML=html;"""
-new="""          var html='';\n          list.forEach(function(u){var st=u.referralStats||{}, archived=!!u.archived; html+='<div class=\"admin-ticket-code\" data-account-email=\"'+esc(u.email||'')+'\" style=\"padding:14px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:10px;\"><div><div style=\"font-weight:700;color:var(--text-1);\">'+esc(u.name||u.email||'Influencer')+' '+(archived?'<span style=\"font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;\">ARCHIVED</span>':'')+'</div><div style=\"font-size:.78rem;color:var(--text-3);margin-top:3px;\">'+esc(u.email||'')+'</div><div style=\"display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;\"><span class=\"admin-ticket-code\">Code: '+esc(u.referralCode||'—')+'</span><span style=\"font-size:.75rem;color:var(--text-3);\">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style=\"font-size:.75rem;color:var(--text-3);\">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style=\"font-size:.75rem;color:var(--text-3);\">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style=\"font-size:.75rem;color:var(--text-3);\">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div><div><button type=\"button\" class=\"admin-ticket-copy\" data-account-toggle=\"1\" data-email=\"'+esc(u.email||'')+'\" data-archived=\"'+(archived?'1':'0')+'\">'+(archived?'📦':'🗃️')+'</button></div></div>';});\n          container.innerHTML=html;\n          container.querySelectorAll('[data-account-toggle]').forEach(function(btn){\n            var archived=btn.getAttribute('data-archived')==='1'; btn.title=archived?'Unarchive influencer':'Archive influencer';\n            btn.addEventListener('click',function(){ var email=btn.getAttribute('data-email')||''; if(!email)return; if(!confirm((archived?'Unarchive':'Archive')+' influencer '+email+'?'))return; fetch('/api/admin/accounts/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({email:email,archived:!archived})}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast(archived?'Influencer unarchived':'Influencer archived');loadAllInfluencers();}else showToast((d&&d.error)||'Could not change influencer status',true);}).catch(function(){showToast('Network error changing influencer status',true);}); });\n          });"""
-if old not in s: raise SystemExit('subadmin influencer block not found')
-s=s.replace(old,new)
-# Add archive button directly to event renderer and show archived state.
-old2="""                '<strong>' + esc(ev.name) + '</strong>' +\n                '<span style=\"font-size:0.75rem;color:var(--text-3);\">' + esc(ev.category) + '</span>' +"""
-new2="""                '<strong>' + esc(ev.name) + '</strong>' +\n                (ev.archived ? '<span style=\"font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;\">ARCHIVED</span>' : '') +\n                '<span style=\"font-size:0.75rem;color:var(--text-3);\">' + esc(ev.category) + '</span>' +"""
-s=s.replace(old2,new2,1)
-old3="""                '<button type=\"button\" class=\"admin-ticket-copy\" onclick=\"editManagedEvent('\\' + esc(id) + '\\')\" title=\"Edit event\">✏️</button>' +"""
-# exact source has escaped JS quotes; use simpler literal replacement
-needle="'<button type=\"button\" class=\"admin-ticket-copy\" onclick=\"editManagedEvent(\\\'' + esc(id) + '\\\')\" title=\"Edit event\">✏️</button>' +"
-if needle not in s:
-    # locate line and replace using split
-    target="                '<button type=\"button\" class=\"admin-ticket-copy\" onclick=\"editManagedEvent(\\\'' + esc(id) + '\\\')\" title=\"Edit event\">✏️</button>' +"
-    if target not in s: raise SystemExit('subadmin event button not found')
-else: target=needle
-replacement=target+"\n                '<button type=\"button\" class=\"admin-ticket-copy\" data-event-toggle=\"1\" data-event-id=\"' + esc(id) + '\" data-archived=\"' + (ev.archived ? '1' : '0') + '\" title=\"' + (ev.archived ? 'Unarchive event' : 'Archive event') + '\">' + (ev.archived ? '📦' : '🗃️') + '</button>' +"
-s=s.replace(target,replacement,1)
-# Add event handler after container.innerHTML in loader.
-needle="            container.innerHTML = html;\n          })\n          .catch(function(err) {"
-repl="""            container.innerHTML = html;\n            container.querySelectorAll('[data-event-toggle]').forEach(function(btn){\n              btn.addEventListener('click',function(){ var eventId=btn.getAttribute('data-event-id')||'', archived=btn.getAttribute('data-archived')==='1'; if(!eventId)return; if(!confirm((archived?'Unarchive':'Archive')+' this event?'))return; fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived})}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}else showToast((d&&d.error)||'Could not change event status',true);}).catch(function(){showToast('Network error changing event status',true);}); });\n            });\n          })\n          .catch(function(err) {"""
-s=s.replace(needle,repl,1)
-# Disable old archive-controls UI by making it a no-op (avoids duplicate buttons)
-start=s.find('<script id="archive-controls-ui">')
-if start!=-1:
-    end=s.find('</script>',start)+len('</script>')
-    s=s[:start]+'<script id="archive-controls-ui"><!-- archive controls are rendered directly by the managers above --></script>'+s[end:]
-f.write_text(s)
-
-# Admin: render archive state and direct buttons for events/accounts, remove mutation script.
-f=p/'admin.html'; s=f.read_text()
-# Event archived badge + toggle button
-s=s.replace("                '<strong>' + esc(ev.name) + '</strong>' +", "                '<strong>' + esc(ev.name) + '</strong>' +\n                (ev.archived ? '<span style=\"font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;\">ARCHIVED</span>' : '') +",1)
-needle="                '<button class=\"admin-ticket-copy\" onclick=\"notifySubscribers(\\'" 
-# Instead use exact line around notify
-line="                '<button class=\"admin-ticket-copy\" onclick=\"notifySubscribers(\\\'' + esc(id) + '\\\', this)\" title=\"Email subscribers about this event\">📧</button>' +"
-if line not in s: raise SystemExit('admin notify line not found')
-s=s.replace(line, line+"\n                '<button type=\"button\" class=\"admin-ticket-copy\" data-event-toggle=\"1\" data-event-id=\"' + esc(id) + '\" data-archived=\"' + (ev.archived ? '1' : '0') + '\" title=\"' + (ev.archived ? 'Unarchive event' : 'Archive event') + '\">' + (ev.archived ? '📦' : '🗃️') + '</button>' +",1)
-# Account render additions
-s=s.replace("var html = '<div class=\"admin-ticket-codes-label\">🔑 Active Sub-Admins (' + subs.length + ')</div>';", "var html = '<div class=\"admin-ticket-codes-label\">🔑 Sub-Admins (' + subs.length + ')</div>';",1)
-s=s.replace("'<strong>' + esc(u.name || '—') + '</strong>' +", "'<strong>' + esc(u.name || '—') + '</strong>' + (u.archived ? '<span style=\"font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;\">ARCHIVED</span>' : '') +",1)
-# Add subadmin toggle before closing action div via exact snippet
-old="'<div style=\"display:flex;gap:6px;align-items:flex-start;\"><button class=\"admin-ticket-copy\" onclick=\"resetManagedPassword(\\\'' + esc(u.email || id) + '\\\')\" title=\"Reset password\">🔑</button><button class=\"admin-ticket-copy\" onclick=\"deleteSubAdmin(\\\'' + esc(u.email || id) + '\\\')\" title=\"Remove sub-admin\" style=\"color:#B71C1C;border-color:#F5C6CB;\">✕</button></div>' +"
-if old not in s: raise SystemExit('subadmin action line not found')
-s=s.replace(old, old.replace('</button></div>', '</button><button type=\"button\" class=\"admin-ticket-copy\" data-account-toggle=\"1\" data-email=\"\' + esc(u.email || id) + \'\" data-archived=\"\' + (u.archived ? \'1\' : \'0\') + \'\" title=\"\' + (u.archived ? \'Unarchive account\' : \'Archive account\') + \'\">\' + (u.archived ? \'📦\' : \'🗃️\') + \'</button></div>'))
-# Influencer badge + toggle
-s=s.replace("var html = '<div class=\"admin-ticket-codes-label\">📣 Active Influencers (' + list.length + ')</div>';", "var html = '<div class=\"admin-ticket-codes-label\">📣 Influencers (' + list.length + ')</div>';",1)
-s=s.replace("'<div style=\"display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;\"><span>📣</span><strong>' + esc(u.name || '—') + '</strong>'", "'<div style=\"display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;\"><span>📣</span><strong>' + esc(u.name || '—') + '</strong>' + (u.archived ? '<span style=\"font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;\">ARCHIVED</span>' : '')",1)
-old="'<div style=\"display:flex;gap:6px;align-items:flex-start;\"><button class=\"admin-ticket-copy\" onclick=\"resetManagedPassword(\\\'' + esc(u.email || '') + '\\\')\" title=\"Reset password\">🔑</button><button class=\"admin-ticket-copy\" onclick=\"deleteInfluencer(\\\'' + esc(u.email || '') + '\\\')\" title=\"Remove influencer\" style=\"color:#B71C1C;border-color:#F5C6CB;\">✕</button></div></div>';"
-if old not in s: raise SystemExit('influencer action line not found')
-s=s.replace(old, old.replace('</button></div></div>','</button><button type=\"button\" class=\"admin-ticket-copy\" data-account-toggle=\"1\" data-email=\"\' + esc(u.email || \'\') + \'\" data-archived=\"\' + (u.archived ? \'1\' : \'0\') + \'\" title=\"\' + (u.archived ? \'Unarchive influencer\' : \'Archive influencer\') + \'\">\' + (u.archived ? \'📦\' : \'🗃️\') + \'</button></div></div>'))
-# Staff badge + toggle
-s=s.replace("var html='<div class=\"admin-ticket-codes-label\">👥 Active Accounts</div>';", "var html='<div class=\"admin-ticket-codes-label\">👥 Staff Accounts</div>';",1)
-s=s.replace("'<div style=\"display:flex;flex-direction:column;gap:4px;\"><div><strong>'+esc(u.name||'—')+'</strong>", "'<div style=\"display:flex;flex-direction:column;gap:4px;\"><div><strong>'+esc(u.name||'—')+'</strong>'+(u.archived?'<span style=\"font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;margin-left:6px;\">ARCHIVED</span>':'')",1)
-old="'<div style=\"display:flex;gap:6px;align-items:flex-start;\"><button class=\"admin-ticket-copy\" onclick=\"resetManagedPassword(\\\''+esc(u.email||'')+'\\\')\" title=\"Reset password\">🔑</button><button class=\"admin-ticket-copy\" onclick=\"deleteStaffAccount(\\\''+esc(u.email||'')+'\\\')\" title=\"Remove account\" style=\"color:#B71C1C;border-color:#F5C6CB;\">✕</button></div></div>';"
-if old not in s: raise SystemExit('staff action line not found')
-s=s.replace(old, old.replace('</button></div></div>','</button><button type=\"button\" class=\"admin-ticket-copy\" data-account-toggle=\"1\" data-email=\"\' + esc(u.email || \'\') + \'\" data-archived=\"\' + (u.archived ? \'1\' : \'0\') + \'\" title=\"\' + (u.archived ? \'Unarchive account\' : \'Archive account\') + \'\">\' + (u.archived ? \'📦\' : \'🗃️\') + \'</button></div></div>'))
-# Replace old archive UI script with direct event/account handler.
-start=s.find('<script id="archive-controls-ui">')
-if start!=-1:
-    end=s.find('</script>',start)+len('</script>')
-    script="""<script id=\"archive-controls-ui\">\n(function(){\n  function token(){return typeof getToken==='function'?getToken():'';}\n  function headers(){return {'Content-Type':'application/json','Authorization':'Bearer '+token()};}\n  function bind(){\n    document.querySelectorAll('[data-event-toggle]:not([data-bound])').forEach(function(btn){btn.setAttribute('data-bound','1');btn.addEventListener('click',function(){var id=btn.getAttribute('data-event-id')||'', archived=btn.getAttribute('data-archived')==='1';if(!id)return;if(!confirm((archived?'Unarchive':'Archive')+' this event?'))return;fetch('/api/admin/events/archive',{method:'POST',headers:headers(),body:JSON.stringify({eventId:id,archived:!archived})}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}else showToast((d&&d.error)||'Could not change event status',true);}).catch(function(){showToast('Network error changing event status',true);});});});\n    document.querySelectorAll('[data-account-toggle]:not([data-bound])').forEach(function(btn){btn.setAttribute('data-bound','1');btn.addEventListener('click',function(){var email=btn.getAttribute('data-email')||'',archived=btn.getAttribute('data-archived')==='1';if(!email)return;if(!confirm((archived?'Unarchive':'Archive')+' '+email+'?'))return;fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:!archived})}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast(archived?'Account unarchived':'Account archived');loadSubAdmins();loadStaffAccounts();loadInfluencers();}else showToast((d&&d.error)||'Could not change account status',true);}).catch(function(){showToast('Network error changing account status',true);});});});\n  }\n  new MutationObserver(bind).observe(document.body,{subtree:true,childList:true});setTimeout(bind,300);\n})();\n</script>"""
-    s=s[:start]+script+s[end:]
-f.write_text(s)
+for fn in ['admin.html','subadmin.html']:
+    p=root/fn; s=p.read_text()
+    # button labels
+    s=s.replace('onclick="addEventItem()">➕ Add Event</button>', 'onclick="addEventItem()" id="eventSubmitBtn">➕ Add Event</button>', 1)
+    marker='<button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>'
+    replacement=marker+'\n              <button type="button" class="admin-refresh-btn" id="eventCancelEditBtn" onclick="cancelEditEvent()" style="display:none;">✕ Cancel Edit</button>'
+    s=s.replace(marker,replacement,1)
+    # Add edit button to event rows. For admin, before notify; for subadmin, before closing action area.
+    if fn=='admin.html':
+        old='<button class="admin-ticket-copy" onclick="notifySubscribers(\'\\\' + esc(id) + \'\\\', this)" title="Email subscribers about this event">📧</button>'
+        # Easier exact substring
+        target='<button class="admin-ticket-copy" onclick="notifySubscribers(\' + esc(id) + \' , this)"'
+        # use direct literal search around known source
+        needle="<button class=\"admin-ticket-copy\" onclick=\"notifySubscribers(\\\'\" + esc(id) + \"\\\', this)\" title=\"Email subscribers about this event\">📧</button>"
+        if needle in s:
+            s=s.replace(needle, '<button class="admin-ticket-copy" onclick="editManagedEvent(\\\'" + esc(id) + "\\\')" title="Edit event">✏️</button>'+' +\n                '+needle,1)
+        else:
+            # locate by simple text and insert before notify button line
+            idx=s.find("onclick=\"notifySubscribers")
+            if idx!=-1:
+                line_start=s.rfind('<button',0,idx)
+                ins='<button class="admin-ticket-copy" onclick="editManagedEvent(\\\'" + esc(id) + "\\\')" title="Edit event">✏️</button>'
+                s=s[:line_start]+ins+' +\n                '+s[line_start:]
+    else:
+        # subadmin has no action div currently; add one after university span before row close
+        needle="'<span style=\"font-size:0.75rem;color:var(--text-3);\">' + esc(ev.universityName || '') + '</span>' +\n                '</div>' +\n                '</div>';"
+        if needle in s:
+            repl="'<span style=\"font-size:0.75rem;color:var(--text-3);\">' + esc(ev.universityName || '') + '</span>' +\n                '</div>' +\n                '<div style=\"display:flex;gap:6px;align-items:center;\">' +\n                '<button type=\"button\" class=\"admin-ticket-copy\" onclick=\"editManagedEvent(\\\'" + esc(id) + "\\\')\" title=\"Edit event\">✏️</button>' +\n                '</div>' +\n                '</div>';"
+            s=s.replace(needle,repl,1)
+        else:
+            print('subadmin needle not found')
+    # Insert editing state/helper immediately before window.addEventItem
+    add_marker='      window.addEventItem = function() {'
+    if add_marker not in s: print('missing add marker',fn); continue
+    helper='''      var editingEventId = '';\n\n      window.cancelEditEvent = function() {\n        editingEventId = '';\n        var btn = document.getElementById('eventSubmitBtn');\n        if (btn) btn.textContent = '➕ Add Event';\n        var cancel = document.getElementById('eventCancelEditBtn');\n        if (cancel) cancel.style.display = 'none';\n        ['evName','evPrice','evVIPPrice','evVVIPPrice','evTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });\n        var uni = document.getElementById('evUniversity'); if (uni) uni.value='';\n        if (typeof updateUniCategories === 'function') updateUniCategories();\n        if (typeof clearEventImage === 'function') clearEventImage();\n      };\n\n      window.editManagedEvent = function(eventId) {\n        if (!eventId) return;\n        fetch('/api/events', { headers: authHeaders() })\n          .then(function(r){ return r.json(); })\n          .then(function(data){\n            var events=(data && data.success && data.events)||[];\n            var ev=events.find(function(x){ return String(x.id||x._id||'')===String(eventId); });\n            if (!ev) { showToast('Event not found.', true); return; }\n            editingEventId=String(ev.id||eventId);\n            var set=function(id,val){var e=document.getElementById(id);if(e)e.value=(val==null?'':val);};\n            set('evName',ev.name); set('evPrice',ev.price); set('evVIPPrice',ev.vipPrice); set('evVVIPPrice',ev.vvipPrice); set('evTablePrice',ev.tablePrice);\n            set('evDate',ev.date); set('evTime',ev.time); set('evVenue',ev.venue); set('evDesc',ev.description);\n            set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);\n            set('evIncludedRegular',ev.includedRegular); set('evIncludedVip',ev.includedVip); set('evIncludedVVIP',ev.includedVVIP); set('evIncludedTable',ev.includedTable);\n            var uni=document.getElementById('evUniversity');\n            if (uni) { uni.value=ev.universityId||''; if (typeof updateUniCategories==='function') updateUniCategories(); var cat=document.getElementById('evCategory'); if(cat) cat.value=ev.category||'General'; }\n            selectedEventImage=ev.image||''; if (typeof setEventImagePreview==='function') setEventImagePreview(selectedEventImage);\n            var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='💾 Save Event Changes';\n            var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='inline-flex';\n            var panel=document.getElementById('panel-events'); if(panel) panel.scrollIntoView({behavior:'smooth',block:'start'});\n            showToast('Editing “'+(ev.name||'event')+'”. Update the fields and save.');\n          })\n          .catch(function(){ showToast('Could not load that event.', true); });\n      };\n\n'''
+    s=s.replace(add_marker,helper+add_marker,1)
+    # Add id to event object in addEventItem after opening object
+    # Need target exact `var ev = {` or `var ev={`
+    if fn=='admin.html':
+        s=s.replace('var ev = {\n          name: name,', "var ev = {\n          id: editingEventId || undefined,\n          name: name,",1)
+    else:
+        s=s.replace('var ev = {\n          name: name,', "var ev = {\n          id: editingEventId || undefined,\n          name: name,",1)
+    # On successful save, replace clear/refresh area to cancel edit first
+    s=s.replace("clearEventImage();\n            loadManagedEvents();", "clearEventImage();\n            cancelEditEvent();\n            loadManagedEvents();",1)
+    s=s.replace("clearEventImage();\n            // Refresh event list", "clearEventImage();\n            cancelEditEvent();\n            // Refresh event list",1)
+    p.write_text(s)

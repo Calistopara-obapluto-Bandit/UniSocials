@@ -1064,25 +1064,8 @@ resultBox.className = 'admin-scan-result show';
           if(count) count.textContent=list.length+' influencer'+(list.length!==1?'s':'');
           if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;color:var(--text-3);">No influencers have been created yet.</div>';return;}
           var html='';
-          list.forEach(function(u){
-            var st=u.referralStats||{}, archived=!!u.archived;
-            html+='<div class="admin-ticket-code" data-account-email="'+esc(u.email||'')+'" style="padding:14px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:10px;">'
-              +'<div><div style="font-weight:700;color:var(--text-1);">'+esc(u.name||u.email||'Influencer')+(archived?' <span style="font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;">ARCHIVED</span>':'')+'</div>'
-              +'<div style="font-size:.78rem;color:var(--text-3);margin-top:3px;">'+esc(u.email||'')+'</div>'
-              +'<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;"><span class="admin-ticket-code">Code: '+esc(u.referralCode||'—')+'</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style="font-size:.75rem;color:var(--text-3);">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div>'
-              +'<div><button type="button" class="admin-ticket-copy" data-account-toggle="1" data-email="'+esc(u.email||'')+'" data-archived="'+(archived?'1':'0')+'" title="'+(archived?'Unarchive influencer':'Archive influencer')+'">'+(archived?'📦':'🗃️')+'</button></div></div>';
-          });
+          list.forEach(function(u){var st=u.referralStats||{}; html+='<div style="padding:14px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;color:var(--text-1);">'+esc(u.name||u.email||'Influencer')+'</div><div style="font-size:.78rem;color:var(--text-3);margin-top:3px;">'+esc(u.email||'')+'</div><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;"><span class="admin-ticket-code">Code: '+esc(u.referralCode||'—')+'</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style="font-size:.75rem;color:var(--text-3);">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div>';});
           container.innerHTML=html;
-          container.querySelectorAll('[data-account-toggle]').forEach(function(btn){
-            btn.addEventListener('click',function(){
-              var email=btn.getAttribute('data-email')||'', archived=btn.getAttribute('data-archived')==='1';
-              if(!email)return;
-              if(!confirm((archived?'Unarchive':'Archive')+' influencer '+email+'?'))return;
-              fetch('/api/admin/accounts/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({email:email,archived:!archived})})
-                .then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast(archived?'Influencer unarchived':'Influencer archived');loadAllInfluencers();}else showToast((d&&d.error)||'Could not change influencer status',true);})
-                .catch(function(){showToast('Network error changing influencer status',true);});
-            });
-          });
         }).catch(function(err){container.innerHTML='<div style="text-align:center;padding:20px;color:#e57373;">'+esc(err.message||'Unable to load influencers')+'</div>';});
       };
 
@@ -1117,7 +1100,7 @@ resultBox.className = 'admin-scan-result show';
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
-                (ev.archived ? '<span style="font-size:.68rem;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;">ARCHIVED</span>' : '') +
+                (ev.archived === true ? '<span style="font-size:0.72rem;font-weight:800;color:#ff9b9b;border:1px solid rgba(255,90,90,.3);padding:3px 7px;border-radius:999px;">ARCHIVED</span>' : '') +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
                 vipHtml +
@@ -1127,14 +1110,10 @@ resultBox.className = 'admin-scan-result show';
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
-                '<button type="button" class="admin-ticket-copy" data-event-toggle="1" data-event-id="' + esc(id) + '" data-archived="' + (ev.archived ? '1' : '0') + '" title="' + (ev.archived ? 'Unarchive event' : 'Archive event') + '">' + (ev.archived ? '📦' : '🗃️') + '</button>' +
                 '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
-            container.querySelectorAll('[data-event-toggle]').forEach(function(btn){
-              btn.addEventListener('click',function(){ var eventId=btn.getAttribute('data-event-id')||'', archived=btn.getAttribute('data-archived')==='1'; if(!eventId)return; if(!confirm((archived?'Unarchive':'Archive')+' this event?'))return; fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived})}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}else showToast((d&&d.error)||'Could not change event status',true);}).catch(function(){showToast('Network error changing event status',true);}); });
-            });
           })
           .catch(function(err) {
             console.error('Error loading events:', err);
@@ -1509,7 +1488,54 @@ resultBox.className = 'admin-scan-result show';
       }
     })();
   </script>
-<script id="archive-controls-ui"><!-- archive controls are rendered directly by the managers --></script>
+<script id="archive-controls-ui">
+(function(){
+  function token(){ return typeof getSubToken==='function' ? getSubToken() : ''; }
+  function headers(){ return {'Content-Type':'application/json','Authorization':'Bearer '+token()}; }
+  function addBtn(parent, label, title, handler){
+    if(!parent || parent.querySelector('[data-archive-control]')) return;
+    var b=document.createElement('button'); b.type='button'; b.className='admin-ticket-copy'; b.setAttribute('data-archive-control','1'); b.title=title; b.textContent=label; b.addEventListener('click',handler); parent.insertBefore(b,parent.firstChild); return b;
+  }
+  function scan(){
+    document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
+      var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
+      var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
+      var eventId=m[1], action=card.lastElementChild||card;
+      addBtn(action,'🗃️','Archive event',function(){
+        if(!confirm('Archive this event?')) return;
+        fetch('/api/admin/events/archive',{method:'POST',headers:headers(),body:JSON.stringify({eventId:eventId,archived:true})})
+          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive event',true);});
+      });
+    });
+    document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code').forEach(function(card){
+      var del=card.querySelector('[onclick*="deleteSubAdmin"],[onclick*="deleteStaffAccount"],[onclick*="deleteInfluencer"]'); if(!del) return;
+      var m=(del.getAttribute('onclick')||'').match(/\((?:'|")([^'"]+)(?:'|")\)/); if(!m) return;
+      var email=m[1], action=del.parentElement||card;
+      addBtn(action,'🗃️','Archive account',function(){
+        if(!confirm('Archive '+email+'? The account will no longer be usable.')) return;
+        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:true})})
+          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Account archived');if(typeof loadSubAdmins==='function')loadSubAdmins();if(typeof loadStaffAccounts==='function')loadStaffAccounts();if(typeof loadInfluencers==='function')loadInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive account',true);});
+      });
+    });
+  }
+  function refreshArchiveState(){
+    fetch('/api/events?includeArchived=1').then(function(r){return r.json();}).then(function(d){
+      var map={}; (d.events||[]).forEach(function(e){map[String(e.id)]=!!e.archived;});
+      document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
+        var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
+        var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
+        var b=card.querySelector('[data-archive-control]'); if(!b) return;
+        var archived=!!map[m[1]]; b.textContent=archived?'📦':'🗃️'; b.title=archived?'Unarchive event':'Archive event';
+        b.onclick=function(){
+          if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
+          fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':token()?'Bearer '+token():''},body:JSON.stringify({eventId:m[1],archived:!archived})}).then(function(r){return r.json();}).then(function(x){if(x&&x.success){if(typeof showToast==='function')showToast(archived?'Event unarchived':'Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((x&&x.error)||'Could not change event status',true);});
+        };
+      });
+    }).catch(function(){});
+  }
+    new MutationObserver(scan).observe(document.body,{subtree:true,childList:true}); setTimeout(scan,500); setTimeout(scan,1500); setTimeout(refreshArchiveState,900); setInterval(refreshArchiveState,4000);
+})();
+</script>
 
 </body>
 </html>

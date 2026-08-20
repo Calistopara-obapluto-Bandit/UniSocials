@@ -1627,8 +1627,10 @@ const user = {
 
     // ── Admin (master only): list influencer accounts ──
     if (pathname === '/api/admin/influencers' && req.method === 'GET') {
-      const authCtx = await isAdminOrInfluencerAdmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      }
       const users = await readUsers();
       const links = await readReferralLinks();
       const orders = await readOrders();
@@ -1797,7 +1799,7 @@ const user = {
       if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
         return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
       }
-      if (authCtx.role === 'subadmin' && target.role !== 'influencer' && target.createdBy && target.createdBy !== authCtx.user.id) {
+      if (authCtx.role === 'subadmin' && target.createdBy && target.createdBy !== authCtx.user.id) {
         return sendJson(res,403,{success:false,error:'You can only archive accounts you created.'});
       }
       const users = await readUsers();
@@ -2076,6 +2078,9 @@ function getTierInventory(event, tier, orders) {
         const eventCatalog = await readEvents();
         const eventRecord = eventCatalog.find(e => String(e.id) === eventId);
         if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+        if (eventRecord.archived === true) {
+          return sendJson(res, 409, { success: false, error: 'This event has been archived and is no longer available for purchase.' });
+        }
         const ordersForInventory = await readOrders();
         const inv = getTierInventory(eventRecord, ticketTier, ordersForInventory);
         if (inv.total > 0 && Number(qty) > inv.remaining) {
