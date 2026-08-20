@@ -361,6 +361,36 @@
 .admin-panel{min-width:0;overflow-x:hidden;}
 @media(max-width:540px){.admin-tabs-inner{padding-left:10px;padding-right:10px;}.admin-tab{white-space:nowrap;flex:0 0 auto;}.admin-login-card{padding:28px 18px;}.admin-dash{padding-top:22px;}.admin-panel-heading{align-items:flex-start;}.admin-panel-heading h1{font-size:1.15rem;}.admin-panel-heading p{font-size:.78rem;}}
 </style>
+<style id="subadmin-mobile-responsive-fix">
+@media (max-width: 700px){
+  .admin-dash{padding-left:12px!important;padding-right:12px!important;}
+  .admin-panel{min-width:0!important;overflow:hidden;}
+  .admin-panel-heading{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:8px!important;}
+  .admin-panel-heading h1{font-size:1.15rem!important;line-height:1.25!important;word-break:break-word;}
+  .admin-panel-heading p{max-width:100%!important;line-height:1.5!important;}
+  .admin-toolbar,.admin-form-actions{display:flex!important;flex-wrap:wrap!important;width:100%!important;gap:8px!important;}
+  .admin-toolbar>*{max-width:100%!important;}
+  .admin-event-row{grid-template-columns:minmax(0,1fr)!important;}
+  .admin-event-main{min-width:0!important;width:100%!important;}
+  .admin-event-main strong{min-width:0!important;max-width:100%!important;overflow-wrap:anywhere!important;word-break:break-word!important;}
+  .admin-event-actions{width:100%!important;justify-content:flex-start!important;flex-wrap:wrap!important;}
+  .admin-event-actions button{min-width:42px!important;min-height:40px!important;}
+  .admin-tabs-inner{overflow-x:auto!important;white-space:nowrap!important;-webkit-overflow-scrolling:touch!important;}
+  .admin-tab{flex:0 0 auto!important;white-space:nowrap!important;}
+  .analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+  .analytics-day{grid-template-columns:64px minmax(0,1fr) 48px!important;}
+  input,select,textarea,.btn-submit,.admin-refresh-btn{max-width:100%!important;}
+}
+@media (max-width: 420px){
+  .analytics-grid{grid-template-columns:1fr!important;}
+  .admin-dash{padding-left:8px!important;padding-right:8px!important;}
+  .admin-panel{padding:14px!important;}
+  .admin-panel-heading h1{font-size:1.05rem!important;}
+  .admin-event-main{gap:6px!important;}
+  .admin-event-actions{justify-content:stretch!important;}
+  .admin-event-actions button{flex:1 1 42px!important;}
+}
+</style>
 </head>
 <body>
 
@@ -1173,7 +1203,7 @@ resultBox.className = 'admin-scan-result show';
                 '</div>' +
                 '<div class="admin-event-actions">' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
-                '<button type="button" class="admin-ticket-copy admin-archive-btn" onclick="toggleManagedEventArchive(\'" + esc(id) + "\'," + (ev.archived === true) + ",this)" title="Archive / Unarchive event">🗃️</button>' +
+                '<button type="button" class="admin-ticket-copy admin-archive-btn" data-event-id="' + esc(id) + '" data-archived="' + (ev.archived === true ? '1' : '0') + '" title="Archive / Unarchive event">🗃️</button>' +
                 '</div>' +
                 '</div>';
             });
@@ -1552,6 +1582,18 @@ resultBox.className = 'admin-scan-result show';
       }
     })();
   </script>
+<script id="archive-delegated-control">
+(function(){
+  document.addEventListener('click', function(e){
+    var b=e.target.closest && e.target.closest('.admin-archive-btn[data-event-id]');
+    if(!b) return;
+    e.preventDefault();
+    var id=b.getAttribute('data-event-id');
+    var archived=b.getAttribute('data-archived')==='1';
+    if(typeof window.toggleManagedEventArchive==='function') window.toggleManagedEventArchive(id, archived, b);
+  });
+})();
+</script>
 <script id="archive-direct-control">
 (function(){
   window.toggleManagedEventArchive = function(eventId, currentlyArchived, btn){

@@ -1721,7 +1721,7 @@ fetch('/api/ticket/scan', {
                 '</div>' +
                 '<div class="admin-event-actions">' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
-                '<button type="button" class="admin-ticket-copy admin-archive-btn" onclick="toggleManagedEventArchive(\'" + esc(id) + "\'," + (ev.archived === true) + ",this)" title="Archive / Unarchive event">🗃️</button>' +
+                '<button type="button" class="admin-ticket-copy admin-archive-btn" data-event-id="' + esc(id) + '" data-archived="' + (ev.archived === true ? '1' : '0') + '" title="Archive / Unarchive event">🗃️</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
@@ -2547,6 +2547,18 @@ fetch('/api/admin/events/notify', {
       }
     })();
   </script>
+<script id="archive-delegated-control">
+(function(){
+  document.addEventListener('click', function(e){
+    var b=e.target.closest && e.target.closest('.admin-archive-btn[data-event-id]');
+    if(!b) return;
+    e.preventDefault();
+    var id=b.getAttribute('data-event-id');
+    var archived=b.getAttribute('data-archived')==='1';
+    if(typeof window.toggleManagedEventArchive==='function') window.toggleManagedEventArchive(id, archived, b);
+  });
+})();
+</script>
 <script id="archive-direct-control">
 (function(){
   window.toggleManagedEventArchive = function(eventId, currentlyArchived, btn){
