@@ -653,45 +653,6 @@
       text-align: center;
     }
   </style>
-
-<style id="event-management-responsive">
-  .admin-event-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
-  .admin-event-main{display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;min-width:0;}
-  .admin-event-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
-  .admin-event-actions .admin-ticket-copy{flex:0 0 auto;}
-  .admin-archive-btn{font-weight:800;}
-  @media(max-width:700px){
-    .admin-event-row{grid-template-columns:1fr;gap:8px;padding:12px 0;}
-    .admin-event-main{gap:7px 9px;}
-    .admin-event-actions{justify-content:flex-start;width:100%;}
-    .admin-event-actions .admin-ticket-copy{width:34px;height:34px;}
-    .admin-event-main strong{max-width:100%;overflow-wrap:anywhere;}
-    .admin-ticket-codes{overflow:hidden;}
-  }
-  @media(max-width:420px){
-    .admin-event-main{display:grid;grid-template-columns:46px minmax(0,1fr);align-items:center;}
-    .admin-event-main > span:not(:first-child),.admin-event-main > strong{grid-column:2;}
-    .admin-event-actions .admin-ticket-copy{width:36px;height:36px;}
-  }
-</style>
-
-
-<style id="small-screen-layout-fix">
-.admin-tabs-inner{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
-.admin-tabs-inner::-webkit-scrollbar{display:none;}
-.admin-topbar-inner,.admin-panel-heading{min-width:0;}
-.admin-panel{min-width:0;overflow-x:hidden;}
-@media(max-width:540px){.admin-tabs-inner{padding-left:10px;padding-right:10px;}.admin-tab{white-space:nowrap;flex:0 0 auto;}.admin-login-card{padding:28px 18px;}.admin-dash{padding-top:22px;}.admin-panel-heading{align-items:flex-start;}.admin-panel-heading h1{font-size:1.15rem;}.admin-panel-heading p{font-size:.78rem;}}
-</style>
-
-    <!-- Microsoft Clarity -->
-    <script type="text/javascript">
-        (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-        })(window, document, "clarity", "script", "y4hhcy2o3a");
-    </script>
 </head>
 <body>
 
@@ -849,7 +810,7 @@
         </div>
 
         <!-- ── COUPONS PANEL ── -->
-<div class="admin-panel" id="panel-coupons">
+        <div class="admin-panel" id="panel-coupons">
           <div class="admin-panel-heading">
             <div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons. Example: ₦4,000 ticket − ₦400 coupon = ₦3,600 to pay.</p></div>
             <button type="button" class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button>
@@ -1661,7 +1622,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events?includeArchived=1',{headers:authHeaders()})
+        fetch('/api/events?includeArchived=1')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
@@ -1683,8 +1644,8 @@ fetch('/api/ticket/scan', {
               var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
               var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
               var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
-              html += '<div class="admin-ticket-code admin-event-row">' +
-                '<div class="admin-event-main">' +
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
@@ -1695,9 +1656,8 @@ fetch('/api/ticket/scan', {
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
-                '<div class="admin-event-actions">' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
-                '<button type="button" class="admin-ticket-copy admin-archive-btn" data-event-id="' + esc(id) + '" data-archived="' + (ev.archived === true ? '1' : '0') + '" title="Archive / Unarchive event">🗃️</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
@@ -2074,8 +2034,8 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
             allUniversities.forEach(function(uni) {
               var id = (uni.id || uni._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
               var cats = (uni.categories || []).join(', ');
-              html += '<div class="admin-ticket-code admin-event-row">' +
-                '<div class="admin-event-main">' +
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<strong>' + esc(uni.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(uni.location || '') + (uni.state ? ', ' + esc(uni.state) : '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">Categories: ' + esc(cats || '—') + '</span>' +
@@ -2192,8 +2152,8 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
             }
             var html = '<div class="admin-ticket-codes-label">📧 Subscribers (' + subs.length + ')</div>';
             subs.forEach(function(s) {
-              html += '<div class="admin-ticket-code admin-event-row">' +
-                '<div class="admin-event-main">' +
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<strong>' + esc(s.email) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(s.universityName || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + (s.eventIds ? s.eventIds.length : 0) + ' event(s)</span>' +
@@ -2269,11 +2229,23 @@ fetch('/api/admin/events/notify', {
               var usageText = stats.totalOrders > 0
                 ? 'Used by ' + stats.totalOrders + ' people • Purchases ' + fmtN(stats.totalRevenue)
                 : 'No purchases through this referral yet';
-              html += '<div class="admin-ticket-code" data-email="' + esc(u.email || '') + '" data-archived="' + (u.archived ? '1' : '0') + '" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
                 '<div style="display:flex;flex-direction:column;gap:6px;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' + (u.archived ? '<span style="font-size:.68rem;font-weight:800;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;">ARCHIVED</span>' : '') + '</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
-                '</div><div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;"><button class="admin-ticket-copy" onclick="resetManagedPassword(' + "'" + esc(u.email || '') + "'" + ')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(' + "'" + esc(u.email || '') + "'" + ')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button><button type="button" class="admin-ticket-copy" data-account-toggle="1" data-email="' + esc(u.email || '') + '" data-archived="' + (u.archived ? '1' : '0') + '" title="' + (u.archived ? 'Unarchive influencer' : 'Archive influencer') + '">' + (u.archived ? '📦' : '🗃️') + '</button></div></div>';
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<span>👤</span>' +
+                '<strong>' + esc(u.name || '—') + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">Created ' + fmtDate(u.createdAt) + '</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(referralCode) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span>' +
+                 '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || id) + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>' +
+                '</div>';
             });
             container.innerHTML = html;
           })
@@ -2511,39 +2483,6 @@ fetch('/api/admin/events/notify', {
       }
     })();
   </script>
-<script id="archive-delegated-control">
-(function(){
-  document.addEventListener('click', function(e){
-    var b=e.target.closest && e.target.closest('.admin-archive-btn[data-event-id]');
-    if(!b) return;
-    e.preventDefault();
-    var id=b.getAttribute('data-event-id');
-    var archived=b.getAttribute('data-archived')==='1';
-    if(typeof window.toggleManagedEventArchive==='function') window.toggleManagedEventArchive(id, archived, b);
-  });
-})();
-</script>
-<script id="archive-direct-control">
-(function(){
-  window.toggleManagedEventArchive = function(eventId, currentlyArchived, btn){
-    var getT = typeof getSubToken==='function' ? getSubToken : (typeof getToken==='function' ? getToken : function(){return '';});
-    var t = getT();
-    if(!t){ if(typeof showToast==='function') showToast('Your session has expired. Please log in again.',true); return; }
-    var next = !currentlyArchived;
-    if(!confirm((next?'Archive':'Unarchive')+' this event?')) return;
-    if(btn){btn.disabled=true;btn.textContent='…';}
-    fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({eventId:String(eventId),archived:next})})
-      .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
-      .then(function(x){
-        if(!x.ok || !x.data || !x.data.success) throw new Error((x.data&&x.data.error)||'Could not change event status');
-        if(typeof showToast==='function') showToast(next?'Event archived':'Event unarchived');
-        if(typeof loadManagedEvents==='function') loadManagedEvents();
-      })
-      .catch(function(err){ if(typeof showToast==='function') showToast(err.message||'Could not change event status',true); if(btn){btn.disabled=false;btn.textContent=currentlyArchived?'📦':'🗃️';} });
-  };
-})();
-</script>
-
 <script id="archive-controls-ui">
 (function(){
   function token(){ return typeof getToken==='function' ? getToken() : ''; }
@@ -2554,7 +2493,6 @@ fetch('/api/admin/events/notify', {
   }
   function scan(){
     document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
-      return; // Event archive control is rendered directly with the event card.
       var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
       var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
       var eventId=m[1], action=card.lastElementChild||card;
@@ -2565,23 +2503,18 @@ fetch('/api/admin/events/notify', {
       });
     });
     document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code').forEach(function(card){
-      var b=card.querySelector('[data-account-toggle]'); if(!b) return;
-      b.onclick=function(){
-        var email=b.getAttribute('data-email')||card.getAttribute('data-email')||'';
-        var archived=b.getAttribute('data-archived')==='1';
-        if(!email || !confirm((archived?'Unarchive ':'Archive ')+email+'?')) return;
-        b.disabled=true;
-        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:!archived})})
-          .then(function(r){return r.json();}).then(function(d){
-            if(d&&d.success){ if(typeof showToast==='function')showToast(archived?'Account unarchived':'Account archived'); if(typeof loadSubAdmins==='function')loadSubAdmins(); if(typeof loadStaffAccounts==='function')loadStaffAccounts(); if(typeof loadInfluencers==='function')loadInfluencers(); }
-            else if(typeof showToast==='function')showToast((d&&d.error)||'Could not change account status',true);
-          }).catch(function(){if(typeof showToast==='function')showToast('Network error changing account status',true);})
-          .finally(function(){b.disabled=false;});
-      };
+      var del=card.querySelector('[onclick*="deleteSubAdmin"],[onclick*="deleteStaffAccount"],[onclick*="deleteInfluencer"]'); if(!del) return;
+      var m=(del.getAttribute('onclick')||'').match(/\((?:'|")([^'"]+)(?:'|")\)/); if(!m) return;
+      var email=m[1], action=del.parentElement||card;
+      addBtn(action,'🗃️','Archive account',function(){
+        if(!confirm('Archive '+email+'? The account will no longer be usable.')) return;
+        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:true})})
+          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Account archived');if(typeof loadSubAdmins==='function')loadSubAdmins();if(typeof loadStaffAccounts==='function')loadStaffAccounts();if(typeof loadInfluencers==='function')loadInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive account',true);});
+      });
     });
   }
   function refreshArchiveState(){
-    fetch('/api/events?includeArchived=1',{headers:(typeof authHeaders==='function'?authHeaders():{'Authorization':'Bearer '+(typeof getSubToken==='function'?getSubToken():(typeof getToken==='function'?getToken():''))})}).then(function(r){return r.json();}).then(function(d){
+    fetch('/api/events?includeArchived=1').then(function(r){return r.json();}).then(function(d){
       var map={}; (d.events||[]).forEach(function(e){map[String(e.id)]=!!e.archived;});
       document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
         var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
