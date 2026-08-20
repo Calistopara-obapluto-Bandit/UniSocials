@@ -660,6 +660,15 @@
   #panel-influencers, #panel-events { display:none; }
   #panel-influencers.active, #panel-events.active { display:block; }
 </style>
+
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "y4hhcy2o3a");
+    </script>
 </head>
 <body>
 
@@ -1720,23 +1729,11 @@ fetch('/api/admin/events/notify', {
               var usageText = stats.totalOrders > 0
                 ? 'Used by ' + stats.totalOrders + ' people • Purchases ' + fmtN(stats.totalRevenue)
                 : 'No purchases through this referral yet';
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+              html += '<div class="admin-ticket-code" data-email="' + esc(u.email || '') + '" data-archived="' + (u.archived ? '1' : '0') + '" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
                 '<div style="display:flex;flex-direction:column;gap:6px;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
-                '<span>👤</span>' +
-                '<strong>' + esc(u.name || '—') + '</strong>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">Created ' + fmtDate(u.createdAt) + '</span>' +
-                '</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
-                '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(referralCode) + '</span>' +
-                '<span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span>' +
-                 '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
-                '</div>' +
-                '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
-                '</div>' +
-                '<button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
-                '</div>';
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' + (u.archived ? '<span style="font-size:.68rem;font-weight:800;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;">ARCHIVED</span>' : '') + '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
+                '</div><div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;"><button class="admin-ticket-copy" onclick="resetManagedPassword(' + "'" + esc(u.email || '') + "'" + ')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(' + "'" + esc(u.email || '') + "'" + ')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button><button type="button" class="admin-ticket-copy" data-account-toggle="1" data-email="' + esc(u.email || '') + '" data-archived="' + (u.archived ? '1' : '0') + '" title="' + (u.archived ? 'Unarchive influencer' : 'Archive influencer') + '">' + (u.archived ? '📦' : '🗃️') + '</button></div></div>';
             });
             container.innerHTML = html;
           })
@@ -1949,14 +1946,19 @@ document.addEventListener('DOMContentLoaded', function(){
       });
     });
     document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code').forEach(function(card){
-      var del=card.querySelector('[onclick*="deleteSubAdmin"],[onclick*="deleteStaffAccount"],[onclick*="deleteInfluencer"]'); if(!del) return;
-      var m=(del.getAttribute('onclick')||'').match(/\((?:'|")([^'"]+)(?:'|")\)/); if(!m) return;
-      var email=m[1], action=del.parentElement||card;
-      addBtn(action,'🗃️','Archive account',function(){
-        if(!confirm('Archive '+email+'? The account will no longer be usable.')) return;
-        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:true})})
-          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Account archived');if(typeof loadSubAdmins==='function')loadSubAdmins();if(typeof loadStaffAccounts==='function')loadStaffAccounts();if(typeof loadInfluencers==='function')loadInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive account',true);});
-      });
+      var b=card.querySelector('[data-account-toggle]'); if(!b) return;
+      b.onclick=function(){
+        var email=b.getAttribute('data-email')||card.getAttribute('data-email')||'';
+        var archived=b.getAttribute('data-archived')==='1';
+        if(!email || !confirm((archived?'Unarchive ':'Archive ')+email+'?')) return;
+        b.disabled=true;
+        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:!archived})})
+          .then(function(r){return r.json();}).then(function(d){
+            if(d&&d.success){ if(typeof showToast==='function')showToast(archived?'Account unarchived':'Account archived'); if(typeof loadSubAdmins==='function')loadSubAdmins(); if(typeof loadStaffAccounts==='function')loadStaffAccounts(); if(typeof loadInfluencers==='function')loadInfluencers(); }
+            else if(typeof showToast==='function')showToast((d&&d.error)||'Could not change account status',true);
+          }).catch(function(){if(typeof showToast==='function')showToast('Network error changing account status',true);})
+          .finally(function(){b.disabled=false;});
+      };
     });
   }
   function refreshArchiveState(){

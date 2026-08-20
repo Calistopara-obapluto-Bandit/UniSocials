@@ -1613,18 +1613,6 @@ const server = http.createServer(async (req, res) => {
 
   try {
 
-    // ── Admin/Sub-admin: site visitor analytics ──
-    if (pathname === '/api/admin/site-analytics' && req.method === 'GET') {
-      const auth = isAdminAuthorized(req) ? { role:'admin' } : await isAdminOrSubadmin(req);
-      if (!auth || !['admin','subadmin'].includes(auth.role)) return sendJson(res, 401, {success:false,error:'Unauthorized'});
-      const daily = await getSiteAnalytics(url.searchParams.get('days') || 30);
-      const today = daily[daily.length-1]?.visitors || 0;
-      const yesterday = daily[daily.length-2]?.visitors || 0;
-      const last7 = daily.slice(-7).reduce((a,x)=>a+x.visitors,0);
-      const total = daily.reduce((a,x)=>a+x.visitors,0);
-      return sendJson(res,200,{success:true,today,yesterday,last7,total,daily});
-    }
-
     // ── Dynamic config.js ──
     if (pathname === '/config.js') {
       const cfg = getConfig();
@@ -1874,8 +1862,11 @@ const user = {
       if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
         return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
       }
-      if (authCtx.role === 'subadmin' && target.createdBy && target.createdBy !== authCtx.user.id) {
-        return sendJson(res,403,{success:false,error:'You can only archive accounts you created.'});
+      if (authCtx.role === 'subadmin') {
+        // Sub-admins may manage influencer accounts globally, but not other staff/sub-admin accounts.
+        if (target.role !== 'influencer') {
+          return sendJson(res,403,{success:false,error:'Sub-admins can only archive or unarchive influencer accounts.'});
+        }
       }
       const users = await readUsers();
       const idx = users.findIndex(u => u.id === target.id);

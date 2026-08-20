@@ -342,17 +342,6 @@
   }
 </style>
 
-<style id="site-analytics-ui">
-.analytics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.analytics-card{padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2);box-shadow:var(--shadow-sm)}
-.analytics-card span{display:block;color:var(--text-3);font-size:.78rem;font-weight:600;margin-bottom:8px}
-.analytics-card strong{font-size:1.7rem;color:var(--text-1)}
-.analytics-day{display:grid;grid-template-columns:100px 1fr 70px;align-items:center;gap:10px;font-size:.82rem}
-.analytics-day .bar{height:9px;border-radius:999px;background:var(--accent-ghost);overflow:hidden}
-.analytics-day .fill{height:100%;border-radius:999px;background:var(--accent)}
-@media(max-width:700px){.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-day{grid-template-columns:78px 1fr 54px;font-size:.75rem}}
-</style>
-
 
 <style id="small-screen-layout-fix">
 .admin-tabs-inner{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
@@ -377,12 +366,9 @@
   .admin-event-actions button{min-width:42px!important;min-height:40px!important;}
   .admin-tabs-inner{overflow-x:auto!important;white-space:nowrap!important;-webkit-overflow-scrolling:touch!important;}
   .admin-tab{flex:0 0 auto!important;white-space:nowrap!important;}
-  .analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
-  .analytics-day{grid-template-columns:64px minmax(0,1fr) 48px!important;}
   input,select,textarea,.btn-submit,.admin-refresh-btn{max-width:100%!important;}
 }
 @media (max-width: 420px){
-  .analytics-grid{grid-template-columns:1fr!important;}
   .admin-dash{padding-left:8px!important;padding-right:8px!important;}
   .admin-panel{padding:14px!important;}
   .admin-panel-heading h1{font-size:1.05rem!important;}
@@ -391,6 +377,15 @@
   .admin-event-actions button{flex:1 1 42px!important;}
 }
 </style>
+
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "y4hhcy2o3a");
+    </script>
 </head>
 <body>
 
@@ -443,10 +438,9 @@
       <div class="admin-tabs">
         <div class="admin-tabs-inner">
           <button class="admin-tab active" data-tab="checkin">🎫 Check-in</button>
-          <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
+          <button class="admin-tab" data-tab="overview">📊 Overview</button>
           <button class="admin-tab" data-tab="referral">📈 Referral Links</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
-          <button class="admin-tab" data-tab="analytics">📈 Analytics</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
         </div>
@@ -490,13 +484,33 @@
         <div class="admin-panel" id="panel-overview">
           <div class="admin-panel-heading">
             <div>
-              <h1>📊 My Check-ins Overview</h1>
-              <p>Every ticket you have checked in at the gate, so you can track your own activity.</p>
+              <h1>📊 Sales Overview</h1>
+              <p>View how many sales and tickets have been made through your referral link. Payment verification, rejection and email controls remain restricted to the Main Admin.</p>
             </div>
             <button class="admin-refresh-btn" onclick="loadMyCheckins()">↻ Refresh</button>
           </div>
 
           <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="overviewSales">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Sales Made</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="overviewTickets">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Tickets Sold</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="overviewRevenue">₦0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Sales Revenue</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="overviewPeople">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">People Referred</div>
+              </div>
+            </div>
+            <div style="font-size:.8rem;color:var(--text-3);margin:-4px 0 18px;">Sales figures are based on completed/paid orders attributed to your referral link.</div>
+
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
                 <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinTotal">0</div>
@@ -586,27 +600,6 @@
         </div>
 
         <!-- ── COUPONS PANEL ── -->
-        
-        <div class="admin-panel" id="panel-analytics">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>📈 Site Analytics</h1>
-              <p>See how many unique visitors your site receives each day.</p>
-            </div>
-            <button class="admin-refresh-btn" type="button" onclick="loadSiteAnalytics()">↻ Refresh</button>
-          </div>
-          <div class="analytics-grid">
-            <div class="analytics-card"><span>Visitors Today</span><strong id="analyticsToday">—</strong></div>
-            <div class="analytics-card"><span>Yesterday</span><strong id="analyticsYesterday">—</strong></div>
-            <div class="analytics-card"><span>Last 7 Days</span><strong id="analyticsLast7">—</strong></div>
-            <div class="analytics-card"><span>Last 30 Days</span><strong id="analyticsTotal">—</strong></div>
-          </div>
-          <div class="admin-scan-panel" style="margin-top:16px;">
-            <div class="admin-panel-heading" style="margin-bottom:8px;"><div><h2 style="font-size:1rem;">Daily Visitors</h2><p>Unique visitors per calendar day.</p></div></div>
-            <div id="analyticsDaily" style="display:grid;gap:8px;"></div>
-          </div>
-        </div>
-
 <div class="admin-panel" id="panel-coupons">
           <div class="admin-panel-heading"><div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons for customers. Example: ticket ₦4,000 + coupon ₦400 = ₦3,600 to pay.</p></div><button class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button></div>
           <div class="admin-scan-panel">
@@ -1157,7 +1150,7 @@ resultBox.className = 'admin-scan-result show';
           if(count) count.textContent=list.length+' influencer'+(list.length!==1?'s':'');
           if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;color:var(--text-3);">No influencers have been created yet.</div>';return;}
           var html='';
-          list.forEach(function(u){var st=u.referralStats||{}; html+='<div style="padding:14px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;color:var(--text-1);">'+esc(u.name||u.email||'Influencer')+'</div><div style="font-size:.78rem;color:var(--text-3);margin-top:3px;">'+esc(u.email||'')+'</div><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;"><span class="admin-ticket-code">Code: '+esc(u.referralCode||'—')+'</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style="font-size:.75rem;color:var(--text-3);">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div>';});
+          list.forEach(function(u){var st=u.referralStats||{}; html+='<div class="admin-ticket-code" data-email="'+esc(u.email||'')+'" data-archived="'+(u.archived?'1':'0')+'" style="padding:14px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;"><div><div style="font-weight:700;color:var(--text-1);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'+esc(u.name||u.email||'Influencer')+(u.archived?'<span style="font-size:.68rem;font-weight:800;color:#b71c1c;border:1px solid #f5c6cb;border-radius:999px;padding:2px 7px;">ARCHIVED</span>':'')+'</div><div style="font-size:.78rem;color:var(--text-3);margin-top:3px;overflow-wrap:anywhere;">'+esc(u.email||'')+'</div><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;"><span class="admin-ticket-code">Code: '+esc(u.referralCode||'—')+'</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style="font-size:.75rem;color:var(--text-3);">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div><button type="button" class="admin-ticket-copy" data-account-toggle="1" data-email="'+esc(u.email||'')+'" data-archived="'+(u.archived?'1':'0')+'" title="'+(u.archived?'Unarchive influencer':'Archive influencer')+'">'+(u.archived?'📦':'🗃️')+'</button></div>';});
           container.innerHTML=html;
         }).catch(function(err){container.innerHTML='<div style="text-align:center;padding:20px;color:#e57373;">'+esc(err.message||'Unable to load influencers')+'</div>';});
       };
@@ -1458,6 +1451,14 @@ resultBox.className = 'admin-scan-result show';
             document.getElementById('refTotalOrders').textContent = stats.totalOrders || '0';
             document.getElementById('refTotalTickets').textContent = stats.totalTickets || '0';
             document.getElementById('refTotalRevenue').textContent = '₦' + (stats.totalRevenue || 0).toLocaleString();
+            var salesEl = document.getElementById('overviewSales');
+            var ticketsEl = document.getElementById('overviewTickets');
+            var revenueEl = document.getElementById('overviewRevenue');
+            var peopleEl = document.getElementById('overviewPeople');
+            if (salesEl) salesEl.textContent = Number(stats.totalOrders || 0).toLocaleString();
+            if (ticketsEl) ticketsEl.textContent = Number(stats.totalTickets || 0).toLocaleString();
+            if (revenueEl) revenueEl.textContent = '₦' + Number(stats.totalRevenue || 0).toLocaleString();
+            if (peopleEl) peopleEl.textContent = Number(stats.uniquePeople || 0).toLocaleString();
           })
           .catch(function(e) {
             console.error('Referral stats load error:', e);
@@ -1635,15 +1636,17 @@ resultBox.className = 'admin-scan-result show';
           .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive event',true);});
       });
     });
-    document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code').forEach(function(card){
-      var del=card.querySelector('[onclick*="deleteSubAdmin"],[onclick*="deleteStaffAccount"],[onclick*="deleteInfluencer"]'); if(!del) return;
-      var m=(del.getAttribute('onclick')||'').match(/\((?:'|")([^'"]+)(?:'|")\)/); if(!m) return;
-      var email=m[1], action=del.parentElement||card;
-      addBtn(action,'🗃️','Archive account',function(){
-        if(!confirm('Archive '+email+'? The account will no longer be usable.')) return;
-        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:true})})
-          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Account archived');if(typeof loadSubAdmins==='function')loadSubAdmins();if(typeof loadStaffAccounts==='function')loadStaffAccounts();if(typeof loadInfluencers==='function')loadInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive account',true);});
-      });
+    document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code,#allInfluencersList .admin-ticket-code').forEach(function(card){
+      var b=card.querySelector('[data-account-toggle]'); if(!b) return;
+      b.onclick=function(){
+        var email=b.getAttribute('data-email')||''; var archived=b.getAttribute('data-archived')==='1';
+        if(!email || !confirm((archived?'Unarchive ':'Archive ')+email+'?')) return;
+        b.disabled=true;
+        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:!archived})})
+          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast(archived?'Account unarchived':'Account archived');loadAllInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not change account status',true);})
+          .catch(function(){if(typeof showToast==='function')showToast('Network error changing account status',true);})
+          .finally(function(){b.disabled=false;});
+      };
     });
   }
   function refreshArchiveState(){
@@ -1662,36 +1665,6 @@ resultBox.className = 'admin-scan-result show';
     }).catch(function(){});
   }
     new MutationObserver(scan).observe(document.body,{subtree:true,childList:true}); setTimeout(scan,500); setTimeout(scan,1500); setTimeout(refreshArchiveState,900); setInterval(refreshArchiveState,4000);
-})();
-</script>
-
-
-<script id="site-analytics-dashboard">
-(function(){
-  window.loadSiteAnalytics = async function(){
-    var el=document.getElementById('analyticsDaily');
-    try {
-      var token=typeof getSubToken==='function'?getSubToken():'';
-      var r=await fetch('/api/admin/site-analytics?days=30',{headers:{Authorization:'Bearer '+token}});
-      var d=await r.json();
-      if(!r.ok||!d.success) throw new Error(d.error||'Unable to load analytics');
-      document.getElementById('analyticsToday').textContent=Number(d.today||0).toLocaleString();
-      document.getElementById('analyticsYesterday').textContent=Number(d.yesterday||0).toLocaleString();
-      document.getElementById('analyticsLast7').textContent=Number(d.last7||0).toLocaleString();
-      document.getElementById('analyticsTotal').textContent=Number(d.total||0).toLocaleString();
-      var max=Math.max(1,...(d.daily||[]).map(x=>Number(x.visitors||0)));
-      el.innerHTML=(d.daily||[]).slice().reverse().map(function(x){
-        var v=Number(x.visitors||0);
-        var label=new Date(x.day+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
-        return '<div class="analytics-day"><span>'+label+'</span><div class="bar"><div class="fill" style="width:'+Math.round(v/max*100)+'%"></div></div><strong style="text-align:right">'+v.toLocaleString()+'</strong></div>';
-      }).join('');
-    } catch(e) {
-      if(el) el.innerHTML='<div style="padding:14px;color:#b71c1c;">'+String(e.message||'Unable to load analytics')+'</div>';
-    }
-  };
-  document.querySelectorAll('.admin-tab[data-tab="analytics"]').forEach(function(btn){
-    btn.addEventListener('click',function(){ window.loadSiteAnalytics(); });
-  });
 })();
 </script>
 
