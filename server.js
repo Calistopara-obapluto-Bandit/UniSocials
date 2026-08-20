@@ -59,6 +59,7 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS visitor_daily (visit_day DATE NOT NULL, visitor_hash TEXT NOT NULL, first_path TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (visit_day, visitor_hash))`);
       await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
@@ -1542,6 +1543,67 @@ setInterval(function() {
   try { runEventReminders(); } catch (e) {}
 }, 6 * 60 * 60 * 1000);
 
+
+// ── Site visitor analytics ───────────────────
+// Counts unique visitors per calendar day. We hash the IP + user-agent + date,
+// so raw visitor identifiers are not persisted.
+function visitorHashForRequest(req, day) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || String(req.socket && req.socket.remoteAddress || '');
+  const ua = String(req.headers['user-agent'] || '');
+  const salt = process.env.VISITOR_ANALYTICS_SALT || 'unisocials-visitor-analytics-v1';
+  return crypto.createHash('sha256').update(`${salt}|${day}|${ip}|${ua}`).digest('hex');
+}
+async function recordSiteVisit(req, pathname) {
+  if (req.method !== 'GET') return;
+  // Count page visits, not API calls/assets.
+  if (!(pathname === '/' || pathname.endsWith('.html'))) return;
+  if (pathname.startsWith('/admin') || pathname.startsWith('/subadmin') || pathname.startsWith('/influencer')) return;
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: process.env.VISITOR_ANALYTICS_TIMEZONE || 'Africa/Lagos' }).format(new Date());
+  const hash = visitorHashForRequest(req, day);
+  if (usePg) {
+    await db.query(
+      `INSERT INTO visitor_daily (visit_day, visitor_hash, first_path)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (visit_day, visitor_hash) DO NOTHING`,
+      [day, hash, pathname]
+    );
+    return;
+  }
+  const file = path.join(DATA_DIR, 'visitor_daily.json');
+  let rows = [];
+  try { rows = JSON.parse(fs.readFileSync(file, 'utf8')); if (!Array.isArray(rows)) rows=[]; } catch(e) {}
+  if (!rows.some(v => v.day === day && v.hash === hash)) {
+    rows.push({day, hash, path: pathname});
+    // Keep 180 days locally to prevent unbounded growth.
+    const cutoff = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
+    rows = rows.filter(v => v.day >= cutoff);
+    fs.writeFileSync(file, JSON.stringify(rows), 'utf8');
+  }
+}
+async function getSiteAnalytics(days) {
+  const n = Math.min(90, Math.max(1, Number(days) || 30));
+  const end = new Date();
+  const start = new Date(end.getTime() - (n-1)*86400000);
+  const startDay = start.toISOString().slice(0,10);
+  const endDay = end.toISOString().slice(0,10);
+  if (usePg) {
+    const r = await db.query(
+      `SELECT visit_day::text AS day, COUNT(*)::int AS visitors
+       FROM visitor_daily WHERE visit_day BETWEEN $1 AND $2
+       GROUP BY visit_day ORDER BY visit_day`,
+      [startDay, endDay]
+    );
+    const byDay = Object.fromEntries(r.rows.map(x => [x.day, Number(x.visitors)]));
+    const daily = []; for(let i=0;i<n;i++){ const d=new Date(start.getTime()+i*86400000).toISOString().slice(0,10); daily.push({day:d,visitors:byDay[d]||0}); }
+    return daily;
+  }
+  let rows=[]; try { rows=JSON.parse(fs.readFileSync(path.join(DATA_DIR,'visitor_daily.json'),'utf8')); if(!Array.isArray(rows))rows=[]; } catch(e){}
+  const counts={}; rows.forEach(v=>{if(v.day>=startDay&&v.day<=endDay) counts[v.day]=(counts[v.day]||0)+1;});
+  const daily=[]; for(let i=0;i<n;i++){const d=new Date(start.getTime()+i*86400000).toISOString().slice(0,10);daily.push({day:d,visitors:counts[d]||0});}
+  return daily;
+}
+
 // ────────────────────────────────────────────
 // HTTP SERVER
 // ────────────────────────────────────────────
@@ -1550,6 +1612,19 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   try {
+
+    // ── Admin/Sub-admin: site visitor analytics ──
+    if (pathname === '/api/admin/site-analytics' && req.method === 'GET') {
+      const auth = isAdminAuthorized(req) ? { role:'admin' } : await isAdminOrSubadmin(req);
+      if (!auth || !['admin','subadmin'].includes(auth.role)) return sendJson(res, 401, {success:false,error:'Unauthorized'});
+      const daily = await getSiteAnalytics(url.searchParams.get('days') || 30);
+      const today = daily[daily.length-1]?.visitors || 0;
+      const yesterday = daily[daily.length-2]?.visitors || 0;
+      const last7 = daily.slice(-7).reduce((a,x)=>a+x.visitors,0);
+      const total = daily.reduce((a,x)=>a+x.visitors,0);
+      return sendJson(res,200,{success:true,today,yesterday,last7,total,daily});
+    }
+
     // ── Dynamic config.js ──
     if (pathname === '/config.js') {
       const cfg = getConfig();

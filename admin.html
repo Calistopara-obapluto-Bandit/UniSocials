@@ -653,6 +653,47 @@
       text-align: center;
     }
   </style>
+
+<style id="event-management-responsive">
+  .admin-event-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .admin-event-main{display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;min-width:0;}
+  .admin-event-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
+  .admin-event-actions .admin-ticket-copy{flex:0 0 auto;}
+  .admin-archive-btn{font-weight:800;}
+  @media(max-width:700px){
+    .admin-event-row{grid-template-columns:1fr;gap:8px;padding:12px 0;}
+    .admin-event-main{gap:7px 9px;}
+    .admin-event-actions{justify-content:flex-start;width:100%;}
+    .admin-event-actions .admin-ticket-copy{width:34px;height:34px;}
+    .admin-event-main strong{max-width:100%;overflow-wrap:anywhere;}
+    .admin-ticket-codes{overflow:hidden;}
+  }
+  @media(max-width:420px){
+    .admin-event-main{display:grid;grid-template-columns:46px minmax(0,1fr);align-items:center;}
+    .admin-event-main > span:not(:first-child),.admin-event-main > strong{grid-column:2;}
+    .admin-event-actions .admin-ticket-copy{width:36px;height:36px;}
+  }
+</style>
+
+<style id="site-analytics-ui">
+.analytics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.analytics-card{padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2);box-shadow:var(--shadow-sm)}
+.analytics-card span{display:block;color:var(--text-3);font-size:.78rem;font-weight:600;margin-bottom:8px}
+.analytics-card strong{font-size:1.7rem;color:var(--text-1)}
+.analytics-day{display:grid;grid-template-columns:100px 1fr 70px;align-items:center;gap:10px;font-size:.82rem}
+.analytics-day .bar{height:9px;border-radius:999px;background:var(--accent-ghost);overflow:hidden}
+.analytics-day .fill{height:100%;border-radius:999px;background:var(--accent)}
+@media(max-width:700px){.analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-day{grid-template-columns:78px 1fr 54px;font-size:.75rem}}
+</style>
+
+
+<style id="small-screen-layout-fix">
+.admin-tabs-inner{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.admin-tabs-inner::-webkit-scrollbar{display:none;}
+.admin-topbar-inner,.admin-panel-heading{min-width:0;}
+.admin-panel{min-width:0;overflow-x:hidden;}
+@media(max-width:540px){.admin-tabs-inner{padding-left:10px;padding-right:10px;}.admin-tab{white-space:nowrap;flex:0 0 auto;}.admin-login-card{padding:28px 18px;}.admin-dash{padding-top:22px;}.admin-panel-heading{align-items:flex-start;}.admin-panel-heading h1{font-size:1.15rem;}.admin-panel-heading p{font-size:.78rem;}}
+</style>
 </head>
 <body>
 
@@ -711,6 +752,7 @@
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
           <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
+          <button class="admin-tab" data-tab="analytics">📈 Analytics</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
       </div>
@@ -810,7 +852,28 @@
         </div>
 
         <!-- ── COUPONS PANEL ── -->
-        <div class="admin-panel" id="panel-coupons">
+        
+        <div class="admin-panel" id="panel-analytics">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>📈 Site Analytics</h1>
+              <p>See how many unique visitors your site receives each day.</p>
+            </div>
+            <button class="admin-refresh-btn" type="button" onclick="loadSiteAnalytics()">↻ Refresh</button>
+          </div>
+          <div class="analytics-grid">
+            <div class="analytics-card"><span>Visitors Today</span><strong id="analyticsToday">—</strong></div>
+            <div class="analytics-card"><span>Yesterday</span><strong id="analyticsYesterday">—</strong></div>
+            <div class="analytics-card"><span>Last 7 Days</span><strong id="analyticsLast7">—</strong></div>
+            <div class="analytics-card"><span>Last 30 Days</span><strong id="analyticsTotal">—</strong></div>
+          </div>
+          <div class="admin-scan-panel" style="margin-top:16px;">
+            <div class="admin-panel-heading" style="margin-bottom:8px;"><div><h2 style="font-size:1rem;">Daily Visitors</h2><p>Unique visitors per calendar day.</p></div></div>
+            <div id="analyticsDaily" style="display:grid;gap:8px;"></div>
+          </div>
+        </div>
+
+<div class="admin-panel" id="panel-coupons">
           <div class="admin-panel-heading">
             <div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons. Example: ₦4,000 ticket − ₦400 coupon = ₦3,600 to pay.</p></div>
             <button type="button" class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button>
@@ -1622,7 +1685,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events?includeArchived=1')
+        fetch('/api/events?includeArchived=1',{headers:authHeaders()})
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
@@ -1644,8 +1707,8 @@ fetch('/api/ticket/scan', {
               var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
               var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
               var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+              html += '<div class="admin-ticket-code admin-event-row">' +
+                '<div class="admin-event-main">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
@@ -1656,8 +1719,9 @@ fetch('/api/ticket/scan', {
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
-                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<div class="admin-event-actions">' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
+                '<button type="button" class="admin-ticket-copy admin-archive-btn" onclick="toggleManagedEventArchive(\'" + esc(id) + "\'," + (ev.archived === true) + ",this)" title="Archive / Unarchive event">🗃️</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
@@ -2034,8 +2098,8 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
             allUniversities.forEach(function(uni) {
               var id = (uni.id || uni._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
               var cats = (uni.categories || []).join(', ');
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+              html += '<div class="admin-ticket-code admin-event-row">' +
+                '<div class="admin-event-main">' +
                 '<strong>' + esc(uni.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(uni.location || '') + (uni.state ? ', ' + esc(uni.state) : '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">Categories: ' + esc(cats || '—') + '</span>' +
@@ -2152,8 +2216,8 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
             }
             var html = '<div class="admin-ticket-codes-label">📧 Subscribers (' + subs.length + ')</div>';
             subs.forEach(function(s) {
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+              html += '<div class="admin-ticket-code admin-event-row">' +
+                '<div class="admin-event-main">' +
                 '<strong>' + esc(s.email) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(s.universityName || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + (s.eventIds ? s.eventIds.length : 0) + ' event(s)</span>' +
@@ -2231,7 +2295,7 @@ fetch('/api/admin/events/notify', {
                 : 'No purchases through this referral yet';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
                 '<div style="display:flex;flex-direction:column;gap:6px;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<div class="admin-event-main">' +
                 '<span>👤</span>' +
                 '<strong>' + esc(u.name || '—') + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
@@ -2483,6 +2547,27 @@ fetch('/api/admin/events/notify', {
       }
     })();
   </script>
+<script id="archive-direct-control">
+(function(){
+  window.toggleManagedEventArchive = function(eventId, currentlyArchived, btn){
+    var getT = typeof getSubToken==='function' ? getSubToken : (typeof getToken==='function' ? getToken : function(){return '';});
+    var t = getT();
+    if(!t){ if(typeof showToast==='function') showToast('Your session has expired. Please log in again.',true); return; }
+    var next = !currentlyArchived;
+    if(!confirm((next?'Archive':'Unarchive')+' this event?')) return;
+    if(btn){btn.disabled=true;btn.textContent='…';}
+    fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({eventId:String(eventId),archived:next})})
+      .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+      .then(function(x){
+        if(!x.ok || !x.data || !x.data.success) throw new Error((x.data&&x.data.error)||'Could not change event status');
+        if(typeof showToast==='function') showToast(next?'Event archived':'Event unarchived');
+        if(typeof loadManagedEvents==='function') loadManagedEvents();
+      })
+      .catch(function(err){ if(typeof showToast==='function') showToast(err.message||'Could not change event status',true); if(btn){btn.disabled=false;btn.textContent=currentlyArchived?'📦':'🗃️';} });
+  };
+})();
+</script>
+
 <script id="archive-controls-ui">
 (function(){
   function token(){ return typeof getToken==='function' ? getToken() : ''; }
@@ -2493,6 +2578,7 @@ fetch('/api/admin/events/notify', {
   }
   function scan(){
     document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
+      return; // Event archive control is rendered directly with the event card.
       var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
       var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
       var eventId=m[1], action=card.lastElementChild||card;
@@ -2514,7 +2600,7 @@ fetch('/api/admin/events/notify', {
     });
   }
   function refreshArchiveState(){
-    fetch('/api/events?includeArchived=1').then(function(r){return r.json();}).then(function(d){
+    fetch('/api/events?includeArchived=1',{headers:(typeof authHeaders==='function'?authHeaders():{'Authorization':'Bearer '+(typeof getSubToken==='function'?getSubToken():(typeof getToken==='function'?getToken():''))})}).then(function(r){return r.json();}).then(function(d){
       var map={}; (d.events||[]).forEach(function(e){map[String(e.id)]=!!e.archived;});
       document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
         var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
@@ -2529,6 +2615,36 @@ fetch('/api/admin/events/notify', {
     }).catch(function(){});
   }
     new MutationObserver(scan).observe(document.body,{subtree:true,childList:true}); setTimeout(scan,500); setTimeout(scan,1500); setTimeout(refreshArchiveState,900); setInterval(refreshArchiveState,4000);
+})();
+</script>
+
+
+<script id="site-analytics-dashboard">
+(function(){
+  window.loadSiteAnalytics = async function(){
+    var el=document.getElementById('analyticsDaily');
+    try {
+      var token=typeof getToken==='function'?getToken():'';
+      var r=await fetch('/api/admin/site-analytics?days=30',{headers:{Authorization:'Bearer '+token}});
+      var d=await r.json();
+      if(!r.ok||!d.success) throw new Error(d.error||'Unable to load analytics');
+      document.getElementById('analyticsToday').textContent=Number(d.today||0).toLocaleString();
+      document.getElementById('analyticsYesterday').textContent=Number(d.yesterday||0).toLocaleString();
+      document.getElementById('analyticsLast7').textContent=Number(d.last7||0).toLocaleString();
+      document.getElementById('analyticsTotal').textContent=Number(d.total||0).toLocaleString();
+      var max=Math.max(1,...(d.daily||[]).map(x=>Number(x.visitors||0)));
+      el.innerHTML=(d.daily||[]).slice().reverse().map(function(x){
+        var v=Number(x.visitors||0);
+        var label=new Date(x.day+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+        return '<div class="analytics-day"><span>'+label+'</span><div class="bar"><div class="fill" style="width:'+Math.round(v/max*100)+'%"></div></div><strong style="text-align:right">'+v.toLocaleString()+'</strong></div>';
+      }).join('');
+    } catch(e) {
+      if(el) el.innerHTML='<div style="padding:14px;color:#b71c1c;">'+String(e.message||'Unable to load analytics')+'</div>';
+    }
+  };
+  document.querySelectorAll('.admin-tab[data-tab="analytics"]').forEach(function(btn){
+    btn.addEventListener('click',function(){ window.loadSiteAnalytics(); });
+  });
 })();
 </script>
 
