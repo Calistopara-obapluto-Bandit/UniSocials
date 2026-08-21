@@ -505,28 +505,31 @@ venue: 'Main Stadium',
 
 async function readEvents() {
   if (usePg) {
-    const r = await db.query('SELECT data FROM events ORDER BY data->>\'date\' ASC');
-    const list = r.rows.map(row => row.data);
-    // Auto-seed the default UNN events catalog when the events table is empty
-    // (e.g. first run or an empty PostgreSQL table) so events are never missing.
-    if (list.length === 0) {
-      for (const ev of DEFAULT_EVENTS) {
-        await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
-          [ev.id, JSON.stringify(ev)]);
-      }
-      console.log('Seeded ' + DEFAULT_EVENTS.length + ' default events into PostgreSQL.');
-      return DEFAULT_EVENTS.slice();
-    }
-    return list;
+    const r = await db.query("SELECT data FROM events ORDER BY data->>'date' ASC");
+    return r.rows.map(row => row.data);
   }
   try {
     const raw = fs.readFileSync(path.join(DATA_DIR, 'events.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_EVENTS;
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return DEFAULT_EVENTS;
+    return [];
   }
 }
+
+async function removeBundledDemoEvents() {
+  const ids = ['arts-cultural-night','engineering-dinner','entrepreneurship-summit','music-festival','law-moot-court','sports-day'];
+  if (usePg) {
+    await db.query('DELETE FROM events WHERE id = ANY($1::text[])', [ids]);
+    return;
+  }
+  try {
+    const events = await readEvents();
+    const next = events.filter(e => !ids.includes(String(e.id || '')));
+    if (next.length !== events.length) fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(next, null, 2), 'utf8');
+  } catch (_) {}
+}
+
 async function writeEvents(events) {
   if (usePg) {
     await db.query('DELETE FROM events');
@@ -2845,7 +2848,9 @@ codes[idx] = entry;
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
-        universitySlug: uniSlug
+        universitySlug: uniSlug,
+        createdAt: new Date().toISOString(),
+        createdBy: { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
       };
             try {
         await addEvent(ev);
@@ -3020,6 +3025,7 @@ if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const eventId = String(data.eventId || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+await removeBundledDemoEvents();
 const events = await readEvents();
       const ev = events.find(e => e.id === eventId);
       if (!ev) return sendJson(res, 404, { success: false, error: 'Event not found' });
