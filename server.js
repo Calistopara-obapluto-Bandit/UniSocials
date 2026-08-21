@@ -2367,7 +2367,7 @@ codes[idx] = entry;
       if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
       const link = await getReferralLinkBySubadminId(user.id);
       if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const uniquePeople = new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
       return sendJson(res, 200, { success: true, stats: {
@@ -2443,7 +2443,7 @@ codes[idx] = entry;
       if (!user || user.role !== 'subadmin') {
         return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
       }
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       const verified = orders.filter(o => String(o.status || '').toLowerCase() === 'verified');
       const ticketsSold = verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
       const revenue = verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
@@ -2482,7 +2482,7 @@ codes[idx] = entry;
         return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
       }
       
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
       const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
