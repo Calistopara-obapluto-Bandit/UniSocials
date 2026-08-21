@@ -304,14 +304,26 @@ async function getReferralLinkByCode(code) {
   const links = await readReferralLinks();
   return links.find(l => l.code === code) || null;
 }
+async function getReferralLinkByOwnerId(ownerId) {
+  const links = await readReferralLinks();
+  return links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId) || null;
+}
+
+// Backward-compatible helper for existing sub-admin referral records.
 async function getReferralLinkBySubadminId(subadminId) {
   const links = await readReferralLinks();
-  return links.find(l => l.subadminId === subadminId) || null;
+  return links.find(l => l.subadminId === subadminId || l.ownerId === subadminId) || null;
 }
-async function generateReferralLink(subadminId, subadminName, subadminEmail) {
+
+// Backward-compatible helper for influencer referral records.
+async function getReferralLinkByInfluencerId(influencerId) {
   const links = await readReferralLinks();
-  // Check if this subadmin already has a referral link
-  const existing = links.find(l => l.subadminId === subadminId);
+  return links.find(l => l.influencerId === influencerId || l.ownerId === influencerId) || null;
+}
+async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin') {
+  const links = await readReferralLinks();
+  // Keep each referral owner on exactly one stable referral record.
+  const existing = links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId);
   if (existing) return existing;
   
   // Generate unique code
@@ -322,9 +334,14 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
   
   const link = {
     code: code,
-    subadminId: subadminId,
-    subadminName: subadminName,
-    subadminEmail: subadminEmail,
+    ownerId: ownerId,
+    ownerRole: ownerRole,
+    subadminId: ownerRole === 'subadmin' ? ownerId : null,
+    influencerId: ownerRole === 'influencer' ? ownerId : null,
+    subadminName: ownerRole === 'subadmin' ? ownerName : null,
+    subadminEmail: ownerRole === 'subadmin' ? ownerEmail : null,
+    influencerName: ownerRole === 'influencer' ? ownerName : null,
+    influencerEmail: ownerRole === 'influencer' ? ownerEmail : null,
     createdAt: new Date().toISOString(),
     totalOrders: 0,
     totalRevenue: 0,
@@ -2353,9 +2370,9 @@ codes[idx] = entry;
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
       if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
-      let link = await getReferralLinkBySubadminId(user.id);
-      if (!link) link = await generateReferralLink(user.id, user.name, user.email);
-      else { await updateReferralStats(link.code); link = await getReferralLinkBySubadminId(user.id); }
+      let link = await getReferralLinkByInfluencerId(user.id);
+      if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer');
+      else { await updateReferralStats(link.code); link = await getReferralLinkByInfluencerId(user.id); }
       return sendJson(res, 200, { success: true, link });
     }
 
@@ -2365,7 +2382,7 @@ codes[idx] = entry;
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
       if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
-      const link = await getReferralLinkBySubadminId(user.id);
+      const link = await getReferralLinkByInfluencerId(user.id);
       if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
       const orders = await getOrdersForCurrentSiteEvents();
       const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
