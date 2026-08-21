@@ -380,128 +380,7 @@ async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
 }
 
 /* ── Events (admin-managed catalog shown on client pages) ── */
-const DEFAULT_EVENTS = [
-  {
-id: 'arts-cultural-night',
-    name: 'Faculty of Arts Cultural Night',
-    category: 'Arts & Culture',
-    price: 2500,
-    vipPrice: 5000,
-    vvipPrice: 5000,
-    tablePrice: 10000,
-    date: 'March 10, 2025',
-    time: '4:00 PM',
-    venue: 'Arts Theatre',
-    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.',
-    tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '🎭',
-    featured: true,
-    seats: '150 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'engineering-dinner',
-    name: 'Engineering Annual Dinner',
-category: 'Engineering',
-    price: 5000,
-    vipPrice: 10000,
-    vvipPrice: 10000,
-    tablePrice: 25000,
-    date: 'March 15, 2025',
-    time: '5:00 PM',
-    venue: 'Engineering Auditorium',
-    description: 'The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.',
-    tags: ['🏆 Awards', '🍽️ Dinner', '🤝 Networking'],
-    image: 'images/tm-622-screen-02.jpg',
-    icon: '⚙️',
-    featured: true,
-    seats: '80 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'entrepreneurship-summit',
-    name: 'Entrepreneurship Summit',
-category: 'Business',
-    price: 3000,
-    vipPrice: 0,
-    date: 'March 22, 2025',
-    time: '10:00 AM',
-    venue: 'Business School Hall',
-    description: 'Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.',
-    tags: ['💡 Pitching', '💰 Funding', '📈 Workshops'],
-    image: 'images/tm-622-screen-03.jpg',
-    icon: '💼',
-    featured: true,
-    seats: '200 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'music-festival',
-    name: 'Campus Music Festival',
-category: 'Music',
-    price: 4000,
-    vipPrice: 8000,
-    vvipPrice: 8000,
-    tablePrice: 20000,
-    date: 'March 29, 2025',
-    time: '6:00 PM',
-    venue: 'Sports Complex',
-    description: 'Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.',
-    tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
-    image: 'images/tm-622-screen-04.jpg',
-    icon: '🎵',
-    featured: true,
-    seats: '300 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'law-moot-court',
-    name: 'Faculty of Law Moot Court',
-    category: 'Academic',
-    price: 1500,
-    vipPrice: 0,
-    date: 'April 5, 2025',
-    time: '9:00 AM',
-    venue: 'Faculty of Law',
-    description: 'The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.',
-    tags: ['⚖️ Mock Trial', '📜 Legal Debate', '🏅 Competition'],
-    image: 'images/tm-622-screen-05.jpg',
-    icon: '📚',
-    featured: false,
-    seats: '100 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'sports-day',
-    name: 'Inter-Faculty Sports Day',
-    category: 'Sports',
-    price: 1000,
-    vipPrice: 0,
-    date: 'April 12, 2025',
-    time: '8:00 AM',
-venue: 'Main Stadium',
-    description: 'A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!',
-    tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '⚽',
-    featured: false,
-    seats: 'Unlimited',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  }
-];
+const DEFAULT_EVENTS = [];
 
 async function readEvents() {
   if (usePg) {
@@ -517,7 +396,52 @@ async function readEvents() {
   }
 }
 
+async function resetLegacyPaymentDataOnce() {
+  // One-time cleanup requested for the old/demo payment data. This resets the
+  // payment/sales counters to zero without affecting users, events, coupons,
+  // referral codes, or other account data. A migration marker prevents this
+  // from running again on future restarts/deploys.
+  const migrationId = 'reset-payment-data-2026-08-21';
+  try {
+    if (usePg) {
+      await db.query(`CREATE TABLE IF NOT EXISTS app_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT NOW())`);
+      const already = await db.query('SELECT 1 FROM app_migrations WHERE id = $1', [migrationId]);
+      if (already.rows.length) return;
+      await db.query('DELETE FROM orders');
+      await db.query(`UPDATE referral_links SET data = data || '{"totalOrders":0,"totalRevenue":0,"totalTickets":0,"uniquePeople":0}'::jsonb`);
+      await db.query('INSERT INTO app_migrations (id) VALUES ($1)', [migrationId]);
+      console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
+      return;
+    }
+
+    const marker = path.join(DATA_DIR, '.' + migrationId);
+    if (fs.existsSync(marker)) return;
+    await writeOrders([]);
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'referral_links.json'), 'utf8');
+      const links = JSON.parse(raw);
+      if (Array.isArray(links)) {
+        links.forEach(link => {
+          link.totalOrders = 0;
+          link.totalRevenue = 0;
+          link.totalTickets = 0;
+          link.uniquePeople = 0;
+        });
+        fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
+      }
+    } catch (_) {}
+    fs.writeFileSync(marker, new Date().toISOString(), 'utf8');
+    console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
+  } catch (e) {
+    console.error('Payment reset migration failed:', e.message);
+    throw e;
+  }
+}
+
 async function removeBundledDemoEvents() {
+  // These were the old bundled/demo event records. Site-created events are
+  // retained. Removing by these exact IDs also removes the old Campus Music
+  // Festival record that was being used by the draft payment.
   const ids = ['arts-cultural-night','engineering-dinner','entrepreneurship-summit','music-festival','law-moot-court','sports-day'];
   if (usePg) {
     await db.query('DELETE FROM events WHERE id = ANY($1::text[])', [ids]);
@@ -528,6 +452,18 @@ async function removeBundledDemoEvents() {
     const next = events.filter(e => !ids.includes(String(e.id || '')));
     if (next.length !== events.length) fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(next, null, 2), 'utf8');
   } catch (_) {}
+}
+
+async function getOrdersForCurrentSiteEvents() {
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  const eventIds = new Set(events.map(e => String(e.id || '')));
+  const eventNames = new Set(events.map(e => String(e.name || '').trim().toLowerCase()).filter(Boolean));
+  // Orders must belong to an event that currently exists in the site's event catalog.
+  return orders.filter(o => {
+    const id = String(o.eventId || '');
+    const name = String(o.eventName || '').trim().toLowerCase();
+    return (id && eventIds.has(id)) || (!id && name && eventNames.has(name));
+  });
 }
 
 async function writeEvents(events) {
@@ -2584,14 +2520,14 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
 
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
 
@@ -3025,6 +2961,7 @@ if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const eventId = String(data.eventId || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+await resetLegacyPaymentDataOnce();
 await removeBundledDemoEvents();
 const events = await readEvents();
       const ev = events.find(e => e.id === eventId);
