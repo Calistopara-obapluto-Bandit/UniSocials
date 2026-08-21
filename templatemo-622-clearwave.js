@@ -738,7 +738,15 @@ const tier = getSelectedTier();
       universitySlug: universityObj ? (universityObj.slug || universityObj.id || '') : ''
     }));
 
-    window.location.href = 'checkout.html';
+    let checkoutRef = '';
+    try {
+      checkoutRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+      if (checkoutRef) {
+        sessionStorage.setItem('referralCode', checkoutRef);
+        localStorage.setItem('unn_referral_code', checkoutRef);
+      }
+    } catch (e) {}
+    window.location.href = 'checkout.html' + (checkoutRef ? '?ref=' + encodeURIComponent(checkoutRef) : '');
   };
 
   function readUrlParams() {

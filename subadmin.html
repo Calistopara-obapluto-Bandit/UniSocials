@@ -1383,10 +1383,10 @@ resultBox.className = 'admin-scan-result show';
             // Display the code
             document.getElementById('refCodeDisplay').textContent = code;
             
-            // Build the full referral URL and send users to checkout so the ref
-            // parameter is still present when the order is created.
+            // Build the canonical referral URL. The Events page persists the ref code
+            // and carries it through ticket selection and checkout.
             var baseUrl = window.location.origin;
-            var refUrl = baseUrl + '/checkout.html?ref=' + encodeURIComponent(code);
+            var refUrl = link.referralUrl || (baseUrl + '/events.html?ref=' + encodeURIComponent(code));
             document.getElementById('refLinkDisplay').value = refUrl;
             
             // Load and display stats

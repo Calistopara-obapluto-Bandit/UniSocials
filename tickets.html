@@ -612,6 +612,13 @@ function setSelectedTier(tier) {
             });
             // Handle ?event= URL param now that dynamic options exist
             var params = new URLSearchParams(window.location.search);
+            var referralParam = (params.get('ref') || '').trim().toUpperCase();
+            try {
+              if (referralParam) {
+                sessionStorage.setItem('referralCode', referralParam);
+                localStorage.setItem('unn_referral_code', referralParam);
+              }
+            } catch (e) {}
             var eventParam = params.get('event');
             if (eventParam) {
               for (var i = 0; i < eventSelect.options.length; i++) {

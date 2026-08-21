@@ -1,94 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Choose an Event — Unisocials</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="templatemo-622-clearwave.css">
-  <style>
-    .referral-page{min-height:100vh;background:var(--bg)}
-    .referral-wrap{padding:55px 20px 80px}
-    .referral-inner{max-width:1120px;margin:0 auto}
-    .referral-head{text-align:center;max-width:760px;margin:0 auto 30px}
-    .referral-head h1{margin:8px 0 10px}
-    .referral-head p{color:var(--text-3);line-height:1.7;margin:0}
-    .referral-badge{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:800;font-size:.84rem}
-    .event-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
-    .event-option{display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:var(--shadow-sm);min-width:0}
-    .event-option-body{padding:20px;display:flex;flex-direction:column;gap:12px;flex:1}
-    .event-option h2{font-size:1.2rem;margin:0;line-height:1.3}
-    .event-meta{color:var(--text-3);font-size:.88rem;line-height:1.7}
-    .event-price{font-weight:800;color:var(--accent);font-size:1.05rem;margin-top:auto}
-    .choose-event{width:100%;justify-content:center;min-height:44px}
-    .state-card{grid-column:1/-1;text-align:center;padding:44px 22px;border:1px solid var(--border);border-radius:18px;background:var(--surface-2);color:var(--text-3)}
-    @media(max-width:900px){.event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:600px){.referral-wrap{padding:35px 15px 55px}.event-grid{grid-template-columns:1fr}.referral-head h1{font-size:2rem}.event-option-body{padding:17px}}
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>Redirecting to Events — Unisocials</title>
 </head>
-<body class="referral-page">
-  <nav class="nav" aria-label="Main navigation">
-    <div class="nav-inner">
-      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
-      <ul class="nav-links" role="list">
-        <li><a href="index.html">Home</a></li><li><a href="events.html">Events</a></li><li><a href="tickets.html">Tickets</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li>
-      </ul>
-      <div class="nav-cta"><a href="events.html" class="btn-primary">All Events</a></div>
-      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
-    </div>
-  </nav>
-
-  <main class="referral-wrap">
-    <div class="referral-inner">
-      <header class="referral-head">
-        <div class="section-label">Referral Tickets</div>
-        <h1 class="section-title">Choose your <em>event</em></h1>
-        <p>Select the event you want to attend. Your referral benefit is already attached and will be applied automatically when you continue to checkout.</p>
-        <div class="referral-badge" id="referralBadge" hidden>🎁 Referral code: <span id="referralCodeText"></span></div>
-      </header>
-      <section class="event-grid" id="eventGrid" aria-live="polite">
-        <div class="state-card">Loading available events…</div>
-      </section>
-    </div>
-  </main>
-
-  <script src="templatemo-622-clearwave.js"></script>
+<body>
+  <p>Redirecting to Events…</p>
   <script>
-  (function(){
-    var params=new URLSearchParams(window.location.search);
-    var ref=(params.get('ref')||'').trim().toUpperCase();
-    if(ref){
-      try{sessionStorage.setItem('referralCode',ref);localStorage.setItem('unn_referral_code',ref);}catch(e){}
-      document.getElementById('referralCodeText').textContent=ref;
-      document.getElementById('referralBadge').hidden=false;
-    }
-    var grid=document.getElementById('eventGrid');
-    function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-    function money(v){return '₦'+Number(v||0).toLocaleString();}
-    function choose(ev){
-      var original=Number(ev.price||0), bonus=Number(ev.bonusPrice||0);
-      var code=ref||sessionStorage.getItem('referralCode')||localStorage.getItem('unn_referral_code')||'';
-      code=String(code||'').trim().toUpperCase();
-      if(code){try{sessionStorage.setItem('referralCode',code);localStorage.setItem('unn_referral_code',code);}catch(e){}}
-      sessionStorage.setItem('checkoutData',JSON.stringify({
-        eventValue:ev.id,eventId:ev.id,eventName:ev.name||ev.title||'Event',eventDate:ev.date||'',eventTime:ev.time||'',eventVenue:ev.venue||'',eventCategory:ev.category||'',
-        eventPrice:bonus>0?bonus:original,originalEventPrice:original,bonusEventPrice:bonus,ticketTier:'regular',included:ev.includedRegular||'',qty:1,buyerName:'',buyerEmail:'',buyerPhone:'',buyerFaculty:'',
-        universityId:ev.universityId||'',universityName:ev.universityName||'',universitySlug:ev.universitySlug||''
-      }));
-      window.location.href='checkout.html'+(code?'?ref='+encodeURIComponent(code):'');
-    }
-    fetch('/api/events').then(function(r){if(!r.ok)throw new Error('Failed to load events');return r.json();}).then(function(payload){
-      var events=(payload&&payload.success&&Array.isArray(payload.events))?payload.events:[];
-      if(!events.length){grid.innerHTML='<div class="state-card"><strong>No events are currently available.</strong><p style="margin:8px 0 18px;">Please check back later for available events.</p><a class="btn-primary" href="events.html">Browse Events</a></div>';return;}
-      grid.innerHTML=events.map(function(ev){
-        var price=Number(ev.bonusPrice||0)>0?Number(ev.bonusPrice):Number(ev.price||0);
-        return '<article class="event-option"><div class="event-option-body"><h2>'+esc(ev.name||ev.title||'Event')+'</h2><div class="event-meta">'+esc(ev.date||'Date TBA')+(ev.time?' · '+esc(ev.time):'')+(ev.venue?'<br>'+esc(ev.venue):'')+'</div><div class="event-price">From '+money(price)+'</div><button type="button" class="btn-primary choose-event" data-event-id="'+esc(ev.id||'')+'">Choose event &amp; continue to checkout</button></div></article>';
-      }).join('');
-      Array.prototype.forEach.call(grid.querySelectorAll('.choose-event'),function(btn){btn.addEventListener('click',function(){var ev=events.find(function(x){return String(x.id||'')===String(btn.getAttribute('data-event-id')||'');});if(ev)choose(ev);});});
-    }).catch(function(){grid.innerHTML='<div class="state-card"><strong>We could not load the events.</strong><p style="margin:8px 0 18px;">Please refresh and try again.</p><button type="button" class="btn-primary" onclick="location.reload()">Retry</button></div>';});
-  })();
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var ref = (params.get('ref') || '').trim().toUpperCase();
+      try {
+        if (ref) {
+          sessionStorage.setItem('referralCode', ref);
+          localStorage.setItem('unn_referral_code', ref);
+        }
+      } catch (e) {}
+      window.location.replace('events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : ''));
+    })();
   </script>
+  <noscript><meta http-equiv="refresh" content="0;url=events.html"></noscript>
 </body>
 </html>

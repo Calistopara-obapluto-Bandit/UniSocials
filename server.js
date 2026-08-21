@@ -320,6 +320,15 @@ async function getReferralLinkByInfluencerId(influencerId) {
   const links = await readReferralLinks();
   return links.find(l => l.influencerId === influencerId || l.ownerId === influencerId) || null;
 }
+function canonicalReferralUrl(code) {
+  const safeCode = String(code || '').trim().toUpperCase();
+  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events.html?ref=' + encodeURIComponent(safeCode)) : '';
+}
+
+function referralLinkResponse(link) {
+  if (!link) return null;
+  return { ...link, referralUrl: canonicalReferralUrl(link.code) };
+}
 async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin') {
   const links = await readReferralLinks();
   // Keep each referral owner on exactly one stable referral record.
@@ -2373,7 +2382,7 @@ codes[idx] = entry;
       let link = await getReferralLinkByInfluencerId(user.id);
       if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer');
       else { await updateReferralStats(link.code); link = await getReferralLinkByInfluencerId(user.id); }
-      return sendJson(res, 200, { success: true, link });
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
     }
 
     // ── Influencer: referral stats ──
@@ -2391,7 +2400,7 @@ codes[idx] = entry;
         totalOrders: referredOrders.length,
         totalRevenue: referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0),
         totalTickets: referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0),
-        uniquePeople, link
+        uniquePeople, link: referralLinkResponse(link)
       }});
     }
 
@@ -2449,7 +2458,7 @@ codes[idx] = entry;
         link = await getReferralLinkBySubadminId(user.id);
       }
       
-      return sendJson(res, 200, { success: true, link: link });
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
     }
 
     // ── Sub-admin: global sales overview (all verified sales, not referral-limited) ──
@@ -2990,6 +2999,22 @@ const events = await readEvents();
     // ── Static files ──
     let urlPath = decodeURIComponent(pathname);
     if (urlPath === '/') urlPath = '/index.html';
+
+    // Canonical referral landing page. Older links may still contain
+    // /referral-events.html; redirect them server-side so existing links,
+    // browser bookmarks, and cached dashboard links all converge on Events.
+    if (urlPath.toLowerCase() === '/referral-events.html') {
+      const ref = String(url.searchParams.get('ref') || '').trim().toUpperCase();
+      const target = '/events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+      res.writeHead(301, {
+        'Location': target,
+        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'text/plain; charset=utf-8'
+      });
+      res.end('Moved permanently to ' + target);
+      return;
+    }
+
     const filePath = path.join(PUBLIC_DIR, urlPath);
     // Shortlink referral handler: /r/REF-XXXX  (optionally ?to=/path)
     if (urlPath && urlPath.toLowerCase().startsWith('/r/')) {

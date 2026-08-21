@@ -108,6 +108,7 @@
       <div class="section-label reveal">Events</div>
       <h1 class="section-title reveal reveal-delay-1">Discover <em>campus</em> events</h1>
       <p class="section-sub reveal reveal-delay-2">Browse, filter, and pick your next unforgettable experience.</p>
+      <div id="referralNotice" style="display:none;margin:14px auto 0;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:.84rem;width:max-content;max-width:100%;">🎁 Referral code: <span id="referralNoticeCode"></span></div>
     </div>
   </section>
 
@@ -231,6 +232,29 @@
       var categorySel = document.getElementById('categoryFilter');
       var uniSel = document.getElementById('universityFilter');
 
+      // Referral links now land on Events. Persist the code immediately so the
+      // referral survives filtering, event selection, account creation/login,
+      // and the subsequent ticket/checkout flow.
+      var pageParams = new URLSearchParams(window.location.search);
+      var referralCode = (pageParams.get('ref') || '').trim().toUpperCase();
+      try {
+        if (referralCode) {
+          sessionStorage.setItem('referralCode', referralCode);
+          localStorage.setItem('unn_referral_code', referralCode);
+        } else {
+          referralCode = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+        }
+      } catch (e) {}
+
+      if (referralCode) {
+        var referralNotice = document.getElementById('referralNotice');
+        var referralNoticeCode = document.getElementById('referralNoticeCode');
+        if (referralNotice && referralNoticeCode) {
+          referralNoticeCode.textContent = referralCode;
+          referralNotice.style.display = 'inline-flex';
+        }
+      }
+
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
@@ -328,7 +352,7 @@ function renderEvents(events) {
                   '<div class="event-card-capacity">\uD83C\uDF9F\uFE0F ' + esc(ev.seats || '—') + '</div>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">' +
-                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Get Tickets</a>' +
+                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + (referralCode ? '&ref=' + encodeURIComponent(referralCode) : '') + '" class="btn-buy">Get Tickets</a>' +
                   notifyBtn +
                 '</div>' +
               '</div>' +
