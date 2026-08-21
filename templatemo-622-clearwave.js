@@ -813,18 +813,64 @@ const tier = getSelectedTier();
   } catch(e) {}
 
   if (!checkoutData) {
-    if (summaryTotal) summaryTotal.textContent = 'No order data';
-    if (summaryEventName) summaryEventName.textContent = 'Session expired';
-    if (placeOrderBtn) placeOrderBtn.disabled = true;
-    if (mobilePlaceOrderBtn) mobilePlaceOrderBtn.disabled = true;
-    document.querySelectorAll('.checkout-form .checkout-card').forEach(function(card) {
-      const p = document.createElement('p');
-      p.style.textAlign = 'center';
-      p.style.padding = '20px 0';
-      p.innerHTML = '<a href="tickets.html" class="btn-primary" style="display:inline-flex;gap:8px;padding:12px 28px;">Start Over</a>';
-      card.innerHTML = '';
-      card.appendChild(p);
-    });
+    // A referral link can intentionally open checkout before an event has been
+    // selected. In that case, keep the visitor on checkout, let them choose
+    // an available event, and carry the referral code into the selected order.
+    const checkoutSection = document.querySelector('.checkout-section');
+    if (checkoutSection) {
+      const container = checkoutSection.querySelector('.container') || checkoutSection;
+      const refFromUrl = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+      if (refFromUrl) {
+        try { sessionStorage.setItem('referralCode', refFromUrl); localStorage.setItem('unn_referral_code', refFromUrl); } catch(e) {}
+      }
+      container.innerHTML = '<div class="checkout-event-picker" style="max-width:980px;margin:0 auto;">' +
+        '<div style="text-align:center;margin-bottom:26px;"><div class="section-label">Choose an event</div><h2 style="margin:8px 0 8px;">Select the event you want to attend</h2><p style="color:var(--text-3);margin:0;">Your referral code will be applied automatically after you choose an event.</p>' +
+        (refFromUrl ? '<div style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:.84rem;">🎁 Referral code: ' + refFromUrl.replace(/[<>]/g,'') + '</div>' : '') +
+        '</div><div id="checkoutEventList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;"><div style="grid-column:1/-1;text-align:center;padding:34px;color:var(--text-3);">Loading available events…</div></div></div>';
+      const list = document.getElementById('checkoutEventList');
+      fetch('/api/events').then(function(r){ return r.json(); }).then(function(payload){
+        const events = (payload && payload.success && Array.isArray(payload.events)) ? payload.events : [];
+        if (!events.length) {
+          list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2);"><strong>No events are currently available.</strong><p style="color:var(--text-3);margin:8px 0 18px;">Please check back later.</p><a href="events.html" class="btn-primary">Browse Events</a></div>';
+          return;
+        }
+        list.innerHTML = events.map(function(ev){
+          const id = String(ev.id || '');
+          const name = String(ev.name || ev.title || 'Event');
+          const date = String(ev.date || '');
+          const time = String(ev.time || '');
+          const venue = String(ev.venue || '');
+          const price = Number(ev.price || 0);
+          const bonus = Number(ev.bonusPrice || 0);
+          return '<article style="border:1px solid var(--border);border-radius:16px;background:var(--surface-2);padding:20px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:12px;">' +
+            '<div><h3 style="margin:0 0 7px;">' + name.replace(/[<>]/g,'') + '</h3><div style="color:var(--text-3);font-size:.85rem;line-height:1.6;">' + (date ? date + (time ? ' · ' + time : '') : 'Date TBA') + (venue ? '<br>' + venue.replace(/[<>]/g,'') : '') + '</div></div>' +
+            '<div style="font-weight:800;color:var(--accent);">From ₦' + (bonus > 0 ? bonus : price).toLocaleString() + '</div>' +
+            '<button type="button" class="btn-primary checkout-choose-event" data-event-id="' + id.replace(/[<>"']/g,'') + '" style="width:100%;justify-content:center;">Choose this event</button>' +
+          '</article>';
+        }).join('');
+        list.querySelectorAll('.checkout-choose-event').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            const ev = events.find(function(item){ return String(item.id || '') === String(btn.getAttribute('data-event-id') || ''); });
+            if (!ev) return;
+            const tier = 'regular';
+            const original = Number(ev.price || 0);
+            const bonus = Number(ev.bonusPrice || 0);
+            sessionStorage.setItem('checkoutData', JSON.stringify({
+              eventValue: ev.id, eventId: ev.id, eventName: ev.name || ev.title || 'Event',
+              eventDate: ev.date || '', eventTime: ev.time || '', eventVenue: ev.venue || '',
+              eventCategory: ev.category || '', eventPrice: bonus > 0 ? bonus : original,
+              originalEventPrice: original, bonusEventPrice: bonus, ticketTier: tier,
+              included: ev.includedRegular || '', qty: 1, buyerName: '', buyerEmail: '', buyerPhone: '',
+              buyerFaculty: '', universityId: '', universityName: '', universitySlug: ''
+            }));
+            const ref = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+            window.location.href = 'checkout.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+          });
+        });
+      }).catch(function(){
+        list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2);"><strong>Unable to load events right now.</strong><p style="color:var(--text-3);margin:8px 0 18px;">Please try again.</p><button type="button" class="btn-primary" onclick="location.reload()">Retry</button></div>';
+      });
+    }
     return;
   }
 
