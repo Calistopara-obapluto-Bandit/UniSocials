@@ -61,7 +61,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       var link=ld.link||{};
       var code=link.code||'';
       document.getElementById('refCode').textContent=code||'—';
-      var referralUrl=code ? (window.location.origin + '/checkout.html?ref=' + encodeURIComponent(code)) : '';
+      var referralUrl=code ? (window.location.origin + '/referral-events.html?ref=' + encodeURIComponent(code)) : '';
       var refEl=document.getElementById('refLink');
       refEl.textContent=referralUrl||'Your referral link will appear here...';
       refEl.href=referralUrl||'#';
