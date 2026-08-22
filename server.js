@@ -2182,7 +2182,8 @@ buyerFaculty: buyerFaculty,
         ticketCodes: [],                    // generated only after manual verification
         ticketCode: null
       };
-      order.ticketCode = order.ticketCodes[0].code;
+      // Do not create or access a ticket code while the order is pending.
+      // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
       await addOrder(order);
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
