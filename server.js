@@ -1184,9 +1184,67 @@ function buildBuyerHtml(order) {
     '</div></div>';
 }
 
-// Send buyer confirmation email. Prefers Brevo (works WITHOUT a domain — you just
-// verify a sender email address in Brevo), falls back to Resend if BREVO_API_KEY
-// isn't set. Best-effort: never throws / never blocks.
+// Send the immediate post-purchase acknowledgement BEFORE admin verification.
+// This email confirms that the purchase/payment submission was received; it does
+// NOT contain tickets. Tickets are sent only after an admin/server verification.
+// Best-effort and non-blocking so the purchase flow is never held up by email.
+async function sendBuyerPurchaseAcknowledgement(order) {
+  try {
+    const email = String(order && order.buyerEmail || '').trim();
+    if (!email) return false;
+    const name = order.buyerName || 'there';
+    const subject = 'Payment received — your Unisocials tickets will be sent shortly';
+    const text =
+      'Hi ' + name + ',\n\n' +
+      'Thank you for your purchase on Unisocials. We have received your payment submission.\n\n' +
+      'Your tickets will be sent to you shortly after your payment is verified. Please keep an eye on your inbox (and your spam/junk folder just in case).\n\n' +
+      'Order ID: ' + order.orderId + '\n' +
+      'Event: ' + order.eventName + '\n' +
+      'Quantity: ' + order.qty + '\n\n' +
+      'Thank you for choosing Unisocials.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Payment Received ✓</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(name) + '</strong>,</p>' +
+      '<p style="margin:0 0 16px;color:#475569">Thank you for your purchase on Unisocials. We have received your payment submission.</p>' +
+      '<p style="margin:0 0 16px;color:#0f172a;font-weight:600">Your tickets will be sent to you shortly after your payment is verified.</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+      rowHtml('Order ID', escapeHtml(order.orderId)) +
+      rowHtml('Event', escapeHtml(order.eventName)) +
+      rowHtml('Quantity', String(order.qty)) +
+      '</table>' +
+      '<p style="font-size:12px;color:#64748b;margin:0">Please keep an eye on your inbox and check your spam/junk folder if you do not see the ticket email.</p>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Unisocials Team</p>' +
+      '</div></div>';
+
+    if (brevoApiKey()) {
+      const sent = await sendBrevoEmail(email, subject, text, html, name);
+      if (sent) console.log('Immediate purchase acknowledgement sent via Brevo to', email);
+      return !!sent;
+    }
+    const key = resendKey();
+    if (!key) {
+      console.warn('Buyer acknowledgement not sent: no BREVO_API_KEY or RESEND_API_KEY configured');
+      return false;
+    }
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, {
+      from: emailFrom(), to: [email], subject: subject, text: text, html: html
+    });
+    if (r.status === 200) {
+      console.log('Immediate purchase acknowledgement sent via Resend to', email);
+      return true;
+    }
+    console.warn('Resend purchase acknowledgement failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    return false;
+  } catch (e) {
+    console.warn('Buyer purchase acknowledgement error:', e.message);
+    return false;
+  }
+}
+
+// Send buyer ticket email. Prefers Brevo and falls back to Resend.
+// Best-effort: never throws / never blocks the payment response.
 async function sendBuyerConfirmation(order) {
   try {
     const email = order.buyerEmail;
@@ -1317,11 +1375,15 @@ function ticketLinksHtml(order) {
   return html;
 }
 
-// Fire buyer + admin emails after an order becomes verified (best-effort, non-blocking).
+// Fire ONLY the ticket-delivery email after an order becomes verified.
+// The pre-verification acknowledgement is sent when the order is first created.
+// This separation guarantees that no ticket links are emailed before verification.
 async function notifyOrderVerified(order) {
   try {
-    sendBuyerConfirmation(order);
     sendAdminAlert(order);
+    setTimeout(function() {
+      try { sendBuyerConfirmation(order); } catch (e) { console.warn('Delayed buyer ticket email error:', e.message); }
+    }, 1500);
   } catch (e) {
     console.warn('notifyOrderVerified error:', e.message);
   }
@@ -1389,9 +1451,14 @@ async function sendNewOrderAlert(order) {
   }
 }
 
-// Fire the new-order alert (best-effort, non-blocking).
+// Fire the new-order alert AND the buyer's pre-verification acknowledgement.
+// The buyer acknowledgement contains no ticket links and is sent before admin
+// verification. Actual tickets are sent only from notifyOrderVerified().
 function notifyNewOrder(order) {
-  try { sendNewOrderAlert(order); } catch (e) { console.warn('notifyNewOrder error:', e.message); }
+  try {
+    sendNewOrderAlert(order);
+    sendBuyerPurchaseAcknowledgement(order);
+  } catch (e) { console.warn('notifyNewOrder error:', e.message); }
 }
 
 // ────────────────────────────────────────────
