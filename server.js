@@ -1451,13 +1451,13 @@ async function sendNewOrderAlert(order) {
   }
 }
 
-// Fire the new-order alert AND the buyer's pre-verification acknowledgement.
-// The buyer acknowledgement contains no ticket links and is sent before admin
+// Fire only the admin alert when an order is created.
+// The buyer's payment-received acknowledgement is sent only after the
+// Flutterwave checkout reports a successful payment, but BEFORE manual admin
 // verification. Actual tickets are sent only from notifyOrderVerified().
 function notifyNewOrder(order) {
   try {
     sendNewOrderAlert(order);
-    sendBuyerPurchaseAcknowledgement(order);
   } catch (e) { console.warn('notifyNewOrder error:', e.message); }
 }
 
@@ -2179,7 +2179,7 @@ buyerFaculty: buyerFaculty,
         verifiedAt: null,
         notifyAdmin: true,
         seenByAdmin: false,
-        ticketCodes: generateTicketCodes(qty),  // one code per ticket
+        ticketCodes: [],                    // generated only after manual verification
         ticketCode: null
       };
       order.ticketCode = order.ticketCodes[0].code;
@@ -2190,8 +2190,48 @@ buyerFaculty: buyerFaculty,
       return sendJson(res, 200, { success: true, order: order });
     }
 
-    // ── Verify payment (server-authoritative) ──
+    // ── Buyer payment-received acknowledgement (NO verification) ──
+    // Called by the Flutterwave checkout callback after Flutterwave reports a
+    // successful payment. This does NOT verify the transaction and NEVER
+    // issues tickets. It only sends the acknowledgement that payment was
+    // received and tickets will follow after manual verification.
+    if (pathname === '/api/payment-received' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const txRef = String(data.tx_ref || '').trim();
+      if (!txRef) return sendJson(res, 400, { success: false, error: 'Missing tx_ref' });
+      const order = await getOrder(txRef);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
+      if (order.status === 'verified') {
+        return sendJson(res, 409, { success: false, error: 'Order is already verified; ticket delivery is handled separately.' });
+      }
+      if (order.status === 'rejected') {
+        return sendJson(res, 409, { success: false, error: 'Order has been rejected.' });
+      }
+      if (!order.paymentReceivedAt) {
+        await patchOrder(txRef, {
+          paymentReceivedAt: new Date().toISOString(),
+          paymentReceived: true,
+          paymentReceivedEmailSent: false
+        });
+      }
+      const current = await getOrder(txRef);
+      // Idempotent with retry: once the email is successfully sent, later
+      // callbacks do nothing; if delivery failed, a later callback retries it.
+      if (!current.paymentReceivedEmailSent) {
+        const sent = await sendBuyerPurchaseAcknowledgement(current);
+        if (sent) {
+          await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
+        }
+        return sendJson(res, 200, { success: true, paymentReceived: true, acknowledgementSent: !!sent, order: { orderId: current.orderId, status: current.status } });
+      }
+      return sendJson(res, 200, { success: true, paymentReceived: true, acknowledgementSent: true, order: { orderId: current.orderId, status: current.status } });
+    }
+
+    // ── Verify payment (server-authoritative, ADMIN ONLY) ──
     if (pathname === '/api/verify-payment' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2251,19 +2291,18 @@ buyerFaculty: buyerFaculty,
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
 
       if (isSuccess && order.status !== 'verified') {
-        // Verify amount/currency from webhook payload too
+        // Webhooks are informational only in this manual-verification flow.
+        // Do not mark verified or issue tickets automatically. Record the
+        // provider observation so an admin can still verify the order manually.
         const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
         const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
-        if (amountOk && currencyOk) {
-          const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
-          console.log('Webhook verified order:', txRef);
-          notifyOrderVerified(updated);
-          await refreshReferralStatsForVerifiedOrder(updated, order.status);
-        } else {
+        if (!amountOk || !currencyOk) {
           return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
         }
+        await patchOrder(txRef, { flutterwavePaymentObserved: true, flutterwavePaymentObservedAt: new Date().toISOString() });
+        console.log('Flutterwave payment observed (awaiting manual verification):', txRef);
       }
-      return sendJson(res, 200, { success: true, tx_ref: txRef });
+      return sendJson(res, 200, { success: true, tx_ref: txRef, manualVerificationRequired: true });
     }
 
 // ── Order status lookup (pending page) ──
@@ -2293,8 +2332,8 @@ buyerFaculty: buyerFaculty,
           currency: order.currency,
           paymentMethod: order.paymentMethod,
           verifiedAt: order.verifiedAt,
-          ticketCodes: order.ticketCodes || [],
-          ticketCode: order.ticketCode || null
+          ticketCodes: order.status === 'verified' ? (order.ticketCodes || []) : [],
+          ticketCode: order.status === 'verified' ? (order.ticketCode || null) : null
         }
       });
     }
@@ -2337,8 +2376,8 @@ buyerFaculty: buyerFaculty,
         paymentMethod: order.paymentMethod,
         verifiedAt: order.verifiedAt,
         // Only include ticket codes when the requester is signed in AND owns the order.
-        ticketCodes: ownsOrder ? (order.ticketCodes || []) : [],
-        ticketCode: ownsOrder ? (order.ticketCode || null) : null,
+        ticketCodes: (ownsOrder && order.status === 'verified') ? (order.ticketCodes || []) : [],
+        ticketCode: (ownsOrder && order.status === 'verified') ? (order.ticketCode || null) : null,
         requiresSignIn: !ownsOrder
       };
       return sendJson(res, 200, { success: true, order: payload });

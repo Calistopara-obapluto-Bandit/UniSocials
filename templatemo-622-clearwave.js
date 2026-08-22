@@ -1067,7 +1067,7 @@ const tier = getSelectedTier();
   function updatePaymentNote() {
     const note = document.getElementById('paymentNote');
     if (note) {
-      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.';
+      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. After payment, you will receive a confirmation email while your order awaits manual verification. Tickets are sent after verification.';
     }
   }
 
@@ -1226,28 +1226,27 @@ email: email || 'customer@example.com',
       },
       callback: function(response) {
         if (response && (response.status === 'successful' || response.status === 'completed')) {
-          fetch('/api/verify-payment', {
+          // IMPORTANT: this callback must NOT verify the payment. It only records
+          // that Flutterwave reported a successful checkout and triggers the
+          // pre-verification acknowledgement email. Manual admin verification
+          // is the only path that issues tickets.
+          fetch('/api/payment-received', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
           })
           .then(function(res) { return res.json(); })
           .then(function(data) {
+            var paidTotal = orderTotal;
             if (data && data.success) {
-              const verifiedAmount = parseFloat(data.order && data.order.amount) || orderTotal;
-              const totalPaid = verifiedAmount > 0 ? verifiedAmount : orderTotal;
-              const ticketCodes = (data.order && data.order.ticketCodes) || [];
-              const withIndex = ticketCodes.map(function(tc, i) { return { code: tc.code, index: i + 1 }; });
-              sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, 'Flutterwave', name, email, phone, withIndex);
-              showSuccessModal(orderId, eventName, totalPaid, withIndex);
-            } else {
-              // Payment not yet verified — redirect to pending tracker
-              alert('Payment received but verification is still processing. We\'ll confirm shortly.');
-              window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
+              sendOrderToWhatsApp(orderId, eventName, qty, paidTotal, 'Flutterwave — awaiting verification', name, email, phone, []);
             }
+            window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
           })
           .catch(function() {
-            window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
+            // Even if the acknowledgement request fails, never verify or issue
+            // tickets from the browser. Send the buyer to the thank-you page.
+            window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
           });
         } else {
           alert('Payment was not completed. You can try again.');
