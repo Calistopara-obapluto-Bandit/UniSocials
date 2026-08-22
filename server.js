@@ -60,6 +60,7 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
@@ -114,6 +115,41 @@ async function patchOrder(orderId, patch) {
   orders[idx] = Object.assign({}, orders[idx], patch);
   await writeOrders(orders);
   return orders[idx];
+}
+
+/* ── Coupons ── */
+async function readCoupons() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM coupons ORDER BY created_at DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'coupons.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writeCoupons(coupons) {
+  if (usePg) {
+    for (const c of coupons) {
+      await db.query('INSERT INTO coupons (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data', [c.id, JSON.stringify(c)]);
+    }
+    const ids = coupons.map(c => c.id);
+    if (ids.length) await db.query('DELETE FROM coupons WHERE NOT (id = ANY($1::text[]))', [ids]);
+    else await db.query('DELETE FROM coupons');
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'coupons.json'), JSON.stringify(coupons, null, 2), 'utf8');
+}
+async function getCouponByCode(code) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return null;
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.code || '').toUpperCase() === normalized && c.active !== false) || null;
+}
+async function getCouponById(id) {
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.id) === String(id)) || null;
 }
 
 /* ── Users ── */
@@ -176,23 +212,45 @@ async function writeSessions(sessions) {
   fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify(sessions, null, 2), 'utf8');
 }
 async function createSession(token, userId) {
+  if (usePg) {
+    // Do not rewrite the entire sessions table. A full DELETE + INSERT cycle
+    // can race with another login/logout and accidentally remove a live session.
+    await db.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id', [token, userId]);
+    return;
+  }
   const sessions = await readSessions();
   sessions[token] = userId;
   await writeSessions(sessions);
 }
 async function getSessionUser(token) {
   if (!token) return null;
+  if (usePg) {
+    const r = await db.query('SELECT user_id FROM sessions WHERE token = $1 LIMIT 1', [token]);
+    if (!r.rows.length) return null;
+    const user = await findUserById(r.rows[0].user_id);
+    return user && user.archived === true ? null : user;
+  }
   const sessions = await readSessions();
   const userId = sessions[token];
   if (!userId) return null;
-  return await findUserById(userId);
+  const user = await findUserById(userId);
+  return user && user.archived === true ? null : user;
 }
 async function deleteSession(token) {
+  if (!token) return;
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE token = $1', [token]);
+    return;
+  }
   const sessions = await readSessions();
   delete sessions[token];
   await writeSessions(sessions);
 }
 async function deleteUserSessions(userId) {
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    return;
+  }
   const sessions = await readSessions();
   for (const [t, uid] of Object.entries(sessions)) {
     if (uid === userId) delete sessions[t];
@@ -214,26 +272,67 @@ async function readReferralLinks() {
 }
 async function writeReferralLinks(links) {
   if (usePg) {
-    await db.query('DELETE FROM referral_links');
+    // Keep the PostgreSQL table authoritative without deleting every referral
+    // row on each update. The old DELETE+INSERT approach could erase or race
+    // with another referral update and made statistics unreliable.
     for (const l of links) {
-      await db.query('INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [l.code, JSON.stringify(l)]);
+      await db.query(
+        'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [l.code, JSON.stringify(l)]
+      );
     }
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
 }
+
+async function writeReferralLink(link) {
+  if (!link) return;
+  if (usePg) {
+    await db.query(
+      'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [link.code, JSON.stringify(link)]
+    );
+    return;
+  }
+  const links = await readReferralLinks();
+  const idx = links.findIndex(l => l.code === link.code);
+  if (idx >= 0) links[idx] = link; else links.push(link);
+  await writeReferralLinks(links);
+}
 async function getReferralLinkByCode(code) {
   const links = await readReferralLinks();
   return links.find(l => l.code === code) || null;
 }
+async function getReferralLinkByOwnerId(ownerId) {
+  const links = await readReferralLinks();
+  return links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId) || null;
+}
+
+// Backward-compatible helper for existing sub-admin referral records.
 async function getReferralLinkBySubadminId(subadminId) {
   const links = await readReferralLinks();
-  return links.find(l => l.subadminId === subadminId) || null;
+  return links.find(l => l.subadminId === subadminId || l.ownerId === subadminId) || null;
 }
-async function generateReferralLink(subadminId, subadminName, subadminEmail) {
+
+// Backward-compatible helper for influencer referral records.
+async function getReferralLinkByInfluencerId(influencerId) {
   const links = await readReferralLinks();
-  // Check if this subadmin already has a referral link
-  const existing = links.find(l => l.subadminId === subadminId);
+  return links.find(l => l.influencerId === influencerId || l.ownerId === influencerId) || null;
+}
+function canonicalReferralUrl(code) {
+  const safeCode = String(code || '').trim().toUpperCase();
+  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events.html?ref=' + encodeURIComponent(safeCode)) : '';
+}
+
+function referralLinkResponse(link) {
+  if (!link) return null;
+  return { ...link, referralUrl: canonicalReferralUrl(link.code) };
+}
+async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin') {
+  const links = await readReferralLinks();
+  // Keep each referral owner on exactly one stable referral record.
+  const existing = links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId);
   if (existing) return existing;
   
   // Generate unique code
@@ -244,12 +343,19 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
   
   const link = {
     code: code,
-    subadminId: subadminId,
-    subadminName: subadminName,
-    subadminEmail: subadminEmail,
+    ownerId: ownerId,
+    ownerRole: ownerRole,
+    subadminId: ownerRole === 'subadmin' ? ownerId : null,
+    influencerId: ownerRole === 'influencer' ? ownerId : null,
+    subadminName: ownerRole === 'subadmin' ? ownerName : null,
+    subadminEmail: ownerRole === 'subadmin' ? ownerEmail : null,
+    influencerName: ownerRole === 'influencer' ? ownerName : null,
+    influencerEmail: ownerRole === 'influencer' ? ownerEmail : null,
     createdAt: new Date().toISOString(),
     totalOrders: 0,
-    totalRevenue: 0
+    totalRevenue: 0,
+    uniquePeople: 0,
+    totalTickets: 0
   };
   links.push(link);
   await writeReferralLinks(links);
@@ -272,10 +378,16 @@ async function updateReferralStats(referralCode) {
   const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
   
   link.totalOrders = referredOrders.length;
-  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-  
-  console.log(`updateReferralStats: code=${referralCode} totalOrders=${link.totalOrders} totalRevenue=${link.totalRevenue}`);
-  await writeReferralLinks(links);
+  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+  link.totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+  link.uniquePeople = new Set(
+    referredOrders
+      .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+      .filter(Boolean)
+  ).size;
+
+  console.log(`updateReferralStats: code=${referralCode} orders=${link.totalOrders} tickets=${link.totalTickets} people=${link.uniquePeople} revenue=${link.totalRevenue}`);
+  await writeReferralLink(link);
 }
 
 async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
@@ -294,153 +406,92 @@ async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
 }
 
 /* ── Events (admin-managed catalog shown on client pages) ── */
-const DEFAULT_EVENTS = [
-  {
-id: 'arts-cultural-night',
-    name: 'Faculty of Arts Cultural Night',
-    category: 'Arts & Culture',
-    price: 2500,
-    vipPrice: 5000,
-    vvipPrice: 5000,
-    tablePrice: 10000,
-    date: 'March 10, 2025',
-    time: '4:00 PM',
-    venue: 'Arts Theatre',
-    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.',
-    tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '🎭',
-    featured: true,
-    seats: '150 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'engineering-dinner',
-    name: 'Engineering Annual Dinner',
-category: 'Engineering',
-    price: 5000,
-    vipPrice: 10000,
-    vvipPrice: 10000,
-    tablePrice: 25000,
-    date: 'March 15, 2025',
-    time: '5:00 PM',
-    venue: 'Engineering Auditorium',
-    description: 'The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.',
-    tags: ['🏆 Awards', '🍽️ Dinner', '🤝 Networking'],
-    image: 'images/tm-622-screen-02.jpg',
-    icon: '⚙️',
-    featured: true,
-    seats: '80 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'entrepreneurship-summit',
-    name: 'Entrepreneurship Summit',
-category: 'Business',
-    price: 3000,
-    vipPrice: 0,
-    date: 'March 22, 2025',
-    time: '10:00 AM',
-    venue: 'Business School Hall',
-    description: 'Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.',
-    tags: ['💡 Pitching', '💰 Funding', '📈 Workshops'],
-    image: 'images/tm-622-screen-03.jpg',
-    icon: '💼',
-    featured: true,
-    seats: '200 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'music-festival',
-    name: 'Campus Music Festival',
-category: 'Music',
-    price: 4000,
-    vipPrice: 8000,
-    vvipPrice: 8000,
-    tablePrice: 20000,
-    date: 'March 29, 2025',
-    time: '6:00 PM',
-    venue: 'Sports Complex',
-    description: 'Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.',
-    tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
-    image: 'images/tm-622-screen-04.jpg',
-    icon: '🎵',
-    featured: true,
-    seats: '300 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'law-moot-court',
-    name: 'Faculty of Law Moot Court',
-    category: 'Academic',
-    price: 1500,
-    vipPrice: 0,
-    date: 'April 5, 2025',
-    time: '9:00 AM',
-    venue: 'Faculty of Law',
-    description: 'The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.',
-    tags: ['⚖️ Mock Trial', '📜 Legal Debate', '🏅 Competition'],
-    image: 'images/tm-622-screen-05.jpg',
-    icon: '📚',
-    featured: false,
-    seats: '100 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'sports-day',
-    name: 'Inter-Faculty Sports Day',
-    category: 'Sports',
-    price: 1000,
-    vipPrice: 0,
-    date: 'April 12, 2025',
-    time: '8:00 AM',
-venue: 'Main Stadium',
-    description: 'A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!',
-    tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '⚽',
-    featured: false,
-    seats: 'Unlimited',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  }
-];
+const DEFAULT_EVENTS = [];
 
 async function readEvents() {
   if (usePg) {
-    const r = await db.query('SELECT data FROM events ORDER BY data->>\'date\' ASC');
-    const list = r.rows.map(row => row.data);
-    // Auto-seed the default UNN events catalog when the events table is empty
-    // (e.g. first run or an empty PostgreSQL table) so events are never missing.
-    if (list.length === 0) {
-      for (const ev of DEFAULT_EVENTS) {
-        await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
-          [ev.id, JSON.stringify(ev)]);
-      }
-      console.log('Seeded ' + DEFAULT_EVENTS.length + ' default events into PostgreSQL.');
-      return DEFAULT_EVENTS.slice();
-    }
-    return list;
+    const r = await db.query("SELECT data FROM events ORDER BY data->>'date' ASC");
+    return r.rows.map(row => row.data);
   }
   try {
     const raw = fs.readFileSync(path.join(DATA_DIR, 'events.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_EVENTS;
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return DEFAULT_EVENTS;
+    return [];
   }
 }
+
+async function resetLegacyPaymentDataOnce() {
+  // One-time cleanup requested for the old/demo payment data. This resets the
+  // payment/sales counters to zero without affecting users, events, coupons,
+  // referral codes, or other account data. A migration marker prevents this
+  // from running again on future restarts/deploys.
+  const migrationId = 'reset-payment-data-2026-08-21';
+  try {
+    if (usePg) {
+      await db.query(`CREATE TABLE IF NOT EXISTS app_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT NOW())`);
+      const already = await db.query('SELECT 1 FROM app_migrations WHERE id = $1', [migrationId]);
+      if (already.rows.length) return;
+      await db.query('DELETE FROM orders');
+      await db.query(`UPDATE referral_links SET data = data || '{"totalOrders":0,"totalRevenue":0,"totalTickets":0,"uniquePeople":0}'::jsonb`);
+      await db.query('INSERT INTO app_migrations (id) VALUES ($1)', [migrationId]);
+      console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
+      return;
+    }
+
+    const marker = path.join(DATA_DIR, '.' + migrationId);
+    if (fs.existsSync(marker)) return;
+    await writeOrders([]);
+    try {
+      const raw = fs.readFileSync(path.join(DATA_DIR, 'referral_links.json'), 'utf8');
+      const links = JSON.parse(raw);
+      if (Array.isArray(links)) {
+        links.forEach(link => {
+          link.totalOrders = 0;
+          link.totalRevenue = 0;
+          link.totalTickets = 0;
+          link.uniquePeople = 0;
+        });
+        fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
+      }
+    } catch (_) {}
+    fs.writeFileSync(marker, new Date().toISOString(), 'utf8');
+    console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
+  } catch (e) {
+    console.error('Payment reset migration failed:', e.message);
+    throw e;
+  }
+}
+
+async function removeBundledDemoEvents() {
+  // These were the old bundled/demo event records. Site-created events are
+  // retained. Removing by these exact IDs also removes the old Campus Music
+  // Festival record that was being used by the draft payment.
+  const ids = ['arts-cultural-night','engineering-dinner','entrepreneurship-summit','music-festival','law-moot-court','sports-day'];
+  if (usePg) {
+    await db.query('DELETE FROM events WHERE id = ANY($1::text[])', [ids]);
+    return;
+  }
+  try {
+    const events = await readEvents();
+    const next = events.filter(e => !ids.includes(String(e.id || '')));
+    if (next.length !== events.length) fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(next, null, 2), 'utf8');
+  } catch (_) {}
+}
+
+async function getOrdersForCurrentSiteEvents() {
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  const eventIds = new Set(events.map(e => String(e.id || '')));
+  const eventNames = new Set(events.map(e => String(e.name || '').trim().toLowerCase()).filter(Boolean));
+  // Orders must belong to an event that currently exists in the site's event catalog.
+  return orders.filter(o => {
+    const id = String(o.eventId || '');
+    const name = String(o.eventName || '').trim().toLowerCase();
+    return (id && eventIds.has(id)) || (!id && name && eventNames.has(name));
+  });
+}
+
 async function writeEvents(events) {
   if (usePg) {
     await db.query('DELETE FROM events');
@@ -766,12 +817,29 @@ function isAdminAuthorized(req) {
 }
 // Authorize either the master admin password OR a logged-in sub-admin account.
 // Sub-admins have limited privileges (check-in + add events).
+async function isAdminOrInfluencerAdmin(req) {
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const user = await getSessionUser(token);
+  if (user && user.role === 'influencer_admin') return { role: user.role, user };
+  return null;
+}
+
+// Influencer ownership is enforced server-side. Master admin can manage any
+// influencer; an influencer admin can manage only accounts whose createdBy
+// matches the authenticated influencer admin's user id.
+function canManageInfluencer(authCtx, influencer) {
+  if (!authCtx || !influencer || influencer.role !== 'influencer') return false;
+  if (authCtx.role === 'admin') return true;
+  return authCtx.role === 'influencer_admin' && influencer.createdBy === authCtx.user.id;
+}
 async function isAdminOrSubadmin(req) {
   if (isAdminAuthorized(req)) return { role: 'admin' };
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && user.role === 'subadmin') return { role: 'subadmin', user: user };
+  if (user && ['subadmin','influencer','checkin_staff','influencer_admin'].includes(user.role)) return { role: user.role, user: user };
   return null;
 }
 
@@ -1116,9 +1184,67 @@ function buildBuyerHtml(order) {
     '</div></div>';
 }
 
-// Send buyer confirmation email. Prefers Brevo (works WITHOUT a domain — you just
-// verify a sender email address in Brevo), falls back to Resend if BREVO_API_KEY
-// isn't set. Best-effort: never throws / never blocks.
+// Send the immediate post-purchase acknowledgement BEFORE admin verification.
+// This email confirms that the purchase/payment submission was received; it does
+// NOT contain tickets. Tickets are sent only after an admin/server verification.
+// Best-effort and non-blocking so the purchase flow is never held up by email.
+async function sendBuyerPurchaseAcknowledgement(order) {
+  try {
+    const email = String(order && order.buyerEmail || '').trim();
+    if (!email) return false;
+    const name = order.buyerName || 'there';
+    const subject = 'Payment received — your Unisocials tickets will be sent shortly';
+    const text =
+      'Hi ' + name + ',\n\n' +
+      'Thank you for your purchase on Unisocials. We have received your payment submission.\n\n' +
+      'Your tickets will be sent to you shortly after your payment is verified. Please keep an eye on your inbox (and your spam/junk folder just in case).\n\n' +
+      'Order ID: ' + order.orderId + '\n' +
+      'Event: ' + order.eventName + '\n' +
+      'Quantity: ' + order.qty + '\n\n' +
+      'Thank you for choosing Unisocials.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Payment Received ✓</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(name) + '</strong>,</p>' +
+      '<p style="margin:0 0 16px;color:#475569">Thank you for your purchase on Unisocials. We have received your payment submission.</p>' +
+      '<p style="margin:0 0 16px;color:#0f172a;font-weight:600">Your tickets will be sent to you shortly after your payment is verified.</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+      rowHtml('Order ID', escapeHtml(order.orderId)) +
+      rowHtml('Event', escapeHtml(order.eventName)) +
+      rowHtml('Quantity', String(order.qty)) +
+      '</table>' +
+      '<p style="font-size:12px;color:#64748b;margin:0">Please keep an eye on your inbox and check your spam/junk folder if you do not see the ticket email.</p>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Unisocials Team</p>' +
+      '</div></div>';
+
+    if (brevoApiKey()) {
+      const sent = await sendBrevoEmail(email, subject, text, html, name);
+      if (sent) console.log('Immediate purchase acknowledgement sent via Brevo to', email);
+      return !!sent;
+    }
+    const key = resendKey();
+    if (!key) {
+      console.warn('Buyer acknowledgement not sent: no BREVO_API_KEY or RESEND_API_KEY configured');
+      return false;
+    }
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, {
+      from: emailFrom(), to: [email], subject: subject, text: text, html: html
+    });
+    if (r.status === 200) {
+      console.log('Immediate purchase acknowledgement sent via Resend to', email);
+      return true;
+    }
+    console.warn('Resend purchase acknowledgement failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    return false;
+  } catch (e) {
+    console.warn('Buyer purchase acknowledgement error:', e.message);
+    return false;
+  }
+}
+
+// Send buyer ticket email. Prefers Brevo and falls back to Resend.
+// Best-effort: never throws / never blocks the payment response.
 async function sendBuyerConfirmation(order) {
   try {
     const email = order.buyerEmail;
@@ -1249,11 +1375,15 @@ function ticketLinksHtml(order) {
   return html;
 }
 
-// Fire buyer + admin emails after an order becomes verified (best-effort, non-blocking).
+// Fire ONLY the ticket-delivery email after an order becomes verified.
+// The pre-verification acknowledgement is sent when the order is first created.
+// This separation guarantees that no ticket links are emailed before verification.
 async function notifyOrderVerified(order) {
   try {
-    sendBuyerConfirmation(order);
     sendAdminAlert(order);
+    setTimeout(function() {
+      try { sendBuyerConfirmation(order); } catch (e) { console.warn('Delayed buyer ticket email error:', e.message); }
+    }, 1500);
   } catch (e) {
     console.warn('notifyOrderVerified error:', e.message);
   }
@@ -1321,9 +1451,14 @@ async function sendNewOrderAlert(order) {
   }
 }
 
-// Fire the new-order alert (best-effort, non-blocking).
+// Fire only the admin alert when an order is created.
+// The buyer's payment-received acknowledgement is sent only after the
+// Flutterwave checkout reports a successful payment, but BEFORE manual admin
+// verification. Actual tickets are sent only from notifyOrderVerified().
 function notifyNewOrder(order) {
-  try { sendNewOrderAlert(order); } catch (e) { console.warn('notifyNewOrder error:', e.message); }
+  try {
+    sendNewOrderAlert(order);
+  } catch (e) { console.warn('notifyNewOrder error:', e.message); }
 }
 
 // ────────────────────────────────────────────
@@ -1511,12 +1646,90 @@ const user = {
         return sendJson(res, 400, { success: false, error: 'Please enter your email and password.' });
       }
       const user = await findUserByEmail(email);
+      if (user && user.archived === true) {
+        return sendJson(res, 403, { success: false, error: 'This account has been archived and cannot be used. Please contact an administrator.' });
+      }
       if (!user || !verifyPassword(password, user.passwordHash)) {
         return sendJson(res, 401, { success: false, error: 'Invalid email or password.' });
       }
       const token = generateToken();
       await createSession(token, user.id);
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
+    }
+
+    // ── Admin (master only): list influencer accounts ──
+    if (pathname === '/api/admin/influencers' && req.method === 'GET') {
+      // Main Admin, Sub-admin and Influencer Admin can view influencer accounts.
+      // Sub-admins get the global list; Influencer Admins remain scoped to accounts they created.
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
+       const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || u.createdBy === authCtx.user.id)).map(u => {
+        const link = links.find(l => l.subadminId === u.id) || null;
+        const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
+        const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+        return {
+          ...publicUser(u),
+          referralCode: link ? link.code : null,
+          referralStats: {
+            totalOrders: referredOrders.length,
+            totalRevenue,
+            totalTickets,
+            uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          }
+        };
+      });
+      return sendJson(res, 200, { success: true, influencers });
+    }
+
+    // ── Admin (master only): create influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      if (!name || !email || password.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      const influencer = {
+        id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer',
+        createdBy: authCtx.role === 'admin' ? null : authCtx.user.id,
+        createdAt: new Date().toISOString()
+      };
+      await addUser(influencer);
+      const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email);
+      return sendJson(res, 200, {
+        success: true,
+        influencer: { ...publicUser(influencer), referralCode: referralLink.code, referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 } }
+      });
+    }
+
+    // ── Admin (master only): remove influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'influencer') return sendJson(res, 404, { success: false, error: 'Influencer not found' });
+      if (!canManageInfluencer(authCtx, user)) {
+        return sendJson(res, 403, { success: false, error: 'You can only manage influencers you created.' });
+      }
+      const users = await readUsers();
+      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
     }
 
     // ── Admin (master only): list sub-admin accounts ──
@@ -1537,7 +1750,12 @@ const user = {
           referralStats: {
             totalOrders: referredOrders.length,
             totalRevenue: totalRevenue,
-            totalTickets: totalTickets
+            totalTickets: totalTickets,
+            uniquePeople: new Set(
+              referredOrders
+                .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+                .filter(Boolean)
+            ).size
           }
         };
       });
@@ -1576,7 +1794,7 @@ const user = {
         subadmin: {
           ...publicUser(sub),
           referralCode: referralLink.code,
-          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0 }
+          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 }
         }
       });
     }
@@ -1594,6 +1812,99 @@ const user = {
       await writeUsers(users.filter(u => u.id !== user.id));
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
+    }
+
+    // ── Archive/unarchive managed accounts ──
+    if (pathname === '/api/admin/accounts/archive' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res,403,{success:false,error:'Only Admin, Sub-admin, or Influencer Admin can archive accounts'});
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const archived = data.archived !== false;
+      if (!email) return sendJson(res,400,{success:false,error:'Missing email'});
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res,404,{success:false,error:'Account not found'});
+      if (target.role === 'admin') return sendJson(res,403,{success:false,error:'The Main Admin account cannot be archived'});
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
+        return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
+      }
+      // Sub-admins can archive/unarchive influencer accounts globally. They cannot
+      // archive other admin/staff accounts; the Main Admin retains full account control.
+      if (authCtx.role === 'subadmin' && target.role !== 'influencer') {
+        return sendJson(res,403,{success:false,error:'Sub-admins can only archive influencer accounts.'});
+      }
+      const users = await readUsers();
+      const idx = users.findIndex(u => u.id === target.id);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Account not found'});
+      users[idx] = Object.assign({}, users[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeUsers(users);
+      if (archived) await deleteUserSessions(target.id);
+      return sendJson(res,200,{success:true,user:publicUser(users[idx])});
+    }
+
+    // ── Admin: dedicated staff accounts (check-in staff / influencer admin) ──
+    if (pathname === '/api/admin/staff' && (req.method === 'GET' || req.method === 'POST' || req.method === 'DELETE')) {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (req.method === 'GET') {
+        const users = await readUsers();
+        const staff = users.filter(u => ['checkin_staff','influencer_admin'].includes(u.role)).map(u => publicUser(u));
+        return sendJson(res, 200, { success: true, staff });
+      }
+      if (req.method === 'POST') {
+        const body = await readBody(req); let data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) {}
+        const name = String(data.name || '').trim();
+        const email = String(data.email || '').trim().toLowerCase();
+        const password = String(data.password || '');
+        const role = String(data.role || '').trim();
+        if (!name || !email || password.length < 6 || !['checkin_staff','influencer_admin'].includes(role)) {
+          return sendJson(res, 400, { success: false, error: 'Name, email, password (6+ characters), and a valid role are required.' });
+        }
+        if (await findUserByEmail(email)) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+        const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
+        await addUser(user);
+        return sendJson(res, 200, { success:true, staff: publicUser(user) });
+      }
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success:false, error:'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) return sendJson(res,404,{success:false,error:'Staff account not found'});
+      const users = await readUsers(); await writeUsers(users.filter(u => u.id !== user.id)); await deleteUserSessions(user.id);
+      return sendJson(res,200,{success:true});
+    }
+
+    // ── ADMIN: Reset password for an account this admin manages ──
+    // Main Admin can reset any non-main-admin account. Influencer Admin can
+    // reset only influencers that were created by that Influencer Admin.
+    if (pathname === '/api/admin/account-password' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const newPassword = String(data.password || '');
+      if (!email || newPassword.length < 6) {
+        return sendJson(res, 400, { success: false, error: 'Email and a new password of at least 6 characters are required.' });
+      }
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res, 404, { success: false, error: 'Account not found.' });
+      if (target.role === 'admin') return sendJson(res, 403, { success: false, error: 'The Main Admin password cannot be changed from this dashboard.' });
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx, target)) {
+        return sendJson(res, 403, { success: false, error: 'You can only reset passwords for influencers you created.' });
+      }
+      target.passwordHash = hashPassword(newPassword);
+      target.otp = null;
+      target.otpExpires = null;
+      target.resetToken = null;
+      target.resetTokenExpires = null;
+      const users = await readUsers();
+      await writeUsers(users.map(u => u.id === target.id ? target : u));
+      await deleteUserSessions(target.id);
+      return sendJson(res, 200, { success: true, message: 'Password reset successfully. The account must sign in again.' });
     }
 
     // ── AUTH: Logout ──
@@ -1742,19 +2053,33 @@ const user = {
       return sendJson(res, 200, { success: true, orders: mine });
     }
 
-    // ── Create order (PENDING until payment is server-verified) ──
+    
+function getTierInventory(event, tier, orders) {
+  const t = String(tier || 'regular').toLowerCase();
+  const names = {regular:'Regular', vip:'Vip', vvip:'Vvip', table:'Table'};
+  const n = names[t] || 'Regular';
+  const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
+  const list = Array.isArray(orders) ? orders : [];
+  const relevant = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && ['pending','verified'].includes(String(o.status || '').toLowerCase()));
+  const reserved = relevant.reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  const sold = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && String(o.status || '').toLowerCase() === 'verified').reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  return {total, sold, reserved, remaining: total > 0 ? Math.max(0,total-reserved) : 0, soldOut: total > 0 && reserved >= total};
+}
+
+// ── Create order (PENDING until payment is server-verified) ──
     if (pathname === '/api/orders' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
 
       const orderId = String(data.orderId || '').trim();
+      const eventId = String(data.eventId || '').trim();
       const eventName = String(data.eventName || '').trim();
       const eventDate = String(data.eventDate || '').trim();
       const eventVenue = String(data.eventVenue || '').trim();
       const eventCategory = String(data.eventCategory || '').trim();
       const qty = parseInt(data.qty) || 1;
-      const amount = parseFloat(data.amount) || 0;
+      let amount = parseFloat(data.amount) || 0;
       const currency = String(data.currency || 'NGN');
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
@@ -1765,7 +2090,50 @@ const user = {
       const universityId = String(data.universityId || '').trim();
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
-      const referralCode = String(data.referralCode || '').trim();  // Optional referral tracking
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      const couponCode = String(data.couponCode || '').trim().toUpperCase();
+      let couponDiscount = 0;
+      let baseAmountBeforeCoupon = amount;
+      let referralApplied = false;
+
+      // Validate referral before pricing. A valid referral intentionally switches
+      // this order from the event's bonus price to the selected tier's original price.
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) {
+          return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
+        }
+        referralApplied = true;
+      }
+
+      // Server-authoritative pricing: bonus is the default; a valid referral
+      // switches the selected tier back to its original price.
+      if (eventId) {
+        const eventCatalog = await readEvents();
+        const eventRecord = eventCatalog.find(e => String(e.id) === eventId);
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+        const ordersForInventory = await readOrders();
+        const inv = getTierInventory(eventRecord, ticketTier, ordersForInventory);
+        if (inv.total > 0 && Number(qty) > inv.remaining) {
+          return sendJson(res, 409, { success:false, error: inv.remaining > 0 ? ('Only ' + inv.remaining + ' ' + ticketTier + ' ticket(s) remaining.') : (ticketTier.toUpperCase() + ' tickets are sold out.') });
+        }
+        const tierOriginals = { regular: Number(eventRecord.price || 0), vip: Number(eventRecord.vipPrice || 0), vvip: Number(eventRecord.vvipPrice || 0), table: Number(eventRecord.tablePrice || 0) };
+        const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
+        const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
+        const bonusUnit = tierBonuses[ticketTier] || 0;
+        const payableUnit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
+        amount = payableUnit * qty;
+        baseAmountBeforeCoupon = amount;
+      }
+
+      if (couponCode) {
+        const coupon = await getCouponByCode(couponCode);
+        if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+        couponDiscount = Math.max(0, Number(coupon.amount) || 0);
+        if (couponDiscount <= 0) return sendJson(res, 400, { success: false, error: 'Coupon discount is invalid.' });
+        if (couponDiscount >= baseAmountBeforeCoupon) return sendJson(res, 400, { success: false, error: 'Coupon discount cannot cover the full ticket price.' });
+        amount = Math.max(0, baseAmountBeforeCoupon - couponDiscount);
+      }
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1784,6 +2152,7 @@ const user = {
       const order = {
         orderId: orderId,
         status: 'pending',                 // ALWAYS pending until server verification
+        eventId: eventId || null,
         eventName: eventName,
         eventCategory: eventCategory,
         eventDate: eventDate,
@@ -1802,28 +2171,68 @@ buyerFaculty: buyerFaculty,
         universityName: universityName,
         universitySlug: universitySlug,
         referralCode: referralCode || null,  // Track which subadmin referred this order
+        couponCode: couponCode || null,
+        couponDiscount: couponDiscount || 0,
+        amountBeforeCoupon: baseAmountBeforeCoupon,
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
         notifyAdmin: true,
         seenByAdmin: false,
-        ticketCodes: generateTicketCodes(qty),  // one code per ticket
+        ticketCodes: [],                    // generated only after manual verification
         ticketCode: null
       };
-      order.ticketCode = order.ticketCodes[0].code;
+      // Do not create or access a ticket code while the order is pending.
+      // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
       await addOrder(order);
-      // Update referral stats if this order came from a referral link
-      if (referralCode) {
-        await updateReferralStats(referralCode);
-      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
       return sendJson(res, 200, { success: true, order: order });
     }
 
-    // ── Verify payment (server-authoritative) ──
+    // ── Buyer payment-received acknowledgement (NO verification) ──
+    // Called by the Flutterwave checkout callback after Flutterwave reports a
+    // successful payment. This does NOT verify the transaction and NEVER
+    // issues tickets. It only sends the acknowledgement that payment was
+    // received and tickets will follow after manual verification.
+    if (pathname === '/api/payment-received' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const txRef = String(data.tx_ref || '').trim();
+      if (!txRef) return sendJson(res, 400, { success: false, error: 'Missing tx_ref' });
+      const order = await getOrder(txRef);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
+      if (order.status === 'verified') {
+        return sendJson(res, 409, { success: false, error: 'Order is already verified; ticket delivery is handled separately.' });
+      }
+      if (order.status === 'rejected') {
+        return sendJson(res, 409, { success: false, error: 'Order has been rejected.' });
+      }
+      if (!order.paymentReceivedAt) {
+        await patchOrder(txRef, {
+          paymentReceivedAt: new Date().toISOString(),
+          paymentReceived: true,
+          paymentReceivedEmailSent: false
+        });
+      }
+      const current = await getOrder(txRef);
+      // Idempotent with retry: once the email is successfully sent, later
+      // callbacks do nothing; if delivery failed, a later callback retries it.
+      if (!current.paymentReceivedEmailSent) {
+        const sent = await sendBuyerPurchaseAcknowledgement(current);
+        if (sent) {
+          await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
+        }
+        return sendJson(res, 200, { success: true, paymentReceived: true, acknowledgementSent: !!sent, order: { orderId: current.orderId, status: current.status } });
+      }
+      return sendJson(res, 200, { success: true, paymentReceived: true, acknowledgementSent: true, order: { orderId: current.orderId, status: current.status } });
+    }
+
+    // ── Verify payment (server-authoritative, ADMIN ONLY) ──
     if (pathname === '/api/verify-payment' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1883,19 +2292,18 @@ buyerFaculty: buyerFaculty,
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
 
       if (isSuccess && order.status !== 'verified') {
-        // Verify amount/currency from webhook payload too
+        // Webhooks are informational only in this manual-verification flow.
+        // Do not mark verified or issue tickets automatically. Record the
+        // provider observation so an admin can still verify the order manually.
         const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
         const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
-        if (amountOk && currencyOk) {
-          const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
-          console.log('Webhook verified order:', txRef);
-          notifyOrderVerified(updated);
-          await refreshReferralStatsForVerifiedOrder(updated, order.status);
-        } else {
+        if (!amountOk || !currencyOk) {
           return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
         }
+        await patchOrder(txRef, { flutterwavePaymentObserved: true, flutterwavePaymentObservedAt: new Date().toISOString() });
+        console.log('Flutterwave payment observed (awaiting manual verification):', txRef);
       }
-      return sendJson(res, 200, { success: true, tx_ref: txRef });
+      return sendJson(res, 200, { success: true, tx_ref: txRef, manualVerificationRequired: true });
     }
 
 // ── Order status lookup (pending page) ──
@@ -1925,8 +2333,8 @@ buyerFaculty: buyerFaculty,
           currency: order.currency,
           paymentMethod: order.paymentMethod,
           verifiedAt: order.verifiedAt,
-          ticketCodes: order.ticketCodes || [],
-          ticketCode: order.ticketCode || null
+          ticketCodes: order.status === 'verified' ? (order.ticketCodes || []) : [],
+          ticketCode: order.status === 'verified' ? (order.ticketCode || null) : null
         }
       });
     }
@@ -1969,8 +2377,8 @@ buyerFaculty: buyerFaculty,
         paymentMethod: order.paymentMethod,
         verifiedAt: order.verifiedAt,
         // Only include ticket codes when the requester is signed in AND owns the order.
-        ticketCodes: ownsOrder ? (order.ticketCodes || []) : [],
-        ticketCode: ownsOrder ? (order.ticketCode || null) : null,
+        ticketCodes: (ownsOrder && order.status === 'verified') ? (order.ticketCodes || []) : [],
+        ticketCode: (ownsOrder && order.status === 'verified') ? (order.ticketCode || null) : null,
         requiresSignIn: !ownsOrder
       };
       return sendJson(res, 200, { success: true, order: payload });
@@ -2030,7 +2438,7 @@ eventName: order.eventName,
 // ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2058,7 +2466,7 @@ const entry = codes[idx];
       entry.used = true;
       entry.usedAt = new Date().toISOString();
       // Record which staff member performed the check-in (for sub-admin audit).
-      if (authCtx.role === 'subadmin' && authCtx.user) {
+      if (authCtx.user && ['subadmin','checkin_staff'].includes(authCtx.role)) {
         entry.checkedInBy = authCtx.user.name || authCtx.user.email;
       } else {
         entry.checkedInBy = 'Admin';
@@ -2072,6 +2480,37 @@ codes[idx] = entry;
       });
     }
 
+    // ── Influencer: referral link ──
+    if (pathname === '/api/influencer/referral-link' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      let link = await getReferralLinkByInfluencerId(user.id);
+      if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer');
+      else { await updateReferralStats(link.code); link = await getReferralLinkByInfluencerId(user.id); }
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── Influencer: referral stats ──
+    if (pathname === '/api/influencer/referral-stats' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const link = await getReferralLinkByInfluencerId(user.id);
+      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const orders = await getOrdersForCurrentSiteEvents();
+      const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
+      const uniquePeople = new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      return sendJson(res, 200, { success: true, stats: {
+        totalOrders: referredOrders.length,
+        totalRevenue: referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0),
+        totalTickets: referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0),
+        uniquePeople, link: referralLinkResponse(link)
+      }});
+    }
+
     // ── Sub-admin: list the check-ins performed by this sub-admin account ──
     // Returns a summary of every ticket this sub-admin has scanned (checked-in),
     // so they can see their own activity. Requires a logged-in sub-admin session
@@ -2080,8 +2519,8 @@ codes[idx] = entry;
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
-      if (!user || user.role !== 'subadmin') {
-        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      if (!user || !['subadmin','checkin_staff'].includes(user.role)) {
+        return sendJson(res, 403, { success: false, error: 'Check-in staff access only' });
       }
       const staffName = user.name || user.email;
       const orders = await readOrders();
@@ -2126,7 +2565,40 @@ codes[idx] = entry;
         link = await getReferralLinkBySubadminId(user.id);
       }
       
-      return sendJson(res, 200, { success: true, link: link });
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── Sub-admin: global sales overview (all verified sales, not referral-limited) ──
+    if (pathname === '/api/subadmin/sales-overview' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const orders = await getOrdersForCurrentSiteEvents();
+      const verified = orders.filter(o => String(o.status || '').toLowerCase() === 'verified');
+      const ticketsSold = verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+      const revenue = verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+      const uniquePeople = new Set(verified.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      const eventMap = {};
+      verified.forEach(o => {
+        const key = String(o.eventId || o.eventName || 'unknown');
+        if (!eventMap[key]) eventMap[key] = { eventId: o.eventId || null, eventName: o.eventName || 'Unknown Event', tickets: 0, orders: 0, revenue: 0 };
+        eventMap[key].tickets += parseInt(o.qty, 10) || 0;
+        eventMap[key].orders += 1;
+        eventMap[key].revenue += Number(o.amount) || 0;
+      });
+      return sendJson(res, 200, {
+        success: true,
+        sales: {
+          totalOrders: verified.length,
+          totalTickets: ticketsSold,
+          totalRevenue: revenue,
+          uniquePeople,
+          events: Object.values(eventMap).sort((a,b) => b.tickets - a.tickets)
+        }
+      });
     }
 
     // ── Sub-admin: get referral stats ──
@@ -2140,10 +2612,10 @@ codes[idx] = entry;
       
       const link = await getReferralLinkBySubadminId(user.id);
       if (!link) {
-        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, link: null } });
+        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
       }
       
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
       const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -2181,14 +2653,14 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
 
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
 
@@ -2239,17 +2711,108 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, order: updated });
     }
 
+    // ── Coupons: Main Admin + Sub-admin only ──
+    if (pathname === '/api/admin/coupons' && req.method === 'GET') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const coupons = await readCoupons();
+      return sendJson(res, 200, { success: true, coupons });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const id = String(data.id || '').trim() || 'cpn-' + Date.now().toString(36);
+      const code = String(data.code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      const amount = Math.max(0, Number(data.amount) || 0);
+      if (!code || code.length < 3) return sendJson(res, 400, { success: false, error: 'Coupon code must be at least 3 characters.' });
+      if (amount <= 0) return sendJson(res, 400, { success: false, error: 'Discount amount must be greater than 0.' });
+      const coupons = await readCoupons();
+      const duplicate = coupons.find(c => String(c.code || '').toUpperCase() === code && String(c.id) !== id);
+      if (duplicate) return sendJson(res, 409, { success: false, error: 'That coupon code already exists.' });
+      const existing = coupons.find(c => String(c.id) === id);
+      const coupon = Object.assign({}, existing || {}, { id, code, amount, active: data.active !== false, updatedAt: new Date().toISOString(), createdBy: existing && existing.createdBy ? existing.createdBy : (authCtx.user ? authCtx.user.id : 'admin') });
+      if (!coupon.createdAt) coupon.createdAt = new Date().toISOString();
+      const next = existing ? coupons.map(c => String(c.id) === id ? coupon : c) : [coupon].concat(coupons);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true, coupon });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const id = String(url.searchParams.get('id') || '').trim();
+      if (!id) return sendJson(res, 400, { success: false, error: 'Missing coupon id' });
+      const coupons = await readCoupons();
+      const next = coupons.filter(c => String(c.id) !== id);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true });
+    }
+    if (pathname === '/api/referrals/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      if (!code) return sendJson(res, 400, { success:false, error:'Enter a referral code.' });
+      const link = await getReferralLinkByCode(code);
+      if (!link) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+      return sendJson(res, 200, { success:true, referral:{code:link.code, name:link.subadminName || link.name || ''} });
+    }
+
+    if (pathname === '/api/coupons/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      const eventId = String(data.eventId || '').trim();
+      const tier = String(data.ticketTier || 'regular').toLowerCase();
+      const qty = Math.max(1, parseInt(data.qty) || 1);
+      const coupon = await getCouponByCode(code);
+      if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+      const events = await readEvents(); const ev = events.find(e => String(e.id) === eventId);
+      if (!ev) return sendJson(res, 400, { success: false, error: 'Event not found.' });
+      const originals = {regular:Number(ev.price||0),vip:Number(ev.vipPrice||0),vvip:Number(ev.vvipPrice||0),table:Number(ev.tablePrice||0)};
+      const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
+      const originalUnit = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonusUnit = bonuses[tier] || 0;
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      let referralApplied = false;
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+        referralApplied = true;
+      }
+      const unit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
+      const baseTotal = unit * qty; const discount = Number(coupon.amount) || 0;
+      if (discount >= baseTotal) return sendJson(res, 400, { success:false, error:'Coupon discount cannot cover the full ticket price.' });
+      return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });
+    }
+
     // ── Public events list (used by events.html, tickets.html, index.html) ──
     if (pathname === '/api/events' && req.method === 'GET') {
-      const events = await readEvents();
+      const allEvents = await readEvents();
+      const includeArchived = url.searchParams.get('includeArchived') === '1';
+      let events = allEvents;
+      if (!includeArchived) {
+        events = allEvents.filter(e => e.archived !== true);
+      } else {
+        const authCtx = await isAdminOrSubadmin(req);
+        if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+          events = allEvents.filter(e => e.archived !== true);
+        }
+      }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
+      const orders = await readOrders();
+      function enrich(ev) {
+        return Object.assign({}, ev, { inventory: {
+          regular: getTierInventory(ev,'regular',orders),
+          vip: getTierInventory(ev,'vip',orders),
+          vvip: getTierInventory(ev,'vvip',orders),
+          table: getTierInventory(ev,'table',orders)
+        }});
+      }
       if (uniSlug) {
         const filtered = events.filter(function(e) {
           return (e.universityId === uniSlug || e.universitySlug === uniSlug);
-        });
+        }).map(enrich);
         return sendJson(res, 200, { success: true, events: filtered });
       }
-      return sendJson(res, 200, { success: true, events: events });
+      return sendJson(res, 200, { success: true, events: events.map(enrich) });
     }
 
     // ── Public site stats (events, tickets sold, faculties) ──
@@ -2307,7 +2870,7 @@ codes[idx] = entry;
 // ── Admin/Sub-admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2327,9 +2890,17 @@ codes[idx] = entry;
         name: name,
         category: String(data.category || '').trim() || 'General',
         price: parseFloat(data.price) || 0,
+        bonusPrice: parseFloat(data.bonusPrice) || 0,
         vipPrice: parseFloat(data.vipPrice) || 0,
+        bonusVipPrice: parseFloat(data.bonusVipPrice) || 0,
         vvipPrice: parseFloat(data.vvipPrice) || 0,
+        bonusVvipPrice: parseFloat(data.bonusVvipPrice) || 0,
         tablePrice: parseFloat(data.tablePrice) || 0,
+        bonusTablePrice: parseFloat(data.bonusTablePrice) || 0,
+        regularTicketLimit: Math.max(0, parseInt(data.regularTicketLimit) || 0),
+        vipTicketLimit: Math.max(0, parseInt(data.vipTicketLimit) || 0),
+        vvipTicketLimit: Math.max(0, parseInt(data.vvipTicketLimit) || 0),
+        tableTicketLimit: Math.max(0, parseInt(data.tableTicketLimit) || 0),
         includedRegular: String(data.includedRegular || '').trim(),
         includedVip: String(data.includedVip || '').trim(),
         includedVVIP: String(data.includedVVIP || '').trim(),
@@ -2342,10 +2913,13 @@ codes[idx] = entry;
         image: String(data.image || '').trim(),
         icon: data.icon || '🎟️',
         featured: !!data.featured,
+        archived: data.id ? !!data.archived : false,
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
-        universitySlug: uniSlug
+        universitySlug: uniSlug,
+        createdAt: new Date().toISOString(),
+        createdBy: { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
       };
             try {
         await addEvent(ev);
@@ -2357,10 +2931,29 @@ codes[idx] = entry;
       }
     }
 
-    // ── Admin/Sub-admin: delete an event ──
-    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+    // ── Archive/unarchive event: admin, sub-admin, or influencer admin ──
+    if (pathname === '/api/admin/events/archive' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res, 403, { success:false, error:'Only Admin, Sub-admin, or Influencer Admin can archive events' });
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const archived = data.archived !== false;
+      if (!eventId) return sendJson(res,400,{success:false,error:'Missing eventId'});
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
+      events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeEvents(events);
+      return sendJson(res,200,{success:true,event:events[idx]});
+    }
+
+    // ── Main Admin only: delete an event ──
+    // Sub-admins, Influencer Admins, Check-in Staff and Influencers may never delete events.
+    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete events' });
       const eventId = String(url.searchParams.get('eventId') || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
       
@@ -2413,7 +3006,7 @@ codes[idx] = entry;
 
     // ── Admin: delete a university ──
 if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete universities' });
       const uniId = String(url.searchParams.get('uniId') || url.searchParams.get('universityId') || '').trim();
       if (!uniId) return sendJson(res, 400, { success: false, error: 'Missing uniId' });
       // Capture the university to derive its id/slug so we can remove its events too.
@@ -2501,6 +3094,8 @@ if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const eventId = String(data.eventId || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+await resetLegacyPaymentDataOnce();
+await removeBundledDemoEvents();
 const events = await readEvents();
       const ev = events.find(e => e.id === eventId);
       if (!ev) return sendJson(res, 404, { success: false, error: 'Event not found' });
@@ -2511,6 +3106,22 @@ const events = await readEvents();
     // ── Static files ──
     let urlPath = decodeURIComponent(pathname);
     if (urlPath === '/') urlPath = '/index.html';
+
+    // Canonical referral landing page. Older links may still contain
+    // /referral-events.html; redirect them server-side so existing links,
+    // browser bookmarks, and cached dashboard links all converge on Events.
+    if (urlPath.toLowerCase() === '/referral-events.html') {
+      const ref = String(url.searchParams.get('ref') || '').trim().toUpperCase();
+      const target = '/events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+      res.writeHead(301, {
+        'Location': target,
+        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'text/plain; charset=utf-8'
+      });
+      res.end('Moved permanently to ' + target);
+      return;
+    }
+
     const filePath = path.join(PUBLIC_DIR, urlPath);
     // Shortlink referral handler: /r/REF-XXXX  (optionally ?to=/path)
     if (urlPath && urlPath.toLowerCase().startsWith('/r/')) {
@@ -2518,7 +3129,7 @@ const events = await readEvents();
       const code = String(rawCode || '').toUpperCase();
       const to = String(url.searchParams.get('to') || '/');
       const safeTo = to && to.startsWith('/') ? to : '/';
-      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
+      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");localStorage.setItem("unn_referral_code", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
@@ -2551,6 +3162,13 @@ const events = await readEvents();
       res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
       fs.createReadStream(filePath).pipe(res);
     });
+  } catch (err) {
+    console.error('Request handler error:', err);
+    if (!res.headersSent) {
+      sendJson(res, 500, { success: false, error: 'Internal server error' });
+    } else {
+      try { res.end(); } catch (e) {}
+    }
   }
 });
 
@@ -2566,7 +3184,8 @@ function publicUser(user) {
     email: user.email,
     phone: user.phone,
     role: user.role || 'buyer',
-    createdAt: user.createdAt
+    createdAt: user.createdAt,
+    archived: user.archived === true
   };
 }
 

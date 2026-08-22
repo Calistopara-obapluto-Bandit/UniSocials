@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>Redirecting to Events — Unisocials</title>
+</head>
+<body>
+  <p>Redirecting to Events…</p>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var ref = (params.get('ref') || '').trim().toUpperCase();
+      try {
+        if (ref) {
+          sessionStorage.setItem('referralCode', ref);
+          localStorage.setItem('unn_referral_code', ref);
+        }
+      } catch (e) {}
+      window.location.replace('events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : ''));
+    })();
+  </script>
+  <noscript><meta http-equiv="refresh" content="0;url=events.html"></noscript>
+</body>
+</html>

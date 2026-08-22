@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow">
+<title>Influencer Dashboard — Unisocials</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="templatemo-622-clearwave.css">
+<style>
+body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
+.hidden{display:none!important}
+.influencer-login{padding:56px 0 80px;background:var(--bg)}
+.auth-section .container{max-width:1200px;margin:0 auto;padding:0 20px}
+.influencer-login .influencer-login-card{margin:0 auto}
+
+.influencer-login-card{width:min(100%,440px);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px}
+.influencer-mark{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:1.15rem;margin:0 auto 18px}
+.influencer-kicker{display:block;text-align:center;text-transform:uppercase;letter-spacing:.14em;font-size:.7rem;font-weight:800;color:var(--accent);margin-bottom:10px}
+.influencer-kicker:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:8px}
+.influencer-login-card h1{font-size:1.4rem;font-weight:700;color:var(--text-1);text-align:center;margin:0 0 6px;letter-spacing:0}
+.influencer-subtitle{font-size:.86rem;color:var(--text-3);text-align:center;line-height:1.6;margin:0 0 24px}
+.influencer-form-group{margin-bottom:18px}.influencer-form-group label{display:block;font-size:.76rem;font-weight:700;color:var(--text-2);margin-bottom:8px}.influencer-form-group input{width:100%;box-sizing:border-box;padding:13px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text-1);font:inherit;outline:0}.influencer-form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+.influencer-login-btn{width:100%;border:0;border-radius:100px;padding:13px 20px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}.influencer-login-btn:hover{background:var(--accent-mid);transform:translateY(-1px)}.influencer-login-btn:disabled{opacity:.65;cursor:wait;transform:none}
+.influencer-error{display:none;margin-top:14px;padding:11px 13px;border-radius:10px;background:#fff4f3;border:1px solid #f1d2ce;color:#b71c1c;font-size:.82rem}.influencer-error.show{display:block}
+.influencer-dashboard{padding:46px 20px 80px}.influencer-container{max-width:1120px;margin:0 auto}.influencer-dashboard-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:28px}.influencer-overline{font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:var(--accent);margin-bottom:7px}.influencer-dashboard-head h1{font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3rem);margin:0;letter-spacing:-.04em}.influencer-welcome{color:var(--text-3);margin-top:8px}.influencer-user{font-weight:700;color:var(--text-2)}
+.influencer-logout{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}.influencer-logout:hover{background:var(--accent-ghost)}
+.influencer-hero{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:30px;margin-bottom:18px;position:relative;overflow:hidden}.influencer-hero:after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-120px;top:-130px;background:var(--accent-ghost)}.influencer-hero-content{position:relative;z-index:1;max-width:760px}.influencer-hero h2{font-family:'Playfair Display',serif;font-size:clamp(1.6rem,4vw,2.25rem);margin:0 0 8px}.influencer-hero p{color:var(--text-3);line-height:1.7;margin:0 0 24px}.ref-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:7px}.ref-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ref-code{font-weight:800;letter-spacing:.12em;color:var(--accent);background:var(--accent-ghost);border:1px solid var(--accent-border);padding:11px 14px;border-radius:10px}.copy-icon{width:42px;height:42px;border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:10px;display:grid;place-items:center;cursor:pointer}.copy-icon:hover{background:var(--accent-ghost)}.copy-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ref-link-wrap{margin-top:20px}.ref-link-row{display:flex;gap:8px}.ref-link{flex:1;min-width:0;display:block;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:10px;padding:12px 13px;font:inherit;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box} .ref-link:focus{outline:2px solid var(--accent);outline-offset:2px}.copy-status{min-height:18px;margin-top:10px;margin-top:6px;font-size:.75rem;color:var(--accent);font-weight:700}
+.influencer-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.influencer-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)}.influencer-stat-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800}.influencer-stat-value{font-size:1.8rem;font-weight:800;margin-top:9px;letter-spacing:-.03em}.accent-value{color:var(--accent)}
+.influencer-notice{padding:16px 18px;background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:14px;color:var(--text-2);font-size:.82rem;line-height:1.65}
+@media(max-width:760px){.influencer-login{padding:42px 0 60px}.influencer-dashboard-head{align-items:flex-start;flex-direction:column}.influencer-stats{grid-template-columns:1fr 1fr}.influencer-login-card{padding:30px 24px}.influencer-dashboard{padding-top:30px}}
+@media(max-width:480px){.influencer-login{padding:28px 0 44px}.influencer-login-card{padding:30px 20px}.influencer-stats{gap:10px}.influencer-stat{padding:16px}.influencer-stat-value{font-size:1.45rem}.influencer-hero{padding:22px}.ref-link-row{flex-direction:column}.ref-link{width:100%;box-sizing:border-box}.ref-link-row .copy-icon{width:100%;height:44px}}
+</style>
+</head>
+<body class="influencer-page">
+<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="index.html">Home</a><a href="events.html">Events</a><a href="tickets.html">Tickets</a><a href="about.html">About</a><a href="contact.html">Contact</a><a href="events.html" class="mobile-cta btn-primary">Get Tickets</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner"><a href="index.html" class="nav-logo">Uni<span>socials</span></a><ul class="nav-links" role="list"><li><a href="index.html">Home</a></li><li><a href="events.html">Events</a></li><li><a href="tickets.html">Tickets</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul><div class="nav-cta"><a href="events.html" class="btn-primary">Get Tickets</a></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
+<section id="loginView"><section class="page-header"><div class="container"><div class="section-label reveal">Influencer Portal</div><h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1><p class="section-sub reveal reveal-delay-2">Sign in to manage your Unisocials referral link and track your results.</p></div></section><section class="influencer-login"><div class="auth-section"><div class="container"><div class="influencer-login-card reveal"><div class="influencer-mark">U</div><div class="influencer-kicker">Influencer Dashboard</div><h1>Sign In</h1><p class="influencer-subtitle">Use your influencer account to access your referral dashboard.</p><div class="influencer-error" id="loginError"></div><form id="loginForm"><div class="influencer-form-group"><label for="email">Email Address</label><input id="email" type="email" placeholder="you@university.edu.ng" autocomplete="username" required></div><div class="influencer-form-group"><label for="password">Password</label><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></div><button class="influencer-login-btn" type="submit" id="loginBtn">Sign In</button></form><p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p></div></div></div></section></section>
+<main id="dashboard" class="influencer-dashboard hidden"><div class="influencer-container"><div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1>Your referral dashboard</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div><button class="influencer-logout" id="logoutBtn" type="button">Log out</button></div>
+<section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
+<section class="influencer-stats"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div></section>
+<div class="influencer-notice">Your account is limited to referral performance. You cannot access orders, events, check-in, universities, subscribers, or admin settings.</div></div></main>
+<script src="templatemo-622-clearwave.js"></script>
+<script>
+(function(){
+  var KEY='unn_influencer_token';
+  var loginView=document.getElementById('loginView'), dash=document.getElementById('dashboard');
+  function headers(){return {'Authorization':'Bearer '+(localStorage.getItem(KEY)||'')};}
+  function fmt(n){return '₦'+Number(n||0).toLocaleString();}
+  function showError(msg){var e=document.getElementById('loginError');e.textContent=msg;e.classList.add('show');}
+  function copyText(text){
+    if(!text) return Promise.reject(new Error('Nothing to copy'));
+    if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    var t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();return Promise.resolve();
+  }
+  function showCopied(label){var s=document.getElementById('copyStatus');s.textContent=label+' copied';setTimeout(function(){s.textContent='';},1800);}
+  async function load(){
+    var token=localStorage.getItem(KEY);if(!token)return false;
+    try{
+      var me=await fetch('/api/auth/me',{headers:headers()});var md=await me.json();
+      if(!md.success||!md.user||md.user.role!=='influencer') throw new Error('invalid');
+      document.getElementById('userName').textContent=md.user.name||md.user.fullName||md.user.email||'Influencer';
+      var r=await fetch('/api/influencer/referral-link',{headers:headers()});var ld=await r.json();
+      if(!ld.success) throw new Error(ld.error||'Unable to load referral link');
+      var link=ld.link||{};
+      var code=link.code||'';
+      document.getElementById('refCode').textContent=code||'—';
+      var referralUrl=link.referralUrl || (code ? (window.location.origin + '/events.html?ref=' + encodeURIComponent(code)) : '');
+      var refEl=document.getElementById('refLink');
+      refEl.textContent=referralUrl||'Your referral link will appear here...';
+      refEl.href=referralUrl||'#';
+      refEl.classList.toggle('is-empty',!referralUrl);
+      var r=await fetch('/api/influencer/referral-stats',{headers:headers()});var d=await r.json();
+      if(!d.success) throw new Error(d.error||'Unable to load dashboard');
+      var st=d.stats||{};
+      document.getElementById('people').textContent=Number(st.uniquePeople||0).toLocaleString();
+      document.getElementById('orders').textContent=Number(st.totalOrders||0).toLocaleString();
+      document.getElementById('tickets').textContent=Number(st.totalTickets||0).toLocaleString();
+      document.getElementById('revenue').textContent=fmt(st.totalRevenue||0);
+      loginView.classList.add('hidden');dash.classList.remove('hidden');return true;
+    }catch(e){localStorage.removeItem(KEY);return false;}
+  }
+  document.getElementById('loginForm').addEventListener('submit',async function(e){
+    e.preventDefault();var btn=document.getElementById('loginBtn');btn.disabled=true;document.getElementById('loginError').classList.remove('show');
+    try{
+      var r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value})});
+      var d=await r.json();if(!d.success)throw new Error(d.error||'Login failed');
+      if(!d.user||d.user.role!=='influencer')throw new Error('This account is not an influencer account.');
+      localStorage.setItem(KEY,d.token);if(!(await load()))throw new Error('Could not load dashboard');
+    }catch(err){showError(err.message||'Login failed');}finally{btn.disabled=false;}
+  });
+  document.getElementById('logoutBtn').onclick=function(){var token=localStorage.getItem(KEY);localStorage.removeItem(KEY);fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+(token||'')}}).catch(function(){});location.reload();};
+  document.getElementById('copyCodeBtn').onclick=function(){var v=document.getElementById('refCode').textContent;if(v&&v!=='—')copyText(v).then(function(){showCopied('Referral code');});};
+  document.getElementById('copyLinkBtn').onclick=function(){var v=document.getElementById('refLink').href;if(v&&v!=='#')copyText(v).then(function(){showCopied('Referral link');});};
+  load();setInterval(function(){if(localStorage.getItem(KEY))load();},30000);
+})();
+</script></body></html>

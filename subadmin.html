@@ -27,6 +27,7 @@
     }
     .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
     .admin-topbar .nav-logo span { color: var(--accent-light); }
+    .admin-user-name { display:inline-flex; align-items:center; padding:7px 11px; border:1px solid rgba(255,255,255,.18); border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .admin-topbar-actions { display: flex; align-items: center; gap: 12px; }
     .admin-logout {
       font-size: 0.8rem;
@@ -327,11 +328,12 @@
     <div class="admin-topbar-inner">
       <a href="index.html" class="nav-logo">Uni<span>socials</span> · Sub-Admin</a>
       <div class="admin-topbar-actions">
+        <span class="admin-user-name" id="adminUserName" style="display:none;"></span>
         <span class="admin-topbar-status" id="connStatus" style="display:none;">
           <span class="pulse"></span> <span id="connStatusText">Connected</span>
         </span>
         <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
       </div>
     </div>
   </div>
@@ -357,6 +359,7 @@
           </div>
           <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
         </form>
+<p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Are you an influencer? <a href="influencer.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Influencer Dashboard</a></p>
 
         <p class="auth-switch" style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
           Are you the site admin? <a href="admin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Admin Dashboard</a>
@@ -372,6 +375,8 @@
           <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
           <button class="admin-tab" data-tab="referral">📈 Referral Links</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
+          <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
+          <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
         </div>
       </div>
 
@@ -414,12 +419,19 @@
           <div class="admin-panel-heading">
             <div>
               <h1>📊 My Check-ins Overview</h1>
-              <p>Every ticket you have checked in at the gate, so you can track your own activity.</p>
+              <p>Track total sales across UniSocials. These figures include all verified sales, not just orders from your referral link.</p>
             </div>
             <button class="admin-refresh-btn" onclick="loadMyCheckins()">↻ Refresh</button>
           </div>
 
           <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalOrders">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Total Sales</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalTickets">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Tickets Sold</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalRevenue">₦0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Total Revenue</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesUniquePeople">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Customers</div></div>
+            </div>
+
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
                 <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinTotal">0</div>
@@ -458,8 +470,12 @@
             <!-- Referral Link Display -->
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:2.2rem;font-weight:800;color:var(--accent);" id="refUniquePeople">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">People Referred</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
                 <div style="font-size:2.2rem;font-weight:800;color:var(--accent);" id="refTotalOrders">0</div>
-                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Events Sold</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Paid Orders</div>
               </div>
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
                 <div style="font-size:2.2rem;font-weight:800;color:var(--accent);" id="refTotalTickets">0</div>
@@ -498,13 +514,31 @@
                 2. Share it with friends, classmates, or on social media<br/>
                 3. When they click the link and buy a ticket, it's tracked to you<br/>
                 4. Check this dashboard anytime to see your sales stats<br/><br/>
-                <strong>📊 What You Can Track:</strong> Number of events sold, total tickets, and total revenue generated through your referral link.
+                <strong>📊 What You Can Track:</strong> Number of unique people referred, paid orders, total tickets, and total revenue generated through your referral link.
               </div>
             </div>
           </div>
         </div>
 
+        <!-- ── COUPONS PANEL ── -->
+        <div class="admin-panel" id="panel-coupons">
+          <div class="admin-panel-heading"><div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons for customers. Example: ticket ₦4,000 + coupon ₦400 = ₦3,600 to pay.</p></div><button class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button></div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="couponCodeAdmin">Coupon Code</label><input type="text" id="couponCodeAdmin" placeholder="SAVE400" maxlength="40" /></div>
+              <div class="form-group"><label for="couponAmountAdmin">Discount Amount (₦)</label><input type="number" id="couponAmountAdmin" placeholder="400" min="1" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="saveCoupon()" id="couponSaveBtn">➕ Create Coupon</button><button type="button" class="admin-refresh-btn" onclick="cancelCouponEdit()" id="couponCancelBtn" style="display:none;">✕ Cancel Edit</button><span id="couponCount" style="font-size:.75rem;color:var(--text-3);align-self:center;"></span></div>
+            <div id="couponLoadMessage" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:.82rem;"></div><div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
         <!-- ── EVENTS PANEL ── -->
+        <div class="admin-panel" id="panel-influencers">
+          <div class="admin-panel-heading"><div><h1>📣 Influencers</h1><p>View all influencers created by any Influencer Admin, with the same referral performance information available to Influencer Admins.</p></div><button class="admin-refresh-btn" type="button" onclick="loadAllInfluencers()">↻ Refresh</button></div>
+          <div class="admin-card" style="padding:0;overflow:hidden;"><div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"><strong>All Influencers</strong><span id="allInfluencerCount" style="font-size:.78rem;color:var(--text-3);"></span></div><div id="allInfluencersList" style="padding:14px 16px;"><div style="text-align:center;padding:20px;color:var(--text-3);">Loading influencers…</div></div></div>
+        </div>
+
         <div class="admin-panel" id="panel-events">
           <div class="admin-panel-heading">
             <div>
@@ -521,10 +555,14 @@
               <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
                 <option value="General">General</option>
               </select></div>
-              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
-              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div>
-              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
-              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
+              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
+              <div class="form-group"><label for="evRegularTicketLimit">Regular Tickets Available</label><input type="number" id="evRegularTicketLimit" placeholder="e.g. 1000" min="0" step="1" /></div>
+              <div class="form-group"><label for="evVipTicketLimit">VIP Tickets Available</label><input type="number" id="evVipTicketLimit" placeholder="e.g. 200" min="0" step="1" /></div>
+              <div class="form-group"><label for="evVvipTicketLimit">VVIP Tickets Available</label><input type="number" id="evVvipTicketLimit" placeholder="e.g. 100" min="0" step="1" /></div>
+              <div class="form-group"><label for="evTableTicketLimit">Table Tickets Available</label><input type="number" id="evTableTicketLimit" placeholder="e.g. 20" min="0" step="1" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -543,8 +581,9 @@
               <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
+              <button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="addEventItem()" id="eventSubmitBtn">➕ Add Event</button>
               <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
+              <button type="button" class="admin-refresh-btn" id="eventCancelEditBtn" onclick="cancelEditEvent()" style="display:none;">✕ Cancel Edit</button>
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
             </div>
             <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
@@ -621,11 +660,16 @@
       }
 
       function showLoggedIn() {
+        var u = getSubUser();
+        var nameEl = document.getElementById('adminUserName');
+        if (nameEl) { nameEl.textContent = (u && (u.name || u.fullName || u.email)) ? (u.name || u.fullName || u.email) : 'Sub-Admin'; nameEl.style.display = 'inline-flex'; }
         loginScreen.style.display = 'none';
         dashboard.classList.add('visible');
         logoutBtn.style.display = 'inline-block';
         viewSiteBtn.style.display = 'inline-block';
         connStatus.style.display = 'inline-flex';
+        if (typeof window.loadCoupons === 'function') window.loadCoupons();
+         if (typeof window.loadAllInfluencers === 'function') window.loadAllInfluencers();
       }
       function showLoggedOut() {
         loginScreen.style.display = 'flex';
@@ -633,6 +677,7 @@
         logoutBtn.style.display = 'none';
         viewSiteBtn.style.display = 'none';
         connStatus.style.display = 'none';
+        var nameEl = document.getElementById('adminUserName'); if (nameEl) nameEl.style.display = 'none';
       }
 
       // Login handler — sub-admin only (email + password)
@@ -646,6 +691,7 @@
           showLoggedIn();
           loadManagedEvents();
           loadManagedUniversities();
+          loadCoupons();
           return;
         }
 
@@ -679,6 +725,7 @@
           showLoggedIn();
           loadManagedEvents();
           loadManagedUniversities();
+          loadCoupons();
         })
         .catch(function(err) {
           if (err.message === 'not-subadmin') {
@@ -696,11 +743,21 @@
         });
       };
 
-      logoutBtn.addEventListener('click', function() {
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getSubToken();
+        // Clear locally first so logout always works, even if the server request
+        // is slow or the device temporarily has no network connection.
         clearSubAuth();
         showLoggedOut();
-        document.getElementById('subAdminEmail').value = '';
-        document.getElementById('subAdminPassword').value = '';
+        logoutBtn.disabled = false;
+        if (token) {
+          fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
+        }
+        var email = document.getElementById('subAdminEmail');
+        if (email) email.value = '';
+        var password = document.getElementById('subAdminPassword');
+        if (password) password.value = '';
       });
 
       // ── Gate check-in: scan/validate a ticket code ──
@@ -1004,13 +1061,47 @@ resultBox.className = 'admin-scan-result show';
         });
       };
 
+      // ── Influencers overview: sub-admin can view all influencer-admin-created accounts ──
+      window.loadAllInfluencers = function() {
+        var token=getSubToken(), container=document.getElementById('allInfluencersList');
+        if(!token || !container) return;
+        container.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);">Loading influencers…</div>';
+        fetch('/api/admin/influencers',{headers:{'Authorization':'Bearer '+token}}).then(function(r){return r.json().then(function(d){if(!r.ok) throw new Error(d.error||'Unable to load influencers');return d;});}).then(function(data){
+          var list=(data&&data.success&&data.influencers)||[], count=document.getElementById('allInfluencerCount');
+          if(count) count.textContent=list.length+' influencer'+(list.length!==1?'s':'');
+          if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;color:var(--text-3);">No influencers have been created yet.</div>';return;}
+          var html='';
+          list.forEach(function(u){
+            var st=u.referralStats||{}; var archived=!!u.archived; var email=String(u.email||'').replace(/'/g,"\\'");
+            html+='<div style="padding:14px 0;border-bottom:1px solid var(--border);">'+
+              '<div style="display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;">'+
+              '<div><div style="font-weight:700;color:var(--text-1);">'+esc(u.name||u.email||'Influencer')+'</div><div style="font-size:.78rem;color:var(--text-3);margin-top:3px;">'+esc(u.email||'')+'</div></div>'+              '<button type="button" class="admin-ticket-copy" data-influencer-archive="1" data-email="'+esc(u.email||'')+'" data-archived="'+(archived?'1':'0')+'">'+(archived?'📦 Unarchive':'🗃️ Archive')+'</button></div>'+              '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;">'+
+              (archived?'<span style="font-size:.75rem;font-weight:700;color:#b45309;">ARCHIVED</span>':'')+
+              '<span class="admin-ticket-code">Code: '+esc(u.referralCode||'—')+'</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalTickets||0).toLocaleString()+' tickets</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.totalOrders||0).toLocaleString()+' orders</span><span style="font-size:.75rem;color:var(--text-3);">₦'+Number(st.totalRevenue||0).toLocaleString()+' revenue</span><span style="font-size:.75rem;color:var(--text-3);">'+Number(st.uniquePeople||0).toLocaleString()+' people</span></div></div>';
+          });
+          container.innerHTML=html;
+          container.querySelectorAll('[data-influencer-archive]').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              var email=btn.getAttribute('data-email')||''; var archived=btn.getAttribute('data-archived')==='1';
+              if(!email) return;
+              if(!confirm((archived?'Unarchive':'Archive')+' this influencer account?')) return;
+              fetch('/api/admin/accounts/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({email:email,archived:!archived})})
+                .then(function(r){return r.json();}).then(function(d){
+                  if(d&&d.success){showToast(archived?'Influencer unarchived':'Influencer archived');loadAllInfluencers();}
+                  else showToast((d&&d.error)||'Could not change account status',true);
+                }).catch(function(){showToast('Could not change account status',true);});
+            });
+          });
+        }).catch(function(err){container.innerHTML='<div style="text-align:center;padding:20px;color:#e57373;">'+esc(err.message||'Unable to load influencers')+'</div>';});
+      };
+
       // ── Events Manager ──
       window.loadManagedEvents = function() {
         var token = getSubToken();
         if (!token) return;
         
         // Fetch all events from the server
-        fetch('/api/events', {
+        fetch('/api/events?includeArchived=1', {
           headers: authHeaders()
         })
           .then(function(r) { return r.json(); })
@@ -1043,24 +1134,78 @@ resultBox.className = 'admin-scan-result show';
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
+                '<button type="button" class="admin-ticket-copy" data-event-archive="'+esc(id)+'" data-archived="'+(ev.archived?'1':'0')+'" title="'+(ev.archived?'Unarchive event':'Archive event')+'">'+(ev.archived?'📦':'🗃️')+'</button>' +
                 '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
+            container.querySelectorAll('[data-event-archive]').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                var eventId=btn.getAttribute('data-event-archive')||''; var archived=btn.getAttribute('data-archived')==='1';
+                if(!eventId) return;
+                if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
+                fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived})})
+                  .then(function(r){return r.json();}).then(function(d){
+                    if(d&&d.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}
+                    else showToast((d&&d.error)||'Could not change event status',true);
+                  }).catch(function(){showToast('Could not change event status',true);});
+              });
+            });
           })
           .catch(function(err) {
             console.error('Error loading events:', err);
           });
       };
 
+      var editingEventId = '';
+
+      window.cancelEditEvent = function() {
+        editingEventId = '';
+        var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
+        var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
+        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evRegularTicketLimit','evVipTicketLimit','evVvipTicketLimit','evTableTicketLimit','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        var uni=document.getElementById('evUniversity');if(uni)uni.value='';
+        if(typeof updateUniCategories==='function')updateUniCategories();
+        if(typeof clearEventImage==='function')clearEventImage();
+      };
+
+      window.editManagedEvent = function(eventId) {
+        if(!eventId)return;
+        fetch('/api/events?includeArchived=1',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
+          var events=(data&&data.success&&data.events)||[];
+          var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
+          if(!ev)throw new Error('Event not found');
+          editingEventId=String(ev.id||eventId);
+          var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
+          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);set('evRegularTicketLimit',ev.regularTicketLimit);set('evVipTicketLimit',ev.vipTicketLimit);set('evVvipTicketLimit',ev.vvipTicketLimit);set('evTableTicketLimit',ev.tableTicketLimit);
+          set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
+          set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
+          set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
+          var uni=document.getElementById('evUniversity');if(uni){uni.value=ev.universityId||'';if(typeof updateUniCategories==='function')updateUniCategories();var cat=document.getElementById('evCategory');if(cat)cat.value=ev.category||'General';}
+          selectedEventImage=ev.image||'';if(typeof setEventImagePreview==='function')setEventImagePreview(selectedEventImage);
+          var btn=document.getElementById('eventSubmitBtn');if(btn)btn.textContent='💾 Save Event Changes';
+          var cancel=document.getElementById('eventCancelEditBtn');if(cancel)cancel.style.display='inline-flex';
+          var panel=document.getElementById('panel-events');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
+          showToast('Editing “'+(ev.name||'event')+'”. Update the fields and save.');
+        }).catch(function(err){showToast(err.message||'Could not load that event.',true);});
+      };
+
       window.addEventItem = function() {
         var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
+        var bonusPrice = parseFloat(document.getElementById('evBonusPrice').value) || 0;
         var vipPrice = parseFloat(document.getElementById('evVIPPrice').value) || 0;
+        var bonusVipPrice = parseFloat(document.getElementById('evBonusVIPPrice').value) || 0;
         var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
+        var bonusVvipPrice = parseFloat(document.getElementById('evBonusVVIPPrice').value) || 0;
         var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
+        var bonusTablePrice = parseFloat(document.getElementById('evBonusTablePrice').value) || 0;
+        var regularTicketLimit = parseInt(document.getElementById('evRegularTicketLimit').value) || 0;
+        var vipTicketLimit = parseInt(document.getElementById('evVipTicketLimit').value) || 0;
+        var vvipTicketLimit = parseInt(document.getElementById('evVvipTicketLimit').value) || 0;
+        var tableTicketLimit = parseInt(document.getElementById('evTableTicketLimit').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
@@ -1087,12 +1232,21 @@ resultBox.className = 'admin-scan-result show';
         }
 
         var ev = {
+          id: editingEventId || undefined,
           name: name,
           category: category,
           price: price,
+          bonusPrice: bonusPrice,
           vipPrice: vipPrice,
+          bonusVipPrice: bonusVipPrice,
           vvipPrice: vvipPrice,
+          bonusVvipPrice: bonusVvipPrice,
           tablePrice: tablePrice,
+          bonusTablePrice: bonusTablePrice,
+          regularTicketLimit: regularTicketLimit,
+          vipTicketLimit: vipTicketLimit,
+          vvipTicketLimit: vvipTicketLimit,
+          tableTicketLimit: tableTicketLimit,
           includedRegular: includedRegular,
           includedVip: includedVip,
           includedVVIP: includedVVIP,
@@ -1108,7 +1262,7 @@ resultBox.className = 'admin-scan-result show';
           universitySlug: uniSlug
         };
 
-        var btn = event && event.target;
+        var btn = document.getElementById('eventSubmitBtn');
         if (btn) btn.disabled = true;
 
         fetch('/api/admin/events', {
@@ -1123,13 +1277,17 @@ resultBox.className = 'admin-scan-result show';
         .then(function(data) {
           console.log('Event creation response:', data);
           if (data && data.success) {
-            showToast('✅ Event "' + esc(name) + '" added successfully!');
+            showToast(editingEventId ? '✅ Event "' + esc(name) + '" updated successfully!' : '✅ Event "' + esc(name) + '" added successfully!');
             // Clear form fields
             document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
+            document.getElementById('evBonusPrice').value = '';
             document.getElementById('evVIPPrice').value = '';
+            document.getElementById('evBonusVIPPrice').value = '';
             document.getElementById('evVVIPPrice').value = '';
+            document.getElementById('evBonusVVIPPrice').value = '';
             document.getElementById('evTablePrice').value = '';
+            document.getElementById('evBonusTablePrice').value = '';
             document.getElementById('evDate').value = '';
             document.getElementById('evTime').value = '';
             document.getElementById('evVenue').value = '';
@@ -1140,6 +1298,7 @@ resultBox.className = 'admin-scan-result show';
             if (document.getElementById('evIncludedVVIP')) document.getElementById('evIncludedVVIP').value = '';
             if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
             clearEventImage();
+            cancelEditEvent();
             // Refresh event list
             setTimeout(function() {
               loadManagedEvents();
@@ -1156,25 +1315,7 @@ resultBox.className = 'admin-scan-result show';
         .finally(function() { if (btn) btn.disabled = false; });
       };
 
-      window.deleteManagedEvent = function(eventId) {
-        if (!eventId) return;
-        if (!confirm('Delete this event? This cannot be undone.')) return;
-        fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
-          method: 'DELETE',
-          headers: authHeaders()
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            var extra = (data.ordersDeleted > 0) ? ' — ' + data.ordersDeleted + ' related order(s) removed too' : '';
-            showToast('Event deleted' + extra);
-            loadManagedEvents();
-          } else {
-            showToast((data && data.error) || 'Failed to delete event', true);
-          }
-        })
-        .catch(function() { showToast('Network error deleting event', true); });
-      };
+      // Event deletion is Main Admin-only. No delete handler is exposed here.
 
       // ── Universities Manager (for the event form selects) ──
       window.loadManagedUniversities = function() {
@@ -1210,6 +1351,18 @@ resultBox.className = 'admin-scan-result show';
         catSel.innerHTML = html;
       };
 
+
+      window.loadGlobalSalesOverview = function() {
+        var token=getSubToken(); if(!token) return;
+        fetch('/api/subadmin/sales-overview',{headers:authHeaders()}).then(function(r){return r.json();}).then(function(d){
+          if(!d||!d.success) return; var s=d.sales||{};
+          var set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
+          set('salesTotalOrders',Number(s.totalOrders||0).toLocaleString());
+          set('salesTotalTickets',Number(s.totalTickets||0).toLocaleString());
+          set('salesTotalRevenue','₦'+Number(s.totalRevenue||0).toLocaleString());
+          set('salesUniquePeople',Number(s.uniquePeople||0).toLocaleString());
+        }).catch(function(e){console.error('Global sales overview error:',e);});
+      };
       // ── Referral Link Management ──
       window.loadReferralLink = function() {
         var token = getSubToken();
@@ -1230,10 +1383,10 @@ resultBox.className = 'admin-scan-result show';
             // Display the code
             document.getElementById('refCodeDisplay').textContent = code;
             
-            // Build the full referral URL and send users to checkout so the ref
-            // parameter is still present when the order is created.
+            // Build the canonical referral URL. The Events page persists the ref code
+            // and carries it through ticket selection and checkout.
             var baseUrl = window.location.origin;
-            var refUrl = baseUrl + '/checkout.html?ref=' + encodeURIComponent(code);
+            var refUrl = link.referralUrl || (baseUrl + '/events.html?ref=' + encodeURIComponent(code));
             document.getElementById('refLinkDisplay').value = refUrl;
             
             // Load and display stats
@@ -1315,6 +1468,33 @@ resultBox.className = 'admin-scan-result show';
         document.body.removeChild(textarea);
       }
 
+      var editingCouponId = '';
+      window.cancelCouponEdit = function(){ editingCouponId=''; var c=document.getElementById('couponCodeAdmin'),a=document.getElementById('couponAmountAdmin'),b=document.getElementById('couponSaveBtn'),x=document.getElementById('couponCancelBtn'); if(c)c.value=''; if(a)a.value=''; if(b)b.textContent='➕ Create Coupon'; if(x)x.style.display='none'; };
+      window.loadCoupons = function(){
+        fetch('/api/admin/coupons',{headers:authHeaders()}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){
+          if(!x.ok||!x.d.success) throw new Error(x.d.error||'Could not load coupons');
+          var list=x.d.coupons||[], box=document.getElementById('couponsList'), count=document.getElementById('couponCount');
+          if(count) count.textContent=list.length+' coupon'+(list.length===1?'':'s');
+          if(!box) return;
+          if(!list.length){box.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-3);">No coupons created yet.</div>';return;}
+          box.innerHTML=list.map(function(c){
+            return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
+              '<div><strong>'+esc(c.code)+'</strong><span style="font-size:.78rem;color:var(--text-3);margin-left:10px;">−₦'+Number(c.amount||0).toLocaleString()+'</span><span style="font-size:.72rem;margin-left:10px;color:'+(c.active===false?'#B71C1C':'var(--accent)')+';">'+(c.active===false?'Inactive':'Active')+'</span></div>'+
+              '<div style="display:flex;gap:6px;"><button type="button" class="admin-ticket-copy coupon-edit-btn" data-id="'+esc(c.id)+'">✏️</button><button type="button" class="admin-ticket-copy coupon-delete-btn" data-id="'+esc(c.id)+'">🗑</button></div></div>';
+          }).join('');
+          box.querySelectorAll('.coupon-edit-btn').forEach(function(b){b.addEventListener('click',function(){editCoupon(b.getAttribute('data-id'));});});
+          box.querySelectorAll('.coupon-delete-btn').forEach(function(b){b.addEventListener('click',function(){deleteCoupon(b.getAttribute('data-id'));});});
+        }).catch(function(e){
+          console.error('Coupon load failed:', e);
+          var box=document.getElementById('couponsList'), msg=document.getElementById('couponLoadMessage');
+          if(msg){msg.style.display='block';msg.style.background='rgba(183,28,28,.08)';msg.style.color='#B71C1C';msg.textContent='Could not load coupons: '+(e.message||'Unauthorized or server error. Click Refresh to try again.');}
+          if(box && !box.innerHTML.trim()) box.innerHTML='<div style="padding:16px;text-align:center;color:#B71C1C;">Coupon list could not be loaded.</div>';
+        });
+      };
+      window.saveCoupon = function(){ var code=(document.getElementById('couponCodeAdmin').value||'').trim().toUpperCase(), amount=Number(document.getElementById('couponAmountAdmin').value||0); if(code.length<3||amount<=0){alert('Enter a coupon code and discount amount.');return;} var btn=document.getElementById('couponSaveBtn'); if(btn)btn.disabled=true; fetch('/api/admin/coupons',{method:'POST',headers:authHeaders(),body:JSON.stringify({id:editingCouponId||undefined,code:code,amount:amount,active:true})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Could not save coupon'); cancelCouponEdit(); loadCoupons(); alert('Coupon saved: '+code+' = ₦'+amount.toLocaleString()+' off.');}).catch(function(e){alert(e.message||'Could not save coupon.');}).finally(function(){if(btn)btn.disabled=false;}); };
+      window.editCoupon = function(id){ fetch('/api/admin/coupons',{headers:authHeaders()}).then(r=>r.json()).then(function(d){var c=(d.coupons||[]).find(function(x){return String(x.id)===String(id);});if(!c)throw new Error('Coupon not found');editingCouponId=c.id;document.getElementById('couponCodeAdmin').value=c.code;document.getElementById('couponAmountAdmin').value=c.amount;document.getElementById('couponSaveBtn').textContent='💾 Save Coupon';document.getElementById('couponCancelBtn').style.display='inline-flex';}).catch(function(e){alert(e.message);}); };
+      window.deleteCoupon = function(id){if(!confirm('Delete this coupon?'))return;fetch('/api/admin/coupons?id='+encodeURIComponent(id),{method:'DELETE',headers:authHeaders()}).then(r=>r.json()).then(function(d){if(!d.success)throw new Error(d.error||'Delete failed');loadCoupons();}).catch(function(e){alert(e.message);});};
+
       // ── Tab switching ──
       var tabButtons = document.querySelectorAll('.admin-tab');
       var panels = document.querySelectorAll('.admin-panel');
@@ -1353,10 +1533,13 @@ resultBox.className = 'admin-scan-result show';
         loadManagedEvents();
         loadManagedUniversities();
         loadReferralLink();  // Load referral link on dashboard load
+        loadGlobalSalesOverview();
       } else {
         showLoggedOut();
       }
     })();
   </script>
+<script id="archive-controls-ui"></script>
+
 </body>
 </html>

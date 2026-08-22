@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <title>Admin Dashboard — Unisocials</title>
+  <title>Influencer Admin — Unisocials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
@@ -653,6 +653,13 @@
       text-align: center;
     }
   </style>
+
+<style id="influencer-admin-scope">
+  .admin-tab[data-tab]:not([data-tab="influencers"]):not([data-tab="events"]) { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-influencers):not(#panel-events) { display:none !important; }
+  #panel-influencers, #panel-events { display:none; }
+  #panel-influencers.active, #panel-events.active { display:block; }
+</style>
 </head>
 <body>
 
@@ -679,16 +686,14 @@
     <div class="admin-login-wrap" id="loginScreen">
       <div class="admin-login-card reveal visible">
 <div class="admin-login-icon">🔐</div>
-        <h2>Admin Access</h2>
-<p>Enter your admin password to manage orders, check-in, events &amp; more.</p>
+        <h2>Influencer Admin Access</h2>
+<p>Sign in with the account created for you by the main admin.</p>
         <div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
 
         <!-- Master admin login -->
         <form id="loginForm" onsubmit="adminLogin(event)">
-          <div class="form-group" id="adminPwdGroup">
-            <label for="adminPassword">Admin Password</label>
-            <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="current-password" />
-          </div>
+          <div class="form-group"><label for="adminEmail">Login Email</label><input type="email" id="adminEmail" placeholder="admin@unisocials.com" autocomplete="email" /></div>
+          <div class="form-group" id="adminPwdGroup"><label for="adminPassword">Password</label><input type="password" id="adminPassword" placeholder="Enter password" autocomplete="current-password" /></div>
           <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
         </form>
 
@@ -705,13 +710,11 @@
         <div class="admin-tabs-inner">
 <button class="admin-tab active" data-tab="overview">📊 Overview</button>
           <button class="admin-tab" data-tab="checkin">🎫 Check-in</button>
-          <button class="admin-tab" data-tab="events">🎤 Events</button>
+          <button class="admin-tab" data-tab="events">🎤 Add Events</button>
           <button class="admin-tab" data-tab="universities">🏛 Universities</button>
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
-          <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
-          <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
-          <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
+          <button class="admin-tab" data-tab="influencers">📣 My Influencers</button>
         </div>
       </div>
 
@@ -809,27 +812,6 @@
           </div>
         </div>
 
-        <!-- ── COUPONS PANEL ── -->
-        <div class="admin-panel" id="panel-coupons">
-          <div class="admin-panel-heading">
-            <div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons. Example: ₦4,000 ticket − ₦400 coupon = ₦3,600 to pay.</p></div>
-            <button type="button" class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="couponCodeAdmin">Coupon Code</label><input type="text" id="couponCodeAdmin" placeholder="SAVE400" maxlength="40" autocomplete="off" /></div>
-              <div class="form-group"><label for="couponAmountAdmin">Discount Amount (₦)</label><input type="number" id="couponAmountAdmin" placeholder="400" min="1" step="1" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-              <button type="button" class="btn-submit" style="width:auto;white-space:nowrap;" onclick="saveCoupon()" id="couponSaveBtn">➕ Create Coupon</button>
-              <button type="button" class="admin-refresh-btn" onclick="cancelCouponEdit()" id="couponCancelBtn" style="display:none;">✕ Cancel Edit</button>
-              <span id="couponCount" style="font-size:.75rem;color:var(--text-3);"></span>
-            </div>
-            <div id="couponLoadMessage" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:.82rem;"></div>
-            <div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
         <!-- ── EVENTS PANEL ── -->
         <div class="admin-panel" id="panel-events">
           <div class="admin-panel-heading">
@@ -851,10 +833,6 @@
               <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦)</label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
               <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦)</label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
               <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦)</label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
-              <div class="form-group"><label for="evRegularTicketLimit">Regular Tickets Available</label><input type="number" id="evRegularTicketLimit" placeholder="e.g. 1000" min="0" step="1" /></div>
-              <div class="form-group"><label for="evVipTicketLimit">VIP Tickets Available</label><input type="number" id="evVipTicketLimit" placeholder="e.g. 200" min="0" step="1" /></div>
-              <div class="form-group"><label for="evVvipTicketLimit">VVIP Tickets Available</label><input type="number" id="evVvipTicketLimit" placeholder="e.g. 100" min="0" step="1" /></div>
-              <div class="form-group"><label for="evTableTicketLimit">Table Tickets Available</label><input type="number" id="evTableTicketLimit" placeholder="e.g. 20" min="0" step="1" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -873,9 +851,8 @@
               <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()" id="eventSubmitBtn">➕ Add Event</button>
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
               <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
-              <button type="button" class="admin-refresh-btn" id="eventCancelEditBtn" onclick="cancelEditEvent()" style="display:none;">✕ Cancel Edit</button>
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
             </div>
             <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
@@ -953,6 +930,13 @@
 
         <!-- ── INFLUENCERS PANEL (master admin only) ── -->
         <div class="admin-panel" id="panel-influencers">
+<div class="admin-panel-heading" style="margin-bottom:18px;">
+  <div>
+    <h1>Influencer Management</h1>
+    <p>View your influencers, referral performance, and publish events using the same Unisocials admin flow.</p>
+  </div>
+</div>
+
           <div class="admin-panel-heading">
             <div>
               <h1>📣 Influencers</h1>
@@ -971,30 +955,6 @@
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
             </div>
             <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
-        <!-- ── DEDICATED STAFF ACCOUNTS ── -->
-        <div class="admin-panel" id="panel-staff">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>👥 Dedicated Staff Accounts</h1>
-              <p>Create separate login accounts for Check-in Staff and Influencer Admins. Each account only gets its assigned dashboard.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="staffRole">Account Type</label><select id="staffRole"><option value="checkin_staff">Check-in Staff</option><option value="influencer_admin">Influencer Admin</option></select></div>
-              <div class="form-group"><label for="staffName">Full Name</label><input type="text" id="staffName" placeholder="e.g. Event Staff" /></div>
-              <div class="form-group"><label for="staffEmail">Login Email</label><input type="email" id="staffEmail" placeholder="staff@unisocials.com" /></div>
-              <div class="form-group"><label for="staffPassword">Password</label><input type="password" id="staffPassword" placeholder="At least 6 characters" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" onclick="addStaffAccount()">➕ Create Account</button>
-              <button class="admin-refresh-btn" onclick="loadStaffAccounts()">↻ Refresh</button>
-              <span style="font-size:.75rem;color:var(--text-3);align-self:center;" id="staffCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="staffList" style="margin-top:14px;"></div>
           </div>
         </div>
       </div>
@@ -1076,13 +1036,17 @@ function fmtN(n) {
       }
 
       function getToken() {
-        try { return sessionStorage.getItem(KEY) || ''; } catch(e) { return ''; }
+        try { return localStorage.getItem(KEY) || ''; } catch(e) { return ''; }
       }
+      function getCurrentUser() {
+        try { var raw = localStorage.getItem('unn_admin_user'); return raw ? JSON.parse(raw) : null; } catch(e) { return null; }
+      }
+      function getCurrentRole() { var u = getCurrentUser(); return u && u.role ? u.role : ''; }
       function setToken(t) {
-        try { sessionStorage.setItem(KEY, t); } catch(e) {}
+        try { localStorage.setItem(KEY, t); } catch(e) {}
       }
       function clearToken() {
-        try { sessionStorage.removeItem(KEY); } catch(e) {}
+        try { localStorage.removeItem(KEY); } catch(e) {}
       }
 
       function showLoggedIn() {
@@ -1092,6 +1056,11 @@ function fmtN(n) {
         viewSiteBtn.style.display = 'inline-block';
         connStatus.style.display = 'inline-flex';
         if (notifBadge) notifBadge.style.display = 'inline-flex';
+        try {
+          var u = getCurrentUser();
+          var nameEl = document.getElementById('adminUserName');
+          if (nameEl && u) { nameEl.textContent = u.name || u.email || 'Influencer Admin'; nameEl.style.display = 'inline-flex'; }
+        } catch(e) {}
       }
       function showLoggedOut() {
         loginScreen.style.display = 'flex';
@@ -1101,6 +1070,22 @@ function fmtN(n) {
         connStatus.style.display = 'none';
         if (notifBadge) notifBadge.style.display = 'none';
       }
+
+      // Explicit logout: revoke the server session, then clear the local token.
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getToken();
+        // Clear the browser session immediately; never wait for a network request.
+        clearToken();
+        try { localStorage.removeItem('unn_admin_user'); } catch (_) {}
+        showLoggedOut();
+        logoutBtn.disabled = false;
+        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
+        var email = document.getElementById('adminEmail');
+        if (email) email.value = '';
+        var password = document.getElementById('adminPassword');
+        if (password) password.value = '';
+      });
 
       // Mark new orders as seen
       function markOrdersSeen() {
@@ -1154,688 +1139,193 @@ function fmtN(n) {
         return h;
       }
 
-      // Login handler (exposed to form onsubmit) — master admin only
+      // Login handler: master admin OR dedicated influencer-admin account.
       window.adminLogin = function(e) {
         e.preventDefault();
-
-        // If already logged in, just continue
-        if (getToken()) {
-          showLoggedIn();
-          loadOrders();
-          pollUnseen();
-          return;
-        }
-
-        var errBox = document.getElementById('loginError');
-        var btn = document.getElementById('loginBtn');
-        btn.disabled = true;
-        btn.textContent = 'Verifying\u2026';
-
-        var pwd = (document.getElementById('adminPassword') ? document.getElementById('adminPassword').value : '').trim();
-        if (!pwd) {
-          errBox.textContent = 'Enter your admin password.';
-          errBox.classList.add('show');
-          btn.disabled = false;
-          btn.textContent = 'Login to Dashboard';
-          return;
-        }
-
-        // Verify credentials by attempting an authenticated API call
-        fetch('/api/admin/orders', {
-          headers: { 'Authorization': 'Bearer ' + pwd }
-        })
-        .then(function(res) {
-          if (res.status === 401) {
-            errBox.classList.add('show');
-            btn.disabled = false;
-            btn.textContent = 'Login to Dashboard';
-            throw new Error('unauthorized');
-          }
-          if (res.ok) return res.json();
-          throw new Error('network');
-        })
-        .then(function(data) {
-          setToken(pwd);
-          errBox.classList.remove('show');
-          showLoggedIn();
-          lastUnseenCount = (data && data.unseenCount) || 0;
-          loadOrders();
-          pollUnseen();
-        })
-        .catch(function(err) {
-          if (err.message === 'unauthorized') return;
-          errBox.textContent = 'Cannot reach server. Check that the site is running.';
-          errBox.classList.add('show');
-          btn.disabled = false;
-          btn.textContent = 'Login to Dashboard';
-        });
-      };
-
-      logoutBtn.addEventListener('click', function(e) {
-        if (e) e.preventDefault();
-        var token = getToken();
-        // Clear locally immediately. Logout must work even when the network is slow/offline.
-        clearToken();
-        try { sessionStorage.removeItem('unn_admin_user'); localStorage.removeItem('unn_admin_user'); } catch (_) {}
-        showLoggedOut();
-        logoutBtn.disabled = false;
-        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
-        if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
-      });
-
-      // Set filter (exposed)
-      window.setFilter = function(f) {
-        currentFilter = f;
-        var btns = document.querySelectorAll('.admin-filter-btn');
-        for (var i = 0; i < btns.length; i++) {
-          btns[i].classList.toggle('active', btns[i].getAttribute('data-filter') === f);
-        }
-        renderOrders();
-      };
-
-      // Build Event + Category dropdown options from allOrders (unique values only)
-      function populateFilterSelects() {
-        var eventSel = document.getElementById('eventFilterSel');
-        var catSel = document.getElementById('categoryFilterSel');
-        if (!eventSel || !catSel) return;
-
-        var events = [], cats = [];
-        allOrders.forEach(function(o) {
-          var ev = (o.eventName || '').trim();
-          var ct = (o.eventCategory || '').trim();
-          if (ev && events.indexOf(ev) === -1) events.push(ev);
-          if (ct && cats.indexOf(ct) === -1) cats.push(ct);
-        });
-        events.sort(function(a, b) { return a.localeCompare(b); });
-        cats.sort(function(a, b) { return a.localeCompare(b); });
-
-        // Preserve current selection when repopulating
-        var keepEvent = eventSel.value;
-        var keepCat = catSel.value;
-
-        var evHtml = '<option value="">All Events</option>';
-        events.forEach(function(ev) {
-          evHtml += '<option value="' + esc(ev) + '">' + esc(ev) + '</option>';
-        });
-
-        var catHtml = '<option value="">All Categories</option>';
-        cats.forEach(function(ct) {
-          catHtml += '<option value="' + esc(ct) + '">' + esc(ct) + '</option>';
-        });
-
-        eventSel.innerHTML = evHtml;
-        catSel.innerHTML = catHtml;
-
-        // Restore selection if it still exists (e.g. after auto-refresh)
-        if (keepEvent && events.indexOf(keepEvent) !== -1) eventSel.value = keepEvent;
-        if (keepCat && cats.indexOf(keepCat) !== -1) catSel.value = keepCat;
-      }
-
-      // Set event filter (exposed)
-      window.setEventFilter = function(v) {
-        currentEventFilter = v;
-        renderOrders();
-      };
-
-      // Set category filter (exposed)
-      window.setCategoryFilter = function(v) {
-        currentCategoryFilter = v;
-        renderOrders();
-      };
-
-      // Clear all event/category filters (exposed)
-      window.clearCatFilters = function() {
-        currentEventFilter = '';
-        currentCategoryFilter = '';
-        var es = document.getElementById('eventFilterSel');
-        var cs = document.getElementById('categoryFilterSel');
-        if (es) es.value = '';
-        if (cs) cs.value = '';
-        renderOrders();
-      };
-
-      // Update order status (exposed)
-      window.updateOrderStatus = function(orderId, status) {
-        var btn = document.getElementById('eventSubmitBtn');
-        if (btn) btn.disabled = true;
-
-        fetch('/api/admin/orders/status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + getToken()
-          },
-          body: JSON.stringify({ orderId: orderId, status: status })
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            showToast(status === 'verified' ? 'Order ' + orderId + ' verified ✅' :
-                       status === 'rejected' ? 'Order ' + orderId + ' rejected' :
-                       'Order ' + orderId + ' reopened');
-            loadOrders();
-          } else {
-            showToast((data && data.error) || 'Failed to update order', true);
-            if (btn) btn.disabled = false;
-            if (data && data.error === 'Unauthorized') {
-              clearToken();
-              showLoggedOut();
-            }
-          }
-        })
-        .catch(function() {
-          showToast('Network error updating order', true);
-          if (btn) btn.disabled = false;
-        });
-      };
-
-      // Resend an order email (buyer confirmation if verified, new-order admin alert if pending)
-      window.resendOrderEmail = function(orderId, btn) {
-        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
-        fetch('/api/admin/orders/resend-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + getToken()
-          },
-          body: JSON.stringify({ orderId: orderId })
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            showToast('Email queued for ' + orderId + ' ✉');
-          } else {
-            showToast((data && data.error) || 'Failed to queue email', true);
-            if (data && data.error === 'Unauthorized') {
-              clearToken();
-              showLoggedOut();
-            }
-          }
-        })
-        .catch(function() { showToast('Network error sending email', true); })
-        .finally(function() {
-          if (btn) { btn.disabled = false; btn.textContent = '✉ Resend Email'; }
-        });
-      };
-
-      // Copy a ticket code to clipboard
-      window.copyTicketCode = function(code, btn) {
-        var done = function() {
-          if (btn) {
-            var orig = btn.textContent;
-            btn.textContent = '✓';
-            setTimeout(function() { btn.textContent = orig; }, 1200);
-          }
-          showToast('Ticket code copied');
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(code).then(done).catch(function() {
-            prompt('Copy ticket code:', code);
-          });
-        } else {
-          prompt('Copy ticket code:', code);
-        }
-      };
-
-      // Gate check-in: scan/validate a ticket code
-      window.scanTicket = function() {
-        var orderId = (document.getElementById('scanOrderId') ? document.getElementById('scanOrderId').value : '').trim();
-        var code = (document.getElementById('scanCode') ? document.getElementById('scanCode').value : '').trim();
-        var resultBox = document.getElementById('scanResult');
-
-        if (!orderId || !code) {
-          if (resultBox) {
-            resultBox.className = 'admin-scan-result show';
-            resultBox.innerHTML = '<div class="scan-result-box warn">⚠️ Enter both the Order ID and the Ticket Code.</div>';
-          }
-          return;
-        }
-
-fetch('/api/ticket/scan', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ orderId: orderId, code: code })
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (!resultBox) return;
-          resultBox.className = 'admin-scan-result show';
-          if (data && data.success) {
-            var t = data.ticket || {};
-            var cls = data.alreadyUsed ? 'warn' : 'success';
-            var status = data.alreadyUsed ? '♻️ Already checked in' : '✅ Check-in successful!';
-            var rows = '';
-            function row(label, val) {
-              if (val === null || val === undefined || val === '') return '';
-              return '<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span style="opacity:0.75;">' + label + '</span><strong>' + val + '</strong></div>';
-            }
-            rows += row('🎤 Event', esc((t.eventName || data.eventName || '\u2014')));
-            if (t.ticketIndex) rows += row('🎟 Ticket', '#' + esc(String(t.ticketIndex)) + ' of ' + esc(String(t.totalTickets || t.qty)));
-            if (t.ticketTier) rows += row('🪑 Tier', esc(String(t.ticketTier).replace(/^./, function(c) { return c.toUpperCase(); })));
-            if (t.qty) rows += row('📦 Qty', esc(String(t.qty)));
-            rows += row('📅 Date', esc((t.eventDate || t.eventDate || '\u2014')));
-            rows += row('📍 Venue', esc((t.eventVenue || '\u2014')));
-            rows += row('🏛 University', esc((t.universityName || '\u2014')));
-            rows += row('👤 Buyer', esc((t.buyerName || '\u2014')));
-            rows += row('📧 Email', esc((t.buyerEmail || '\u2014')));
-            rows += row('📞 Phone', esc((t.buyerPhone || '\u2014')));
-            if (t.amount) rows += row('💰 Amount', esc('\u20A6' + Number(t.amount).toLocaleString()));
-            rows += row('🧾 Order', esc((t.orderId || data.orderId || '\u2014')));
-            rows += row('🔑 Code', esc(code));
-            if (t.verifiedAt) rows += row('✅ Verified', esc(fmtDate(t.verifiedAt)));
-            if (t.usedAt) rows += row('♻️ Used at', esc(fmtDate(t.usedAt)));
-            if (t.checkedInBy) rows += row('👮 By', esc(String(t.checkedInBy)));
-            resultBox.innerHTML = '<div class="scan-result-box ' + cls + '">' +
-              '<div style="margin-bottom:8px;"><strong>' + status + '</strong> <span style="opacity:0.8;">' + esc(data.message || '') + '</span></div>' +
-              '<div style="border-top:1px dashed rgba(0,0,0,0.2);margin:8px 0;padding-top:8px;">' + rows + '</div>' +
-              '</div>';
-            showToast(data.alreadyUsed ? 'Ticket was already used' : 'Ticket checked in ✅', data.alreadyUsed);
-            loadOrders();
-            if (document.getElementById('scanOrderId')) document.getElementById('scanOrderId').value = '';
-            if (document.getElementById('scanCode')) document.getElementById('scanCode').value = '';
-          } else {
-            var err = (data && data.error) || 'Ticket could not be verified';
-            resultBox.innerHTML = '<div class="scan-result-box error">❌ ' + esc(err) + '</div>';
-            showToast('Check-in failed', true);
-          }
-        })
-        .catch(function() {
-          if (resultBox) {
-            resultBox.className = 'admin-scan-result show';
-            resultBox.innerHTML = '<div class="scan-result-box error">❌ Network error checking in ticket.</div>';
-          }
-          showToast('Network error checking in', true);
-        });
-      };
-
-// ── Camera QR scanner ──
-      var qrStream = null;
-      var qrScanTimer = null;
-
-      window.toggleQRScanner = function() {
-        var wrap = document.getElementById('scanCameraWrap');
-        var btn = document.getElementById('qrScanBtn');
-        if (wrap.style.display !== 'none') {
-          stopQRScanner();
-          return;
-        }
-        wrap.style.display = 'block';
-        btn.textContent = '✕ Stop Camera';
-        startQRScanner();
-      };
-
-      function startQRScanner() {
-        var video = document.getElementById('qrVideo');
-        var canvas = document.getElementById('qrCanvas');
-        var overlay = document.getElementById('scanOverlay');
-        if (!video || !canvas) return;
-
-        // Check for jsQR
-        if (typeof jsQR === 'undefined') {
-          if (overlay) overlay.textContent = '⚠️ QR scanner library not loaded.';
-          return;
-        }
-
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } })
-          .then(function(stream) {
-            qrStream = stream;
-            video.srcObject = stream;
-            video.play();
-
-            var ctx = canvas.getContext('2d');
-
-            function decodeFrame() {
-              if (!qrStream || video.readyState < 2) {
-                qrScanTimer = requestAnimationFrame(decodeFrame);
-                return;
-              }
-              canvas.width = video.videoWidth || 640;
-              canvas.height = video.videoHeight || 480;
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-              if (code && code.data) {
-                var decoded = code.data;
-                if (overlay) overlay.textContent = '✅ QR found! Processing...';
-                // Parse QR data — expected format: "ORDERID:TKT-CODE" or "https://...?orderId=...&code=..."
-                var orderId = '', ticketCode = '';
-                if (decoded.indexOf('orderId=') !== -1) {
-                  try {
-                    var u = new URL(decoded);
-                    orderId = u.searchParams.get('orderId') || '';
-                    ticketCode = u.searchParams.get('code') || '';
-                  } catch(e) {}
-                } else if (decoded.indexOf(':') !== -1) {
-                  var parts = decoded.split(':');
-                  orderId = parts[0] || '';
-                  ticketCode = parts.slice(1).join(':') || '';
-                } else {
-                  // Assume it's just a ticket code, try to match pattern
-                  ticketCode = decoded;
-                }
-                if (orderId) document.getElementById('scanOrderId').value = orderId;
-                if (ticketCode) document.getElementById('scanCode').value = ticketCode;
-                stopQRScanner();
-                // Auto-scan after a brief pause
-                setTimeout(function() { window.scanTicket(); }, 300);
-              } else {
-                if (overlay) overlay.textContent = '🔍 Point camera at the ticket QR code';
-                qrScanTimer = requestAnimationFrame(decodeFrame);
-              }
-            }
-            decodeFrame();
+        if (getToken()) { showLoggedIn(); return; }
+        var errBox=document.getElementById('loginError'), btn=document.getElementById('loginBtn');
+        var email=(document.getElementById('adminEmail')||{}).value||'';
+        var pwd=(document.getElementById('adminPassword')||{}).value||'';
+        email=email.trim(); pwd=pwd.trim();
+        if(!email||!pwd){errBox.textContent='Enter your email and password.';errBox.classList.add('show');return;}
+        btn.disabled=true; btn.textContent='Verifying…';
+        fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pwd})})
+          .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+          .then(function(x){
+            if(!x.ok || !x.data || !x.data.success){throw new Error((x.data&&x.data.error)||'unauthorized');}
+            var role=x.data.user&&x.data.user.role;
+            if(role!=='influencer_admin' && role!=='admin') throw new Error('This account is not authorized for the Influencer Admin dashboard.');
+            setToken(x.data.token); localStorage.setItem('unn_admin_user',JSON.stringify(x.data.user||{}));
+            errBox.classList.remove('show'); showLoggedIn();
           })
-          .catch(function(err) {
-            if (overlay) overlay.textContent = '⚠️ Camera access denied or not available.';
-            console.error('Camera error:', err);
-          });
-      }
-
-      window.stopQRScanner = function() {
-        if (qrScanTimer) { cancelAnimationFrame(qrScanTimer); qrScanTimer = null; }
-        if (qrStream) {
-          qrStream.getTracks().forEach(function(t) { t.stop(); });
-          qrStream = null;
-        }
-        var video = document.getElementById('qrVideo');
-        if (video) video.srcObject = null;
-        var wrap = document.getElementById('scanCameraWrap');
-        if (wrap) wrap.style.display = 'none';
-        var btn = document.getElementById('qrScanBtn');
-        if (btn) btn.textContent = '📷 Scan QR';
-        var overlay = document.getElementById('scanOverlay');
-        if (overlay) overlay.textContent = 'Point camera at the ticket QR code';
+          .catch(function(err){errBox.textContent=err.message||'Cannot sign in.';errBox.classList.add('show');btn.disabled=false;btn.textContent='Login to Dashboard';});
       };
 
+
+      // ── Influencer Admin Events Manager ──
+      // Keep event management available to Influencer Admin, but never expose
+      // event deletion here. The server remains the final permission check.
       var selectedEventImage = '';
+      var allUniversities = window.allUniversities || [];
 
       function setEventImagePreview(src) {
         var preview = document.getElementById('evImagePreview');
         if (!preview) return;
-        if (src) {
-          preview.src = src;
-          preview.style.display = 'block';
-        } else {
-          preview.removeAttribute('src');
-          preview.style.display = 'none';
-        }
+        if (src) { preview.src = src; preview.style.display = 'block'; }
+        else { preview.removeAttribute('src'); preview.style.display = 'none'; }
       }
-
       function clearEventImage() {
         selectedEventImage = '';
         var input = document.getElementById('evImage');
         if (input) input.value = '';
         setEventImagePreview('');
       }
-
       function resizeImageFile(file, maxSize) {
         maxSize = maxSize || 1280;
         return new Promise(function(resolve, reject) {
-          var img = new Image();
-          var url = URL.createObjectURL(file);
+          var img = new Image(), url = URL.createObjectURL(file);
           img.onload = function() {
             try {
               var ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
-              var width = Math.max(1, Math.round(img.width * ratio));
-              var height = Math.max(1, Math.round(img.height * ratio));
               var canvas = document.createElement('canvas');
-              canvas.width = width;
-              canvas.height = height;
-              var ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0, width, height);
+              canvas.width = Math.max(1, Math.round(img.width * ratio));
+              canvas.height = Math.max(1, Math.round(img.height * ratio));
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
               URL.revokeObjectURL(url);
               resolve(canvas.toDataURL('image/jpeg', 0.84));
-            } catch (err) {
-              URL.revokeObjectURL(url);
-              reject(err);
-            }
+            } catch (e) { URL.revokeObjectURL(url); reject(e); }
           };
-          img.onerror = function() {
-            URL.revokeObjectURL(url);
-            reject(new Error('Could not read image'));
-          };
+          img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
           img.src = url;
         });
       }
-
       window.handleEventImageUpload = function(input) {
         var file = input && input.files && input.files[0];
-        if (!file) {
-          clearEventImage();
-          return;
-        }
+        if (!file) { clearEventImage(); return; }
         if (!/^image\//.test(file.type || '')) {
-          showToast('Please choose an image file.', true);
-          input.value = '';
-          return;
+          showToast('Please choose an image file.', true); input.value = ''; return;
         }
         resizeImageFile(file).then(function(dataUrl) {
-          selectedEventImage = dataUrl;
-          setEventImagePreview(dataUrl);
+          selectedEventImage = dataUrl; setEventImagePreview(dataUrl);
         }).catch(function() {
-          selectedEventImage = '';
-          setEventImagePreview('');
+          selectedEventImage = ''; setEventImagePreview('');
           showToast('Could not prepare that image. Try another file.', true);
           input.value = '';
         });
       };
 
-// ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events?includeArchived=1')
-          .then(function(r) { return r.json(); })
+        var container = document.getElementById('managedEventsList');
+        var count = document.getElementById('eventsManageCount');
+        if (!container) return;
+        fetch('/api/events?includeArchived=1', { headers: authHeaders() })
+          .then(function(r) {
+            if (r.status === 401) throw new Error('unauthorized');
+            return r.json();
+          })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
-            var container = document.getElementById('managedEventsList');
-            var count = document.getElementById('eventsManageCount');
             if (count) count.textContent = events.length + ' event' + (events.length !== 1 ? 's' : '');
-            if (!container) return;
             if (!events.length) {
               container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No events added yet. Add your first event above.</div>';
               return;
             }
             var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
-              var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-              var vipValue = parseFloat(ev.vipPrice || 0) || 0, bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
-              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0, bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
-              var bonusValue = parseFloat(ev.bonusPrice || 0) || 0, tableValue = parseFloat(ev.tablePrice || 0) || 0, bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
-              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>';
-              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
-              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
-              var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
-                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
-                '<strong>' + esc(ev.name) + '</strong>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
-                priceHtml +
-                vipHtml +
-                vvipHtml +
-                tableHtml +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
-                '</div>' +
-                '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
-                '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
-                '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
-                '</div>' +
-                '</div>';
+              var vip = Number(ev.vipPrice || 0), vvip = Number(ev.vvipPrice || 0);
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;">' +
+                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' +
+                (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;">' : esc(ev.icon || '🎤')) +
+                '</span><strong>' + esc(ev.name || '') + '</strong>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.category || 'General') + '</span>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">₦' + Number(ev.price || 0).toLocaleString() + '</span>' +
+                (vip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VIP ₦' + vip.toLocaleString() + '</span>' : '') +
+                (vvip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VVIP ₦' + vvip.toLocaleString() + '</span>' : '') +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
+                '</div></div>';
             });
             container.innerHTML = html;
           })
-          .catch(function() {});
+          .catch(function(err) {
+            if (err.message === 'unauthorized') {
+              container.innerHTML = '<div style="padding:14px;color:var(--text-3);">Session verification is temporarily unavailable. Your login has been kept. Please refresh this section.</div>';
+              return;
+            }
+            container.innerHTML = '<div style="padding:14px;color:var(--danger,#ef4444);">Unable to load events. Please try again.</div>';
+          });
       };
 
-      var editingEventId = '';
-
-      window.cancelEditEvent = function() {
-        editingEventId = '';
-        var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
-        var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
-        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evRegularTicketLimit','evVipTicketLimit','evVvipTicketLimit','evTableTicketLimit','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
-        var uni=document.getElementById('evUniversity');if(uni)uni.value='';
-        if(typeof updateUniCategories==='function')updateUniCategories();
-        if(typeof clearEventImage==='function')clearEventImage();
+      window.loadManagedUniversities = function() {
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            allUniversities = (data && data.success && data.universities) || [];
+            window.allUniversities = allUniversities;
+            var sel = document.getElementById('evUniversity');
+            if (!sel) return;
+            var keep = sel.value;
+            sel.innerHTML = '<option value="">Select university...</option>' +
+              allUniversities.map(function(u) { return '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>'; }).join('');
+            if (keep) sel.value = keep;
+          }).catch(function() {});
       };
 
-      window.editManagedEvent = function(eventId) {
-        if(!eventId)return;
-        fetch('/api/events?includeArchived=1',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
-          var events=(data&&data.success&&data.events)||[];
-          var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
-          if(!ev)throw new Error('Event not found');
-          editingEventId=String(ev.id||eventId);
-          var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
-          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);set('evRegularTicketLimit',ev.regularTicketLimit);set('evVipTicketLimit',ev.vipTicketLimit);set('evVvipTicketLimit',ev.vvipTicketLimit);set('evTableTicketLimit',ev.tableTicketLimit);
-          set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
-          set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
-          set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
-          var uni=document.getElementById('evUniversity');if(uni){uni.value=ev.universityId||'';if(typeof updateUniCategories==='function')updateUniCategories();var cat=document.getElementById('evCategory');if(cat)cat.value=ev.category||'General';}
-          selectedEventImage=ev.image||'';if(typeof setEventImagePreview==='function')setEventImagePreview(selectedEventImage);
-          var btn=document.getElementById('eventSubmitBtn');if(btn)btn.textContent='💾 Save Event Changes';
-          var cancel=document.getElementById('eventCancelEditBtn');if(cancel)cancel.style.display='inline-flex';
-          var panel=document.getElementById('panel-events');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
-          showToast('Editing “'+(ev.name||'event')+'”. Update the fields and save.');
-        }).catch(function(err){showToast(err.message||'Could not load that event.',true);});
-      };
-
-window.addEventItem = function() {
-var name = document.getElementById('evName').value.trim();
-        var category = document.getElementById('evCategory').value;
-        var price = parseFloat(document.getElementById('evPrice').value) || 0;
-        var bonusPrice = parseFloat(document.getElementById('evBonusPrice').value) || 0;
-        var vipPrice = parseFloat(document.getElementById('evVIPPrice').value) || 0;
-        var bonusVipPrice = parseFloat(document.getElementById('evBonusVIPPrice').value) || 0;
-        var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
-        var bonusVvipPrice = parseFloat(document.getElementById('evBonusVVIPPrice').value) || 0;
-        var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
-        var bonusTablePrice = parseFloat(document.getElementById('evBonusTablePrice').value) || 0;
-        var regularTicketLimit = parseInt(document.getElementById('evRegularTicketLimit').value) || 0;
-        var vipTicketLimit = parseInt(document.getElementById('evVipTicketLimit').value) || 0;
-        var vvipTicketLimit = parseInt(document.getElementById('evVvipTicketLimit').value) || 0;
-        var tableTicketLimit = parseInt(document.getElementById('evTableTicketLimit').value) || 0;
-        var date = document.getElementById('evDate').value.trim();
-        var time = document.getElementById('evTime').value.trim();
-        var venue = document.getElementById('evVenue').value.trim();
-        var desc = document.getElementById('evDesc').value.trim();
-        var tags = document.getElementById('evTags').value.trim();
-        var includedRegular = (document.getElementById('evIncludedRegular') ? document.getElementById('evIncludedRegular').value : '').trim();
-        var includedVip = (document.getElementById('evIncludedVip') ? document.getElementById('evIncludedVip').value : '').trim();
-        var includedVVIP = (document.getElementById('evIncludedVVIP') ? document.getElementById('evIncludedVVIP').value : '').trim();
-        var includedTable = (document.getElementById('evIncludedTable') ? document.getElementById('evIncludedTable').value : '').trim();
-
-        // Selected university (required to scope the event to a campus)
-        var uniSel = document.getElementById('evUniversity');
-        var uniId = uniSel ? uniSel.value : '';
+      window.updateUniCategories = function() {
+        var uniId = (document.getElementById('evUniversity') || {}).value || '';
+        var catSel = document.getElementById('evCategory');
+        if (!catSel) return;
         var uni = allUniversities.find(function(u) { return u.id === uniId; });
-        var uniName = uni ? uni.name : '';
-        var uniSlug = uni ? (uni.slug || uni.id) : '';
+        var cats = (uni && Array.isArray(uni.categories) && uni.categories.length) ? uni.categories : ['General'];
+        catSel.innerHTML = cats.map(function(c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+      };
 
-        if (!uniId) {
-          showToast('Please select a university for this event.', true);
-          return;
-        }
-        if (!name || !category || !date || !venue) {
-          showToast('Event Name, Category, Date, and Venue are required.', true);
-          return;
-        }
-
-        var ev = {
-          id: editingEventId || undefined,
-          name: name,
-          category: category,
-          price: price,
-          bonusPrice: bonusPrice,
-          vipPrice: vipPrice,
-          bonusVipPrice: bonusVipPrice,
-          vvipPrice: vvipPrice,
-          bonusVvipPrice: bonusVvipPrice,
-          tablePrice: tablePrice,
-          bonusTablePrice: bonusTablePrice,
-          regularTicketLimit: regularTicketLimit,
-          vipTicketLimit: vipTicketLimit,
-          vvipTicketLimit: vvipTicketLimit,
-          tableTicketLimit: tableTicketLimit,
-          includedRegular: includedRegular,
-          includedVip: includedVip,
-          includedVVIP: includedVVIP,
-          includedTable: includedTable,
-          date: date,
-          time: time,
-          venue: venue,
-          description: desc,
-          image: selectedEventImage,
-          tags: tags ? tags.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [],
-          universityId: uniId,
-          universityName: uniName,
-          universitySlug: uniSlug
+      window.addEventItem = function() {
+        var get = function(id) { var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+        var name=get('evName'), date=get('evDate'), venue=get('evVenue'), desc=get('evDesc');
+        var uniId=get('evUniversity'), cat=get('evCategory') || 'General';
+        if (!uniId) return showToast('Please select a university for this event.', true);
+        if (!name || !date || !venue) return showToast('Event Name, Date, and Venue are required.', true);
+        var uni=allUniversities.find(function(u){return u.id===uniId;});
+        var ev={
+          name:name, category:cat,
+          price:parseFloat(get('evPrice'))||0,
+          bonusPrice:parseFloat(get('evBonusPrice'))||0,
+          vipPrice:parseFloat(get('evVIPPrice'))||0,
+          bonusVipPrice:parseFloat(get('evBonusVIPPrice'))||0,
+          vvipPrice:parseFloat(get('evVVIPPrice'))||0,
+          bonusVvipPrice:parseFloat(get('evBonusVVIPPrice'))||0,
+          tablePrice:parseFloat(get('evTablePrice'))||0,
+          bonusTablePrice:parseFloat(get('evBonusTablePrice'))||0,
+          date:date, time:get('evTime'), venue:venue, description:desc,
+          image:selectedEventImage,
+          tags:get('evTags') ? get('evTags').split(',').map(function(x){return x.trim();}).filter(Boolean) : [],
+          includedRegular:get('evIncludedRegular'), includedVip:get('evIncludedVip'),
+          includedVVIP:get('evIncludedVVIP'), includedTable:get('evIncludedTable'),
+          universityId:uniId, universityName:uni ? uni.name : '',
+          universitySlug:uni ? (uni.slug || uni.id) : ''
         };
-
-        var btn = event && event.target;
-        if (btn) btn.disabled = true;
-
-fetch('/api/admin/events', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify(ev)
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            showToast(editingEventId ? 'Event "' + esc(name) + '" updated successfully!' : 'Event "' + esc(name) + '" added!');
-document.getElementById('evName').value = '';
-            document.getElementById('evPrice').value = '';
-            document.getElementById('evVIPPrice').value = '';
-            document.getElementById('evVVIPPrice').value = '';
-            document.getElementById('evTablePrice').value = '';
-            document.getElementById('evDate').value = '';
-            document.getElementById('evTime').value = '';
-            document.getElementById('evVenue').value = '';
-            document.getElementById('evDesc').value = '';
-            document.getElementById('evTags').value = '';
-            if (document.getElementById('evIncludedRegular')) document.getElementById('evIncludedRegular').value = '';
-            if (document.getElementById('evIncludedVip')) document.getElementById('evIncludedVip').value = '';
-            if (document.getElementById('evIncludedVVIP')) document.getElementById('evIncludedVVIP').value = '';
-            if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
-            clearEventImage();
-            cancelEditEvent();
-            loadManagedEvents();
-          } else {
-            showToast((data && data.error) || 'Failed to add event', true);
-          }
-        })
-        .catch(function() { showToast('Network error adding event', true); })
-        .finally(function() { if (btn) btn.disabled = false; });
+        var btn=document.querySelector('#panel-events .btn-submit');
+        if (btn) btn.disabled=true;
+        fetch('/api/admin/events',{method:'POST',headers:authHeaders(),body:JSON.stringify(ev)})
+          .then(function(r){return r.json();})
+          .then(function(data){
+            if (!data || !data.success) throw new Error((data&&data.error)||'Failed to add event');
+            showToast('Event "' + name + '" added successfully.');
+            ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+            clearEventImage(); loadManagedEvents();
+          })
+          .catch(function(e){showToast(e.message || 'Failed to add event.',true);})
+          .finally(function(){if(btn)btn.disabled=false;});
       };
 
-window.deleteManagedEvent = function(eventId) {
-        if (!eventId) return;
-        if (!confirm('Delete this event? This cannot be undone.')) return;
-
-fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
-          method: 'DELETE',
-          headers: authHeaders()
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            var extra = (data.ordersDeleted > 0) ? ' — ' + data.ordersDeleted + ' related order(s) removed too' : '';
-            showToast('Event deleted' + extra);
-            loadManagedEvents();
-            loadOrders();
-          } else {
-            showToast((data && data.error) || 'Failed to delete event', true);
-          }
-        })
-        .catch(function() { showToast('Network error deleting event', true); });
-      };
-
+      // Load event data and universities whenever the Influencer Admin session is restored.
       // Load events on login
       var origShowLoggedIn = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn();
+        loadManagedUniversities();
         loadManagedEvents();
       };
 
@@ -1849,8 +1339,9 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
         })
         .then(function(res) {
           if (res.status === 401) {
-            clearToken();
-            showLoggedOut();
+            // Order management is Main Admin-only. Influencer Admins must not be
+            // logged out just because this optional admin-only endpoint rejects them.
+            if (getCurrentRole() === 'admin') { clearToken(); showLoggedOut(); }
             throw new Error('unauthorized');
           }
           if (res.ok) return res.json();
@@ -1996,12 +1487,12 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
 
       // Auto-refresh every 30s when logged in
       setInterval(function() {
-        if (dashboard.classList.contains('visible')) loadOrders();
+        if (dashboard.classList.contains('visible') && getCurrentRole() === 'admin') loadOrders();
       }, 30000);
 
       // Poll unseen count every 8s for real-time alerts
       setInterval(function() {
-        if (dashboard.classList.contains('visible') && getToken()) pollUnseen();
+        if (dashboard.classList.contains('visible') && getToken() && getCurrentRole() === 'admin') pollUnseen();
       }, 8000);
 
       // Clicking the notification badge marks unseen orders as seen
@@ -2244,7 +1735,7 @@ fetch('/api/admin/events/notify', {
                 '</div>' +
                 '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
                 '</div>' +
-                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || id) + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>' +
+                '<button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>';
             });
             container.innerHTML = html;
@@ -2290,9 +1781,10 @@ fetch('/api/admin/events/notify', {
       window.deleteSubAdmin = function(email) {
         if (!email) return;
         if (!confirm('Remove sub-admin ' + email + '? They will no longer be able to sign in.')) return;
-        fetch('/api/admin/subadmins?email=' + encodeURIComponent(email), {
+        fetch('/api/admin/subadmins', {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + getToken() }
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ email: email })
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -2356,45 +1848,6 @@ fetch('/api/admin/events/notify', {
           }).catch(function(){ showToast('Network error removing influencer', true); });
       };
 
-
-      // ── Dedicated staff accounts ──
-      window.loadStaffAccounts = function() {
-        fetch('/api/admin/staff', { headers: { 'Authorization': 'Bearer ' + getToken() } })
-          .then(function(r){ return r.json(); }).then(function(data){
-            var list=(data&&data.success&&data.staff)||[];
-            var el=document.getElementById('staffList'), count=document.getElementById('staffCount');
-            if(count) count.textContent=list.length+' account'+(list.length!==1?'s':'');
-            if(!el) return;
-            if(!list.length){ el.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-3);font-size:.85rem;">No dedicated staff accounts yet.</div>'; return; }
-            var html='<div class="admin-ticket-codes-label">👥 Active Accounts</div>';
-            list.forEach(function(u){
-              var label=u.role==='checkin_staff'?'Check-in Staff':'Influencer Admin';
-              html+='<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
-                '<div style="display:flex;flex-direction:column;gap:4px;"><div><strong>'+esc(u.name||'—')+'</strong> <span style="font-size:.72rem;color:var(--text-3);">'+esc(u.email||'')+'</span></div>'+                '<span style="font-size:.72rem;color:var(--accent);font-weight:700;">'+label+'</span></div>'+                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\''+esc(u.email||'')+'\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteStaffAccount(\''+esc(u.email||'')+'\')" title="Remove account" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
-            });
-            el.innerHTML=html;
-          }).catch(function(){ showToast('Could not load staff accounts',true); });
-      };
-      window.addStaffAccount = function(){
-        var role=(document.getElementById('staffRole')||{}).value||'';
-        var name=((document.getElementById('staffName')||{}).value||'').trim();
-        var email=((document.getElementById('staffEmail')||{}).value||'').trim();
-        var password=((document.getElementById('staffPassword')||{}).value||'').trim();
-        if(!name||!email||!password) return showToast('Name, Email, and Password are required.',true);
-        if(password.length<6) return showToast('Password must be at least 6 characters.',true);
-        fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({role:role,name:name,email:email,password:password})})
-          .then(function(r){return r.json();}).then(function(data){
-            if(data&&data.success){ showToast((role==='checkin_staff'?'Check-in Staff':'Influencer Admin')+' account created for '+name+'.'); ['staffName','staffEmail','staffPassword'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); loadStaffAccounts(); }
-            else showToast((data&&data.error)||'Failed to create account',true);
-          }).catch(function(){showToast('Network error creating account',true);});
-      };
-      window.deleteStaffAccount = function(email){
-        if(!email||!confirm('Remove staff account '+email+'?')) return;
-        fetch('/api/admin/staff?email='+encodeURIComponent(email),{method:'DELETE',headers:{'Authorization':'Bearer '+getToken()}})
-          .then(function(r){return r.json();}).then(function(data){ if(data&&data.success){showToast('Staff account removed');loadStaffAccounts();} else showToast((data&&data.error)||'Failed to remove account',true); })
-          .catch(function(){showToast('Network error removing account',true);});
-      };
-
       window.resetManagedPassword = function(email) {
         if (!email) return;
         var first = prompt('Enter a new password for ' + email + ' (minimum 6 characters):');
@@ -2416,40 +1869,11 @@ fetch('/api/admin/events/notify', {
       showLoggedIn = function() {
         origShowLoggedIn2();
         loadManagedEvents();
-        loadStaffAccounts();
         loadManagedUniversities();
         loadSubscribers();
         loadSubAdmins();
-        loadCoupons();
         loadInfluencers();
       };
-
-      var editingCouponId = '';
-      window.cancelCouponEdit = function(){ editingCouponId=''; var c=document.getElementById('couponCodeAdmin'),a=document.getElementById('couponAmountAdmin'),b=document.getElementById('couponSaveBtn'),x=document.getElementById('couponCancelBtn'); if(c)c.value=''; if(a)a.value=''; if(b)b.textContent='➕ Create Coupon'; if(x)x.style.display='none'; };
-      window.loadCoupons = function(){
-        fetch('/api/admin/coupons',{headers:authHeaders()}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){
-          if(!x.ok||!x.d.success) throw new Error(x.d.error||'Could not load coupons');
-          var list=x.d.coupons||[], box=document.getElementById('couponsList'), count=document.getElementById('couponCount');
-          if(count) count.textContent=list.length+' coupon'+(list.length===1?'':'s');
-          if(!box) return;
-          if(!list.length){box.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-3);">No coupons created yet.</div>';return;}
-          box.innerHTML=list.map(function(c){
-            return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
-              '<div><strong>'+esc(c.code)+'</strong><span style="font-size:.78rem;color:var(--text-3);margin-left:10px;">−₦'+Number(c.amount||0).toLocaleString()+'</span><span style="font-size:.72rem;margin-left:10px;color:'+(c.active===false?'#B71C1C':'var(--accent)')+';">'+(c.active===false?'Inactive':'Active')+'</span></div>'+
-              '<div style="display:flex;gap:6px;"><button type="button" class="admin-ticket-copy coupon-edit-btn" data-id="'+esc(c.id)+'">✏️</button><button type="button" class="admin-ticket-copy coupon-delete-btn" data-id="'+esc(c.id)+'">🗑</button></div></div>';
-          }).join('');
-          box.querySelectorAll('.coupon-edit-btn').forEach(function(b){b.addEventListener('click',function(){editCoupon(b.getAttribute('data-id'));});});
-          box.querySelectorAll('.coupon-delete-btn').forEach(function(b){b.addEventListener('click',function(){deleteCoupon(b.getAttribute('data-id'));});});
-        }).catch(function(e){
-          console.error('Coupon load failed:', e);
-          var box=document.getElementById('couponsList'), msg=document.getElementById('couponLoadMessage');
-          if(msg){msg.style.display='block';msg.style.background='rgba(183,28,28,.08)';msg.style.color='#B71C1C';msg.textContent='Could not load coupons: '+(e.message||'Unauthorized or server error. Click Refresh to try again.');}
-          if(box && !box.innerHTML.trim()) box.innerHTML='<div style="padding:16px;text-align:center;color:#B71C1C;">Coupon list could not be loaded.</div>';
-        });
-      };
-      window.saveCoupon = function(){ var code=(document.getElementById('couponCodeAdmin').value||'').trim().toUpperCase(), amount=Number(document.getElementById('couponAmountAdmin').value||0); if(code.length<3||amount<=0){alert('Enter a coupon code and discount amount.');return;} var btn=document.getElementById('couponSaveBtn'); if(btn)btn.disabled=true; fetch('/api/admin/coupons',{method:'POST',headers:authHeaders(),body:JSON.stringify({id:editingCouponId||undefined,code:code,amount:amount,active:true})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Could not save coupon'); cancelCouponEdit(); loadCoupons(); alert('Coupon saved: '+code+' = ₦'+amount.toLocaleString()+' off.');}).catch(function(e){alert(e.message||'Could not save coupon.');}).finally(function(){if(btn)btn.disabled=false;}); };
-      window.editCoupon = function(id){ fetch('/api/admin/coupons',{headers:authHeaders()}).then(r=>r.json()).then(function(d){var c=(d.coupons||[]).find(function(x){return String(x.id)===String(id);});if(!c)throw new Error('Coupon not found');editingCouponId=c.id;document.getElementById('couponCodeAdmin').value=c.code;document.getElementById('couponAmountAdmin').value=c.amount;document.getElementById('couponSaveBtn').textContent='💾 Save Coupon';document.getElementById('couponCancelBtn').style.display='inline-flex';}).catch(function(e){alert(e.message);}); };
-      window.deleteCoupon = function(id){if(!confirm('Delete this coupon?'))return;fetch('/api/admin/coupons?id='+encodeURIComponent(id),{method:'DELETE',headers:authHeaders()}).then(r=>r.json()).then(function(d){if(!d.success)throw new Error(d.error||'Delete failed');loadCoupons();}).catch(function(e){alert(e.message);});};
 
       // ── Tab switching ──
       var tabButtons = document.querySelectorAll('.admin-tab');
@@ -2473,16 +1897,38 @@ fetch('/api/admin/events/notify', {
       });
       window.switchTab = switchTab;
 
-// Initial state — restore the master-admin (sessionStorage) session if present.
-      if (getToken()) {
-        showLoggedIn();
-        loadOrders();
-        pollUnseen();
-      } else {
-        showLoggedOut();
-      }
+// Initial state — restore the database-backed session from persistent localStorage.
+      (async function restoreInfluencerAdminSession() {
+        var token = getToken();
+        if (!token) { showLoggedOut(); return; }
+        try {
+          var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+          var d = await r.json();
+          if (!r.ok || !d.success || !d.user || !['influencer_admin','admin'].includes(d.user.role)) {
+            // Never silently log out on a refresh. Keep the persistent token and
+            // let protected API calls decide authorization server-side.
+            showLoggedIn();
+            return;
+          }
+          try { localStorage.setItem('unn_admin_user', JSON.stringify(d.user)); } catch(e) {}
+          showLoggedIn();
+          if (d.user.role === 'admin') { loadOrders(); pollUnseen(); }
+        } catch (e) {
+          // Keep a valid stored session during temporary network/server hiccups.
+          showLoggedIn();
+        }
+      })();
     })();
   </script>
+
+<script id="influencer-admin-init">
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(function(){
+    var btn=document.querySelector('.admin-tab[data-tab="influencers"]');
+    if(btn) btn.click();
+  }, 50);
+});
+</script>
 <script id="archive-controls-ui">
 (function(){
   function token(){ return typeof getToken==='function' ? getToken() : ''; }
