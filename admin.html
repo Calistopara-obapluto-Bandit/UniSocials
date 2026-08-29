@@ -972,14 +972,17 @@
             </div>
             <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
           </div>
+
           <div class="admin-scan-panel" style="margin-top:18px;">
-            <div class="admin-panel-heading" style="margin-bottom:12px;"><div><h2 style="font-size:1.05rem;">🔐 Authorize Event</h2><p>Assign a particular existing event to an Influencer Admin. Only assigned events appear in that Influencer Admin's payment oversight.</p></div></div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end;">
-              <div class="form-group"><label for="authEventSelect">Event</label><select id="authEventSelect"><option value="">Select an event...</option></select></div>
-              <div class="form-group"><label for="authInfluencerAdminSelect">Influencer Admin</label><select id="authInfluencerAdminSelect"><option value="">Select an Influencer Admin...</option></select></div>
-              <button type="button" class="btn-submit" onclick="authorizeEventToInfluencerAdmin()">🔐 Authorize Event</button><button type="button" class="admin-refresh-btn" onclick="loadEventAuthorizations()">↻ Refresh Events</button>
+            <div class="admin-panel-heading" style="margin-bottom:12px;">
+              <div><h2 style="font-size:1.05rem;">🔐 Authorize Event to Influencer Admin</h2><p>Select an existing event and the specific Influencer Admin who is allowed to oversee its payments and ticket sales.</p></div>
             </div>
-            <div id="eventAuthorizationList" class="admin-ticket-codes" style="margin-top:14px;"></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end;">
+              <div class="form-group"><label for="authEventSelect">Event</label><select id="authEventSelect"><option value="">Select an existing event</option></select></div>
+              <div class="form-group"><label for="authInfluencerAdminSelect">Influencer Admin</label><select id="authInfluencerAdminSelect"><option value="">Select Influencer Admin</option></select></div>
+              <button class="btn-submit" type="button" onclick="authorizeInfluencerEvent()">🔐 Authorize Event</button>
+            </div>
+            <div id="eventAuthorizationsList" class="admin-ticket-codes" style="margin-top:14px;"></div>
           </div>
         </div>
 
@@ -1631,7 +1634,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/admin/events', {headers: authHeaders()})
+        fetch('/api/events?includeArchived=1')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
@@ -1691,7 +1694,7 @@ fetch('/api/ticket/scan', {
 
       window.editManagedEvent = function(eventId) {
         if(!eventId)return;
-        fetch('/api/admin/events',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
+        fetch('/api/events?includeArchived=1',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
           var events=(data&&data.success&&data.events)||[];
           var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
           if(!ev)throw new Error('Event not found');
@@ -2340,17 +2343,43 @@ fetch('/api/admin/events/notify', {
       };
 
       window.loadEventAuthorizations = function() {
-        fetch('/api/admin/event-authorizations',{headers:authHeaders()}).then(function(r){return r.json();}).then(function(d){
-          if(!d||!d.success)throw new Error((d&&d.error)||'Could not load event authorizations');
-          var es=document.getElementById('authEventSelect'), as=document.getElementById('authInfluencerAdminSelect'), box=document.getElementById('eventAuthorizationList');
-          var events=d.events||[], admins=d.influencerAdmins||[];
-          if(es)es.innerHTML='<option value="">Select an event...</option>'+events.map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name)+(e.date?' — '+esc(e.date):'')+'</option>';}).join('');
-          if(as)as.innerHTML='<option value="">Select an Influencer Admin...</option>'+admins.map(function(u){return '<option value="'+esc(u.id)+'">'+esc(u.name||u.email)+' — '+esc(u.email||'')+'</option>';}).join('');
-          if(box){var rows=[];events.forEach(function(e){(Array.isArray(e.influencerAdminIds)?e.influencerAdminIds:[]).forEach(function(id){var u=admins.find(function(a){return String(a.id)===String(id);});rows.push('<div class="admin-ticket-code" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;"><div><strong>'+esc(e.name)+'</strong><div style="font-size:.75rem;color:var(--text-3);">Authorized to: '+esc(u?(u.name||u.email):id)+'</div></div><button type="button" class="admin-ticket-copy" data-event="'+esc(e.id)+'" data-inf="'+esc(id)+'" title="Remove authorization">✕</button></div>');});});box.innerHTML=rows.length?'<div class="admin-ticket-codes-label">🔐 Current Authorizations</div>'+rows.join(''):'<div style="padding:14px;text-align:center;color:var(--text-3);">No event authorizations yet.</div>';box.querySelectorAll('button[data-event]').forEach(function(b){b.onclick=function(){removeEventAuthorization(b.getAttribute('data-event'),b.getAttribute('data-inf'));};});}
-        }).catch(function(e){showToast(e.message||'Could not load authorizations',true);});
+        fetch('/api/admin/influencer-event-authorizations', { headers:{'Authorization':'Bearer '+getToken()} })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if(!data || !data.success) throw new Error((data&&data.error)||'Could not load event authorizations');
+            var evSel=document.getElementById('authEventSelect'), infSel=document.getElementById('authInfluencerAdminSelect'), listEl=document.getElementById('eventAuthorizationsList');
+            var events=data.events||[], staff=data.influencerAdmins||[], assignments=data.assignments||[];
+            if(evSel){ evSel.innerHTML='<option value="">Select an existing event</option>'+events.map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name||e.id)+'</option>';}).join(''); }
+            if(infSel){ infSel.innerHTML='<option value="">Select Influencer Admin</option>'+staff.map(function(u){return '<option value="'+esc(u.id)+'">'+esc(u.name||u.email||u.id)+' — '+esc(u.email||'')+'</option>';}).join(''); }
+            if(listEl){
+              var rows=[];
+              assignments.forEach(function(a){
+                (a.authorizedInfluencerAdminIds||[]).forEach(function(id){
+                  var u=staff.find(function(x){return String(x.id)===String(id);});
+                  rows.push('<div class="admin-ticket-code" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;">'+
+                    '<div><strong>🎤 '+esc(a.eventName||a.eventId)+'</strong><div style="font-size:.75rem;color:var(--text-3);margin-top:3px;">Authorized to: '+esc(u?(u.name||u.email):id)+'</div></div>'+
+                    '<button class="admin-ticket-copy" type="button" onclick="removeInfluencerEventAuthorization(\''+esc(a.eventId)+'\',\''+esc(id)+'\')">✕ Remove</button></div>');
+                });
+              });
+              listEl.innerHTML='<div class="admin-ticket-codes-label">🔐 Current Event Authorizations</div>'+(rows.length?rows.join(''):'<div style="padding:14px;color:var(--text-3);font-size:.82rem;">No events have been authorized yet.</div>');
+            }
+          }).catch(function(err){ showToast(err.message||'Could not load event authorizations',true); });
       };
-      window.authorizeEventToInfluencerAdmin = function(){var eventId=(document.getElementById('authEventSelect')||{}).value||'', influencerAdminId=(document.getElementById('authInfluencerAdminSelect')||{}).value||'';if(!eventId||!influencerAdminId){showToast('Select both an event and an Influencer Admin.',true);return;}fetch('/api/admin/event-authorizations',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId})}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast('Event authorized successfully.');loadEventAuthorizations();}else showToast((d&&d.error)||'Could not authorize event',true);}).catch(function(){showToast('Network error authorizing event',true);});};
-      window.removeEventAuthorization = function(eventId,influencerAdminId){if(!confirm('Remove this authorization?'))return;fetch('/api/admin/event-authorizations?eventId='+encodeURIComponent(eventId)+'&influencerAdminId='+encodeURIComponent(influencerAdminId),{method:'DELETE',headers:authHeaders()}).then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast('Authorization removed.');loadEventAuthorizations();}else showToast((d&&d.error)||'Could not remove authorization',true);}).catch(function(){showToast('Network error removing authorization',true);});};
+      window.authorizeInfluencerEvent = function() {
+        var eventId=(document.getElementById('authEventSelect')||{}).value||'';
+        var influencerAdminId=(document.getElementById('authInfluencerAdminSelect')||{}).value||'';
+        if(!eventId||!influencerAdminId) return showToast('Select both an event and an Influencer Admin.',true);
+        fetch('/api/admin/influencer-event-authorizations',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId})})
+          .then(function(r){return r.json();}).then(function(d){
+            if(d&&d.success){ showToast('Event authorized successfully.'); loadEventAuthorizations(); }
+            else showToast((d&&d.error)||'Could not authorize event.',true);
+          }).catch(function(){showToast('Network error authorizing event.',true);});
+      };
+      window.removeInfluencerEventAuthorization = function(eventId,influencerAdminId) {
+        if(!confirm('Remove this Influencer Admin authorization for this event?')) return;
+        fetch('/api/admin/influencer-event-authorizations?eventId='+encodeURIComponent(eventId)+'&influencerAdminId='+encodeURIComponent(influencerAdminId),{method:'DELETE',headers:{'Authorization':'Bearer '+getToken()}})
+          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){showToast('Authorization removed.');loadEventAuthorizations();}else showToast((d&&d.error)||'Could not remove authorization.',true);})
+          .catch(function(){showToast('Network error removing authorization.',true);});
+      };
 
       window.addInfluencer = function() {
         var name = (document.getElementById('infName') || {}).value || '';
