@@ -1919,6 +1919,7 @@ fetch('/api/admin/events/notify', {
         loadSubscribers();
         loadSubAdmins();
         loadInfluencers();
+        loadAuthorizedEventSales();
       };
 
       // ── Tab switching ──
@@ -1968,12 +1969,7 @@ fetch('/api/admin/events/notify', {
   </script>
 
 <script id="influencer-admin-init">
-document.addEventListener('DOMContentLoaded', function(){
-  setTimeout(function(){
-    var btn=document.querySelector('.admin-tab[data-tab="influencers"]');
-    if(btn) btn.click();
-  }, 50);
-});
+
 </script>
 <script id="archive-controls-ui">
 (function(){

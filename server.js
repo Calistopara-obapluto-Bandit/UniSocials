@@ -2682,14 +2682,14 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const orders = await getOrdersForCurrentSiteEvents();
+      const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
 
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const orders = await getOrdersForCurrentSiteEvents();
+      const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
 
@@ -2905,7 +2905,7 @@ codes[idx] = entry;
     // ── Main Admin: explicitly authorize an existing event to an Influencer Admin ──
     if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'POST') {
       if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can authorize events.' });
-      const body = await readBody(res);
+      const body = await readBody(req);
       let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
       const eventId = String(data.eventId || '').trim();
       const influencerAdminId = String(data.influencerAdminId || '').trim();
@@ -2937,7 +2937,12 @@ codes[idx] = entry;
       const links = await readReferralLinks();
       const orders = await readOrders();
       const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
-      const ownInfluencers = users.filter(u => u.role === 'influencer' && u.createdBy === authCtx.user.id && u.archived !== true);
+      const ownInfluencers = users.filter(u => {
+        if (u.role !== 'influencer' || u.archived === true) return false;
+        const owner = u.createdBy;
+        if (owner && typeof owner === 'object') return String(owner.id || owner.userId || owner.ownerId || '') === String(authCtx.user.id);
+        return String(owner || '') === String(authCtx.user.id);
+      });
       const result = authorizedEvents.map(ev => {
         const eventOrders = orders.filter(o => eventMatchesOrder(o, ev));
         const influencerRows = ownInfluencers.map(inf => {
@@ -3184,8 +3189,6 @@ if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const eventId = String(data.eventId || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
-await resetLegacyPaymentDataOnce();
-await removeBundledDemoEvents();
 const events = await readEvents();
       const ev = events.find(e => e.id === eventId);
       if (!ev) return sendJson(res, 404, { success: false, error: 'Event not found' });
