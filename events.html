@@ -108,7 +108,6 @@
       <div class="section-label reveal">Events</div>
       <h1 class="section-title reveal reveal-delay-1">Discover <em>campus</em> events</h1>
       <p class="section-sub reveal reveal-delay-2">Browse, filter, and pick your next unforgettable experience.</p>
-      <div id="referralNotice" style="display:none;margin:14px auto 0;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:.84rem;width:max-content;max-width:100%;">🎁 Referral code: <span id="referralNoticeCode"></span></div>
     </div>
   </section>
 
@@ -141,11 +140,179 @@
   <!-- ── EVENTS GRID ── -->
   <section class="events-section">
     <div class="container">
-<div id="eventsCount" class="events-count reveal">Showing <strong>0</strong> events</div>
+<div id="eventsCount" class="events-count reveal">Showing <strong>6</strong> events</div>
       <div id="eventsMonthSummary" class="events-month-summary reveal" style="margin-bottom:18px;"></div>
       <div class="events-grid" id="eventsGrid">
-        <!-- Events are loaded exclusively from /api/events. No hardcoded/demo events. -->
-      
+
+        <!-- Event 1: Arts Cultural Night -->
+        <div class="event-card reveal" data-category="Arts &amp; Culture" data-price="2500" data-date="2025-03-10">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-01.jpg" alt="Faculty of Arts Cultural Night" />
+            <div class="event-card-badge">Arts &amp; Culture</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Mar 10 · 4:00 PM</span>
+              <span>📍 Arts Theatre</span>
+            </div>
+            <h3 class="event-card-title">Faculty of Arts Cultural Night</h3>
+<p class="event-card-desc">An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">💃 Performance</span>
+              <span class="event-tag">🎤 Live Music</span>
+              <span class="event-tag">🎭 Drama</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦2,500 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 150 seats left</div>
+            </div>
+            <a href="tickets.html?event=arts-cultural-night" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 2: Engineering Dinner -->
+        <div class="event-card reveal reveal-delay-1" data-category="Engineering" data-price="5000" data-date="2025-03-15">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-02.jpg" alt="Engineering Annual Dinner" />
+            <div class="event-card-badge">Engineering</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Mar 15 · 5:00 PM</span>
+              <span>📍 Engineering Auditorium</span>
+            </div>
+            <h3 class="event-card-title">Engineering Annual Dinner</h3>
+            <p class="event-card-desc">The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">🏆 Awards</span>
+              <span class="event-tag">🍽️ Dinner</span>
+              <span class="event-tag">🤝 Networking</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦5,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 80 seats left</div>
+            </div>
+            <a href="tickets.html?event=engineering-dinner" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 3: Entrepreneurship Summit -->
+        <div class="event-card reveal reveal-delay-2" data-category="Business" data-price="3000" data-date="2025-03-22">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-03.jpg" alt="Entrepreneurship Summit" />
+            <div class="event-card-badge">Business</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Mar 22 · 10:00 AM</span>
+              <span>📍 Business School Hall</span>
+            </div>
+            <h3 class="event-card-title">Entrepreneurship Summit</h3>
+            <p class="event-card-desc">Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">💡 Pitching</span>
+              <span class="event-tag">💰 Funding</span>
+              <span class="event-tag">📈 Workshops</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦3,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 200 seats left</div>
+            </div>
+            <a href="tickets.html?event=entrepreneurship-summit" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 4: Music Festival -->
+        <div class="event-card reveal reveal-delay-1" data-category="Music" data-price="4000" data-date="2025-03-29">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-04.jpg" alt="Campus Music Festival" />
+            <div class="event-card-badge">Music</div>
+          </div>
+          <div class="event-card-body">
+<div class="event-card-meta">
+              <span>📅 Mar 29 · 6:00 PM</span>
+              <span>📍 Sports Complex</span>
+            </div>
+            <h3 class="event-card-title">Campus Music Festival</h3>
+            <p class="event-card-desc">Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">🎸 Live Bands</span>
+              <span class="event-tag">🎧 DJ Sets</span>
+              <span class="event-tag">🍹 Refreshments</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦4,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 300 seats left</div>
+            </div>
+            <a href="tickets.html?event=music-festival" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 5: Law Moot Court -->
+        <div class="event-card reveal reveal-delay-2" data-category="Academic" data-price="1500" data-date="2025-04-05">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-05.jpg" alt="Faculty of Law Moot Court" />
+            <div class="event-card-badge">Academic</div>
+          </div>
+          <div class="event-card-body">
+            <div class="event-card-meta">
+              <span>📅 Apr 5 · 9:00 AM</span>
+              <span>📍 Faculty of Law</span>
+            </div>
+            <h3 class="event-card-title">Faculty of Law Moot Court</h3>
+            <p class="event-card-desc">The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.</p>
+            <div class="event-card-tags">
+              <span class="event-tag">⚖️ Mock Trial</span>
+              <span class="event-tag">📜 Legal Debate</span>
+              <span class="event-tag">🏅 Competition</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦1,500 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ 100 seats left</div>
+            </div>
+            <a href="tickets.html?event=law-moot-court" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+        <!-- Event 6: Sports Day -->
+        <div class="event-card reveal reveal-delay-1" data-category="Sports" data-price="1000" data-date="2025-04-12">
+          <div class="event-card-image has-photo">
+            <img class="event-card-image-photo" src="images/tm-622-screen-01.jpg" alt="Inter-Faculty Sports Day" />
+            <div class="event-card-badge">Sports</div>
+          </div>
+          <div class="event-card-body">
+<div class="event-card-meta">
+              <span>📅 Apr 12 · 8:00 AM</span>
+              <span>📍 Campus Stadium</span>
+            </div>
+            <h3 class="event-card-title">Inter-Faculty Sports Day</h3>
+            <p class="event-card-desc">A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!</p>
+            <div class="event-card-tags">
+              <span class="event-tag">⚽ Football</span>
+              <span class="event-tag">🏀 Basketball</span>
+              <span class="event-tag">🏃 Athletics</span>
+            </div>
+          </div>
+          <div class="event-card-footer">
+            <div class="event-card-footer-left">
+              <div class="event-card-price">₦1,000 <small>/ ticket</small></div>
+              <div class="event-card-capacity">🎟️ Unlimited</div>
+            </div>
+            <a href="tickets.html?event=sports-day" class="btn-buy">Get Tickets</a>
+          </div>
+        </div>
+
+      </div>
       <div id="noResults" class="no-results" style="display:none;">
         <span>😕</span>
         <p>No events match your search criteria.</p>
@@ -203,10 +370,10 @@
         <div>
           <div class="footer-col-label">Follow Us</div>
           <div class="footer-links">
-            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
-            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
-            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
-            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
+            <a href="#">Instagram</a>
+            <a href="#">Twitter / X</a>
+            <a href="#">TikTok</a>
+            <a href="#">WhatsApp Channel</a>
           </div>
         </div>
       </div>
@@ -231,29 +398,6 @@
       var countEl = document.getElementById('eventsCount');
       var categorySel = document.getElementById('categoryFilter');
       var uniSel = document.getElementById('universityFilter');
-
-      // Referral links now land on Events. Persist the code immediately so the
-      // referral survives filtering, event selection, account creation/login,
-      // and the subsequent ticket/checkout flow.
-      var pageParams = new URLSearchParams(window.location.search);
-      var referralCode = (pageParams.get('ref') || '').trim().toUpperCase();
-      try {
-        if (referralCode) {
-          sessionStorage.setItem('referralCode', referralCode);
-          localStorage.setItem('unn_referral_code', referralCode);
-        } else {
-          referralCode = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
-        }
-      } catch (e) {}
-
-      if (referralCode) {
-        var referralNotice = document.getElementById('referralNotice');
-        var referralNoticeCode = document.getElementById('referralNoticeCode');
-        if (referralNotice && referralNoticeCode) {
-          referralNoticeCode.textContent = referralCode;
-          referralNotice.style.display = 'inline-flex';
-        }
-      }
 
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -348,11 +492,11 @@ function renderEvents(events) {
               '</div>' +
               '<div class="event-card-footer">' +
                 '<div class="event-card-footer-left">' +
-                  '<div class="event-card-price">' + ((Number(ev.bonusPrice||0) > 0 && Number(ev.bonusPrice||0) < Number(ev.price||0)) ? '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(ev.price) + '</span><strong>' + fmtN(ev.bonusPrice) + '</strong>' : fmtN(ev.price)) + ' <small>/ ticket</small></div>' +
+                  '<div class="event-card-price">' + fmtN(ev.price) + ' <small>/ ticket</small></div>' +
                   '<div class="event-card-capacity">\uD83C\uDF9F\uFE0F ' + esc(ev.seats || '—') + '</div>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">' +
-                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + (referralCode ? '&ref=' + encodeURIComponent(referralCode) : '') + '" class="btn-buy">Get Tickets</a>' +
+                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + '" class="btn-buy">Get Tickets</a>' +
                   notifyBtn +
                 '</div>' +
               '</div>' +

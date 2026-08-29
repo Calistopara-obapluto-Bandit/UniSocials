@@ -177,7 +177,7 @@ Auto-created: `data/referral_links.json`
 
 - [ ] Buy a ticket using referral link
   ```
-  http://localhost:3000/events.html?ref=REF-ABC123DE
+  http://localhost:3000/checkout.html?ref=REF-ABC123DE
   ```
 
 - [ ] Verify order has `referralCode` field
@@ -286,11 +286,3 @@ For issues or questions:
 **Deployed by**: GitHub Copilot Agent  
 **Date**: August 13, 2025  
 **Repository**: https://github.com/Calistopara-obapluto-Bandit/UniSocials
-
-## Canonical referral URL
-
-All influencer and sub-admin referral links must use:
-
-`https://unisocials.onrender.com/events.html?ref=REF-XXXXXXXX`
-
-The server now permanently redirects legacy `/referral-events.html?ref=...` requests to the canonical Events URL and the referral-link APIs expose a canonical `referralUrl`. This also protects existing accounts whose old links were generated before the migration.

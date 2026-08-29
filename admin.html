@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
   <style>
-    .admin-body { padding-top: 90px; }
+    .admin-body {  }
     .admin-topbar {
       background: var(--text-1);
       color: #fff;
@@ -612,85 +612,6 @@
       .admin-stats { grid-template-columns: 1fr; }
       .admin-topbar-inner { flex-direction: column; align-items: flex-start; }
     }
-    /* ── Tight mobile admin layout ── */
-    @media (max-width: 600px) {
-      .admin-topbar { padding: 10px 0; }
-      .admin-topbar-inner { padding: 0 12px; gap: 8px; }
-      .admin-topbar .nav-logo { font-size: .95rem; }
-      .admin-topbar-actions { gap: 6px; min-width: 0; }
-      .admin-topbar-status { font-size: .68rem; gap: 5px; }
-      .admin-topbar-status .pulse { width: 6px; height: 6px; }
-      .admin-notif { font-size: .66rem; padding: 4px 8px; }
-      .admin-logout { font-size: .68rem; padding: 6px 10px; }
-
-      .admin-tabs { top: 0; }
-      .admin-tabs-inner { padding: 0 8px; gap: 0; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
-      .admin-tab { flex: 0 0 auto; min-height: 44px; padding: 10px 9px; font-size: .72rem; gap: 4px; }
-      .admin-tab.active { border-bottom-width: 2px; }
-
-      .admin-dash { padding: 16px 0 36px; }
-      .admin-panel-heading { gap: 8px; margin-bottom: 12px; }
-      .admin-panel-heading h1 { font-size: 1.1rem; }
-      .admin-panel-heading p { font-size: .74rem; line-height: 1.4; }
-      .admin-scan-panel { padding: 12px; margin-bottom: 12px; border-radius: 10px; }
-
-      /* Sub-admin list: keep names/emails compact and prevent overflow. */
-      #subAdminsList { overflow: hidden; }
-      #subAdminsList .admin-ticket-code {
-        grid-template-columns: minmax(0,1fr) auto !important;
-        gap: 6px !important;
-        padding: 9px 0 !important;
-        min-width: 0;
-      }
-      #subAdminsList .admin-ticket-code > div:first-child { min-width: 0; }
-      #subAdminsList .admin-ticket-code strong {
-        display: inline-block;
-        max-width: 100%;
-        min-width: 0;
-        font-size: .82rem !important;
-        line-height: 1.2;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-      }
-      #subAdminsList .admin-ticket-code span {
-        max-width: 100%;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-      }
-      #subAdminsList .admin-ticket-code > div:last-child {
-        flex: 0 0 auto;
-      }
-      #subAdminsList .admin-ticket-copy { width: 28px; height: 28px; font-size: .72rem; }
-      #subAdminsList .admin-ticket-code-label { font-size: .68rem; }
-
-      .admin-refresh-btn, .btn-submit {
-        min-height: 38px;
-        max-width: 100%;
-        font-size: .76rem;
-        padding: 8px 11px;
-      }
-      .form-group label { font-size: .72rem; }
-      .form-group input, .form-group select, .form-group textarea {
-        max-width: 100%;
-        box-sizing: border-box;
-        font-size: .82rem;
-      }
-    }
-
-    @media (max-width: 400px) {
-      .admin-topbar-inner { padding: 0 9px; }
-      .admin-topbar-actions { gap: 4px; }
-      .admin-topbar-status { display: none; }
-      .admin-topbar .nav-logo { font-size: .88rem; }
-      .admin-notif { font-size: .62rem; padding: 4px 7px; }
-      .admin-logout { font-size: .64rem; padding: 5px 8px; }
-      .admin-tabs-inner { padding: 0 5px; }
-      .admin-tab { padding: 9px 7px; font-size: .68rem; }
-      #subAdminsList .admin-ticket-code { grid-template-columns: minmax(0,1fr) auto !important; }
-      #subAdminsList .admin-ticket-code strong { font-size: .78rem !important; }
-      #subAdminsList .admin-ticket-copy { width: 26px; height: 26px; }
-    }
-
     @media print {
       .admin-topbar, .admin-toolbar, .admin-order-actions { display: none !important; }
       .admin-dash { display: block !important; padding: 0; }
@@ -747,7 +668,7 @@
           🔔 <span id="notifCount">0</span> new
         </span>
         <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
       </div>
     </div>
   </div>
@@ -788,10 +709,6 @@
           <button class="admin-tab" data-tab="universities">🏛 Universities</button>
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
-          <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
-          <button class="admin-tab" data-tab="event-authorizations">🔐 Authorize Events</button>
-          <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
-          <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
       </div>
 
@@ -889,27 +806,6 @@
           </div>
         </div>
 
-        <!-- ── COUPONS PANEL ── -->
-        <div class="admin-panel" id="panel-coupons">
-          <div class="admin-panel-heading">
-            <div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons. Example: ₦4,000 ticket − ₦400 coupon = ₦3,600 to pay.</p></div>
-            <button type="button" class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="couponCodeAdmin">Coupon Code</label><input type="text" id="couponCodeAdmin" placeholder="SAVE400" maxlength="40" autocomplete="off" /></div>
-              <div class="form-group"><label for="couponAmountAdmin">Discount Amount (₦)</label><input type="number" id="couponAmountAdmin" placeholder="400" min="1" step="1" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-              <button type="button" class="btn-submit" style="width:auto;white-space:nowrap;" onclick="saveCoupon()" id="couponSaveBtn">➕ Create Coupon</button>
-              <button type="button" class="admin-refresh-btn" onclick="cancelCouponEdit()" id="couponCancelBtn" style="display:none;">✕ Cancel Edit</button>
-              <span id="couponCount" style="font-size:.75rem;color:var(--text-3);"></span>
-            </div>
-            <div id="couponLoadMessage" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:.82rem;"></div>
-            <div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
         <!-- ── EVENTS PANEL ── -->
         <div class="admin-panel" id="panel-events">
           <div class="admin-panel-heading">
@@ -927,14 +823,10 @@
               <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
                 <option value="General">General</option>
               </select></div>
-              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦)</label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
-              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦)</label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
-              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦)</label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
-              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦)</label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
-              <div class="form-group"><label for="evRegularTicketLimit">Regular Tickets Available</label><input type="number" id="evRegularTicketLimit" placeholder="e.g. 1000" min="0" step="1" /></div>
-              <div class="form-group"><label for="evVipTicketLimit">VIP Tickets Available</label><input type="number" id="evVipTicketLimit" placeholder="e.g. 200" min="0" step="1" /></div>
-              <div class="form-group"><label for="evVvipTicketLimit">VVIP Tickets Available</label><input type="number" id="evVvipTicketLimit" placeholder="e.g. 100" min="0" step="1" /></div>
-              <div class="form-group"><label for="evTableTicketLimit">Table Tickets Available</label><input type="number" id="evTableTicketLimit" placeholder="e.g. 20" min="0" step="1" /></div>
+              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -953,9 +845,8 @@
               <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()" id="eventSubmitBtn">➕ Add Event</button>
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
               <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
-              <button type="button" class="admin-refresh-btn" id="eventCancelEditBtn" onclick="cancelEditEvent()" style="display:none;">✕ Cancel Edit</button>
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
             </div>
             <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
@@ -1028,91 +919,6 @@
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="subAdminCount"></span>
             </div>
             <div class="admin-ticket-codes" id="subAdminsList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
-        <!-- ── INFLUENCERS PANEL (master admin only) ── -->
-        <div class="admin-panel" id="panel-influencers">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>📣 Influencers</h1>
-              <p>Create influencer login accounts and assign specific existing events to Influencer Admins.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel" style="margin-bottom:16px;border:2px solid var(--border);">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-              <div><h2 style="font-size:1.05rem;margin:0 0 4px;">🔐 Event Authorization</h2><p style="margin:0;color:var(--text-3);font-size:.84rem;">Choose the exact existing event and the exact Influencer Admin who should oversee its ticket sales.</p></div>
-              <button class="btn-submit" type="button" onclick="openAdminTab('event-authorizations');loadEventAuthorizations();">🔐 Authorize Event</button>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" /></div>
-              <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" /></div>
-              <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="At least 6 characters" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
-              <button class="admin-refresh-btn" onclick="loadInfluencers()">↻ Refresh</button>
-              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
-          </div>
-
-        </div>
-
-        <!-- ── EVENT AUTHORIZATION PANEL (MAIN ADMIN ONLY) ── -->
-        <div class="admin-panel" id="panel-event-authorizations">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>🔐 Authorize Events</h1>
-              <p>Assign a specific existing event to a specific Influencer Admin. This controls which event sales that Influencer Admin can oversee.</p>
-            </div>
-            <button class="admin-refresh-btn" type="button" onclick="loadEventAuthorizations()">↻ Refresh</button>
-          </div>
-          <div class="admin-scan-panel" style="border:2px solid var(--border);">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;align-items:end;">
-              <div class="form-group">
-                <label for="authEventSelect">Existing Event</label>
-                <select id="authEventSelect"><option value="">Loading events…</option></select>
-              </div>
-              <div class="form-group">
-                <label for="authInfluencerAdminSelect">Influencer Admin</label>
-                <select id="authInfluencerAdminSelect"><option value="">Loading Influencer Admins…</option></select>
-              </div>
-              <button id="authorizeEventBtn" class="btn-submit" type="button" onclick="authorizeInfluencerEvent()">🔐 Authorize Event</button>
-            </div>
-            <div id="eventAuthorizationStatus" style="margin-top:10px;color:var(--text-3);font-size:.85rem;">Select an existing event and an Influencer Admin, then authorize.</div>
-          </div>
-          <div class="admin-scan-panel" style="margin-top:16px;">
-            <div class="admin-panel-heading" style="margin-bottom:8px;">
-              <div><h2 style="font-size:1rem;">Current Event Authorizations</h2><p>These are the assignments currently saved for existing events.</p></div>
-            </div>
-            <div id="eventAuthorizationsList"></div>
-          </div>
-        </div>
-
-        <!-- ── DEDICATED STAFF ACCOUNTS ── -->
-        <div class="admin-panel" id="panel-staff">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>👥 Dedicated Staff Accounts</h1>
-              <p>Create separate login accounts for Check-in Staff and Influencer Admins. Each account only gets its assigned dashboard.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="staffRole">Account Type</label><select id="staffRole"><option value="checkin_staff">Check-in Staff</option><option value="influencer_admin">Influencer Admin</option></select></div>
-              <div class="form-group"><label for="staffName">Full Name</label><input type="text" id="staffName" placeholder="e.g. Event Staff" /></div>
-              <div class="form-group"><label for="staffEmail">Login Email</label><input type="email" id="staffEmail" placeholder="staff@unisocials.com" /></div>
-              <div class="form-group"><label for="staffPassword">Password</label><input type="password" id="staffPassword" placeholder="At least 6 characters" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" onclick="addStaffAccount()">➕ Create Account</button>
-              <button class="admin-refresh-btn" onclick="loadStaffAccounts()">↻ Refresh</button>
-              <span style="font-size:.75rem;color:var(--text-3);align-self:center;" id="staffCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="staffList" style="margin-top:14px;"></div>
           </div>
         </div>
       </div>
@@ -1329,15 +1135,9 @@ function fmtN(n) {
         });
       };
 
-      logoutBtn.addEventListener('click', function(e) {
-        if (e) e.preventDefault();
-        var token = getToken();
-        // Clear locally immediately. Logout must work even when the network is slow/offline.
+      logoutBtn.addEventListener('click', function() {
         clearToken();
-        try { sessionStorage.removeItem('unn_admin_user'); localStorage.removeItem('unn_admin_user'); } catch (_) {}
         showLoggedOut();
-        logoutBtn.disabled = false;
-        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
         if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
       });
 
@@ -1414,7 +1214,7 @@ function fmtN(n) {
 
       // Update order status (exposed)
       window.updateOrderStatus = function(orderId, status) {
-        var btn = document.getElementById('eventSubmitBtn');
+        var btn = event && event.target;
         if (btn) btn.disabled = true;
 
         fetch('/api/admin/orders/status', {
@@ -1740,7 +1540,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events?includeArchived=1')
+        fetch('/api/events')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
@@ -1755,27 +1555,22 @@ fetch('/api/ticket/scan', {
             var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
               var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-              var vipValue = parseFloat(ev.vipPrice || 0) || 0, bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
-              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0, bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
-              var bonusValue = parseFloat(ev.bonusPrice || 0) || 0, tableValue = parseFloat(ev.tablePrice || 0) || 0, bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
-              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>';
-              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
-              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
-              var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
+              var vipValue = parseFloat(ev.vipPrice || 0) || 0;
+              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0;
+              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ₦' + vipValue.toLocaleString() + '</span>' : '';
+              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ₦' + vvipValue.toLocaleString() + '</span>' : '';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
-                priceHtml +
+                '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
                 vipHtml +
                 vvipHtml +
-                tableHtml +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
@@ -1786,54 +1581,13 @@ fetch('/api/ticket/scan', {
           .catch(function() {});
       };
 
-      var editingEventId = '';
-
-      window.cancelEditEvent = function() {
-        editingEventId = '';
-        var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
-        var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
-        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evRegularTicketLimit','evVipTicketLimit','evVvipTicketLimit','evTableTicketLimit','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
-        var uni=document.getElementById('evUniversity');if(uni)uni.value='';
-        if(typeof updateUniCategories==='function')updateUniCategories();
-        if(typeof clearEventImage==='function')clearEventImage();
-      };
-
-      window.editManagedEvent = function(eventId) {
-        if(!eventId)return;
-        fetch('/api/events?includeArchived=1',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
-          var events=(data&&data.success&&data.events)||[];
-          var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
-          if(!ev)throw new Error('Event not found');
-          editingEventId=String(ev.id||eventId);
-          var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
-          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);set('evRegularTicketLimit',ev.regularTicketLimit);set('evVipTicketLimit',ev.vipTicketLimit);set('evVvipTicketLimit',ev.vvipTicketLimit);set('evTableTicketLimit',ev.tableTicketLimit);
-          set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
-          set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
-          set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
-          var uni=document.getElementById('evUniversity');if(uni){uni.value=ev.universityId||'';if(typeof updateUniCategories==='function')updateUniCategories();var cat=document.getElementById('evCategory');if(cat)cat.value=ev.category||'General';}
-          selectedEventImage=ev.image||'';if(typeof setEventImagePreview==='function')setEventImagePreview(selectedEventImage);
-          var btn=document.getElementById('eventSubmitBtn');if(btn)btn.textContent='💾 Save Event Changes';
-          var cancel=document.getElementById('eventCancelEditBtn');if(cancel)cancel.style.display='inline-flex';
-          var panel=document.getElementById('panel-events');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
-          showToast('Editing “'+(ev.name||'event')+'”. Update the fields and save.');
-        }).catch(function(err){showToast(err.message||'Could not load that event.',true);});
-      };
-
 window.addEventItem = function() {
 var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
-        var bonusPrice = parseFloat(document.getElementById('evBonusPrice').value) || 0;
         var vipPrice = parseFloat(document.getElementById('evVIPPrice').value) || 0;
-        var bonusVipPrice = parseFloat(document.getElementById('evBonusVIPPrice').value) || 0;
         var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
-        var bonusVvipPrice = parseFloat(document.getElementById('evBonusVVIPPrice').value) || 0;
         var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
-        var bonusTablePrice = parseFloat(document.getElementById('evBonusTablePrice').value) || 0;
-        var regularTicketLimit = parseInt(document.getElementById('evRegularTicketLimit').value) || 0;
-        var vipTicketLimit = parseInt(document.getElementById('evVipTicketLimit').value) || 0;
-        var vvipTicketLimit = parseInt(document.getElementById('evVvipTicketLimit').value) || 0;
-        var tableTicketLimit = parseInt(document.getElementById('evTableTicketLimit').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
@@ -1861,21 +1615,12 @@ var name = document.getElementById('evName').value.trim();
         }
 
         var ev = {
-          id: editingEventId || undefined,
           name: name,
           category: category,
           price: price,
-          bonusPrice: bonusPrice,
           vipPrice: vipPrice,
-          bonusVipPrice: bonusVipPrice,
           vvipPrice: vvipPrice,
-          bonusVvipPrice: bonusVvipPrice,
           tablePrice: tablePrice,
-          bonusTablePrice: bonusTablePrice,
-          regularTicketLimit: regularTicketLimit,
-          vipTicketLimit: vipTicketLimit,
-          vvipTicketLimit: vvipTicketLimit,
-          tableTicketLimit: tableTicketLimit,
           includedRegular: includedRegular,
           includedVip: includedVip,
           includedVVIP: includedVVIP,
@@ -1902,7 +1647,7 @@ fetch('/api/admin/events', {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            showToast(editingEventId ? 'Event "' + esc(name) + '" updated successfully!' : 'Event "' + esc(name) + '" added!');
+            showToast('Event "' + esc(name) + '" added!');
 document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
             document.getElementById('evVIPPrice').value = '';
@@ -1918,7 +1663,6 @@ document.getElementById('evName').value = '';
             if (document.getElementById('evIncludedVVIP')) document.getElementById('evIncludedVVIP').value = '';
             if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
             clearEventImage();
-            cancelEditEvent();
             loadManagedEvents();
           } else {
             showToast((data && data.error) || 'Failed to add event', true);
@@ -2362,7 +2106,7 @@ fetch('/api/admin/events/notify', {
                 '</div>' +
                 '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
                 '</div>' +
-                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || id) + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>' +
+                '<button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>';
             });
             container.innerHTML = html;
@@ -2408,9 +2152,10 @@ fetch('/api/admin/events/notify', {
       window.deleteSubAdmin = function(email) {
         if (!email) return;
         if (!confirm('Remove sub-admin ' + email + '? They will no longer be able to sign in.')) return;
-        fetch('/api/admin/subadmins?email=' + encodeURIComponent(email), {
+        fetch('/api/admin/subadmins', {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + getToken() }
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ email: email })
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -2424,191 +2169,15 @@ fetch('/api/admin/events/notify', {
         .catch(function() { showToast('Network error removing sub-admin', true); });
       };
 
-      // Dedicated Main Admin event-authorization tab.
-      window.openAdminTab = function(tabName) {
-        var tabs = document.querySelectorAll('.admin-tab');
-        tabs.forEach(function(tab) {
-          var active = tab.getAttribute('data-tab') === tabName;
-          tab.classList.toggle('active', active);
-        });
-        document.querySelectorAll('.admin-panel').forEach(function(panel) {
-          panel.classList.toggle('active', panel.id === 'panel-' + tabName);
-        });
-        if (tabName === 'event-authorizations') loadEventAuthorizations();
-      };
-
-      // ── Influencer Manager (master admin only) ──
-      window.loadEventAuthorizations = function() {
-        Promise.all([
-          fetch('/api/admin/events', {headers: authHeaders()}).then(function(r){return r.json();}),
-          fetch('/api/admin/staff', {headers: authHeaders()}).then(function(r){return r.json();})
-        ]).then(function(res){
-          var events=(res[0]&&res[0].events)||[], staff=(res[1]&&res[1].staff)||[];
-          staff=staff.filter(function(u){return u.role==='influencer_admin' && !u.archived;});
-          var es=document.getElementById('authEventSelect'), ss=document.getElementById('authInfluencerAdminSelect');
-          if(es) es.innerHTML='<option value="">Select event…</option>'+events.map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name||e.id)+'</option>';}).join('');
-          if(ss) ss.innerHTML='<option value="">Select Influencer Admin…</option>'+staff.map(function(u){return '<option value="'+esc(u.id)+'">'+esc(u.name||u.email)+' — '+esc(u.email||'')+'</option>';}).join('');
-          var box=document.getElementById('eventAuthorizationsList');
-          if(box){ var html=''; events.forEach(function(e){ var ids=Array.isArray(e.authorizedInfluencerAdminIds)?e.authorizedInfluencerAdminIds:[]; if(!ids.length)return; ids.forEach(function(id){var u=staff.find(function(x){return String(x.id)===String(id);}); html+='<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--border);"><span><strong>'+esc(e.name||e.id)+'</strong><br><small style="color:var(--text-3)">Authorized to '+esc(u?(u.name||u.email):id)+'</small></span><button class="admin-filter-btn" onclick="removeEventAuthorization(\''+esc(e.id)+'\',\''+esc(id)+'\')">Remove</button></div>';}); }); box.innerHTML=html||'<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">No event authorizations yet.</div>'; }
-        }).catch(function(){var b=document.getElementById('eventAuthorizationsList');if(b)b.innerHTML='<div style="color:#B71C1C;padding:10px;">Unable to load event authorizations.</div>';});
-      };
-      window.authorizeInfluencerEvent = function() {
-        var eventId=(document.getElementById('authEventSelect')||{}).value||'', influencerAdminId=(document.getElementById('authInfluencerAdminSelect')||{}).value||'';
-        var status=document.getElementById('eventAuthorizationStatus');
-        var btn=document.getElementById('authorizeEventBtn');
-        if(!eventId||!influencerAdminId){ if(status)status.textContent='Select both an existing event and an Influencer Admin.'; return showToast('Select both an existing event and an Influencer Admin.',true); }
-        if(btn)btn.disabled=true;
-        fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'add'})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Authorization failed');if(status)status.textContent='Event authorized successfully. The Influencer Admin can now oversee this event.';showToast('Event authorized successfully.');loadEventAuthorizations();}).catch(function(e){if(status)status.textContent=e.message;showToast(e.message,true);}).finally(function(){if(btn)btn.disabled=false;});
-      };
-      window.removeEventAuthorization = function(eventId,influencerAdminId) {
-        if(!confirm('Remove this event authorization?'))return;
-        fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'remove'})}).then(function(r){return r.json();}).then(function(d){if(!d.success)throw new Error(d.error||'Could not remove authorization');showToast('Authorization removed.');loadEventAuthorizations();}).catch(function(e){showToast(e.message,true);});
-      };
-
-      window.loadInfluencers = function() {
-        fetch('/api/admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var list = (data && data.success && data.influencers) || [];
-            var container = document.getElementById('influencersList');
-            var count = document.getElementById('influencerCount');
-            if (count) count.textContent = list.length + ' influencer' + (list.length !== 1 ? 's' : '');
-            if (!container) return;
-            if (!list.length) { container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No influencers yet. Create your first influencer above.</div>'; return; }
-            var html = '<div class="admin-ticket-codes-label">📣 Active Influencers (' + list.length + ')</div>';
-            list.forEach(function(u) {
-              var stats = u.referralStats || {};
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
-                '<div style="display:flex;flex-direction:column;gap:6px;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
-                '</div><div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || '') + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
-            });
-            container.innerHTML = html;
-          }).catch(function() {});
-      };
-
-      window.addInfluencer = function() {
-        var name = (document.getElementById('infName') || {}).value || '';
-        var email = (document.getElementById('infEmail') || {}).value || '';
-        var password = (document.getElementById('infPassword') || {}).value || '';
-        name = name.trim(); email = email.trim(); password = password.trim();
-        if (!name || !email || !password) return showToast('Name, Email, and Password are required.', true);
-        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
-        fetch('/api/admin/influencers', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({name:name,email:email,password:password}) })
-          .then(function(r){ return r.json(); }).then(function(data){
-            if (data && data.success) {
-              showToast('Influencer created! Referral code: ' + ((data.influencer && data.influencer.referralCode) || '—'));
-              ['infName','infEmail','infPassword'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-              loadInfluencers();
-            } else showToast((data && data.error) || 'Failed to create influencer', true);
-          }).catch(function(){ showToast('Network error creating influencer', true); });
-      };
-
-      window.deleteInfluencer = function(email) {
-        if (!email || !confirm('Remove influencer ' + email + '? They will no longer be able to sign in.')) return;
-        fetch('/api/admin/influencers?email=' + encodeURIComponent(email), { method:'DELETE', headers:{'Authorization':'Bearer '+getToken()} })
-          .then(function(r){ return r.json(); }).then(function(data){
-            if (data && data.success) { showToast('Influencer removed'); loadInfluencers(); }
-            else showToast((data && data.error) || 'Failed to remove influencer', true);
-          }).catch(function(){ showToast('Network error removing influencer', true); });
-      };
-
-
-      // ── Dedicated staff accounts ──
-      window.loadStaffAccounts = function() {
-        fetch('/api/admin/staff', { headers: { 'Authorization': 'Bearer ' + getToken() } })
-          .then(function(r){ return r.json(); }).then(function(data){
-            var list=(data&&data.success&&data.staff)||[];
-            var el=document.getElementById('staffList'), count=document.getElementById('staffCount');
-            if(count) count.textContent=list.length+' account'+(list.length!==1?'s':'');
-            if(!el) return;
-            if(!list.length){ el.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-3);font-size:.85rem;">No dedicated staff accounts yet.</div>'; return; }
-            var html='<div class="admin-ticket-codes-label">👥 Active Accounts</div>';
-            list.forEach(function(u){
-              var label=u.role==='checkin_staff'?'Check-in Staff':'Influencer Admin';
-              html+='<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
-                '<div style="display:flex;flex-direction:column;gap:4px;"><div><strong>'+esc(u.name||'—')+'</strong> <span style="font-size:.72rem;color:var(--text-3);">'+esc(u.email||'')+'</span></div>'+                '<span style="font-size:.72rem;color:var(--accent);font-weight:700;">'+label+'</span></div>'+                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\''+esc(u.email||'')+'\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteStaffAccount(\''+esc(u.email||'')+'\')" title="Remove account" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
-            });
-            el.innerHTML=html;
-          }).catch(function(){ showToast('Could not load staff accounts',true); });
-      };
-      window.addStaffAccount = function(){
-        var role=(document.getElementById('staffRole')||{}).value||'';
-        var name=((document.getElementById('staffName')||{}).value||'').trim();
-        var email=((document.getElementById('staffEmail')||{}).value||'').trim();
-        var password=((document.getElementById('staffPassword')||{}).value||'').trim();
-        if(!name||!email||!password) return showToast('Name, Email, and Password are required.',true);
-        if(password.length<6) return showToast('Password must be at least 6 characters.',true);
-        fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({role:role,name:name,email:email,password:password})})
-          .then(function(r){return r.json();}).then(function(data){
-            if(data&&data.success){ showToast((role==='checkin_staff'?'Check-in Staff':'Influencer Admin')+' account created for '+name+'.'); ['staffName','staffEmail','staffPassword'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); loadStaffAccounts(); }
-            else showToast((data&&data.error)||'Failed to create account',true);
-          }).catch(function(){showToast('Network error creating account',true);});
-      };
-      window.deleteStaffAccount = function(email){
-        if(!email||!confirm('Remove staff account '+email+'?')) return;
-        fetch('/api/admin/staff?email='+encodeURIComponent(email),{method:'DELETE',headers:{'Authorization':'Bearer '+getToken()}})
-          .then(function(r){return r.json();}).then(function(data){ if(data&&data.success){showToast('Staff account removed');loadStaffAccounts();} else showToast((data&&data.error)||'Failed to remove account',true); })
-          .catch(function(){showToast('Network error removing account',true);});
-      };
-
-      window.resetManagedPassword = function(email) {
-        if (!email) return;
-        var first = prompt('Enter a new password for ' + email + ' (minimum 6 characters):');
-        if (first === null) return;
-        var password = String(first).trim();
-        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
-        var second = prompt('Confirm the new password:');
-        if (second === null) return;
-        if (password !== String(second)) return showToast('Passwords do not match.', true);
-        fetch('/api/admin/account-password', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({email:email,password:password}) })
-          .then(function(r){return r.json();}).then(function(data){
-            if(data&&data.success) showToast('Password reset successfully. The account must log in again.');
-            else showToast((data&&data.error)||'Failed to reset password',true);
-          }).catch(function(){showToast('Network error resetting password',true);});
-      };
-
 // Load events on login — also load universities and subscribers
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn2();
         loadManagedEvents();
-        loadStaffAccounts();
         loadManagedUniversities();
         loadSubscribers();
         loadSubAdmins();
-        loadCoupons();
-        loadInfluencers();
-        loadEventAuthorizations();
       };
-
-      var editingCouponId = '';
-      window.cancelCouponEdit = function(){ editingCouponId=''; var c=document.getElementById('couponCodeAdmin'),a=document.getElementById('couponAmountAdmin'),b=document.getElementById('couponSaveBtn'),x=document.getElementById('couponCancelBtn'); if(c)c.value=''; if(a)a.value=''; if(b)b.textContent='➕ Create Coupon'; if(x)x.style.display='none'; };
-      window.loadCoupons = function(){
-        fetch('/api/admin/coupons',{headers:authHeaders()}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){
-          if(!x.ok||!x.d.success) throw new Error(x.d.error||'Could not load coupons');
-          var list=x.d.coupons||[], box=document.getElementById('couponsList'), count=document.getElementById('couponCount');
-          if(count) count.textContent=list.length+' coupon'+(list.length===1?'':'s');
-          if(!box) return;
-          if(!list.length){box.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-3);">No coupons created yet.</div>';return;}
-          box.innerHTML=list.map(function(c){
-            return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
-              '<div><strong>'+esc(c.code)+'</strong><span style="font-size:.78rem;color:var(--text-3);margin-left:10px;">−₦'+Number(c.amount||0).toLocaleString()+'</span><span style="font-size:.72rem;margin-left:10px;color:'+(c.active===false?'#B71C1C':'var(--accent)')+';">'+(c.active===false?'Inactive':'Active')+'</span></div>'+
-              '<div style="display:flex;gap:6px;"><button type="button" class="admin-ticket-copy coupon-edit-btn" data-id="'+esc(c.id)+'">✏️</button><button type="button" class="admin-ticket-copy coupon-delete-btn" data-id="'+esc(c.id)+'">🗑</button></div></div>';
-          }).join('');
-          box.querySelectorAll('.coupon-edit-btn').forEach(function(b){b.addEventListener('click',function(){editCoupon(b.getAttribute('data-id'));});});
-          box.querySelectorAll('.coupon-delete-btn').forEach(function(b){b.addEventListener('click',function(){deleteCoupon(b.getAttribute('data-id'));});});
-        }).catch(function(e){
-          console.error('Coupon load failed:', e);
-          var box=document.getElementById('couponsList'), msg=document.getElementById('couponLoadMessage');
-          if(msg){msg.style.display='block';msg.style.background='rgba(183,28,28,.08)';msg.style.color='#B71C1C';msg.textContent='Could not load coupons: '+(e.message||'Unauthorized or server error. Click Refresh to try again.');}
-          if(box && !box.innerHTML.trim()) box.innerHTML='<div style="padding:16px;text-align:center;color:#B71C1C;">Coupon list could not be loaded.</div>';
-        });
-      };
-      window.saveCoupon = function(){ var code=(document.getElementById('couponCodeAdmin').value||'').trim().toUpperCase(), amount=Number(document.getElementById('couponAmountAdmin').value||0); if(code.length<3||amount<=0){alert('Enter a coupon code and discount amount.');return;} var btn=document.getElementById('couponSaveBtn'); if(btn)btn.disabled=true; fetch('/api/admin/coupons',{method:'POST',headers:authHeaders(),body:JSON.stringify({id:editingCouponId||undefined,code:code,amount:amount,active:true})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Could not save coupon'); cancelCouponEdit(); loadCoupons(); alert('Coupon saved: '+code+' = ₦'+amount.toLocaleString()+' off.');}).catch(function(e){alert(e.message||'Could not save coupon.');}).finally(function(){if(btn)btn.disabled=false;}); };
-      window.editCoupon = function(id){ fetch('/api/admin/coupons',{headers:authHeaders()}).then(r=>r.json()).then(function(d){var c=(d.coupons||[]).find(function(x){return String(x.id)===String(id);});if(!c)throw new Error('Coupon not found');editingCouponId=c.id;document.getElementById('couponCodeAdmin').value=c.code;document.getElementById('couponAmountAdmin').value=c.amount;document.getElementById('couponSaveBtn').textContent='💾 Save Coupon';document.getElementById('couponCancelBtn').style.display='inline-flex';}).catch(function(e){alert(e.message);}); };
-      window.deleteCoupon = function(id){if(!confirm('Delete this coupon?'))return;fetch('/api/admin/coupons?id='+encodeURIComponent(id),{method:'DELETE',headers:authHeaders()}).then(r=>r.json()).then(function(d){if(!d.success)throw new Error(d.error||'Delete failed');loadCoupons();}).catch(function(e){alert(e.message);});};
 
       // ── Tab switching ──
       var tabButtons = document.querySelectorAll('.admin-tab');
@@ -2642,55 +2211,6 @@ fetch('/api/admin/events/notify', {
       }
     })();
   </script>
-<script id="archive-controls-ui">
-(function(){
-  function token(){ return typeof getToken==='function' ? getToken() : ''; }
-  function headers(){ return {'Content-Type':'application/json','Authorization':'Bearer '+token()}; }
-  function addBtn(parent, label, title, handler){
-    if(!parent || parent.querySelector('[data-archive-control]')) return;
-    var b=document.createElement('button'); b.type='button'; b.className='admin-ticket-copy'; b.setAttribute('data-archive-control','1'); b.title=title; b.textContent=label; b.addEventListener('click',handler); parent.insertBefore(b,parent.firstChild); return b;
-  }
-  function scan(){
-    document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
-      var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
-      var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
-      var eventId=m[1], action=card.lastElementChild||card;
-      addBtn(action,'🗃️','Archive event',function(){
-        if(!confirm('Archive this event?')) return;
-        fetch('/api/admin/events/archive',{method:'POST',headers:headers(),body:JSON.stringify({eventId:eventId,archived:true})})
-          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive event',true);});
-      });
-    });
-    document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code').forEach(function(card){
-      var del=card.querySelector('[onclick*="deleteSubAdmin"],[onclick*="deleteStaffAccount"],[onclick*="deleteInfluencer"]'); if(!del) return;
-      var m=(del.getAttribute('onclick')||'').match(/\((?:'|")([^'"]+)(?:'|")\)/); if(!m) return;
-      var email=m[1], action=del.parentElement||card;
-      addBtn(action,'🗃️','Archive account',function(){
-        if(!confirm('Archive '+email+'? The account will no longer be usable.')) return;
-        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:true})})
-          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Account archived');if(typeof loadSubAdmins==='function')loadSubAdmins();if(typeof loadStaffAccounts==='function')loadStaffAccounts();if(typeof loadInfluencers==='function')loadInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive account',true);});
-      });
-    });
-  }
-  function refreshArchiveState(){
-    fetch('/api/events?includeArchived=1').then(function(r){return r.json();}).then(function(d){
-      var map={}; (d.events||[]).forEach(function(e){map[String(e.id)]=!!e.archived;});
-      document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
-        var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
-        var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
-        var b=card.querySelector('[data-archive-control]'); if(!b) return;
-        var archived=!!map[m[1]]; b.textContent=archived?'📦':'🗃️'; b.title=archived?'Unarchive event':'Archive event';
-        b.onclick=function(){
-          if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
-          fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':token()?'Bearer '+token():''},body:JSON.stringify({eventId:m[1],archived:!archived})}).then(function(r){return r.json();}).then(function(x){if(x&&x.success){if(typeof showToast==='function')showToast(archived?'Event unarchived':'Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((x&&x.error)||'Could not change event status',true);});
-        };
-      });
-    }).catch(function(){});
-  }
-    new MutationObserver(scan).observe(document.body,{subtree:true,childList:true}); setTimeout(scan,500); setTimeout(scan,1500); setTimeout(refreshArchiveState,900); setInterval(refreshArchiveState,4000);
-})();
-</script>
-
 </body>
 </html>
 
