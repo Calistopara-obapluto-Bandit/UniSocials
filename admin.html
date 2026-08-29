@@ -710,6 +710,7 @@
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
+          <button class="admin-tab" data-tab="event-authorizations">🔐 Authorize Events</button>
           <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
@@ -962,7 +963,7 @@
           <div class="admin-scan-panel" style="margin-bottom:16px;border:2px solid var(--border);">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
               <div><h2 style="font-size:1.05rem;margin:0 0 4px;">🔐 Event Authorization</h2><p style="margin:0;color:var(--text-3);font-size:.84rem;">Choose the exact existing event and the exact Influencer Admin who should oversee its ticket sales.</p></div>
-              <button class="btn-submit" type="button" onclick="document.getElementById('authEventSelect').focus();loadEventAuthorizations();">🔐 Authorize Event</button>
+              <button class="btn-submit" type="button" onclick="openAdminTab('event-authorizations');loadEventAuthorizations();">🔐 Authorize Event</button>
             </div>
           </div>
           <div class="admin-scan-panel">
@@ -987,6 +988,37 @@
               <button id="authorizeEventBtn" class="btn-submit" type="button" onclick="authorizeInfluencerEvent()">🔐 Authorize Selected Event</button>
             </div>
             <div id="eventAuthorizationsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── EVENT AUTHORIZATION PANEL (MAIN ADMIN ONLY) ── -->
+        <div class="admin-panel" id="panel-event-authorizations">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🔐 Authorize Events</h1>
+              <p>Assign a specific existing event to a specific Influencer Admin. This controls which event sales that Influencer Admin can oversee.</p>
+            </div>
+            <button class="admin-refresh-btn" type="button" onclick="loadEventAuthorizations()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel" style="border:2px solid var(--border);">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;align-items:end;">
+              <div class="form-group">
+                <label for="authEventSelect">Existing Event</label>
+                <select id="authEventSelect"><option value="">Loading events…</option></select>
+              </div>
+              <div class="form-group">
+                <label for="authInfluencerAdminSelect">Influencer Admin</label>
+                <select id="authInfluencerAdminSelect"><option value="">Loading Influencer Admins…</option></select>
+              </div>
+              <button id="authorizeEventBtn" class="btn-submit" type="button" onclick="authorizeInfluencerEvent()">🔐 Authorize Event</button>
+            </div>
+            <div id="eventAuthorizationStatus" style="margin-top:10px;color:var(--text-3);font-size:.85rem;">Select an existing event and an Influencer Admin, then authorize.</div>
+          </div>
+          <div class="admin-scan-panel" style="margin-top:16px;">
+            <div class="admin-panel-heading" style="margin-bottom:8px;">
+              <div><h2 style="font-size:1rem;">Current Event Authorizations</h2><p>These are the assignments currently saved for existing events.</p></div>
+            </div>
+            <div id="eventAuthorizationsList"></div>
           </div>
         </div>
 
@@ -2322,6 +2354,19 @@ fetch('/api/admin/events/notify', {
         .catch(function() { showToast('Network error removing sub-admin', true); });
       };
 
+      // Dedicated Main Admin event-authorization tab.
+      window.openAdminTab = function(tabName) {
+        var tabs = document.querySelectorAll('.admin-tab');
+        tabs.forEach(function(tab) {
+          var active = tab.getAttribute('data-tab') === tabName;
+          tab.classList.toggle('active', active);
+        });
+        document.querySelectorAll('.admin-panel').forEach(function(panel) {
+          panel.classList.toggle('active', panel.id === 'panel-' + tabName);
+        });
+        if (tabName === 'event-authorizations') loadEventAuthorizations();
+      };
+
       // ── Influencer Manager (master admin only) ──
       window.loadEventAuthorizations = function() {
         Promise.all([
@@ -2339,8 +2384,11 @@ fetch('/api/admin/events/notify', {
       };
       window.authorizeInfluencerEvent = function() {
         var eventId=(document.getElementById('authEventSelect')||{}).value||'', influencerAdminId=(document.getElementById('authInfluencerAdminSelect')||{}).value||'';
-        if(!eventId||!influencerAdminId)return showToast('Select both an existing event and an Influencer Admin.',true);
-        fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'add'})}).then(function(r){return r.json();}).then(function(d){if(!d.success)throw new Error(d.error||'Authorization failed');showToast('Event authorized successfully.');loadEventAuthorizations();}).catch(function(e){showToast(e.message,true);});
+        var status=document.getElementById('eventAuthorizationStatus');
+        var btn=document.getElementById('authorizeEventBtn');
+        if(!eventId||!influencerAdminId){ if(status)status.textContent='Select both an existing event and an Influencer Admin.'; return showToast('Select both an existing event and an Influencer Admin.',true); }
+        if(btn)btn.disabled=true;
+        fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'add'})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Authorization failed');if(status)status.textContent='Event authorized successfully. The Influencer Admin can now oversee this event.';showToast('Event authorized successfully.');loadEventAuthorizations();}).catch(function(e){if(status)status.textContent=e.message;showToast(e.message,true);}).finally(function(){if(btn)btn.disabled=false;});
       };
       window.removeEventAuthorization = function(eventId,influencerAdminId) {
         if(!confirm('Remove this event authorization?'))return;
