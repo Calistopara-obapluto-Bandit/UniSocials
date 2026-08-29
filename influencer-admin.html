@@ -723,8 +723,8 @@
         <div class="admin-panel active" id="panel-overview">
           <div class="admin-panel-heading">
             <div>
-              <h1>📊 Orders Overview</h1>
-              <p id="lastUpdated">Loading orders…</p>
+              <h1>📊 Authorized Event Payments</h1>
+              <p id="lastUpdated">Payments and ticket sales for events explicitly authorized by the Main Admin.</p>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
@@ -749,6 +749,10 @@
               <div class="admin-stat-label">Revenue (Verified)</div>
               <div class="admin-stat-value" id="statRevenue">₦0</div>
             </div>
+          </div>
+          <div class="admin-scan-panel" style="margin-bottom:18px;">
+            <div class="admin-scan-header"><div><h3>🎟 Tickets Sold by Authorized Event</h3><p>Verified tickets sold and pending tickets for each authorized event.</p></div></div>
+            <div id="authorizedEventSales" class="admin-ticket-codes"></div>
           </div>
 
           <div class="admin-toolbar">
@@ -1334,7 +1338,9 @@ function fmtN(n) {
         var refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) refreshBtn.disabled = true;
 
-        fetch('/api/admin/orders', {
+        var role = getCurrentRole();
+        var ordersUrl = role === 'influencer_admin' ? '/api/influencer-admin/orders' : '/api/admin/orders';
+        fetch(ordersUrl, {
           headers: { 'Authorization': 'Bearer ' + getToken() }
         })
         .then(function(res) {
@@ -1359,6 +1365,7 @@ function fmtN(n) {
             }
           }
           renderOrders();
+          renderAuthorizedEventSales((data && data.byEvent) || []);
           populateFilterSelects();
           var now = new Date();
           if (lastUpdated) lastUpdated.textContent = 'Last updated: ' + now.toLocaleTimeString();
@@ -1372,6 +1379,12 @@ function fmtN(n) {
           if (refreshBtn) refreshBtn.disabled = false;
         });
       };
+
+      function renderAuthorizedEventSales(rows) {
+        var box=document.getElementById('authorizedEventSales'); if(!box)return;
+        if(!rows.length){box.innerHTML='<div style="padding:14px;text-align:center;color:var(--text-3);">No events have been authorized to this Influencer Admin yet.</div>';return;}
+        box.innerHTML=rows.map(function(r){return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;"><div><strong>'+esc(r.eventName||'—')+'</strong><div style="font-size:.75rem;color:var(--text-3);">'+esc(r.eventDate||'')+(r.eventVenue?' · '+esc(r.eventVenue):'')+'</div><div style="font-size:.78rem;margin-top:6px;">Pending tickets: <strong>'+Number(r.pendingTickets||0)+'</strong> · Verified orders: <strong>'+Number(r.verifiedOrders||0)+'</strong></div></div><div style="text-align:right;"><div style="font-size:1.2rem;font-weight:700;color:var(--accent);">'+Number(r.ticketsSold||0)+'</div><div style="font-size:.7rem;color:var(--text-3);">tickets sold</div><div style="font-size:.75rem;margin-top:3px;">'+fmtN(r.verifiedRevenue||0)+'</div></div></div>';}).join('');
+      }
 
       function renderOrders() {
         if (!ordersList) return;
@@ -1442,7 +1455,9 @@ function fmtN(n) {
             ticketList += '</div>';
           }
 
-          if (o.status === 'pending') {
+          if (getCurrentRole() === 'influencer_admin') {
+            actions = '';
+          } else if (o.status === 'pending') {
             actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
                       '<button class="action-btn action-reject" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'rejected\')">✕ Reject</button>' +
                       '<button class="action-btn action-reopen" onclick="resendOrderEmail(\'' + esc(o.orderId) + '\', this)" title="Send the admin new-order alert again">✉ Resend Email</button>';
@@ -1912,7 +1927,8 @@ fetch('/api/admin/events/notify', {
           }
           try { localStorage.setItem('unn_admin_user', JSON.stringify(d.user)); } catch(e) {}
           showLoggedIn();
-          if (d.user.role === 'admin') { loadOrders(); pollUnseen(); }
+          loadOrders();
+          if (d.user.role === 'admin') pollUnseen();
         } catch (e) {
           // Keep a valid stored session during temporary network/server hiccups.
           showLoggedIn();
@@ -1921,14 +1937,6 @@ fetch('/api/admin/events/notify', {
     })();
   </script>
 
-<script id="influencer-admin-init">
-document.addEventListener('DOMContentLoaded', function(){
-  setTimeout(function(){
-    var btn=document.querySelector('.admin-tab[data-tab="influencers"]');
-    if(btn) btn.click();
-  }, 50);
-});
-</script>
 <script id="archive-controls-ui">
 (function(){
   function token(){ return typeof getToken==='function' ? getToken() : ''; }

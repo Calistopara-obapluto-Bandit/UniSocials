@@ -422,63 +422,10 @@ async function readEvents() {
   }
 }
 
-async function resetLegacyPaymentDataOnce() {
-  // One-time cleanup requested for the old/demo payment data. This resets the
-  // payment/sales counters to zero without affecting users, events, coupons,
-  // referral codes, or other account data. A migration marker prevents this
-  // from running again on future restarts/deploys.
-  const migrationId = 'reset-payment-data-2026-08-21';
-  try {
-    if (usePg) {
-      await db.query(`CREATE TABLE IF NOT EXISTS app_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT NOW())`);
-      const already = await db.query('SELECT 1 FROM app_migrations WHERE id = $1', [migrationId]);
-      if (already.rows.length) return;
-      await db.query('DELETE FROM orders');
-      await db.query(`UPDATE referral_links SET data = data || '{"totalOrders":0,"totalRevenue":0,"totalTickets":0,"uniquePeople":0}'::jsonb`);
-      await db.query('INSERT INTO app_migrations (id) VALUES ($1)', [migrationId]);
-      console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
-      return;
-    }
-
-    const marker = path.join(DATA_DIR, '.' + migrationId);
-    if (fs.existsSync(marker)) return;
-    await writeOrders([]);
-    try {
-      const raw = fs.readFileSync(path.join(DATA_DIR, 'referral_links.json'), 'utf8');
-      const links = JSON.parse(raw);
-      if (Array.isArray(links)) {
-        links.forEach(link => {
-          link.totalOrders = 0;
-          link.totalRevenue = 0;
-          link.totalTickets = 0;
-          link.uniquePeople = 0;
-        });
-        fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
-      }
-    } catch (_) {}
-    fs.writeFileSync(marker, new Date().toISOString(), 'utf8');
-    console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
-  } catch (e) {
-    console.error('Payment reset migration failed:', e.message);
-    throw e;
-  }
-}
-
-async function removeBundledDemoEvents() {
-  // These were the old bundled/demo event records. Site-created events are
-  // retained. Removing by these exact IDs also removes the old Campus Music
-  // Festival record that was being used by the draft payment.
-  const ids = ['arts-cultural-night','engineering-dinner','entrepreneurship-summit','music-festival','law-moot-court','sports-day'];
-  if (usePg) {
-    await db.query('DELETE FROM events WHERE id = ANY($1::text[])', [ids]);
-    return;
-  }
-  try {
-    const events = await readEvents();
-    const next = events.filter(e => !ids.includes(String(e.id || '')));
-    if (next.length !== events.length) fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(next, null, 2), 'utf8');
-  } catch (_) {}
-}
+// Legacy cleanup functions intentionally disabled. Deployments must never delete
+// existing orders, payments, or real events as part of startup.
+async function resetLegacyPaymentDataOnce() { return; }
+async function removeBundledDemoEvents() { return; }
 
 async function getOrdersForCurrentSiteEvents() {
   const [orders, events] = await Promise.all([readOrders(), readEvents()]);
@@ -1684,7 +1631,7 @@ const user = {
       const orders = await readOrders();
       const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
        const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || u.createdBy === authCtx.user.id)).map(u => {
-        const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id) || null;
+        const link = links.find(l => l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
@@ -2883,40 +2830,15 @@ codes[idx] = entry;
       });
     }
 
-// ── Main Admin: explicitly authorize an existing event for an Influencer Admin ──
-    if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success:false, error:'Only the Main Admin can authorize events.' });
-      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch (_) {}
-      const eventId = String(data.eventId || '').trim(); const influencerAdminId = String(data.influencerAdminId || '').trim();
-      if (!eventId || !influencerAdminId) return sendJson(res,400,{success:false,error:'Select both an event and an Influencer Admin.'});
-      const users = await readUsers(); const staff = users.find(u => String(u.id) === influencerAdminId && u.role === 'influencer_admin' && u.archived !== true);
-      if (!staff) return sendJson(res,404,{success:false,error:'Influencer Admin not found.'});
-      const events = await readEvents(); const idx = events.findIndex(e => String(e.id) === eventId);
-      if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found.'});
-      const ids = Array.isArray(events[idx].authorizedInfluencerAdminIds) ? events[idx].authorizedInfluencerAdminIds.map(String) : [];
-      if (!ids.includes(influencerAdminId)) ids.push(influencerAdminId);
-      events[idx] = Object.assign({}, events[idx], { authorizedInfluencerAdminIds: ids }); await writeEvents(events);
-      return sendJson(res,200,{success:true,event:events[idx],influencerAdmin:{id:staff.id,name:staff.name,email:staff.email}});
-    }
-    if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res,403,{success:false,error:'Only the Main Admin can change event authorization.'});
-      const eventId=String(url.searchParams.get('eventId')||'').trim(), influencerAdminId=String(url.searchParams.get('influencerAdminId')||'').trim();
-      if(!eventId||!influencerAdminId)return sendJson(res,400,{success:false,error:'Missing eventId or influencerAdminId.'});
-      const events=await readEvents(), idx=events.findIndex(e=>String(e.id)===eventId); if(idx<0)return sendJson(res,404,{success:false,error:'Event not found.'});
-      const ids=Array.isArray(events[idx].authorizedInfluencerAdminIds)?events[idx].authorizedInfluencerAdminIds.map(String):[];
-      events[idx]=Object.assign({},events[idx],{authorizedInfluencerAdminIds:ids.filter(id=>id!==influencerAdminId)}); await writeEvents(events); return sendJson(res,200,{success:true,event:events[idx]});
-    }
-    if (pathname === '/api/influencer-admin/oversight' && req.method === 'GET') {
-      const auth=req.headers['authorization']||'', token=auth.startsWith('Bearer ')?auth.slice(7):'', user=await getSessionUser(token);
-      if(!user||user.role!=='influencer_admin')return sendJson(res,403,{success:false,error:'Influencer Admin access only'});
-      const events=await readEvents(), orders=await readOrders();
-      const rows=events.filter(e=>Array.isArray(e.authorizedInfluencerAdminIds)&&e.authorizedInfluencerAdminIds.map(String).includes(String(user.id))).map(e=>({eventId:String(e.id),eventName:e.name||'Unknown Event',pendingTickets:0,ticketsSold:0,verifiedOrders:0,pendingOrders:0,verifiedRevenue:0}));
-      const map=new Map(rows.map(e=>[e.eventId,e]));
-      orders.forEach(o=>{const r=map.get(String(o.eventId||''));if(!r)return;const q=parseInt(o.qty,10)||0,st=String(o.status||'').toLowerCase();if(st==='verified'){r.ticketsSold+=q;r.verifiedOrders++;r.verifiedRevenue+=Number(o.amount)||0;}else if(st==='pending'){r.pendingTickets+=q;r.pendingOrders++;}});
-      return sendJson(res,200,{success:true,sales:{totalTickets:rows.reduce((a,e)=>a+e.ticketsSold,0),totalOrders:rows.reduce((a,e)=>a+e.verifiedOrders,0),totalRevenue:rows.reduce((a,e)=>a+e.verifiedRevenue,0),events:rows}});
+// ── Main Admin: list ALL existing events for management/authorization ──
+    // Separate from the public catalogue so archived and older events remain visible.
+    if (pathname === '/api/admin/events' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Unauthorized' });
+      const events = await readEvents();
+      return sendJson(res, 200, { success:true, events: events.map(e => ({ ...e, influencerAdminIds: Array.isArray(e.influencerAdminIds) ? e.influencerAdminIds.map(String) : [] })) });
     }
 
-// ── Admin/Sub-admin: create/update an event ──
+    // ── Admin/Sub-admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
       if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
@@ -2935,8 +2857,9 @@ codes[idx] = entry;
         if (uni) uniSlug = uni.slug || uni.id;
       }
       const existingEvents = await readEvents();
-      const existingEvent = existingEvents.find(e => String(e.id) === id);
-      const preservedAuthorized = Array.isArray(existingEvent && existingEvent.authorizedInfluencerAdminIds) ? existingEvent.authorizedInfluencerAdminIds.map(String) : [];
+      const existingEvent = existingEvents.find(e => String(e.id) === id) || null;
+      const incomingAuth = Array.isArray(data.influencerAdminIds) ? data.influencerAdminIds.map(String).filter(Boolean) : null;
+      const influencerAdminIds = incomingAuth !== null ? [...new Set(incomingAuth)] : (existingEvent && Array.isArray(existingEvent.influencerAdminIds) ? [...new Set(existingEvent.influencerAdminIds.map(String))] : []);
       const ev = {
         id: id,
         name: name,
@@ -2970,9 +2893,9 @@ codes[idx] = entry;
         universityId: universityId,
         universityName: universityName,
         universitySlug: uniSlug,
-        authorizedInfluencerAdminIds: preservedAuthorized,
-        createdAt: existingEvent && existingEvent.createdAt ? existingEvent.createdAt : new Date().toISOString(),
-        createdBy: { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
+        createdAt: new Date().toISOString(),
+        createdBy: existingEvent?.createdBy || { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null },
+        influencerAdminIds: influencerAdminIds
       };
             try {
         await addEvent(ev);
@@ -2982,6 +2905,47 @@ codes[idx] = entry;
         console.error('✗ Error creating event:', e.message);
         return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
       }
+    }
+
+    // ── Main Admin: explicit event authorization ──
+    if (pathname === '/api/admin/event-authorizations' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res,401,{success:false,error:'Unauthorized'});
+      const events = await readEvents();
+      const users = await readUsers();
+      const influencerAdmins = users.filter(u => u.role === 'influencer_admin' && u.archived !== true).map(publicUser);
+      return sendJson(res,200,{success:true,events:events.map(e=>({id:e.id,name:e.name,date:e.date||'',venue:e.venue||'',influencerAdminIds:Array.isArray(e.influencerAdminIds)?e.influencerAdminIds:[]})),influencerAdmins});
+    }
+    if (pathname === '/api/admin/event-authorizations' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res,401,{success:false,error:'Unauthorized'});
+      const body=await readBody(req); let data={}; try{data=JSON.parse(body||'{}')}catch(e){}
+      const eventId=String(data.eventId||'').trim(), influencerAdminId=String(data.influencerAdminId||'').trim();
+      if(!eventId||!influencerAdminId)return sendJson(res,400,{success:false,error:'Event and Influencer Admin are required'});
+      const users=await readUsers(); const staff=users.find(u=>String(u.id)===influencerAdminId&&u.role==='influencer_admin'&&u.archived!==true);
+      if(!staff)return sendJson(res,404,{success:false,error:'Influencer Admin not found'});
+      const events=await readEvents(); const idx=events.findIndex(e=>String(e.id)===eventId);
+      if(idx<0)return sendJson(res,404,{success:false,error:'Event not found'});
+      const ids=Array.isArray(events[idx].influencerAdminIds)?events[idx].influencerAdminIds.map(String):[]; if(!ids.includes(influencerAdminId))ids.push(influencerAdminId);
+      events[idx]={...events[idx],influencerAdminIds:ids}; await writeEvents(events);
+      return sendJson(res,200,{success:true,event:events[idx],influencerAdmin:publicUser(staff)});
+    }
+    if (pathname === '/api/admin/event-authorizations' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res,401,{success:false,error:'Unauthorized'});
+      const eventId=String(url.searchParams.get('eventId')||'').trim(), influencerAdminId=String(url.searchParams.get('influencerAdminId')||'').trim();
+      if(!eventId||!influencerAdminId)return sendJson(res,400,{success:false,error:'Event and Influencer Admin are required'});
+      const events=await readEvents(); const idx=events.findIndex(e=>String(e.id)===eventId); if(idx<0)return sendJson(res,404,{success:false,error:'Event not found'});
+      const ids=Array.isArray(events[idx].influencerAdminIds)?events[idx].influencerAdminIds.map(String):[]; events[idx]={...events[idx],influencerAdminIds:ids.filter(id=>id!==influencerAdminId)}; await writeEvents(events);
+      return sendJson(res,200,{success:true,event:events[idx]});
+    }
+    // ── Influencer Admin: see payments/orders only for explicitly authorized events ──
+    if (pathname === '/api/influencer-admin/orders' && req.method === 'GET') {
+      const auth=req.headers['authorization']||'', token=auth.startsWith('Bearer ')?auth.slice(7):'', user=await getSessionUser(token);
+      if(!user||!['influencer_admin','admin'].includes(user.role))return sendJson(res,403,{success:false,error:'Influencer Admin access only'});
+      const events=await readEvents(), orders=await readOrders();
+      const allowed=user.role==='admin'?events:events.filter(e=>Array.isArray(e.influencerAdminIds)&&e.influencerAdminIds.map(String).includes(String(user.id)));
+      const ids=new Set(allowed.map(e=>String(e.id))), names=new Set(allowed.map(e=>String(e.name||'').trim().toLowerCase()).filter(Boolean));
+      const scoped=orders.filter(o=>{const eid=String(o.eventId||''),name=String(o.eventName||'').trim().toLowerCase();return (eid&&ids.has(eid))||(!eid&&name&&names.has(name));});
+      const byEvent=allowed.map(e=>{const eo=scoped.filter(o=>String(o.eventId||'')===String(e.id)||(!o.eventId&&String(o.eventName||'').trim().toLowerCase()===String(e.name||'').trim().toLowerCase()));const p=eo.filter(o=>o.status==='pending'),v=eo.filter(o=>o.status==='verified');return {eventId:e.id,eventName:e.name,eventDate:e.date||'',eventVenue:e.venue||'',totalOrders:eo.length,pendingOrders:p.length,verifiedOrders:v.length,pendingTickets:p.reduce((n,o)=>n+(parseInt(o.qty)||0),0),ticketsSold:v.reduce((n,o)=>n+(parseInt(o.qty)||0),0),verifiedRevenue:v.reduce((n,o)=>n+(parseFloat(o.amount)||0),0)};});
+      return sendJson(res,200,{success:true,orders:scoped,events:allowed.map(e=>({id:e.id,name:e.name,date:e.date||'',venue:e.venue||''})),byEvent});
     }
 
     // ── Archive/unarchive event: admin, sub-admin, or influencer admin ──
@@ -3147,8 +3111,6 @@ if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const eventId = String(data.eventId || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
-await resetLegacyPaymentDataOnce();
-await removeBundledDemoEvents();
 const events = await readEvents();
       const ev = events.find(e => e.id === eventId);
       if (!ev) return sendJson(res, 404, { success: false, error: 'Event not found' });
