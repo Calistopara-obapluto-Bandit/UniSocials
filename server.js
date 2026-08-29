@@ -2921,7 +2921,22 @@ codes[idx] = entry;
       return sendJson(res, 200, { success:true, events:result });
     }
 
-    // ── Admin/Sub-admin: create/update an event ──
+    // ── Events visible/manageable by an Influencer Admin: only events they created ──
+    if (pathname === '/api/influencer-admin/events' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success:false, error:'Influencer Admin access only' });
+      const myId = String(authCtx.user.id || '').trim();
+      const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
+      const events = (await readEvents()).filter(ev => {
+        const c = ev && ev.createdBy;
+        if (!c) return false;
+        if (typeof c === 'string') return c === myId || c.toLowerCase() === myEmail;
+        return String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail;
+      });
+      return sendJson(res, 200, { success:true, events });
+    }
+
+    // ── Admin/Sub-admin/Influencer Admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
       if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
@@ -2941,6 +2956,13 @@ codes[idx] = entry;
       }
       const existingEvents = await readEvents();
       const existingEvent = existingEvents.find(e => String(e.id) === id);
+      if (authCtx.role === 'influencer_admin' && existingEvent) {
+        const c = existingEvent.createdBy;
+        const myId = String(authCtx.user?.id || '').trim();
+        const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
+        const owns = c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
+        if (!owns) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
+      }
       const ev = {
         id: id,
         name: name,
@@ -3244,7 +3266,34 @@ function publicUser(user) {
   };
 }
 
-initStorage().then(() => {
+async function removeDemoMusicFestivalData() {
+  // Remove only the known bundled demo event and any orders that belong to it.
+  // This is intentionally exact so real events/orders are not affected.
+  const DEMO_ID = 'music-festival';
+  const DEMO_NAME = 'Campus Music Festival';
+  try {
+    const orders = await readOrders();
+    const cleanedOrders = orders.filter(o => {
+      const id = String(o && o.eventId || '').trim().toLowerCase();
+      const name = String(o && o.eventName || '').trim().toLowerCase();
+      return id !== DEMO_ID && name !== DEMO_NAME.toLowerCase();
+    });
+    if (cleanedOrders.length !== orders.length) await writeOrders(cleanedOrders);
+
+    const events = await readEvents();
+    const cleanedEvents = events.filter(e => {
+      const id = String(e && e.id || '').trim().toLowerCase();
+      const name = String(e && e.name || '').trim().toLowerCase();
+      return !(id === DEMO_ID && name === DEMO_NAME.toLowerCase());
+    });
+    if (cleanedEvents.length !== events.length) await writeEvents(cleanedEvents);
+  } catch (e) {
+    console.warn('Demo music-festival cleanup skipped:', e.message);
+  }
+}
+
+initStorage().then(async () => {
+  await removeDemoMusicFestivalData();
   server.listen(PORT, () => {
     console.log('Unisocials server running at http://localhost:' + PORT);
   });

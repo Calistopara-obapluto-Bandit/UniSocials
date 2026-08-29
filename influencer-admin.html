@@ -1,15 +1,16 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>Influencer Admin — Unisocials</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
-  <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="noindex, nofollow" name="robots"/>
+<title>Influencer Admin — Unisocials</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&amp;family=Playfair+Display:ital,wght@0,700;1,600&amp;display=swap" rel="stylesheet"/>
+<link href="templatemo-622-clearwave.css" rel="stylesheet"/>
+<style>
     .admin-body { padding-top: 90px; }
     .admin-topbar {
       background: var(--text-1);
@@ -653,341 +654,184 @@
       text-align: center;
     }
   </style>
-
 <style id="influencer-admin-scope">
-  /* Influencer Admin may see their own influencer roster as well as the
-     authorized-event sales view. Event authorization itself remains Main Admin-only. */
-  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="event-sales"]):not([data-tab="checkin"]):not([data-tab="events"]):not([data-tab="universities"]):not([data-tab="subscribers"]):not([data-tab="subadmins"]) { display:none !important; }
-  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-event-sales):not(#panel-checkin):not(#panel-events):not(#panel-universities):not(#panel-subscribers):not(#panel-subadmins) { display:none !important; }
+  /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]) { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales) { display:none !important; }
+  #panel-events { display:none; }
   #panel-event-sales { display:none; }
-  #panel-event-sales.active, #panel-overview.active { display:block; }
+  #panel-events.active, #panel-event-sales.active, #panel-overview.active { display:block; }
 </style>
 </head>
 <body>
-
-  <!-- ── ADMIN TOP BAR ── -->
-  <div class="admin-topbar">
-    <div class="admin-topbar-inner">
-      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Admin</a>
-      <div class="admin-topbar-actions">
-        <span class="admin-topbar-status" id="connStatus" style="display:none;">
-          <span class="pulse"></span> <span id="connStatusText">Connected</span>
-        </span>
-        <span class="admin-notif" id="notifBadge" style="display:none;">
+<!-- ── ADMIN TOP BAR ── -->
+<div class="admin-topbar">
+<div class="admin-topbar-inner">
+<a class="nav-logo" href="index.html">Uni<span>socials</span> · Admin</a>
+<div class="admin-topbar-actions">
+<span class="admin-topbar-status" id="connStatus" style="display:none;">
+<span class="pulse"></span> <span id="connStatusText">Connected</span>
+</span>
+<span class="admin-notif" id="notifBadge" style="display:none;">
           🔔 <span id="notifCount">0</span> new
         </span>
-        <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="admin-body">
-
-    <!-- ── LOGIN SCREEN ── -->
-    <div class="admin-login-wrap" id="loginScreen">
-      <div class="admin-login-card reveal visible">
-<div class="admin-login-icon">🔐</div>
-        <h2>Influencer Admin Access</h2>
-<p>Sign in with the account created for you by the main admin.</p>
-        <div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
-
-        <!-- Master admin login -->
-        <form id="loginForm" onsubmit="adminLogin(event)">
-          <div class="form-group"><label for="adminEmail">Login Email</label><input type="email" id="adminEmail" placeholder="admin@unisocials.com" autocomplete="email" /></div>
-          <div class="form-group" id="adminPwdGroup"><label for="adminPassword">Password</label><input type="password" id="adminPassword" placeholder="Enter password" autocomplete="current-password" /></div>
-          <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
-        </form>
-
-        <p style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
-          Are you a sub-admin? <a href="subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sub-Admin Dashboard</a>
-        </p>
-      </div>
-    </div>
-
-    <!-- ── DASHBOARD ── -->
-<div class="admin-dash" id="dashboard">
-      <!-- ── TOP TAB BAR ── -->
-      <div class="admin-tabs">
-        <div class="admin-tabs-inner">
-<button class="admin-tab active" data-tab="overview">📊 Overview</button>
-          <button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
-          <button class="admin-tab" data-tab="checkin">🎫 Check-in</button>
-          <button class="admin-tab" data-tab="events">🎤 Add Events</button>
-          <button class="admin-tab" data-tab="universities">🏛 Universities</button>
-          <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
-          <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
-        </div>
-      </div>
-
-      <div class="container">
-        <!-- ── OVERVIEW PANEL ── -->
-        <div class="admin-panel active" id="panel-overview">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>📊 Orders Overview</h1>
-              <p id="lastUpdated">Loading orders…</p>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
-              <button class="admin-refresh-btn" id="refreshBtn" onclick="loadOrders()">↻ Refresh</button>
-            </div>
-          </div>
-
-          <div class="admin-stats">
-            <div class="admin-stat">
-              <div class="admin-stat-label">Total Orders</div>
-              <div class="admin-stat-value" id="statTotal">0</div>
-            </div>
-            <div class="admin-stat pending">
-              <div class="admin-stat-label">Pending</div>
-              <div class="admin-stat-value" id="statPending">0</div>
-            </div>
-            <div class="admin-stat verified">
-              <div class="admin-stat-label">Verified</div>
-              <div class="admin-stat-value" id="statVerified">0</div>
-            </div>
-            <div class="admin-stat revenue">
-              <div class="admin-stat-label">Revenue (Verified)</div>
-              <div class="admin-stat-value" id="statRevenue">₦0</div>
-            </div>
-          </div>
-
-          <div class="admin-toolbar">
-            <div class="admin-filters">
-              <button class="admin-filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
-              <button class="admin-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
-              <button class="admin-filter-btn" data-filter="verified" onclick="setFilter('verified')">✅ Verified</button>
-              <button class="admin-filter-btn" data-filter="rejected" onclick="setFilter('rejected')">❌ Rejected</button>
-            </div>
-          </div>
-
-          <div class="admin-cat-filters" id="catFilters">
-            <div class="admin-cat-filter">
-              <label for="eventFilterSel">🎤 Filter by Event</label>
-              <select id="eventFilterSel" onchange="setEventFilter(this.value)">
-                <option value="">All Events</option>
-              </select>
-            </div>
-            <div class="admin-cat-filter">
-              <label for="categoryFilterSel">🏷 Filter by Category</label>
-              <select id="categoryFilterSel" onchange="setCategoryFilter(this.value)">
-                <option value="">All Categories</option>
-              </select>
-            </div>
-            <button class="admin-cat-clear" onclick="clearCatFilters()">✕ Clear Filters</button>
-          </div>
-
-          <div class="admin-orders" id="ordersList"></div>
-        </div>
-
-        <!-- ── AUTHORIZED EVENT SALES PANEL ── -->
-        <div class="admin-panel" id="panel-event-sales">
-          <div class="admin-panel-heading">
-            <div><h1>🎟 Authorized Event Sales</h1><p>Select an event that the Main Admin explicitly authorized to you. This shows the tickets sold by each influencer assigned to your account for that event.</p></div>
-            <button class="admin-refresh-btn" onclick="loadAuthorizedEventSales()">↻ Refresh</button>
-          </div>
-          <div class="admin-scan-panel" style="margin-bottom:16px;">
-            <div class="form-group"><label for="authorizedEventSelect">Authorized Event</label><select id="authorizedEventSelect"><option value="">Loading authorized events…</option></select></div>
-          </div>
-          <div class="admin-stats">
-            <div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="aesOrders">0</div></div>
-            <div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
-            <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
-          </div>
-          <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
-            <h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
-            <div id="aesInfluencers"></div>
-          </div>
-        </div>
-
-        <!-- ── CHECK-IN PANEL ── -->
-        <div class="admin-panel" id="panel-checkin">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>🎫 Gate Check-in / Scan Ticket</h1>
-              <p>Enter the Order ID and ticket code, or tap <strong>📷 Scan QR</strong> to scan the buyer's ticket QR code with your camera. The ticket will be marked as used and cannot be reused.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div class="admin-scan-inputs">
-              <div class="form-group">
-                <label for="scanOrderId">Order ID</label>
-                <input type="text" id="scanOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
-              </div>
-              <div class="form-group">
-                <label for="scanCode">Ticket Code</label>
-                <input type="text" id="scanCode" placeholder="TKT-XXXXXX" autocomplete="off" />
-              </div>
-              <button class="btn-submit" style="white-space:nowrap;" onclick="scanTicket()">✅ Check In</button>
-              <button class="admin-filter-btn" id="qrScanBtn" onclick="toggleQRScanner()" style="display:inline-flex;align-items:center;gap:6px;">📷 Scan QR</button>
-            </div>
-            <div class="admin-scan-camera" id="scanCameraWrap" style="display:none;">
-              <div class="admin-scan-camera-inner">
-                <video id="qrVideo" autoplay playsinline muted></video>
-                <canvas id="qrCanvas" style="display:none;"></canvas>
-                <div class="admin-scan-camera-overlay" id="scanOverlay">Point camera at the ticket QR code</div>
-              </div>
-              <button class="action-btn action-reject" onclick="stopQRScanner()" style="margin-top:8px;">✕ Stop Camera</button>
-            </div>
-            <div class="admin-scan-result" id="scanResult"></div>
-          </div>
-        </div>
-
-        <!-- ── EVENTS PANEL ── -->
-        <div class="admin-panel" id="panel-events">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>🎤 Manage Events</h1>
-              <p>Add or remove events. New events appear instantly on the Events page, Tickets page, and Home page for buyers.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="evName">Event Name</label><input type="text" id="evName" placeholder="e.g. Medical Dinner Night" /></div>
-              <div class="form-group"><label for="evUniversity">University</label><select id="evUniversity" onchange="updateUniCategories()">
-                <option value="">Select university...</option>
-              </select></div>
-              <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
-                <option value="General">General</option>
-              </select></div>
-              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦)</label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
-              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦)</label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
-              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦)</label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
-              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦)</label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
-              <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
-              <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
-              <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
-              <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
-              <div class="form-group" style="grid-column:1/-1;">
-                <label for="evImage">Event Picture</label>
-                <input type="file" id="evImage" accept="image/*" onchange="handleEventImageUpload(this)" />
-                <div style="margin-top:10px;">
-                  <img id="evImagePreview" alt="Event image preview" style="display:none;width:100%;max-width:320px;height:160px;object-fit:cover;border-radius:14px;border:1px solid var(--border);background:var(--bg);" />
-                </div>
-              </div>
-              <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
-              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedRegular">What's Included — Regular (comma separated)</label><input type="text" id="evIncludedRegular" placeholder="Standard entry, Welcome drink" /></div>
-              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVip">What's Included — VIP (comma separated)</label><input type="text" id="evIncludedVip" placeholder="VIP lounge access, Meet &amp; greet, VIP parking" /></div>
-              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVVIP">What's Included — VVIP (comma separated)</label><input type="text" id="evIncludedVVIP" placeholder="VVIP lounge access, premium seating, concierge service" /></div>
-              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
-              <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
-              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
-        <!-- ── UNIVERSITIES PANEL ── -->
-        <div class="admin-panel" id="panel-universities">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>🏛 Universities Manager</h1>
-              <p>Add or remove universities. Each university has its own categories used across the site. Events and tickets are scoped per university.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="uniName">University Name</label><input type="text" id="uniName" placeholder="e.g. University of Lagos" /></div>
-              <div class="form-group"><label for="uniLocation">Location</label><input type="text" id="uniLocation" placeholder="e.g. Akoka, Lagos" /></div>
-              <div class="form-group"><label for="uniState">State</label><input type="text" id="uniState" placeholder="e.g. Lagos" /></div>
-              <div class="form-group"><label for="uniCategories">Categories (comma separated)</label><input type="text" id="uniCategories" placeholder="Law, Medicine, Social Sciences, Engineering, General" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addUniversityItem()">➕ Add University</button>
-              <button class="admin-refresh-btn" onclick="loadManagedUniversities()">↻ Refresh</button>
-              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="uniManageCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="managedUniversitiesList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
-        <!-- ── SUBSCRIBERS PANEL ── -->
-        <div class="admin-panel" id="panel-subscribers">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>📧 Subscribers (Event Notifications)</h1>
-              <p>Users who opted in to receive event notifications. When you create an event, subscribers of that university are emailed automatically.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
-              <div class="admin-cat-filter" style="flex:1;min-width:220px;">
-                <label for="subFilterUni">Filter by University</label>
-                <select id="subFilterUni" onchange="loadSubscribers()">
-                  <option value="">All Universities</option>
-                </select>
-              </div>
-              <button class="admin-refresh-btn" onclick="loadSubscribers()">↻ Refresh</button>
-            </div>
-<div class="admin-ticket-codes" id="subscribersList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
-        <!-- ── SUB-ADMINS PANEL (master admin only) ── -->
-        <div class="admin-panel" id="panel-subadmins">
-          <div class="admin-panel-heading">
-            <div>
-              <h1>🔑 Sub-Admins</h1>
-              <p>Create staff accounts that can only do gate check-in and add events. Sub-admins cannot view orders or manage universities/subscribers.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="subName">Full Name</label><input type="text" id="subName" placeholder="e.g. Gate Staff" /></div>
-              <div class="form-group"><label for="subEmail">Email</label><input type="email" id="subEmail" placeholder="staff@unisocials.com" /></div>
-              <div class="form-group"><label for="subPassword">Password</label><input type="password" id="subPassword" placeholder="At least 6 characters" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addSubAdmin()">➕ Create Sub-Admin</button>
-              <button class="admin-refresh-btn" onclick="loadSubAdmins()">↻ Refresh</button>
-              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="subAdminCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="subAdminsList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-
-        <!-- ── INFLUENCERS PANEL (master admin only) ── -->
-        <div class="admin-panel" id="panel-influencers">
-<div class="admin-panel-heading" style="margin-bottom:18px;">
-  <div>
-    <h1>Influencer Management</h1>
-    <p>View your influencers, referral performance, and publish events using the same Unisocials admin flow.</p>
-  </div>
+<a class="admin-logout" href="index.html" id="viewSiteBtn" style="display:none;">← View Site</a>
+<button class="admin-logout" id="logoutBtn" style="display:none;" type="button">Log Out</button>
 </div>
+</div>
+</div>
+<div class="admin-body">
+<!-- ── LOGIN SCREEN ── -->
+<div class="admin-login-wrap" id="loginScreen">
+<div class="admin-login-card reveal visible">
+<div class="admin-login-icon">🔐</div>
+<h2>Influencer Admin Access</h2>
+<p>Sign in with the account created for you by the main admin.</p>
+<div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
+<!-- Master admin login -->
+<form id="loginForm" onsubmit="adminLogin(event)">
+<div class="form-group"><label for="adminEmail">Login Email</label><input autocomplete="email" id="adminEmail" placeholder="admin@unisocials.com" type="email"/></div>
+<div class="form-group" id="adminPwdGroup"><label for="adminPassword">Password</label><input autocomplete="current-password" id="adminPassword" placeholder="Enter password" type="password"/></div>
+<button class="btn-submit" id="loginBtn" type="submit">Login to Dashboard</button>
+</form>
 
-          <div class="admin-panel-heading">
-            <div>
-              <h1>📣 Influencers</h1>
-              <p>Create influencer login accounts. Influencers only see their referral dashboard and referral performance.</p>
-            </div>
-          </div>
-          <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-              <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" /></div>
-              <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" /></div>
-              <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="At least 6 characters" /></div>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
-              <button class="admin-refresh-btn" onclick="loadInfluencers()">↻ Refresh</button>
-              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
-            </div>
-            <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+</div>
+</div>
+<!-- ── DASHBOARD ── -->
+<div class="admin-dash" id="dashboard">
+<!-- ── TOP TAB BAR ── -->
+<div class="admin-tabs">
+<div class="admin-tabs-inner">
+<button class="admin-tab active" data-tab="overview">📊 Overview</button>
+<button class="admin-tab" data-tab="events">➕ Add Events</button>
+<button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
 
-  <div class="admin-toast" id="adminToast"></div>
 
-  <script src="config.js"></script>
-  <script src="jsqr.min.js"></script>
-  <script>
+
+
+
+</div>
+</div>
+<div class="container">
+<!-- ── OVERVIEW PANEL ── -->
+<div class="admin-panel active" id="panel-overview">
+<div class="admin-panel-heading">
+<div>
+<h1>📊 Orders Overview</h1>
+<p id="lastUpdated">Loading orders…</p>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+<button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
+<button class="admin-refresh-btn" id="refreshBtn" onclick="loadOrders()">↻ Refresh</button>
+</div>
+</div>
+<div class="admin-stats">
+<div class="admin-stat">
+<div class="admin-stat-label">Total Orders</div>
+<div class="admin-stat-value" id="statTotal">0</div>
+</div>
+<div class="admin-stat pending">
+<div class="admin-stat-label">Pending</div>
+<div class="admin-stat-value" id="statPending">0</div>
+</div>
+<div class="admin-stat verified">
+<div class="admin-stat-label">Verified</div>
+<div class="admin-stat-value" id="statVerified">0</div>
+</div>
+<div class="admin-stat revenue">
+<div class="admin-stat-label">Revenue (Verified)</div>
+<div class="admin-stat-value" id="statRevenue">₦0</div>
+</div>
+</div>
+<div class="admin-toolbar">
+<div class="admin-filters">
+<button class="admin-filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+<button class="admin-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
+<button class="admin-filter-btn" data-filter="verified" onclick="setFilter('verified')">✅ Verified</button>
+<button class="admin-filter-btn" data-filter="rejected" onclick="setFilter('rejected')">❌ Rejected</button>
+</div>
+</div>
+<div class="admin-cat-filters" id="catFilters">
+<div class="admin-cat-filter">
+<label for="eventFilterSel">🎤 Filter by Event</label>
+<select id="eventFilterSel" onchange="setEventFilter(this.value)">
+<option value="">All Events</option>
+</select>
+</div>
+<div class="admin-cat-filter">
+<label for="categoryFilterSel">🏷 Filter by Category</label>
+<select id="categoryFilterSel" onchange="setCategoryFilter(this.value)">
+<option value="">All Categories</option>
+</select>
+</div>
+<button class="admin-cat-clear" onclick="clearCatFilters()">✕ Clear Filters</button>
+</div>
+<div class="admin-orders" id="ordersList"></div>
+</div>
+<!-- ── INFLUENCER ADMIN EVENTS PANEL ── -->
+<div class="admin-panel" id="panel-events">
+<div class="admin-panel-heading">
+<div><h1>➕ Add Events</h1><p>Create your events and see the events you added.</p></div>
+<button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh</button>
+</div>
+<div class="admin-scan-panel" style="margin-bottom:16px;">
+<h3 style="margin-bottom:12px;">Add New Event</h3>
+<div class="form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+<div class="form-group"><label for="evName">Event Name</label><input id="evName" placeholder="Event name"/></div>
+<div class="form-group"><label for="evDate">Date</label><input id="evDate" type="date"/></div>
+<div class="form-group"><label for="evTime">Time</label><input id="evTime" type="time"/></div>
+<div class="form-group"><label for="evVenue">Venue</label><input id="evVenue" placeholder="Venue"/></div>
+<div class="form-group"><label for="evUniversity">University</label><select id="evUniversity" onchange="updateUniCategories()"><option value="">Loading universities…</option></select></div>
+<div class="form-group"><label for="evCategory">Category</label><select id="evCategory"><option value="General">General</option></select></div>
+<div class="form-group"><label for="evPrice">Regular Price</label><input id="evPrice" type="number" min="0" placeholder="0"/></div>
+<div class="form-group"><label for="evVIPPrice">VIP Price</label><input id="evVIPPrice" type="number" min="0" placeholder="0"/></div>
+<div class="form-group"><label for="evVVIPPrice">VVIP Price</label><input id="evVVIPPrice" type="number" min="0" placeholder="0"/></div>
+<div class="form-group"><label for="evTablePrice">Table Price</label><input id="evTablePrice" type="number" min="0" placeholder="0"/></div>
+<div class="form-group" style="grid-column:1/-1;"><label for="evDesc">Description</label><textarea id="evDesc" rows="3" placeholder="Event description"></textarea></div>
+</div>
+<button class="btn-submit" type="button" onclick="addEventItem()">➕ Add Event</button>
+</div>
+<div class="admin-scan-panel">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><h3>📋 Events Added By Me</h3><span id="eventsManageCount" style="color:var(--text-3);font-size:.85rem;">0 events</span></div>
+<div id="managedEventsList" style="margin-top:10px;"></div>
+</div>
+</div>
+<!-- ── AUTHORIZED EVENT SALES PANEL ── -->
+<div class="admin-panel" id="panel-event-sales">
+<div class="admin-panel-heading">
+<div><h1>🎟 Authorized Event Sales</h1><p>Select an event that the Main Admin explicitly authorized to you. This shows the tickets sold by each influencer assigned to your account for that event.</p></div>
+<button class="admin-refresh-btn" onclick="loadAuthorizedEventSales()">↻ Refresh</button>
+</div>
+<div class="admin-scan-panel" style="margin-bottom:16px;">
+<div class="form-group"><label for="authorizedEventSelect">Authorized Event</label><select id="authorizedEventSelect"><option value="">Loading authorized events…</option></select></div>
+</div>
+<div class="admin-stats">
+<div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="aesOrders">0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
+<div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
+</div>
+<div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
+<h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
+<div id="aesInfluencers"></div>
+</div>
+</div>
+<!-- ── CHECK-IN PANEL ── -->
+
+<!-- ── EVENTS PANEL ── -->
+
+<!-- ── UNIVERSITIES PANEL ── -->
+
+<!-- ── SUBSCRIBERS PANEL ── -->
+
+<!-- ── SUB-ADMINS PANEL (master admin only) ── -->
+
+</div>
+</div>
+</div>
+<div class="admin-toast" id="adminToast"></div>
+<script src="config.js"></script>
+<script src="jsqr.min.js"></script>
+<script>
     (function() {
       var KEY = 'unn_admin_token';
       var currentFilter = 'all';
@@ -1176,7 +1020,7 @@ function fmtN(n) {
           .then(function(x){
             if(!x.ok || !x.data || !x.data.success){throw new Error((x.data&&x.data.error)||'unauthorized');}
             var role=x.data.user&&x.data.user.role;
-            if(role!=='influencer_admin' && role!=='admin') throw new Error('This account is not authorized for the Influencer Admin dashboard.');
+            if(role!=='influencer_admin') throw new Error('This account is not authorized for the Influencer Admin dashboard.');
             setToken(x.data.token); localStorage.setItem('unn_admin_user',JSON.stringify(x.data.user||{}));
             errBox.classList.remove('show'); showLoggedIn();
           })
@@ -1240,7 +1084,7 @@ function fmtN(n) {
         var container = document.getElementById('managedEventsList');
         var count = document.getElementById('eventsManageCount');
         if (!container) return;
-        fetch('/api/events?includeArchived=1', { headers: authHeaders() })
+        fetch('/api/influencer-admin/events', { headers: authHeaders() })
           .then(function(r) {
             if (r.status === 401) throw new Error('unauthorized');
             return r.json();
@@ -1911,15 +1755,10 @@ fetch('/api/admin/events/notify', {
           }).catch(function(){showToast('Network error resetting password',true);});
       };
 
-// Load events on login — also load universities and subscribers
+// Load only the Influencer Admin oversight views on login
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn2();
-        loadManagedEvents();
-        loadManagedUniversities();
-        loadSubscribers();
-        loadSubAdmins();
-        loadInfluencers();
         loadAuthorizedEventSales();
       };
 
@@ -1968,9 +1807,7 @@ fetch('/api/admin/events/notify', {
       })();
     })();
   </script>
-
 <script id="influencer-admin-init">
-
 </script>
 <script id="archive-controls-ui">
 (function(){
@@ -2020,7 +1857,5 @@ fetch('/api/admin/events/notify', {
     new MutationObserver(scan).observe(document.body,{subtree:true,childList:true}); setTimeout(scan,500); setTimeout(scan,1500); setTimeout(refreshArchiveState,900); setInterval(refreshArchiveState,4000);
 })();
 </script>
-
 </body>
 </html>
-
