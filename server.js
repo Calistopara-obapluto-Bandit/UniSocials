@@ -437,13 +437,24 @@ function eventMatchesOrder(order, ev) {
 
 async function getOrdersForCurrentSiteEvents() {
   const [orders, events] = await Promise.all([readOrders(), readEvents()]);
-  const eventIds = new Set(events.map(e => String(e.id || '')));
-  const eventNames = new Set(events.map(e => String(e.name || '').trim().toLowerCase()).filter(Boolean));
-  // Orders must belong to an event that currently exists in the site's event catalog.
+  // Match orders against the live event catalog using every identifier the
+  // site has historically used.  Do NOT require eventId to match when the
+  // order also carries the event name: existing orders can legitimately have
+  // an older/alternate event id while still belonging to the same event.
+  const eventIds = new Set();
+  const eventNames = new Set();
+  events.forEach(e => {
+    [e && e.id, e && e._id, e && e.eventId].forEach(v => {
+      const id = String(v || '').trim();
+      if (id) eventIds.add(id);
+    });
+    const name = String(e && (e.name || e.eventName) || '').trim().toLowerCase();
+    if (name) eventNames.add(name);
+  });
   return orders.filter(o => {
-    const id = String(o.eventId || '');
-    const name = String(o.eventName || '').trim().toLowerCase();
-    return (id && eventIds.has(id)) || (!id && name && eventNames.has(name));
+    const id = String(o && (o.eventId || o.event_id || o.eventID) || '').trim();
+    const name = String(o && (o.eventName || o.event_name) || '').trim().toLowerCase();
+    return (id && eventIds.has(id)) || (name && eventNames.has(name));
   });
 }
 
