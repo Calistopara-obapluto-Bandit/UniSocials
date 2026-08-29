@@ -1236,7 +1236,7 @@ function fmtN(n) {
             var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,tickets:0,revenue:0});
             var st=document.getElementById('statTotal'); if(st) st.textContent=totals.orders;
             var sv=document.getElementById('statVerified'); if(sv) sv.textContent=totals.orders;
-            var sp=document.getElementById('statPending'); if(sp) sp.textContent=rows.reduce(function(n,e){ return n + (e.totalOrders||0) - (e.verifiedOrders||0); },0);
+            var sp=document.getElementById('statPending'); if(sp) sp.textContent=rows.reduce(function(n,e){ return n + Number(e.pendingOrders||0); },0);
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet.</div>'; }
