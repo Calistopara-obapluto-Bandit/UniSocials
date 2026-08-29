@@ -2646,7 +2646,7 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      await removeDemoMusicFestivalData();
+      await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
@@ -2654,7 +2654,7 @@ codes[idx] = entry;
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      await removeDemoMusicFestivalData();
+      await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
@@ -3281,50 +3281,54 @@ function publicUser(user) {
   };
 }
 
-async function removeDemoMusicFestivalData() {
-  // Remove only the exact demo order shown in the Admin screenshot and the
-  // known demo Music Festival event. Never delete other real orders/events.
-  const DEMO_ORDER = 'unn-msc60k06-ewot';
-  const DEMO_EVENT_IDS = new Set(['music-festival']);
-  const DEMO_EVENT_NAMES = new Set(['campus music festival', 'music festival']);
+async function removeDemoDataAndKeepSiteCreatedEvents() {
+  // Keep all existing real events. Only remove the known demo Music Festival
+  // event and its demo order. Do NOT classify events as seed/demo merely because
+  // they lack createdBy: existing events such as TikTok Fest must remain visible.
   const normalize = v => String(v ?? '').trim().toLowerCase();
+  const DEMO_EVENT_IDS = new Set(['campus-music-festival', 'music-festival', 'unn-music-festival']);
+  const DEMO_EVENT_NAMES = new Set(['campus music festival', 'music festival', 'unn music festival']);
+  const DEMO_ORDER_IDS = new Set(['unn-msc60k06-ewot']);
   try {
     if (usePg) {
-      // The screenshot's first code is the order identifier. Match it against
-      // common legacy field names and also scan the complete JSON document so
-      // old records cannot survive because their identifier was stored under
-      // a different key.
       await db.query(`
         DELETE FROM orders
-        WHERE lower(trim(COALESCE(data->>'orderId',''))) = $1
-           OR lower(trim(COALESCE(data->>'id',''))) = $1
-           OR lower(trim(COALESCE(data->>'eventId',''))) = ANY($2::text[])
-           OR lower(trim(COALESCE(data->>'eventName',''))) = ANY($3::text[])
-      `, [DEMO_ORDER, Array.from(DEMO_EVENT_IDS), Array.from(DEMO_EVENT_NAMES)]);
+        WHERE lower(trim(COALESCE(data->>'id',''))) IN (${Array.from(DEMO_ORDER_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'orderId',''))) IN (${Array.from(DEMO_ORDER_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'eventId',''))) IN (${Array.from(DEMO_EVENT_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'eventName',''))) IN (${Array.from(DEMO_EVENT_NAMES).map(x => `'${x}'`).join(',')})
+      `);
       await db.query(`
         DELETE FROM events
-        WHERE lower(trim(COALESCE(data->>'id',''))) = ANY($1::text[])
-           OR lower(trim(COALESCE(data->>'name',''))) = ANY($2::text[])
-      `, [Array.from(DEMO_EVENT_IDS), Array.from(DEMO_EVENT_NAMES)]);
+        WHERE lower(trim(COALESCE(data->>'id',''))) IN (${Array.from(DEMO_EVENT_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'name',''))) IN (${Array.from(DEMO_EVENT_NAMES).map(x => `'${x}'`).join(',')})
+      `);
       return;
     }
+
+    const events = await readEvents();
+    const keepEvents = events.filter(ev => {
+      const id = normalize(ev && ev.id);
+      const name = normalize(ev && ev.name);
+      return !DEMO_EVENT_IDS.has(id) && !DEMO_EVENT_NAMES.has(name);
+    });
+    if (keepEvents.length !== events.length) await writeEvents(keepEvents);
+
     const orders = await readOrders();
     const cleanOrders = orders.filter(o => {
-      const oid = normalize(o && (o.orderId || o.id));
-      const eid = normalize(o && o.eventId);
-      const ename = normalize(o && o.eventName);
-      return oid !== DEMO_ORDER && !DEMO_EVENT_IDS.has(eid) && !DEMO_EVENT_NAMES.has(ename);
+      const id = normalize(o && (o.orderId || o.id));
+      const eventId = normalize(o && o.eventId);
+      const eventName = normalize(o && o.eventName);
+      return !DEMO_ORDER_IDS.has(id) && !DEMO_EVENT_IDS.has(eventId) && !DEMO_EVENT_NAMES.has(eventName);
     });
     if (cleanOrders.length !== orders.length) await writeOrders(cleanOrders);
-    const events = await readEvents();
-    const cleanEvents = events.filter(e => !DEMO_EVENT_IDS.has(normalize(e && e.id)) && !DEMO_EVENT_NAMES.has(normalize(e && e.name)));
-    if (cleanEvents.length !== events.length) await writeEvents(cleanEvents);
   } catch (e) {
     console.warn('Demo Music Festival cleanup failed:', e.message);
   }
 }
+
 initStorage().then(async () => {
-  await removeDemoMusicFestivalData();
+  await removeDemoDataAndKeepSiteCreatedEvents();
   server.listen(PORT, () => {
     console.log('Unisocials server running at http://localhost:' + PORT);
   });

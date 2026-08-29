@@ -656,12 +656,12 @@
   </style>
 <style id="influencer-admin-scope">
   /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
-  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]) { display:none !important; }
-  .admin-panel[id="panel-checkin"], .admin-panel[id="panel-universities"], .admin-panel[id="panel-subscribers"], .admin-panel[id="panel-subadmins"], .admin-panel[id="panel-influencers"] { display:none !important; }
-  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales) { display:none !important; }
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]) { display:none !important; }
+  .admin-panel[id="panel-checkin"], .admin-panel[id="panel-universities"], .admin-panel[id="panel-subscribers"], .admin-panel[id="panel-subadmins"] { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales):not(#panel-influencers) { display:none !important; }
   #panel-events { display:none; }
   #panel-event-sales { display:none; }
-  #panel-events.active, #panel-event-sales.active, #panel-overview.active { display:block; }
+  #panel-events.active, #panel-event-sales.active, #panel-overview.active, #panel-influencers.active { display:block; }
 </style>
 
 <style id="influencer-admin-mobile-tight">
@@ -785,6 +785,7 @@
 <button class="admin-tab active" data-tab="overview">📊 Overview</button>
 <button class="admin-tab" data-tab="events">➕ Add Events</button>
 <button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
+<button class="admin-tab" data-tab="influencers">📣 My Influencers</button>
 
 
 
@@ -895,6 +896,29 @@
 <div id="aesInfluencers"></div>
 </div>
 </div>
+<!-- ── MY INFLUENCERS PANEL ── -->
+<div class="admin-panel" id="panel-influencers">
+  <div class="admin-panel-heading">
+    <div>
+      <h1>📣 My Influencers</h1>
+      <p>Create and manage the influencers you created. They receive their own login and referral link, and their sales remain associated with your Influencer Admin account.</p>
+    </div>
+  </div>
+  <div class="admin-scan-panel">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" autocomplete="name" /></div>
+      <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" autocomplete="email" /></div>
+      <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="At least 6 characters" autocomplete="new-password" /></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
+      <button class="admin-refresh-btn" onclick="loadInfluencers()">↻ Refresh</button>
+      <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
+    </div>
+    <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
+  </div>
+</div>
+
 <!-- ── CHECK-IN PANEL ── -->
 
 <!-- ── EVENTS PANEL ── -->
@@ -1866,6 +1890,7 @@ fetch('/api/admin/events/notify', {
       showLoggedIn = function() {
         origShowLoggedIn2();
         loadAuthorizedEventSales();
+        if (typeof window.loadInfluencers === 'function') loadInfluencers();
       };
 
       // ── Tab switching ──
@@ -1885,7 +1910,9 @@ fetch('/api/admin/events/notify', {
       }
       tabButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
-          switchTab(btn.getAttribute('data-tab'));
+          var name = btn.getAttribute('data-tab');
+          switchTab(name);
+          if (name === 'influencers' && typeof window.loadInfluencers === 'function') loadInfluencers();
         });
       });
       window.switchTab = switchTab;
