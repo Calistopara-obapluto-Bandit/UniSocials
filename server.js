@@ -2912,13 +2912,18 @@ codes[idx] = entry;
         const influencerRows = ownInfluencers.map(inf => {
           const link = links.find(l => l.influencerId === inf.id || l.ownerId === inf.id || l.subadminId === inf.id);
           const code = link && link.code;
-          const rows = code ? eventOrders.filter(o => o.referralCode === code) : [];
+          const rows = code ? eventOrders.filter(o => {
+            const status = String(o.status || '').toLowerCase();
+            return o.referralCode === code && status !== 'rejected';
+          }) : [];
           const verified = rows.filter(o => String(o.status || '').toLowerCase() === 'verified');
           const pending = rows.filter(o => String(o.status || '').toLowerCase() === 'pending');
           return { influencer: publicUser(inf), referralCode: code || null, orders: rows, totalOrders: rows.length, verifiedOrders: verified.length, pendingOrders: pending.length, ticketsSold: verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), pendingTickets: pending.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue: verified.reduce((n,o)=>n+(Number(o.amount)||0),0) };
         });
-        const verified = eventOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
-        return { event: ev, totalOrders:eventOrders.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
+        const visibleOrders = eventOrders.filter(o => String(o.status || '').toLowerCase() !== 'rejected');
+        const verified = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
+        const pending = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
       });
       return sendJson(res, 200, { success:true, events:result });
     }

@@ -819,6 +819,10 @@
 <div class="admin-stat-label">Verified</div>
 <div class="admin-stat-value" id="statVerified">0</div>
 </div>
+<div class="admin-stat rejected">
+<div class="admin-stat-label">Rejected</div>
+<div class="admin-stat-value" id="statRejected">0</div>
+</div>
 <div class="admin-stat revenue">
 <div class="admin-stat-label">Revenue (Verified)</div>
 <div class="admin-stat-value" id="statRevenue">₦0</div>
@@ -1321,7 +1325,7 @@ function fmtN(n) {
         if(!box)return;
         var rows=data.influencers||[];
         if(!rows.length){box.innerHTML='<div style="color:var(--text-3);padding:14px;">No influencers are assigned to this Influencer Admin yet.</div>';return;}
-        box.innerHTML=rows.map(function(r){return '<div style="display:grid;grid-template-columns:2fr repeat(4,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Orders</small><br><strong>'+r.verifiedOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingTickets+'</strong></div><div><small>Revenue</small><br><strong>₦'+Number(r.revenue||0).toLocaleString()+'</strong></div></div>';}).join('');
+        box.innerHTML=rows.map(function(r){return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+Number(r.revenue||0).toLocaleString()+'</strong></div></div>';}).join('');
       };
       var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
 
@@ -1336,14 +1340,15 @@ function fmtN(n) {
           .then(function(x) {
             if (!x.ok || !x.data || !x.data.success) throw new Error((x.data && x.data.error) || 'Unable to load overview');
             var rows = x.data.events || [];
-            var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,tickets:0,revenue:0});
+            var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.pendingOrders||0) + Number(ev.verifiedOrders||0); a.pending += Number(ev.pendingOrders||0); a.verified += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,pending:0,verified:0,tickets:0,revenue:0});
             var st=document.getElementById('statTotal'); if(st) st.textContent=totals.orders;
-            var sv=document.getElementById('statVerified'); if(sv) sv.textContent=totals.orders;
-            var sp=document.getElementById('statPending'); if(sp) sp.textContent=rows.reduce(function(n,e){ return n + Number(e.pendingOrders||0); },0);
+            var sv=document.getElementById('statVerified'); if(sv) sv.textContent=totals.verified;
+            var sp=document.getElementById('statPending'); if(sp) sp.textContent=totals.pending;
+            var srj=document.getElementById('statRejected'); if(srj) srj.textContent=totals.rejected;
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet.</div>'; }
-              else { box.innerHTML=rows.map(function(ev){ return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>🧾 '+Number(ev.verifiedOrders||0)+' verified orders</span><span>₦'+Number(ev.revenue||0).toLocaleString()+'</span></div></div>'; }).join(''); }
+              else { box.innerHTML=rows.map(function(ev){ return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+Number(ev.revenue||0).toLocaleString()+'</span></div></div>'; }).join(''); }
             }
             if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
           })

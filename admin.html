@@ -612,6 +612,85 @@
       .admin-stats { grid-template-columns: 1fr; }
       .admin-topbar-inner { flex-direction: column; align-items: flex-start; }
     }
+    /* ── Tight mobile admin layout ── */
+    @media (max-width: 600px) {
+      .admin-topbar { padding: 10px 0; }
+      .admin-topbar-inner { padding: 0 12px; gap: 8px; }
+      .admin-topbar .nav-logo { font-size: .95rem; }
+      .admin-topbar-actions { gap: 6px; min-width: 0; }
+      .admin-topbar-status { font-size: .68rem; gap: 5px; }
+      .admin-topbar-status .pulse { width: 6px; height: 6px; }
+      .admin-notif { font-size: .66rem; padding: 4px 8px; }
+      .admin-logout { font-size: .68rem; padding: 6px 10px; }
+
+      .admin-tabs { top: 0; }
+      .admin-tabs-inner { padding: 0 8px; gap: 0; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+      .admin-tab { flex: 0 0 auto; min-height: 44px; padding: 10px 9px; font-size: .72rem; gap: 4px; }
+      .admin-tab.active { border-bottom-width: 2px; }
+
+      .admin-dash { padding: 16px 0 36px; }
+      .admin-panel-heading { gap: 8px; margin-bottom: 12px; }
+      .admin-panel-heading h1 { font-size: 1.1rem; }
+      .admin-panel-heading p { font-size: .74rem; line-height: 1.4; }
+      .admin-scan-panel { padding: 12px; margin-bottom: 12px; border-radius: 10px; }
+
+      /* Sub-admin list: keep names/emails compact and prevent overflow. */
+      #subAdminsList { overflow: hidden; }
+      #subAdminsList .admin-ticket-code {
+        grid-template-columns: minmax(0,1fr) auto !important;
+        gap: 6px !important;
+        padding: 9px 0 !important;
+        min-width: 0;
+      }
+      #subAdminsList .admin-ticket-code > div:first-child { min-width: 0; }
+      #subAdminsList .admin-ticket-code strong {
+        display: inline-block;
+        max-width: 100%;
+        min-width: 0;
+        font-size: .82rem !important;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      #subAdminsList .admin-ticket-code span {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      #subAdminsList .admin-ticket-code > div:last-child {
+        flex: 0 0 auto;
+      }
+      #subAdminsList .admin-ticket-copy { width: 28px; height: 28px; font-size: .72rem; }
+      #subAdminsList .admin-ticket-code-label { font-size: .68rem; }
+
+      .admin-refresh-btn, .btn-submit {
+        min-height: 38px;
+        max-width: 100%;
+        font-size: .76rem;
+        padding: 8px 11px;
+      }
+      .form-group label { font-size: .72rem; }
+      .form-group input, .form-group select, .form-group textarea {
+        max-width: 100%;
+        box-sizing: border-box;
+        font-size: .82rem;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .admin-topbar-inner { padding: 0 9px; }
+      .admin-topbar-actions { gap: 4px; }
+      .admin-topbar-status { display: none; }
+      .admin-topbar .nav-logo { font-size: .88rem; }
+      .admin-notif { font-size: .62rem; padding: 4px 7px; }
+      .admin-logout { font-size: .64rem; padding: 5px 8px; }
+      .admin-tabs-inner { padding: 0 5px; }
+      .admin-tab { padding: 9px 7px; font-size: .68rem; }
+      #subAdminsList .admin-ticket-code { grid-template-columns: minmax(0,1fr) auto !important; }
+      #subAdminsList .admin-ticket-code strong { font-size: .78rem !important; }
+      #subAdminsList .admin-ticket-copy { width: 26px; height: 26px; }
+    }
+
     @media print {
       .admin-topbar, .admin-toolbar, .admin-order-actions { display: none !important; }
       .admin-dash { display: block !important; padding: 0; }
