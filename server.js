@@ -422,6 +422,19 @@ async function readEvents() {
   }
 }
 
+function getAuthorizedInfluencerAdminIds(ev) {
+  const ids = Array.isArray(ev && ev.authorizedInfluencerAdminIds) ? ev.authorizedInfluencerAdminIds : [];
+  return ids.map(String).filter(Boolean);
+}
+
+function eventMatchesOrder(order, ev) {
+  if (!order || !ev) return false;
+  const oid = String(order.eventId || '').trim();
+  const eid = String(ev.id || '').trim();
+  if (oid && eid && oid === eid) return true;
+  return String(order.eventName || '').trim().toLowerCase() === String(ev.name || '').trim().toLowerCase();
+}
+
 async function resetLegacyPaymentDataOnce() {
   // One-time cleanup requested for the old/demo payment data. This resets the
   // payment/sales counters to zero without affecting users, events, coupons,
@@ -481,9 +494,15 @@ async function removeBundledDemoEvents() {
 }
 
 async function getOrdersForCurrentSiteEvents() {
-  // Main-admin reporting must never hide historical orders just because an event
-  // is archived or no longer present in the public catalogue.
-  return await readOrders();
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  const eventIds = new Set(events.map(e => String(e.id || '')));
+  const eventNames = new Set(events.map(e => String(e.name || '').trim().toLowerCase()).filter(Boolean));
+  // Orders must belong to an event that currently exists in the site's event catalog.
+  return orders.filter(o => {
+    const id = String(o.eventId || '');
+    const name = String(o.eventName || '').trim().toLowerCase();
+    return (id && eventIds.has(id)) || (!id && name && eventNames.has(name));
+  });
 }
 
 async function writeEvents(events) {
@@ -1667,86 +1686,6 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
-    // ── Main Admin: event authorization for Influencer Admins ──
-    // Authorization belongs to the event, not to a referral link. This lets the
-    // Main Admin assign any existing event to any dedicated Influencer Admin.
-    if (pathname === '/api/admin/influencer-event-authorizations' && req.method === 'GET') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Main Admin access only' });
-      const [events, users] = await Promise.all([readEvents(), readUsers()]);
-      const influencerAdmins = users.filter(u => u.role === 'influencer_admin' && u.archived !== true).map(publicUser);
-      const assignments = events.map(ev => ({
-        eventId: ev.id,
-        eventName: ev.name,
-        authorizedInfluencerAdminIds: Array.isArray(ev.authorizedInfluencerAdminIds) ? ev.authorizedInfluencerAdminIds : (ev.authorizedInfluencerAdminId ? [ev.authorizedInfluencerAdminId] : [])
-      }));
-      return sendJson(res, 200, { success:true, events, influencerAdmins, assignments });
-    }
-
-    if (pathname === '/api/admin/influencer-event-authorizations' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Main Admin access only' });
-      const body = await readBody(req); let data = {};
-      try { data = JSON.parse(body || '{}'); } catch(e) {}
-      const eventId = String(data.eventId || '').trim();
-      const influencerAdminId = String(data.influencerAdminId || '').trim();
-      if (!eventId || !influencerAdminId) return sendJson(res,400,{success:false,error:'Event and Influencer Admin are required.'});
-      const [events, users] = await Promise.all([readEvents(), readUsers()]);
-      const event = events.find(e => String(e.id) === eventId);
-      const staff = users.find(u => String(u.id) === influencerAdminId && u.role === 'influencer_admin');
-      if (!event) return sendJson(res,404,{success:false,error:'Event not found.'});
-      if (!staff) return sendJson(res,404,{success:false,error:'Influencer Admin not found.'});
-      const ids = Array.isArray(event.authorizedInfluencerAdminIds) ? event.authorizedInfluencerAdminIds.map(String) : [];
-      if (!ids.includes(influencerAdminId)) ids.push(influencerAdminId);
-      event.authorizedInfluencerAdminIds = ids;
-      delete event.authorizedInfluencerAdminId;
-      await writeEvents(events);
-      return sendJson(res,200,{success:true,event:event, influencerAdmin:publicUser(staff)});
-    }
-
-    if (pathname === '/api/admin/influencer-event-authorizations' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Main Admin access only' });
-      const eventId = String(url.searchParams.get('eventId') || '').trim();
-      const influencerAdminId = String(url.searchParams.get('influencerAdminId') || '').trim();
-      if (!eventId || !influencerAdminId) return sendJson(res,400,{success:false,error:'Event and Influencer Admin are required.'});
-      const events = await readEvents();
-      const event = events.find(e => String(e.id) === eventId);
-      if (!event) return sendJson(res,404,{success:false,error:'Event not found.'});
-      const ids = Array.isArray(event.authorizedInfluencerAdminIds) ? event.authorizedInfluencerAdminIds.map(String) : (event.authorizedInfluencerAdminId ? [String(event.authorizedInfluencerAdminId)] : []);
-      event.authorizedInfluencerAdminIds = ids.filter(id => id !== influencerAdminId);
-      delete event.authorizedInfluencerAdminId;
-      await writeEvents(events);
-      return sendJson(res,200,{success:true,event:event});
-    }
-
-    // ── Influencer Admin: authorized-event payment/ticket overview ──
-    if (pathname === '/api/influencer-admin/overview' && req.method === 'GET') {
-      const auth = req.headers['authorization'] || '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      const user = await getSessionUser(token);
-      if (!user || user.role !== 'influencer_admin') return sendJson(res,403,{success:false,error:'Influencer Admin access only'});
-      const [events, orders] = await Promise.all([readEvents(), readOrders()]);
-      const authorizedEvents = events.filter(ev => {
-        const ids = Array.isArray(ev.authorizedInfluencerAdminIds) ? ev.authorizedInfluencerAdminIds.map(String) : (ev.authorizedInfluencerAdminId ? [String(ev.authorizedInfluencerAdminId)] : []);
-        return ids.includes(String(user.id));
-      });
-      const requestedEventId = String(url.searchParams.get('eventId') || '').trim();
-      const selected = requestedEventId ? authorizedEvents.find(ev => String(ev.id) === requestedEventId) : null;
-      const scopeEvents = selected ? [selected] : authorizedEvents;
-      const eventIds = new Set(scopeEvents.map(ev => String(ev.id)));
-      const eventNames = new Set(scopeEvents.map(ev => String(ev.name || '').trim().toLowerCase()).filter(Boolean));
-      const scopedOrders = orders.filter(o => {
-        const id = String(o.eventId || '');
-        const name = String(o.eventName || '').trim().toLowerCase();
-        return (id && eventIds.has(id)) || (!id && name && eventNames.has(name));
-      });
-      const verified = scopedOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
-      const pending = scopedOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
-      const eventMap = {};
-      scopeEvents.forEach(ev => { eventMap[String(ev.id)] = { eventId:ev.id, eventName:ev.name, date:ev.date || '', venue:ev.venue || '', ticketsSold:0, pendingTickets:0, verifiedOrders:0, pendingOrders:0, verifiedRevenue:0 }; });
-      verified.forEach(o => { const key=String(o.eventId || '') || Array.from(eventIds).find(id => String((scopeEvents.find(e=>String(e.id)===id)||{}).name||'').trim().toLowerCase()===String(o.eventName||'').trim().toLowerCase()); if(eventMap[key]) { eventMap[key].ticketsSold += parseInt(o.qty,10)||0; eventMap[key].verifiedOrders++; eventMap[key].verifiedRevenue += Number(o.amount)||0; } });
-      pending.forEach(o => { const key=String(o.eventId || '') || Array.from(eventIds).find(id => String((scopeEvents.find(e=>String(e.id)===id)||{}).name||'').trim().toLowerCase()===String(o.eventName||'').trim().toLowerCase()); if(eventMap[key]) { eventMap[key].pendingTickets += parseInt(o.qty,10)||0; eventMap[key].pendingOrders++; } });
-      return sendJson(res,200,{success:true, selectedEventId:selected ? selected.id : null, events:scopeEvents, summary:{totalOrders:scopedOrders.length, verifiedOrders:verified.length, pendingOrders:pending.length, ticketsSold:verified.reduce((s,o)=>s+(parseInt(o.qty,10)||0),0), pendingTickets:pending.reduce((s,o)=>s+(parseInt(o.qty,10)||0),0), verifiedRevenue:verified.reduce((s,o)=>s+(Number(o.amount)||0),0)}, eventSummaries:Object.values(eventMap), orders:scopedOrders});
-    }
-
     // ── Admin (master only): list influencer accounts ──
     if (pathname === '/api/admin/influencers' && req.method === 'GET') {
       // Main Admin, Sub-admin and Influencer Admin can view influencer accounts.
@@ -1758,7 +1697,7 @@ const user = {
       const orders = await readOrders();
       const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
        const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || u.createdBy === authCtx.user.id)).map(u => {
-        const link = links.find(l => l.subadminId === u.id) || null;
+        const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
@@ -1829,7 +1768,7 @@ const user = {
       const links = await readReferralLinks();
       const orders = await readOrders();
       const subs = users.filter(u => u.role === 'subadmin').map(u => {
-        const link = links.find(l => l.subadminId === u.id) || null;
+        const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
@@ -2957,7 +2896,65 @@ codes[idx] = entry;
       });
     }
 
-// ── Admin/Sub-admin: create/update an event ──
+// ── Main Admin: list ALL existing events for management/authorization ──
+    if (pathname === '/api/admin/events' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      return sendJson(res, 200, { success: true, events: await readEvents() });
+    }
+
+    // ── Main Admin: explicitly authorize an existing event to an Influencer Admin ──
+    if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can authorize events.' });
+      const body = await readBody(res);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const influencerAdminId = String(data.influencerAdminId || '').trim();
+      const action = String(data.action || 'add').toLowerCase();
+      if (!eventId || !influencerAdminId) return sendJson(res, 400, { success:false, error:'Event and Influencer Admin are required.' });
+      const users = await readUsers();
+      const staff = users.find(u => String(u.id) === influencerAdminId && u.role === 'influencer_admin' && u.archived !== true);
+      if (!staff) return sendJson(res, 404, { success:false, error:'Influencer Admin not found.' });
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res, 404, { success:false, error:'Event not found.' });
+      const ids = getAuthorizedInfluencerAdminIds(events[idx]);
+      if (action === 'remove') {
+        events[idx].authorizedInfluencerAdminIds = ids.filter(id => id !== influencerAdminId);
+      } else {
+        if (!ids.includes(influencerAdminId)) ids.push(influencerAdminId);
+        events[idx].authorizedInfluencerAdminIds = ids;
+      }
+      await writeEvents(events);
+      return sendJson(res, 200, { success:true, event:events[idx] });
+    }
+
+    // ── Influencer Admin: event-specific sales overview ──
+    if (pathname === '/api/influencer-admin/event-overview' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const events = await readEvents();
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
+      const ownInfluencers = users.filter(u => u.role === 'influencer' && u.createdBy === authCtx.user.id && u.archived !== true);
+      const result = authorizedEvents.map(ev => {
+        const eventOrders = orders.filter(o => eventMatchesOrder(o, ev));
+        const influencerRows = ownInfluencers.map(inf => {
+          const link = links.find(l => l.influencerId === inf.id || l.ownerId === inf.id || l.subadminId === inf.id);
+          const code = link && link.code;
+          const rows = code ? eventOrders.filter(o => o.referralCode === code) : [];
+          const verified = rows.filter(o => String(o.status || '').toLowerCase() === 'verified');
+          const pending = rows.filter(o => String(o.status || '').toLowerCase() === 'pending');
+          return { influencer: publicUser(inf), referralCode: code || null, orders: rows, totalOrders: rows.length, verifiedOrders: verified.length, pendingOrders: pending.length, ticketsSold: verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), pendingTickets: pending.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue: verified.reduce((n,o)=>n+(Number(o.amount)||0),0) };
+        });
+        const verified = eventOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
+        return { event: ev, totalOrders:eventOrders.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
+      });
+      return sendJson(res, 200, { success:true, events:result });
+    }
+
+    // ── Admin/Sub-admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
       if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
@@ -2976,8 +2973,7 @@ codes[idx] = entry;
         if (uni) uniSlug = uni.slug || uni.id;
       }
       const existingEvents = await readEvents();
-      const existingEvent = existingEvents.find(e => String(e.id) === id) || null;
-      const preservedAuthorized = Array.isArray(existingEvent?.authorizedInfluencerAdminIds) ? existingEvent.authorizedInfluencerAdminIds : (existingEvent?.authorizedInfluencerAdminId ? [existingEvent.authorizedInfluencerAdminId] : []);
+      const existingEvent = existingEvents.find(e => String(e.id) === id);
       const ev = {
         id: id,
         name: name,
@@ -3007,7 +3003,7 @@ codes[idx] = entry;
         icon: data.icon || '🎟️',
         featured: !!data.featured,
         archived: data.id ? !!data.archived : false,
-        authorizedInfluencerAdminIds: preservedAuthorized,
+        authorizedInfluencerAdminIds: getAuthorizedInfluencerAdminIds(existingEvent),
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
@@ -3188,6 +3184,8 @@ if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const eventId = String(data.eventId || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+await resetLegacyPaymentDataOnce();
+await removeBundledDemoEvents();
 const events = await readEvents();
       const ev = events.find(e => e.id === eventId);
       if (!ev) return sendJson(res, 404, { success: false, error: 'Event not found' });

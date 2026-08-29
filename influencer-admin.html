@@ -655,9 +655,10 @@
   </style>
 
 <style id="influencer-admin-scope">
-  .admin-panel[id^="panel-"] { display:none; }
-  .admin-panel.active { display:block; }
-  .influencer-only { display:none; }
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="event-sales"]):not([data-tab="events"]) { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-event-sales):not(#panel-events) { display:none !important; }
+  #panel-event-sales, #panel-events { display:none; }
+  #panel-event-sales.active, #panel-events.active, #panel-overview.active { display:block; }
 </style>
 </head>
 <body>
@@ -708,6 +709,7 @@
       <div class="admin-tabs">
         <div class="admin-tabs-inner">
 <button class="admin-tab active" data-tab="overview">📊 Overview</button>
+          <button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
           <button class="admin-tab" data-tab="checkin">🎫 Check-in</button>
           <button class="admin-tab" data-tab="events">🎤 Add Events</button>
           <button class="admin-tab" data-tab="universities">🏛 Universities</button>
@@ -720,24 +722,6 @@
       <div class="container">
         <!-- ── OVERVIEW PANEL ── -->
         <div class="admin-panel active" id="panel-overview">
-          <div class="influencer-only" id="influencerEventOverview" style="display:none;">
-            <div class="admin-panel-heading">
-              <div><h1>📊 Authorized Event Overview</h1><p id="influencerOverviewSubtitle">Only events explicitly authorized by the Main Admin are shown here.</p></div>
-              <button class="admin-refresh-btn" type="button" onclick="loadInfluencerEventOverview()">↻ Refresh</button>
-            </div>
-            <div class="admin-cat-filters" style="margin-bottom:14px;">
-              <div class="admin-cat-filter" style="min-width:240px;flex:1;"><label for="influencerEventSelect">🎤 Select Authorized Event</label><select id="influencerEventSelect" onchange="loadInfluencerEventOverview(this.value)"><option value="">All Authorized Events</option></select></div>
-            </div>
-            <div class="admin-stats">
-              <div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="iaTotalOrders">0</div></div>
-              <div class="admin-stat verified"><div class="admin-stat-label">Verified Orders</div><div class="admin-stat-value" id="iaVerifiedOrders">0</div></div>
-              <div class="admin-stat"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="iaTicketsSold">0</div></div>
-              <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="iaRevenue">₦0</div></div>
-            </div>
-            <div class="admin-ticket-codes" style="margin-top:14px;"><div class="admin-ticket-codes-label">🎟 Event Sales</div><div id="iaEventSummaries"></div></div>
-            <div class="admin-orders" id="iaOrdersList" style="margin-top:14px;"></div>
-          </div>
-          <div id="masterOrdersOverview">
           <div class="admin-panel-heading">
             <div>
               <h1>📊 Orders Overview</h1>
@@ -794,6 +778,25 @@
           </div>
 
           <div class="admin-orders" id="ordersList"></div>
+        </div>
+
+        <!-- ── AUTHORIZED EVENT SALES PANEL ── -->
+        <div class="admin-panel" id="panel-event-sales">
+          <div class="admin-panel-heading">
+            <div><h1>🎟 Authorized Event Sales</h1><p>Select an event that the Main Admin explicitly authorized to you. This shows the tickets sold by each influencer assigned to your account for that event.</p></div>
+            <button class="admin-refresh-btn" onclick="loadAuthorizedEventSales()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel" style="margin-bottom:16px;">
+            <div class="form-group"><label for="authorizedEventSelect">Authorized Event</label><select id="authorizedEventSelect"><option value="">Loading authorized events…</option></select></div>
+          </div>
+          <div class="admin-stats">
+            <div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="aesOrders">0</div></div>
+            <div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
+            <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
+          </div>
+          <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
+            <h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
+            <div id="aesInfluencers"></div>
           </div>
         </div>
 
@@ -1079,7 +1082,6 @@ function fmtN(n) {
           var nameEl = document.getElementById('adminUserName');
           if (nameEl && u) { nameEl.textContent = u.name || u.email || 'Influencer Admin'; nameEl.style.display = 'inline-flex'; }
         } catch(e) {}
-        updateRoleView();
       }
       function showLoggedOut() {
         loginScreen.style.display = 'flex';
@@ -1156,37 +1158,6 @@ function fmtN(n) {
         if (t) h['Authorization'] = 'Bearer ' + t;
         if (!h['Content-Type']) h['Content-Type'] = 'application/json';
         return h;
-      }
-
-      window.loadInfluencerEventOverview = function(eventId) {
-        if (getCurrentRole() !== 'influencer_admin') return;
-        var url='/api/influencer-admin/overview' + (eventId ? '?eventId='+encodeURIComponent(eventId) : '');
-        fetch(url,{headers:{'Authorization':'Bearer '+getToken()}}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){
-          if(!x.ok || !x.d || !x.d.success) throw new Error((x.d&&x.d.error)||'Could not load authorized events');
-          var d=x.d, sel=document.getElementById('influencerEventSelect');
-          if(sel && !eventId){
-            sel.innerHTML='<option value="">All Authorized Events</option>'+(d.events||[]).map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name||e.id)+'</option>';}).join('');
-          }
-          if(sel && eventId) sel.value=eventId;
-          var sum=d.summary||{};
-          document.getElementById('iaTotalOrders').textContent=sum.totalOrders||0;
-          document.getElementById('iaVerifiedOrders').textContent=sum.verifiedOrders||0;
-          document.getElementById('iaTicketsSold').textContent=sum.ticketsSold||0;
-          document.getElementById('iaRevenue').textContent=fmtN(sum.verifiedRevenue||0);
-          var es=document.getElementById('iaEventSummaries');
-          es.innerHTML=(d.eventSummaries||[]).length ? d.eventSummaries.map(function(e){return '<div class="admin-ticket-code" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 0;"><div><strong>🎤 '+esc(e.eventName)+'</strong><div style="font-size:.74rem;color:var(--text-3);">'+esc(e.date||'')+(e.venue?' · '+esc(e.venue):'')+'</div></div><div style="text-align:right;font-size:.78rem;"><div><strong>'+esc(e.ticketsSold)+'</strong> tickets sold</div><div style="color:var(--text-3);">'+esc(e.verifiedOrders)+' verified · '+fmtN(e.verifiedRevenue)+'</div></div></div>';}).join('') : '<div style="padding:14px;color:var(--text-3);font-size:.82rem;">No events have been authorized to this account yet.</div>';
-          var ol=document.getElementById('iaOrdersList');
-          ol.innerHTML=(d.orders||[]).length ? (d.orders||[]).map(function(o){return '<div class="admin-order"><div class="admin-order-main"><div class="admin-order-top"><span class="admin-order-id">'+esc(o.orderId||'—')+'</span><span class="admin-order-badge '+esc(o.status||'')+'">'+esc(o.status||'pending')+'</span></div><div class="admin-order-event">🎤 '+esc(o.eventName||'—')+'</div><div class="admin-order-meta"><span>👤 '+esc(o.buyerName||'—')+'</span><span>🎟 '+esc(o.qty||0)+' ticket(s)</span><span>₦'+Number(o.amount||0).toLocaleString()+'</span></div></div></div>';}).join('') : '<div class="admin-empty"><span>🗂️</span><p>No orders for the selected authorized event.</p></div>';
-        }).catch(function(err){showToast(err.message||'Could not load authorized event overview',true);});
-      };
-
-      function updateRoleView() {
-        var isIA=getCurrentRole()==='influencer_admin';
-        var ia=document.getElementById('influencerEventOverview'), master=document.getElementById('masterOrdersOverview');
-        if(ia) ia.style.display=isIA?'block':'none';
-        if(master) master.style.display=isIA?'none':'block';
-        if(isIA){ document.querySelectorAll('.admin-tab').forEach(function(b){var n=b.getAttribute('data-tab'); b.style.display=(n==='overview'||n==='events')?'':'none';}); loadInfluencerEventOverview(); }
-        else { document.querySelectorAll('.admin-tab').forEach(function(b){b.style.display='';}); }
       }
 
       // Login handler: master admin OR dedicated influencer-admin account.
@@ -1377,7 +1348,32 @@ function fmtN(n) {
         origShowLoggedIn();
         loadManagedUniversities();
         loadManagedEvents();
+        loadAuthorizedEventSales();
       };
+
+      var authorizedEventSales = [];
+      window.loadAuthorizedEventSales = function() {
+        fetch('/api/influencer-admin/event-overview',{headers:{'Authorization':'Bearer '+getToken()}})
+          .then(function(r){return r.json();}).then(function(d){
+            if(!d.success) throw new Error(d.error||'Unable to load authorized events');
+            authorizedEventSales=d.events||[];
+            var sel=document.getElementById('authorizedEventSelect');
+            if(sel){ var keep=sel.value; sel.innerHTML='<option value="">Select an authorized event…</option>'+authorizedEventSales.map(function(x){return '<option value="'+esc(x.event.id)+'">'+esc(x.event.name||x.event.id)+'</option>';}).join(''); if(keep)sel.value=keep; if(sel.value)renderAuthorizedEventSales(sel.value); else if(authorizedEventSales.length){sel.value=authorizedEventSales[0].event.id;renderAuthorizedEventSales(sel.value);} }
+          }).catch(function(e){var b=document.getElementById('aesInfluencers');if(b)b.innerHTML='<div style="color:#B71C1C;padding:12px;">'+esc(e.message||'Unable to load authorized event sales.')+'</div>';});
+      };
+      window.renderAuthorizedEventSales = function(eventId) {
+        var data=authorizedEventSales.find(function(x){return String(x.event.id)===String(eventId);});
+        if(!data)return;
+        document.getElementById('aesOrders').textContent=String(data.verifiedOrders||0);
+        document.getElementById('aesTickets').textContent=String(data.ticketsSold||0);
+        document.getElementById('aesRevenue').textContent='₦'+Number(data.revenue||0).toLocaleString();
+        var box=document.getElementById('aesInfluencers');
+        if(!box)return;
+        var rows=data.influencers||[];
+        if(!rows.length){box.innerHTML='<div style="color:var(--text-3);padding:14px;">No influencers are assigned to this Influencer Admin yet.</div>';return;}
+        box.innerHTML=rows.map(function(r){return '<div style="display:grid;grid-template-columns:2fr repeat(4,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Orders</small><br><strong>'+r.verifiedOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingTickets+'</strong></div><div><small>Revenue</small><br><strong>₦'+Number(r.revenue||0).toLocaleString()+'</strong></div></div>';}).join('');
+      };
+      var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
 
       // Load orders (exposed for refresh button)
       window.loadOrders = function() {
