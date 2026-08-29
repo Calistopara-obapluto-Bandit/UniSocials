@@ -2570,7 +2570,10 @@ codes[idx] = entry;
         return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
       }
       const orders = await getOrdersForCurrentSiteEvents();
-      const verified = orders.filter(o => String(o.status || '').toLowerCase() === 'verified');
+      const statusOf = o => String(o.status || 'pending').trim().toLowerCase();
+      const pending = orders.filter(o => statusOf(o) === 'pending');
+      const verified = orders.filter(o => statusOf(o) === 'verified');
+      const rejected = orders.filter(o => statusOf(o) === 'rejected');
       const ticketsSold = verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
       const revenue = verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
       const uniquePeople = new Set(verified.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
@@ -2585,7 +2588,10 @@ codes[idx] = entry;
       return sendJson(res, 200, {
         success: true,
         sales: {
-          totalOrders: verified.length,
+          totalOrders: orders.length,
+          pendingOrders: pending.length,
+          verifiedOrders: verified.length,
+          rejectedOrders: rejected.length,
           totalTickets: ticketsSold,
           totalRevenue: revenue,
           uniquePeople,

@@ -425,11 +425,16 @@
           </div>
 
           <div class="admin-scan-panel">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalOrders">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Total Sales</div></div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalTickets">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Tickets Sold</div></div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalRevenue">₦0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Total Revenue</div></div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesUniquePeople">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Customers</div></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalOrders">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Total Orders</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesPendingOrders">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Pending Orders</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesVerifiedOrders">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Verified Orders</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesRejectedOrders">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Rejected Orders</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalTickets">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Verified Tickets Sold</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesTotalRevenue">₦0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Verified Revenue</div></div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="salesUniquePeople">0</div><div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Verified Customers</div></div>
             </div>
 
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
@@ -1358,6 +1363,9 @@ resultBox.className = 'admin-scan-result show';
           if(!d||!d.success) return; var s=d.sales||{};
           var set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
           set('salesTotalOrders',Number(s.totalOrders||0).toLocaleString());
+          set('salesPendingOrders',Number(s.pendingOrders||0).toLocaleString());
+          set('salesVerifiedOrders',Number(s.verifiedOrders||0).toLocaleString());
+          set('salesRejectedOrders',Number(s.rejectedOrders||0).toLocaleString());
           set('salesTotalTickets',Number(s.totalTickets||0).toLocaleString());
           set('salesTotalRevenue','₦'+Number(s.totalRevenue||0).toLocaleString());
           set('salesUniquePeople',Number(s.uniquePeople||0).toLocaleString());
