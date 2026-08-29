@@ -11,11 +11,11 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&amp;family=Playfair+Display:ital,wght@0,700;1,600&amp;display=swap" rel="stylesheet"/>
 <link href="templatemo-622-clearwave.css" rel="stylesheet"/>
 <style>
-    .admin-body { padding-top: 90px; }
+    .admin-body { padding-top: 0; }
     .admin-topbar {
       background: var(--text-1);
       color: #fff;
-      padding: 14px 0;
+      padding: 10px 0;
     }
     .admin-topbar-inner {
       max-width: 1160px;
@@ -24,7 +24,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 10px;
     }
     .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
     .admin-topbar .nav-logo span { color: var(--accent-light); }
@@ -196,9 +196,9 @@
     .admin-tabs-inner {
       max-width: 1160px;
       margin: 0 auto;
-      padding: 0 32px;
+      padding: 0 24px;
       display: flex;
-      gap: 4px;
+      gap: 2px;
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -653,7 +653,20 @@
       padding: 8px 12px;
       text-align: center;
     }
-  </style>
+  
+    /* Tight dashboard header spacing */
+    .admin-body { padding-top: 0 !important; }
+    .admin-topbar { padding: 10px 0; }
+    .admin-topbar-inner { gap: 10px; }
+    .admin-tabs-inner { gap: 2px; }
+    .admin-tab { padding-top: 11px; padding-bottom: 11px; }
+    @media (max-width: 600px) {
+      .admin-topbar { padding: 8px 0; }
+      .admin-topbar-inner { padding-left: 10px; padding-right: 10px; gap: 6px; }
+      .admin-tabs-inner { padding-left: 6px; padding-right: 6px; gap: 0; }
+      .admin-tab { padding: 9px 8px; min-height: 40px; }
+    }
+</style>
 <style id="influencer-admin-scope">
   /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
   .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]) { display:none !important; }
