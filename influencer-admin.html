@@ -655,10 +655,12 @@
   </style>
 
 <style id="influencer-admin-scope">
-  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="event-sales"]):not([data-tab="events"]) { display:none !important; }
-  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-event-sales):not(#panel-events) { display:none !important; }
-  #panel-event-sales, #panel-events { display:none; }
-  #panel-event-sales.active, #panel-events.active, #panel-overview.active { display:block; }
+  /* Influencer Admin may see their own influencer roster as well as the
+     authorized-event sales view. Event authorization itself remains Main Admin-only. */
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="event-sales"]):not([data-tab="events"]):not([data-tab="influencers"]) { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-event-sales):not(#panel-events):not(#panel-influencers) { display:none !important; }
+  #panel-event-sales, #panel-events, #panel-influencers { display:none; }
+  #panel-event-sales.active, #panel-events.active, #panel-influencers.active, #panel-overview.active { display:block; }
 </style>
 </head>
 <body>

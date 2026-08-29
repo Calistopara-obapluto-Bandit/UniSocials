@@ -842,10 +842,31 @@ async function isAdminOrInfluencerAdmin(req) {
 // Influencer ownership is enforced server-side. Master admin can manage any
 // influencer; an influencer admin can manage only accounts whose createdBy
 // matches the authenticated influencer admin's user id.
+function influencerAdminOwnsInfluencer(authCtx, influencer) {
+  if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !influencer) return false;
+  const adminId = String(authCtx.user.id || '').trim();
+  const adminEmail = String(authCtx.user.email || '').trim().toLowerCase();
+  const adminName = String(authCtx.user.name || '').trim().toLowerCase();
+  const assigned = influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId;
+  if (assigned && String(assigned) === adminId) return true;
+  const owner = influencer.createdBy;
+  if (owner && typeof owner === 'object') {
+    const oid = String(owner.id || owner.userId || owner.ownerId || owner.influencerAdminId || '').trim();
+    const oemail = String(owner.email || '').trim().toLowerCase();
+    const oname = String(owner.name || '').trim().toLowerCase();
+    if (oid && oid === adminId) return true;
+    if (oemail && adminEmail && oemail === adminEmail) return true;
+    if (oname && adminName && oname === adminName) return true;
+    return false;
+  }
+  const ownerValue = String(owner || '').trim();
+  return ownerValue === adminId || (!!adminEmail && ownerValue.toLowerCase() === adminEmail) || (!!adminName && ownerValue.toLowerCase() === adminName);
+}
+
 function canManageInfluencer(authCtx, influencer) {
   if (!authCtx || !influencer || influencer.role !== 'influencer') return false;
   if (authCtx.role === 'admin') return true;
-  return authCtx.role === 'influencer_admin' && influencer.createdBy === authCtx.user.id;
+  return influencerAdminOwnsInfluencer(authCtx, influencer);
 }
 async function isAdminOrSubadmin(req) {
   if (isAdminAuthorized(req)) return { role: 'admin' };
@@ -1696,7 +1717,7 @@ const user = {
       const links = await readReferralLinks();
       const orders = await readOrders();
       const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
-       const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || u.createdBy === authCtx.user.id)).map(u => {
+      const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || influencerAdminOwnsInfluencer(authCtx, u))).map(u => {
         const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -1734,6 +1755,7 @@ const user = {
         id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
         name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer',
         createdBy: authCtx.role === 'admin' ? null : authCtx.user.id,
+        assignedInfluencerAdminId: authCtx.role === 'influencer_admin' ? authCtx.user.id : null,
         createdAt: new Date().toISOString()
       };
       await addUser(influencer);
@@ -2939,9 +2961,7 @@ codes[idx] = entry;
       const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
       const ownInfluencers = users.filter(u => {
         if (u.role !== 'influencer' || u.archived === true) return false;
-        const owner = u.createdBy;
-        if (owner && typeof owner === 'object') return String(owner.id || owner.userId || owner.ownerId || '') === String(authCtx.user.id);
-        return String(owner || '') === String(authCtx.user.id);
+        return influencerAdminOwnsInfluencer(authCtx, u);
       });
       const result = authorizedEvents.map(ev => {
         const eventOrders = orders.filter(o => eventMatchesOrder(o, ev));

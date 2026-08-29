@@ -956,7 +956,13 @@
           <div class="admin-panel-heading">
             <div>
               <h1>📣 Influencers</h1>
-              <p>Create influencer login accounts. Influencers only see their referral dashboard and referral performance.</p>
+              <p>Create influencer login accounts and assign specific existing events to Influencer Admins.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel" style="margin-bottom:16px;border:2px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div><h2 style="font-size:1.05rem;margin:0 0 4px;">🔐 Event Authorization</h2><p style="margin:0;color:var(--text-3);font-size:.84rem;">Choose the exact existing event and the exact Influencer Admin who should oversee its ticket sales.</p></div>
+              <button class="btn-submit" type="button" onclick="document.getElementById('authEventSelect').focus();loadEventAuthorizations();">🔐 Authorize Event</button>
             </div>
           </div>
           <div class="admin-scan-panel">
@@ -978,7 +984,7 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end;">
               <div class="form-group"><label for="authEventSelect">Existing Event</label><select id="authEventSelect"><option value="">Select event…</option></select></div>
               <div class="form-group"><label for="authInfluencerAdminSelect">Influencer Admin</label><select id="authInfluencerAdminSelect"><option value="">Select Influencer Admin…</option></select></div>
-              <button class="btn-submit" onclick="authorizeInfluencerEvent()">🔐 Authorize Event</button>
+              <button id="authorizeEventBtn" class="btn-submit" type="button" onclick="authorizeInfluencerEvent()">🔐 Authorize Selected Event</button>
             </div>
             <div id="eventAuthorizationsList" style="margin-top:14px;"></div>
           </div>
