@@ -2921,17 +2921,30 @@ codes[idx] = entry;
       return sendJson(res, 200, { success:true, events:result });
     }
 
-    // ── Events visible/manageable by an Influencer Admin: only events they created ──
+    // ── Influencer Admin: Add Events list ──
+    // Keep the site's original Add Events flow: the Influencer Admin can see
+    // events they created AND existing events explicitly authorized to them.
+    // Authorized events are visible here for context, but are not treated as
+    // newly-created/owned events.
     if (pathname === '/api/influencer-admin/events' && req.method === 'GET') {
       const authCtx = await isAdminOrInfluencerAdmin(req);
       if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success:false, error:'Influencer Admin access only' });
       const myId = String(authCtx.user.id || '').trim();
       const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
-      const events = (await readEvents()).filter(ev => {
+      const allEvents = await readEvents();
+      const events = allEvents.filter(ev => {
         const c = ev && ev.createdBy;
-        if (!c) return false;
-        if (typeof c === 'string') return c === myId || c.toLowerCase() === myEmail;
-        return String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail;
+        const createdByMe = !!c && (typeof c === 'string'
+          ? (c === myId || c.toLowerCase() === myEmail)
+          : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
+        const authorizedToMe = getAuthorizedInfluencerAdminIds(ev).includes(myId);
+        return createdByMe || authorizedToMe;
+      }).map(ev => {
+        const c = ev && ev.createdBy;
+        const createdByMe = !!c && (typeof c === 'string'
+          ? (c === myId || c.toLowerCase() === myEmail)
+          : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
+        return Object.assign({}, ev, { visibleToInfluencerAdmin: true, createdByCurrentInfluencerAdmin: createdByMe, authorizedToCurrentInfluencerAdmin: getAuthorizedInfluencerAdminIds(ev).includes(myId) });
       });
       return sendJson(res, 200, { success:true, events });
     }
@@ -3267,28 +3280,34 @@ function publicUser(user) {
 }
 
 async function removeDemoMusicFestivalData() {
-  // Remove only the known bundled demo event and any orders that belong to it.
-  // This is intentionally exact so real events/orders are not affected.
-  const DEMO_ID = 'music-festival';
-  const DEMO_NAME = 'Campus Music Festival';
+  // Remove ONLY the known bundled/demo Music Festival record and its orders.
+  // This runs after storage is initialized, including PostgreSQL/Neon.
+  const DEMO_IDS = new Set(['music-festival']);
+  // Exact demo order identified from the Admin Orders screenshot.
+  // Remove only this known test payment; do not remove real UNN Music Festival orders.
+  const DEMO_ORDER_IDS = new Set(['unn-msc60k06-ewot']);
+  const DEMO_NAMES = new Set(['campus music festival', 'music festival']);
+  const isDemo = (record) => {
+    const id = String(record && (record.eventId || record.id) || '').trim().toLowerCase();
+    const name = String(record && (record.eventName || record.name) || '').trim().toLowerCase();
+    return DEMO_IDS.has(id) || DEMO_NAMES.has(name);
+  };
   try {
+    if (usePg) {
+      // Do the deletion directly in PostgreSQL so old persistent demo rows
+      // cannot survive a restart/redeploy or a JSON read/write mismatch.
+      await db.query(`DELETE FROM orders WHERE lower(trim(COALESCE(data->>'eventId',''))) = 'music-festival' OR lower(trim(COALESCE(data->>'eventName',''))) IN ('campus music festival','music festival') OR lower(trim(COALESCE(data->>'orderId',''))) = ANY($1)`, [Array.from(DEMO_ORDER_IDS)]);
+      await db.query(`DELETE FROM events WHERE lower(trim(COALESCE(data->>'id',''))) = 'music-festival' OR lower(trim(COALESCE(data->>'name',''))) IN ('campus music festival','music festival')`);
+      return;
+    }
     const orders = await readOrders();
-    const cleanedOrders = orders.filter(o => {
-      const id = String(o && o.eventId || '').trim().toLowerCase();
-      const name = String(o && o.eventName || '').trim().toLowerCase();
-      return id !== DEMO_ID && name !== DEMO_NAME.toLowerCase();
-    });
+    const cleanedOrders = orders.filter(o => !isDemo(o) && !DEMO_ORDER_IDS.has(String(o && o.orderId || '').trim().toLowerCase()));
     if (cleanedOrders.length !== orders.length) await writeOrders(cleanedOrders);
-
     const events = await readEvents();
-    const cleanedEvents = events.filter(e => {
-      const id = String(e && e.id || '').trim().toLowerCase();
-      const name = String(e && e.name || '').trim().toLowerCase();
-      return !(id === DEMO_ID && name === DEMO_NAME.toLowerCase());
-    });
+    const cleanedEvents = events.filter(e => !isDemo(e));
     if (cleanedEvents.length !== events.length) await writeEvents(cleanedEvents);
   } catch (e) {
-    console.warn('Demo music-festival cleanup skipped:', e.message);
+    console.warn('Demo Music Festival cleanup failed:', e.message);
   }
 }
 
