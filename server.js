@@ -435,64 +435,6 @@ function eventMatchesOrder(order, ev) {
   return String(order.eventName || '').trim().toLowerCase() === String(ev.name || '').trim().toLowerCase();
 }
 
-async function resetLegacyPaymentDataOnce() {
-  // One-time cleanup requested for the old/demo payment data. This resets the
-  // payment/sales counters to zero without affecting users, events, coupons,
-  // referral codes, or other account data. A migration marker prevents this
-  // from running again on future restarts/deploys.
-  const migrationId = 'reset-payment-data-2026-08-21';
-  try {
-    if (usePg) {
-      await db.query(`CREATE TABLE IF NOT EXISTS app_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT NOW())`);
-      const already = await db.query('SELECT 1 FROM app_migrations WHERE id = $1', [migrationId]);
-      if (already.rows.length) return;
-      await db.query('DELETE FROM orders');
-      await db.query(`UPDATE referral_links SET data = data || '{"totalOrders":0,"totalRevenue":0,"totalTickets":0,"uniquePeople":0}'::jsonb`);
-      await db.query('INSERT INTO app_migrations (id) VALUES ($1)', [migrationId]);
-      console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
-      return;
-    }
-
-    const marker = path.join(DATA_DIR, '.' + migrationId);
-    if (fs.existsSync(marker)) return;
-    await writeOrders([]);
-    try {
-      const raw = fs.readFileSync(path.join(DATA_DIR, 'referral_links.json'), 'utf8');
-      const links = JSON.parse(raw);
-      if (Array.isArray(links)) {
-        links.forEach(link => {
-          link.totalOrders = 0;
-          link.totalRevenue = 0;
-          link.totalTickets = 0;
-          link.uniquePeople = 0;
-        });
-        fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
-      }
-    } catch (_) {}
-    fs.writeFileSync(marker, new Date().toISOString(), 'utf8');
-    console.log('Payment reset migration applied: all existing payments/sales reset to 0.');
-  } catch (e) {
-    console.error('Payment reset migration failed:', e.message);
-    throw e;
-  }
-}
-
-async function removeBundledDemoEvents() {
-  // These were the old bundled/demo event records. Site-created events are
-  // retained. Removing by these exact IDs also removes the old Campus Music
-  // Festival record that was being used by the draft payment.
-  const ids = ['arts-cultural-night','engineering-dinner','entrepreneurship-summit','music-festival','law-moot-court','sports-day'];
-  if (usePg) {
-    await db.query('DELETE FROM events WHERE id = ANY($1::text[])', [ids]);
-    return;
-  }
-  try {
-    const events = await readEvents();
-    const next = events.filter(e => !ids.includes(String(e.id || '')));
-    if (next.length !== events.length) fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(next, null, 2), 'utf8');
-  } catch (_) {}
-}
-
 async function getOrdersForCurrentSiteEvents() {
   const [orders, events] = await Promise.all([readOrders(), readEvents()]);
   const eventIds = new Set(events.map(e => String(e.id || '')));
