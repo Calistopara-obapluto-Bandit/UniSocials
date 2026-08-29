@@ -777,7 +777,7 @@ async function isAdminOrInfluencerAdmin(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && user.role === 'influencer_admin') return { role: user.role, user };
+  if (user && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role))) return { role: 'influencer_admin', user: Object.assign({}, user, { role: 'influencer_admin' }) };
   return null;
 }
 
@@ -815,7 +815,7 @@ async function isAdminOrSubadmin(req) {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && ['subadmin','influencer','checkin_staff','influencer_admin'].includes(user.role)) return { role: user.role, user: user };
+  if (user && ['subadmin','influencer','checkin_staff','influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role))) return { role: (['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : user.role), user: user };
   return null;
 }
 
@@ -2646,6 +2646,7 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      await removeDemoMusicFestivalData();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
@@ -2653,6 +2654,7 @@ codes[idx] = entry;
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      await removeDemoMusicFestivalData();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
@@ -3273,44 +3275,54 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     phone: user.phone,
-    role: user.role || 'buyer',
+    role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : (user.role || 'buyer'),
     createdAt: user.createdAt,
     archived: user.archived === true
   };
 }
 
 async function removeDemoMusicFestivalData() {
-  // Remove ONLY the known bundled/demo Music Festival record and its orders.
-  // This runs after storage is initialized, including PostgreSQL/Neon.
-  const DEMO_IDS = new Set(['music-festival']);
-  // Exact demo order identified from the Admin Orders screenshot.
-  // Remove only this known test payment; do not remove real UNN Music Festival orders.
-  const DEMO_ORDER_IDS = new Set(['unn-msc60k06-ewot']);
-  const DEMO_NAMES = new Set(['campus music festival', 'music festival']);
-  const isDemo = (record) => {
-    const id = String(record && (record.eventId || record.id) || '').trim().toLowerCase();
-    const name = String(record && (record.eventName || record.name) || '').trim().toLowerCase();
-    return DEMO_IDS.has(id) || DEMO_NAMES.has(name);
-  };
+  // Remove only the exact demo order shown in the Admin screenshot and the
+  // known demo Music Festival event. Never delete other real orders/events.
+  const DEMO_ORDER = 'unn-msc60k06-ewot';
+  const DEMO_EVENT_IDS = new Set(['music-festival']);
+  const DEMO_EVENT_NAMES = new Set(['campus music festival', 'music festival']);
+  const normalize = v => String(v ?? '').trim().toLowerCase();
   try {
     if (usePg) {
-      // Do the deletion directly in PostgreSQL so old persistent demo rows
-      // cannot survive a restart/redeploy or a JSON read/write mismatch.
-      await db.query(`DELETE FROM orders WHERE lower(trim(COALESCE(data->>'eventId',''))) = 'music-festival' OR lower(trim(COALESCE(data->>'eventName',''))) IN ('campus music festival','music festival') OR lower(trim(COALESCE(data->>'orderId',''))) = ANY($1)`, [Array.from(DEMO_ORDER_IDS)]);
-      await db.query(`DELETE FROM events WHERE lower(trim(COALESCE(data->>'id',''))) = 'music-festival' OR lower(trim(COALESCE(data->>'name',''))) IN ('campus music festival','music festival')`);
+      // The screenshot's first code is the order identifier. Match it against
+      // common legacy field names and also scan the complete JSON document so
+      // old records cannot survive because their identifier was stored under
+      // a different key.
+      await db.query(`
+        DELETE FROM orders
+        WHERE lower(trim(COALESCE(data->>'orderId',''))) = $1
+           OR lower(trim(COALESCE(data->>'id',''))) = $1
+           OR lower(trim(COALESCE(data->>'eventId',''))) = ANY($2::text[])
+           OR lower(trim(COALESCE(data->>'eventName',''))) = ANY($3::text[])
+      `, [DEMO_ORDER, Array.from(DEMO_EVENT_IDS), Array.from(DEMO_EVENT_NAMES)]);
+      await db.query(`
+        DELETE FROM events
+        WHERE lower(trim(COALESCE(data->>'id',''))) = ANY($1::text[])
+           OR lower(trim(COALESCE(data->>'name',''))) = ANY($2::text[])
+      `, [Array.from(DEMO_EVENT_IDS), Array.from(DEMO_EVENT_NAMES)]);
       return;
     }
     const orders = await readOrders();
-    const cleanedOrders = orders.filter(o => !isDemo(o) && !DEMO_ORDER_IDS.has(String(o && o.orderId || '').trim().toLowerCase()));
-    if (cleanedOrders.length !== orders.length) await writeOrders(cleanedOrders);
+    const cleanOrders = orders.filter(o => {
+      const oid = normalize(o && (o.orderId || o.id));
+      const eid = normalize(o && o.eventId);
+      const ename = normalize(o && o.eventName);
+      return oid !== DEMO_ORDER && !DEMO_EVENT_IDS.has(eid) && !DEMO_EVENT_NAMES.has(ename);
+    });
+    if (cleanOrders.length !== orders.length) await writeOrders(cleanOrders);
     const events = await readEvents();
-    const cleanedEvents = events.filter(e => !isDemo(e));
-    if (cleanedEvents.length !== events.length) await writeEvents(cleanedEvents);
+    const cleanEvents = events.filter(e => !DEMO_EVENT_IDS.has(normalize(e && e.id)) && !DEMO_EVENT_NAMES.has(normalize(e && e.name)));
+    if (cleanEvents.length !== events.length) await writeEvents(cleanEvents);
   } catch (e) {
     console.warn('Demo Music Festival cleanup failed:', e.message);
   }
 }
-
 initStorage().then(async () => {
   await removeDemoMusicFestivalData();
   server.listen(PORT, () => {

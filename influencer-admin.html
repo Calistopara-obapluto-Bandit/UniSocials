@@ -657,6 +657,7 @@
 <style id="influencer-admin-scope">
   /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
   .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]) { display:none !important; }
+  .admin-panel[id="panel-checkin"], .admin-panel[id="panel-universities"], .admin-panel[id="panel-subscribers"], .admin-panel[id="panel-subadmins"], .admin-panel[id="panel-influencers"] { display:none !important; }
   .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales) { display:none !important; }
   #panel-events { display:none; }
   #panel-event-sales { display:none; }
@@ -1020,7 +1021,7 @@ function fmtN(n) {
           .then(function(x){
             if(!x.ok || !x.data || !x.data.success){throw new Error((x.data&&x.data.error)||'unauthorized');}
             var role=x.data.user&&x.data.user.role;
-            if(role!=='influencer_admin') throw new Error('This account is not authorized for the Influencer Admin dashboard.');
+            if(!['influencer_admin','influencer-admin','influencerAdmin'].includes(role)) throw new Error('This account is not authorized for the Influencer Admin dashboard.');
             setToken(x.data.token); localStorage.setItem('unn_admin_user',JSON.stringify(x.data.user||{}));
             errBox.classList.remove('show'); showLoggedIn();
           })
@@ -1112,7 +1113,7 @@ function fmtN(n) {
                 (vip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VIP ₦' + vip.toLocaleString() + '</span>' : '') +
                 (vvip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VVIP ₦' + vvip.toLocaleString() + '</span>' : '') +
                 '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
-                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +' + sourceBadge +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' + sourceBadge +
                 '</div></div>';
             });
             container.innerHTML = html;
@@ -1794,7 +1795,7 @@ fetch('/api/admin/events/notify', {
         try {
           var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
           var d = await r.json();
-          if (!r.ok || !d.success || !d.user || !['influencer_admin','admin'].includes(d.user.role)) {
+          if (!r.ok || !d.success || !d.user || !['influencer_admin','influencer-admin','influencerAdmin','admin'].includes(d.user.role)) {
             // Never silently log out on a refresh. Keep the persistent token and
             // let protected API calls decide authorization server-side.
             showLoggedIn();
