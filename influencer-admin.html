@@ -718,12 +718,12 @@
 <div class="admin-panel active" id="panel-overview">
 <div class="admin-panel-heading">
 <div>
-<h1>📊 Orders Overview</h1>
-<p id="lastUpdated">Loading orders…</p>
+<h1>📊 Sales Overview</h1>
+<p id="lastUpdated">Loading your authorized event sales…</p>
 </div>
 <div style="display:flex;gap:8px;flex-wrap:wrap;">
 <button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
-<button class="admin-refresh-btn" id="refreshBtn" onclick="loadOrders()">↻ Refresh</button>
+<button class="admin-refresh-btn" id="refreshBtn" onclick="loadInfluencerOverview()">↻ Refresh</button>
 </div>
 </div>
 <div class="admin-stats">
@@ -744,30 +744,10 @@
 <div class="admin-stat-value" id="statRevenue">₦0</div>
 </div>
 </div>
-<div class="admin-toolbar">
-<div class="admin-filters">
-<button class="admin-filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
-<button class="admin-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
-<button class="admin-filter-btn" data-filter="verified" onclick="setFilter('verified')">✅ Verified</button>
-<button class="admin-filter-btn" data-filter="rejected" onclick="setFilter('rejected')">❌ Rejected</button>
+<div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
+<h3 style="margin-bottom:10px;">Authorized Event Performance</h3>
+<div id="overviewEvents" style="display:flex;flex-direction:column;gap:10px;"></div>
 </div>
-</div>
-<div class="admin-cat-filters" id="catFilters">
-<div class="admin-cat-filter">
-<label for="eventFilterSel">🎤 Filter by Event</label>
-<select id="eventFilterSel" onchange="setEventFilter(this.value)">
-<option value="">All Events</option>
-</select>
-</div>
-<div class="admin-cat-filter">
-<label for="categoryFilterSel">🏷 Filter by Category</label>
-<select id="categoryFilterSel" onchange="setCategoryFilter(this.value)">
-<option value="">All Categories</option>
-</select>
-</div>
-<button class="admin-cat-clear" onclick="clearCatFilters()">✕ Clear Filters</button>
-</div>
-<div class="admin-orders" id="ordersList"></div>
 </div>
         <!-- ── EVENTS PANEL ── -->
         <div class="admin-panel" id="panel-events">
@@ -1215,6 +1195,7 @@ function fmtN(n) {
         loadManagedUniversities();
         loadManagedEvents();
         loadAuthorizedEventSales();
+        loadInfluencerOverview();
       };
 
       var authorizedEventSales = [];
@@ -1240,6 +1221,31 @@ function fmtN(n) {
         box.innerHTML=rows.map(function(r){return '<div style="display:grid;grid-template-columns:2fr repeat(4,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Orders</small><br><strong>'+r.verifiedOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingTickets+'</strong></div><div><small>Revenue</small><br><strong>₦'+Number(r.revenue||0).toLocaleString()+'</strong></div></div>';}).join('');
       };
       var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
+
+      // Influencer Admin overview: never call the Main Admin orders endpoint.
+      // Build the overview from events explicitly authorized to this account.
+      window.loadInfluencerOverview = function() {
+        var last = document.getElementById('lastUpdated');
+        var box = document.getElementById('overviewEvents');
+        if (last) last.textContent = 'Loading your authorized event sales…';
+        fetch('/api/influencer-admin/event-overview', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
+          .then(function(x) {
+            if (!x.ok || !x.data || !x.data.success) throw new Error((x.data && x.data.error) || 'Unable to load overview');
+            var rows = x.data.events || [];
+            var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,tickets:0,revenue:0});
+            var st=document.getElementById('statTotal'); if(st) st.textContent=totals.orders;
+            var sv=document.getElementById('statVerified'); if(sv) sv.textContent=totals.orders;
+            var sp=document.getElementById('statPending'); if(sp) sp.textContent=rows.reduce(function(n,e){ return n + (e.totalOrders||0) - (e.verifiedOrders||0); },0);
+            var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
+            if (box) {
+              if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet.</div>'; }
+              else { box.innerHTML=rows.map(function(ev){ return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>🧾 '+Number(ev.verifiedOrders||0)+' verified orders</span><span>₦'+Number(ev.revenue||0).toLocaleString()+'</span></div></div>'; }).join(''); }
+            }
+            if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
+          })
+          .catch(function(e){ if(last) last.textContent='Unable to load authorized event sales.'; if(box) box.innerHTML='<div style="padding:14px;color:#B71C1C;">'+esc(e.message||'Unable to load overview.')+'</div>'; });
+      };
 
       // Load orders (exposed for refresh button)
       window.loadOrders = function() {
