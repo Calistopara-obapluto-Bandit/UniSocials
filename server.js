@@ -3061,6 +3061,13 @@ codes[idx] = entry;
       const events = await readEvents();
       const idx = events.findIndex(e => String(e.id) === eventId);
       if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
+      if (authCtx.role === 'influencer_admin') {
+        const c = events[idx].createdBy;
+        const myId = String(authCtx.user?.id || '').trim();
+        const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
+        const owns = c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
+        if (!owns) return sendJson(res,403,{success:false,error:'You can only archive events you created.'});
+      }
       events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
       await writeEvents(events);
       return sendJson(res,200,{success:true,event:events[idx]});
