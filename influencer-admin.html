@@ -385,6 +385,7 @@
       transition: all 0.3s;
     }
     .admin-refresh-btn:hover { background: var(--accent); color: #fff; }
+    #managedEventsList [data-edit-event], #managedEventsList [data-archive-event] { display:inline-flex !important; visibility:visible !important; opacity:1 !important; align-items:center; justify-content:center; min-height:36px; }
     .admin-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* Event / Category filter selects */
@@ -1223,7 +1224,15 @@ function fmtN(n) {
             var html = '<div class="admin-ticket-codes-label">📋 Your Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
               var vip = Number(ev.vipPrice || 0), vvip = Number(ev.vvipPrice || 0);
-              var mine = ev.createdByCurrentInfluencerAdmin === true;
+              var owner = ev.createdBy || {};
+              var currentAdminId = String((window.currentUser && (window.currentUser.id || window.currentUser.userId)) || '').trim();
+              var currentAdminEmail = String((window.currentUser && window.currentUser.email) || '').trim().toLowerCase();
+              var mine = ev.createdByCurrentInfluencerAdmin === true ||
+                String(ev.influencerAdminId || ev.ownerInfluencerAdminId || ev.createdByInfluencerAdminId || '').trim() === currentAdminId ||
+                (owner && typeof owner === 'object' && (
+                  String(owner.id || owner.userId || owner.ownerId || owner.influencerAdminId || owner.assignedInfluencerAdminId || '').trim() === currentAdminId ||
+                  (currentAdminEmail && String(owner.email || '').trim().toLowerCase() === currentAdminEmail)
+                ));
               var archived = ev.archived === true;
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr;gap:8px;padding:10px 0;' + (archived ? 'opacity:.68;' : '') + '">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;">' +
@@ -1277,12 +1286,16 @@ function fmtN(n) {
             if(ev.createdByCurrentInfluencerAdmin !== true) throw new Error('You can only edit events you created.');
             editingEventId=String(ev.id); editingEventOriginalImage=ev.image||''; selectedEventImage=ev.image||'';
             var vals={evName:ev.name||'',evUniversity:ev.universityId||'',evCategory:ev.category||'General',evPrice:ev.price||'',evBonusPrice:ev.bonusPrice||'',evVIPPrice:ev.vipPrice||'',evBonusVIPPrice:ev.bonusVipPrice||'',evVVIPPrice:ev.vvipPrice||'',evBonusVVIPPrice:ev.bonusVvipPrice||'',evTablePrice:ev.tablePrice||'',evBonusTablePrice:ev.bonusTablePrice||'',evDate:ev.date||'',evTime:ev.time||'',evVenue:ev.venue||'',evDesc:ev.description||'',evTags:Array.isArray(ev.tags)?ev.tags.join(', '):(ev.tags||''),evIncludedRegular:ev.includedRegular||'',evIncludedVip:ev.includedVip||'',evIncludedVVIP:ev.includedVVIP||'',evIncludedTable:ev.includedTable||''};
-            loadManagedUniversities();
             Object.keys(vals).forEach(function(id){var el=document.getElementById(id);if(el)el.value=vals[id];});
-            setTimeout(function(){
-              var u=document.getElementById('evUniversity'); if(u)u.value=ev.universityId||'';
-              updateUniCategories(); var c=document.getElementById('evCategory'); if(c)c.value=ev.category||'General';
-            },80);
+            // Wait for the university list before selecting the event's university.
+            // This prevents a slow /api/universities response from leaving the select blank.
+            loadManagedUniversities().then(function(){
+              var u=document.getElementById('evUniversity');
+              if(u){ u.value=ev.universityId||''; }
+              updateUniCategories();
+              var c=document.getElementById('evCategory');
+              if(c)c.value=ev.category||'General';
+            });
             setEventImagePreview(ev.image||'');
             var btn=document.querySelector('#panel-events .btn-submit'); if(btn)btn.textContent='✏️ Update Event';
             var cancel=document.getElementById('cancelEditEventBtn'); if(cancel)cancel.style.display='inline-flex';
@@ -1299,7 +1312,7 @@ function fmtN(n) {
       };
 
       window.loadManagedUniversities = function() {
-        fetch('/api/universities')
+        return fetch('/api/universities')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             allUniversities = (data && data.success && data.universities) || [];
@@ -1599,129 +1612,7 @@ function fmtN(n) {
         });
       }
 
-// ── Universities Manager ──
-      var allUniversities = [];
-
-      window.loadManagedUniversities = function() {
-        fetch('/api/universities')
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            allUniversities = (data && data.success && data.universities) || [];
-            var container = document.getElementById('managedUniversitiesList');
-            var count = document.getElementById('uniManageCount');
-            if (count) count.textContent = allUniversities.length + ' universit' + (allUniversities.length !== 1 ? 'ies' : 'y');
-            if (!container) return;
-            if (!allUniversities.length) {
-              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No universities added yet. Add your first university above.</div>';
-              return;
-            }
-            var html = '<div class="admin-ticket-codes-label">🏛 Saved Universities (' + allUniversities.length + ')</div>';
-            allUniversities.forEach(function(uni) {
-              var id = (uni.id || uni._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-              var cats = (uni.categories || []).join(', ');
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
-                '<strong>' + esc(uni.name) + '</strong>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(uni.location || '') + (uni.state ? ', ' + esc(uni.state) : '') + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">Categories: ' + esc(cats || '—') + '</span>' +
-                '</div>' +
-                '<button class="admin-ticket-copy" onclick="deleteManagedUniversity(\'' + esc(id) + '\')" title="Delete university" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
-                '</div>';
-            });
-            container.innerHTML = html;
-            // Populate the event form university select + subscriber filter
-            populateUniversitySelects();
-          })
-          .catch(function() {});
-      };
-
-      function populateUniversitySelects() {
-        var uniSel = document.getElementById('evUniversity');
-        var subSel = document.getElementById('subFilterUni');
-        if (uniSel) {
-          var keep = uniSel.value;
-          var html = '<option value="">Select university...</option>';
-          allUniversities.forEach(function(u) {
-            html += '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>';
-          });
-          uniSel.innerHTML = html;
-          if (keep && allUniversities.some(function(u) { return u.id === keep; })) uniSel.value = keep;
-        }
-        if (subSel) {
-          var keep2 = subSel.value;
-          var html2 = '<option value="">All Universities</option>';
-          allUniversities.forEach(function(u) {
-            html2 += '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>';
-          });
-          subSel.innerHTML = html2;
-          if (keep2 && allUniversities.some(function(u) { return u.id === keep2; })) subSel.value = keep2;
-        }
-      }
-
-      window.updateUniCategories = function() {
-        var uniId = document.getElementById('evUniversity').value;
-        var catSel = document.getElementById('evCategory');
-        if (!uniId || !catSel) { if (catSel) catSel.innerHTML = '<option value="General">General</option>'; return; }
-        var uni = allUniversities.find(function(u) { return u.id === uniId; });
-        var cats = (uni && uni.categories && uni.categories.length) ? uni.categories : ['General'];
-        var html = '';
-        cats.forEach(function(c) { html += '<option value="' + esc(c) + '">' + esc(c) + '</option>'; });
-        catSel.innerHTML = html;
-      };
-
-      window.addUniversityItem = function() {
-        var name = document.getElementById('uniName').value.trim();
-        var location = document.getElementById('uniLocation').value.trim();
-        var state = document.getElementById('uniState').value.trim();
-        var categoriesRaw = document.getElementById('uniCategories').value.trim();
-        if (!name) { showToast('University name is required.', true); return; }
-        var categories = categoriesRaw ? categoriesRaw.split(',').map(function(c) { return c.trim(); }).filter(Boolean) : ['General'];
-        var uni = { name: name, location: location, state: state, categories: categories };
-        var btn = event && event.target;
-        if (btn) btn.disabled = true;
-        fetch('/api/admin/universities', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-          body: JSON.stringify(uni)
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            showToast('University "' + esc(name) + '" added!');
-            document.getElementById('uniName').value = '';
-            document.getElementById('uniLocation').value = '';
-            document.getElementById('uniState').value = '';
-            document.getElementById('uniCategories').value = '';
-            loadManagedUniversities();
-          } else {
-            showToast((data && data.error) || 'Failed to add university', true);
-          }
-        })
-        .catch(function() { showToast('Network error adding university', true); })
-        .finally(function() { if (btn) btn.disabled = false; });
-      };
-
-      window.deleteManagedUniversity = function(uniId) {
-        if (!uniId) return;
-        if (!confirm('Delete this university and all its events? This cannot be undone.')) return;
-        fetch('/api/admin/universities?universityId=' + encodeURIComponent(uniId), {
-          method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + getToken() }
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data.success) {
-            showToast('University deleted' + (data.eventsDeleted ? ' (' + data.eventsDeleted + ' events removed)' : ''));
-            loadManagedUniversities();
-            loadManagedEvents();
-          } else {
-            showToast((data && data.error) || 'Failed to delete university', true);
-          }
-        })
-        .catch(function() { showToast('Network error deleting university', true); });
-      };
-
-      // ── Subscribers ──
+// ── Subscribers ──
       window.loadSubscribers = function() {
         var uniId = document.getElementById('subFilterUni') ? document.getElementById('subFilterUni').value : '';
         var url = '/api/admin/subscribers' + (uniId ? '?universityId=' + encodeURIComponent(uniId) : '');

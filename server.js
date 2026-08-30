@@ -2956,20 +2956,21 @@ codes[idx] = entry;
       const myId = String(authCtx.user.id || '').trim();
       const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
       const allEvents = await readEvents();
-      const events = allEvents.filter(ev => {
+      const isMine = (ev) => {
         const c = ev && ev.createdBy;
-        const createdByMe = !!c && (typeof c === 'string'
-          ? (c === myId || c.toLowerCase() === myEmail)
-          : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
-        const authorizedToMe = getAuthorizedInfluencerAdminIds(ev).includes(myId);
-        return createdByMe || authorizedToMe;
-      }).map(ev => {
-        const c = ev && ev.createdBy;
-        const createdByMe = !!c && (typeof c === 'string'
-          ? (c === myId || c.toLowerCase() === myEmail)
-          : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
-        return Object.assign({}, ev, { visibleToInfluencerAdmin: true, createdByCurrentInfluencerAdmin: createdByMe, authorizedToCurrentInfluencerAdmin: getAuthorizedInfluencerAdminIds(ev).includes(myId) });
-      });
+        const direct = String(ev?.influencerAdminId || ev?.ownerInfluencerAdminId || ev?.createdByInfluencerAdminId || '').trim();
+        if (direct && direct === myId) return true;
+        if (typeof c === 'string') return c.trim() === myId || c.trim().toLowerCase() === myEmail;
+        if (c && typeof c === 'object') {
+          const oid = String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim();
+          const oemail = String(c.email || '').trim().toLowerCase();
+          return oid === myId || (!!myEmail && oemail === myEmail);
+        }
+        return false;
+      };
+      const events = allEvents.filter(ev => isMine(ev) || getAuthorizedInfluencerAdminIds(ev).includes(myId)).map(ev =>
+        Object.assign({}, ev, { visibleToInfluencerAdmin: true, createdByCurrentInfluencerAdmin: isMine(ev), authorizedToCurrentInfluencerAdmin: getAuthorizedInfluencerAdminIds(ev).includes(myId) })
+      );
       return sendJson(res, 200, { success:true, events });
     }
 
@@ -2994,12 +2995,13 @@ codes[idx] = entry;
       const existingEvents = await readEvents();
       const existingEvent = existingEvents.find(e => String(e.id) === id);
       if (authCtx.role === 'influencer_admin' && existingEvent) {
-        const c = existingEvent.createdBy;
+        const c = existingEvent.createdBy; const directOwnerId = String(existingEvent.influencerAdminId || existingEvent.ownerInfluencerAdminId || existingEvent.createdByInfluencerAdminId || '').trim();
         const myId = String(authCtx.user?.id || '').trim();
         const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
-        const owns = c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
+        const owns = directOwnerId === myId || (c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail)));
         if (!owns) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
       }
+      const isInfluencerAdminEdit = authCtx.role === 'influencer_admin' && !!existingEvent;
       const ev = {
         id: id,
         name: name,
@@ -3028,14 +3030,14 @@ codes[idx] = entry;
         image: String(data.image || '').trim(),
         icon: data.icon || '🎟️',
         featured: !!data.featured,
-        archived: data.id ? !!data.archived : false,
+        archived: isInfluencerAdminEdit ? !!existingEvent.archived : !!data.archived,
         authorizedInfluencerAdminIds: getAuthorizedInfluencerAdminIds(existingEvent),
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
         universitySlug: uniSlug,
-        createdAt: new Date().toISOString(),
-        createdBy: { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
+        createdAt: isInfluencerAdminEdit ? (existingEvent.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        createdBy: isInfluencerAdminEdit ? existingEvent.createdBy : { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
       };
             try {
         await addEvent(ev);
@@ -3063,9 +3065,10 @@ codes[idx] = entry;
       if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
       if (authCtx.role === 'influencer_admin') {
         const c = events[idx].createdBy;
+        const directOwnerId = String(events[idx].influencerAdminId || events[idx].ownerInfluencerAdminId || events[idx].createdByInfluencerAdminId || '').trim();
         const myId = String(authCtx.user?.id || '').trim();
         const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
-        const owns = c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail));
+        const owns = directOwnerId === myId || (c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail)));
         if (!owns) return sendJson(res,403,{success:false,error:'You can only archive events you created.'});
       }
       events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
