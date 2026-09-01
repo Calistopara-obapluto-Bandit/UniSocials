@@ -976,7 +976,7 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
           const status = String(t.status || '').toLowerCase();
           const amount = parseFloat(t.amount) || 0;
           const currency = String(t.currency || '').toUpperCase();
-          const returnedTxRef = String(t.tx_ref || '').trim();
+          const returnedTxRef = String(t.tx_ref || t.reference || '').trim();
           const verified = json.status === 'success' && ['successful', 'succeeded', 'completed'].includes(status);
 
           // Strong verification: the provider must return the same transaction
@@ -2224,24 +2224,35 @@ buyerFaculty: buyerFaculty,
         return sendJson(res, 400, { success: false, error: 'Payment could not be server-verified', verification: { status: result.status, amountOk: result.amountOk, currencyOk: result.currencyOk, txRefOk: result.txRefOk } });
       }
 
-      if (!order.paymentReceivedAt) {
-        await patchOrder(txRef, {
-          paymentReceivedAt: new Date().toISOString(),
+      // The browser callback is NOT trusted as proof of payment. The server has
+      // just independently verified the transaction with Flutterwave above, so
+      // this is now safe to fulfill even if the webhook is delayed/unavailable.
+      const latest = await getOrder(txRef);
+      const wasVerified = latest.status === 'verified';
+      let current = latest;
+      if (!wasVerified) {
+        current = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+          paymentReceivedAt: latest.paymentReceivedAt || new Date().toISOString(),
           paymentReceived: true,
-          paymentReceivedEmailSent: false,
           flutterwavePaymentVerifiedAt: new Date().toISOString(),
-          flutterwaveTransactionId: data.id || null
-        });
+          flutterwaveTransactionId: result.returnedTxRef || data.id || txRef,
+          flutterwavePaymentObserved: true,
+          flutterwavePaymentObservedAt: new Date().toISOString(),
+          flutterwaveVerificationFailed: false
+        }));
+        if (!wasVerified) {
+          notifyOrderVerified(current);
+          await refreshReferralStatsForVerifiedOrder(current, latest.status);
+        }
       }
-      const current = await getOrder(txRef);
-      if (!current.paymentReceivedEmailSent && current.status !== 'verified') {
+
+      if (!current.paymentReceivedEmailSent) {
         const sent = await sendBuyerPurchaseAcknowledgement(current);
         if (sent) {
-          await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
+          current = await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
         }
-        return sendJson(res, 200, { success: true, paymentReceived: true, acknowledgementSent: !!sent, order: { orderId: current.orderId, status: current.status } });
       }
-      return sendJson(res, 200, { success: true, paymentReceived: true, acknowledgementSent: true, order: { orderId: current.orderId, status: current.status } });
+      return sendJson(res, 200, { success: true, paymentReceived: true, automaticallyVerified: true, acknowledgementSent: !!current.paymentReceivedEmailSent, order: { orderId: current.orderId, status: current.status } });
     }
 
     // ── Verify payment (server-authoritative, ADMIN ONLY) ──
@@ -2311,7 +2322,7 @@ buyerFaculty: buyerFaculty,
       }
 
       const payloadData = data.data || {};
-      const txRef = String(payloadData.tx_ref || data.txRef || '').trim();
+      const txRef = String(payloadData.tx_ref || payloadData.reference || data.txRef || data.tx_ref || '').trim();
       const eventType = String(data.event || data.type || data['event.type'] || '').trim().toLowerCase();
       const webhookStatus = String(payloadData.status || '').trim().toLowerCase();
       const webhookId = String(data.id || data.webhook_id || '').trim();
