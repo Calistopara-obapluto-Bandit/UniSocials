@@ -1753,7 +1753,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events?includeArchived=1')
+        fetch('/api/events?includeArchived=1',{headers:authHeaders(),credentials:'same-origin'})
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
