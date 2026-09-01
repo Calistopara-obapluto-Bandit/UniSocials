@@ -1789,12 +1789,29 @@ fetch('/api/ticket/scan', {
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
+                '<button type="button" class="admin-ticket-copy" data-direct-archive-event="' + esc(id) + '" data-archived="' + (ev.archived ? '1' : '0') + '" title="' + (ev.archived ? 'Unarchive event' : 'Archive event') + '">' + (ev.archived ? '📦' : '🗃️') + '</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
+            container.querySelectorAll('[data-direct-archive-event]').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                var eventId=btn.getAttribute('data-direct-archive-event')||'';
+                var archived=btn.getAttribute('data-archived')==='1';
+                if(!eventId) return;
+                if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
+                btn.disabled=true;
+                fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived}),credentials:'same-origin'})
+                  .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+                  .then(function(x){
+                    if(x.ok&&x.data&&x.data.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}
+                    else showToast((x.data&&x.data.error)||'Could not change event status',true);
+                  }).catch(function(){showToast('Network error changing event status',true);})
+                  .finally(function(){btn.disabled=false;});
+              });
+            });
           })
           .catch(function() {});
       };
@@ -2657,50 +2674,30 @@ fetch('/api/admin/events/notify', {
   </script>
 <script id="archive-controls-ui">
 (function(){
+  // Current event cards render archive controls directly. Only add a control
+  // for stale cached cards that do not have one, and never overwrite current state.
   function token(){ return typeof getToken==='function' ? getToken() : ''; }
-  function headers(){ return {'Content-Type':'application/json','Authorization':'Bearer '+token()}; }
-  function addBtn(parent, label, title, handler){
-    if(!parent || parent.querySelector('[data-archive-control]')) return;
-    var b=document.createElement('button'); b.type='button'; b.className='admin-ticket-copy'; b.setAttribute('data-archive-control','1'); b.title=title; b.textContent=label; b.addEventListener('click',handler); parent.insertBefore(b,parent.firstChild); return b;
-  }
-  function scan(){
+  function scanLegacy(){
     document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
-      var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
-      var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
-      var eventId=m[1], action=card.lastElementChild||card;
-      addBtn(action,'🗃️','Archive event',function(){
+      if(card.querySelector('[data-direct-archive-event]')) return;
+      var edit=card.querySelector('[onclick*="editManagedEvent"]');
+      if(!edit) return;
+      var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/);
+      if(!m) return;
+      var b=document.createElement('button'); b.type='button'; b.className='admin-ticket-copy'; b.textContent='🗃️'; b.title='Archive event';
+      b.addEventListener('click',function(){
         if(!confirm('Archive this event?')) return;
-        fetch('/api/admin/events/archive',{method:'POST',headers:headers(),body:JSON.stringify({eventId:eventId,archived:true})})
-          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive event',true);});
+        b.disabled=true;
+        fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({eventId:m[1],archived:true}),credentials:'same-origin'})
+          .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+          .then(function(x){if(x.ok&&x.data&&x.data.success){showToast('Event archived');loadManagedEvents();}else showToast((x.data&&x.data.error)||'Could not archive event',true);})
+          .catch(function(){showToast('Network error changing event status',true);})
+          .finally(function(){b.disabled=false;});
       });
-    });
-    document.querySelectorAll('#subAdminsList .admin-ticket-code,#staffList .admin-ticket-code,#influencersList .admin-ticket-code').forEach(function(card){
-      var del=card.querySelector('[onclick*="deleteSubAdmin"],[onclick*="deleteStaffAccount"],[onclick*="deleteInfluencer"]'); if(!del) return;
-      var m=(del.getAttribute('onclick')||'').match(/\((?:'|")([^'"]+)(?:'|")\)/); if(!m) return;
-      var email=m[1], action=del.parentElement||card;
-      addBtn(action,'🗃️','Archive account',function(){
-        if(!confirm('Archive '+email+'? The account will no longer be usable.')) return;
-        fetch('/api/admin/accounts/archive',{method:'POST',headers:headers(),body:JSON.stringify({email:email,archived:true})})
-          .then(function(r){return r.json();}).then(function(d){if(d&&d.success){if(typeof showToast==='function')showToast('Account archived');if(typeof loadSubAdmins==='function')loadSubAdmins();if(typeof loadStaffAccounts==='function')loadStaffAccounts();if(typeof loadInfluencers==='function')loadInfluencers();}else if(typeof showToast==='function')showToast((d&&d.error)||'Could not archive account',true);});
-      });
+      var action=card.lastElementChild||card; action.insertBefore(b,action.firstChild);
     });
   }
-  function refreshArchiveState(){
-    fetch('/api/events?includeArchived=1').then(function(r){return r.json();}).then(function(d){
-      var map={}; (d.events||[]).forEach(function(e){map[String(e.id)]=!!e.archived;});
-      document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
-        var edit=card.querySelector('[onclick*="editManagedEvent"]'); if(!edit) return;
-        var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/); if(!m) return;
-        var b=card.querySelector('[data-archive-control]'); if(!b) return;
-        var archived=!!map[m[1]]; b.textContent=archived?'📦':'🗃️'; b.title=archived?'Unarchive event':'Archive event';
-        b.onclick=function(){
-          if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
-          fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':token()?'Bearer '+token():''},body:JSON.stringify({eventId:m[1],archived:!archived})}).then(function(r){return r.json();}).then(function(x){if(x&&x.success){if(typeof showToast==='function')showToast(archived?'Event unarchived':'Event archived');if(typeof loadManagedEvents==='function')loadManagedEvents();}else if(typeof showToast==='function')showToast((x&&x.error)||'Could not change event status',true);});
-        };
-      });
-    }).catch(function(){});
-  }
-    new MutationObserver(scan).observe(document.body,{subtree:true,childList:true}); setTimeout(scan,500); setTimeout(scan,1500); setTimeout(refreshArchiveState,900); setInterval(refreshArchiveState,4000);
+  setTimeout(scanLegacy,800); setTimeout(scanLegacy,1800);
 })();
 </script>
 

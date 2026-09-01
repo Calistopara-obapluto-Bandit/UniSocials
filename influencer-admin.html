@@ -1261,11 +1261,14 @@ function fmtN(n) {
                 var eventId=btn.getAttribute('data-event-id'), archived=btn.getAttribute('data-archived')==='1';
                 if(!eventId) return;
                 if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
-                fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived})})
-                  .then(function(r){return r.json();}).then(function(x){
-                    if(x&&x.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}
-                    else showToast((x&&x.error)||'Could not change event status',true);
-                  }).catch(function(){showToast('Could not change event status',true);});
+                btn.disabled = true;
+                fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived}),credentials:'same-origin'})
+                  .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
+                  .then(function(x){
+                    if(x.ok && x.data && x.data.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}
+                    else showToast((x.data&&x.data.error)||'Could not change event status',true);
+                  }).catch(function(){showToast('Network error changing event status',true);})
+                  .finally(function(){btn.disabled = false;});
               });
             });
           })
