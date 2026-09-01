@@ -6,8 +6,8 @@ Unisocials — Node.js server
     • PostgreSQL if DATABASE_URL is set (recommended for Render — survives restarts/redeploys)
     • JSON files in ./data otherwise (persists on local disk)
 - Flutterwave-only checkout with server-authoritative verification:
-    order is created PENDING → Flutterwave confirms → /api/verify-payment or webhook
-    checks amount+currency against the order BEFORE issuing tickets.
+    order is created PENDING → Flutterwave confirms → webhook or /api/verify-payment
+    re-verifies the transaction server-side and checks reference+amount+currency BEFORE issuing tickets.
 - One unique ticket code per ticket purchased (qty = N → N QR tickets).
 - Buyer accounts (register/login) so tickets are stored and don't require refresh.
 - Admin gate scan endpoint for check-in.
@@ -947,6 +947,11 @@ function readBody(req) {
   });
 }
 
+// Prevent duplicate fulfillment when Flutterwave retries a webhook or an admin
+// verifies the same order at the same time. Persistent ticketIssued/ticketEmailSent
+// flags below remain the source of truth across restarts.
+const paymentVerificationLocks = new Set();
+
 // Verify a transaction reference against Flutterwave (server-side)
 function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
   return new Promise((resolve) => {
@@ -968,21 +973,26 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
         try {
           const json = JSON.parse(data);
           const t = json.data || {};
-          const status = String(t.status || '');
+          const status = String(t.status || '').toLowerCase();
           const amount = parseFloat(t.amount) || 0;
-          const currency = String(t.currency || '');
-          const verified = json.status === 'success' && (status === 'successful' || status === 'completed');
+          const currency = String(t.currency || '').toUpperCase();
+          const returnedTxRef = String(t.tx_ref || '').trim();
+          const verified = json.status === 'success' && ['successful', 'succeeded', 'completed'].includes(status);
 
-          // Strong verification: match amount & currency against the order
+          // Strong verification: the provider must return the same transaction
+          // reference, amount, and currency that our order expects.
+          const txRefOk = !txRef || !returnedTxRef || returnedTxRef === String(txRef).trim();
           const amountOk = !expectedAmount || Math.abs(amount - expectedAmount) < 1;
-          const currencyOk = !expectedCurrency || currency === expectedCurrency;
+          const currencyOk = !expectedCurrency || currency === String(expectedCurrency).toUpperCase();
 
           resolve({
-            success: verified && amountOk && currencyOk,
+            success: verified && txRefOk && amountOk && currencyOk,
             apiSuccess: verified,
             amount: amount,
             currency: currency,
             status: status,
+            returnedTxRef: returnedTxRef,
+            txRefOk: txRefOk,
             amountOk: amountOk,
             currencyOk: currencyOk
           });
@@ -1439,9 +1449,9 @@ async function sendNewOrderAlert(order) {
 }
 
 // Fire only the admin alert when an order is created.
-// The buyer's payment-received acknowledgement is sent only after the
-// Flutterwave checkout reports a successful payment, but BEFORE manual admin
-// verification. Actual tickets are sent only from notifyOrderVerified().
+// The buyer's payment-received acknowledgement is sent only after the server
+// verifies the Flutterwave transaction. Actual tickets are sent only from
+// notifyOrderVerified() after the order becomes verified.
 function notifyNewOrder(order) {
   try {
     sendNewOrderAlert(order);
@@ -2195,11 +2205,10 @@ buyerFaculty: buyerFaculty,
       return sendJson(res, 200, { success: true, order: order });
     }
 
-    // ── Buyer payment-received acknowledgement (NO verification) ──
-    // Called by the Flutterwave checkout callback after Flutterwave reports a
-    // successful payment. This does NOT verify the transaction and NEVER
-    // issues tickets. It only sends the acknowledgement that payment was
-    // received and tickets will follow after manual verification.
+    // ── Buyer payment-received acknowledgement (SERVER-VERIFIED) ──
+    // The browser may report that Flutterwave completed checkout, but it is NOT
+    // trusted. We re-query Flutterwave first, then send only the acknowledgement
+    // email. Tickets are still issued only by the verified-order path below.
     if (pathname === '/api/payment-received' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
@@ -2208,23 +2217,24 @@ buyerFaculty: buyerFaculty,
       if (!txRef) return sendJson(res, 400, { success: false, error: 'Missing tx_ref' });
       const order = await getOrder(txRef);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
-      if (order.status === 'verified') {
-        return sendJson(res, 409, { success: false, error: 'Order is already verified; ticket delivery is handled separately.' });
+      if (order.status === 'rejected') return sendJson(res, 409, { success: false, error: 'Order has been rejected.' });
+
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+      if (!result.success) {
+        return sendJson(res, 400, { success: false, error: 'Payment could not be server-verified', verification: { status: result.status, amountOk: result.amountOk, currencyOk: result.currencyOk, txRefOk: result.txRefOk } });
       }
-      if (order.status === 'rejected') {
-        return sendJson(res, 409, { success: false, error: 'Order has been rejected.' });
-      }
+
       if (!order.paymentReceivedAt) {
         await patchOrder(txRef, {
           paymentReceivedAt: new Date().toISOString(),
           paymentReceived: true,
-          paymentReceivedEmailSent: false
+          paymentReceivedEmailSent: false,
+          flutterwavePaymentVerifiedAt: new Date().toISOString(),
+          flutterwaveTransactionId: data.id || null
         });
       }
       const current = await getOrder(txRef);
-      // Idempotent with retry: once the email is successfully sent, later
-      // callbacks do nothing; if delivery failed, a later callback retries it.
-      if (!current.paymentReceivedEmailSent) {
+      if (!current.paymentReceivedEmailSent && current.status !== 'verified') {
         const sent = await sendBuyerPurchaseAcknowledgement(current);
         if (sent) {
           await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
@@ -2264,50 +2274,108 @@ buyerFaculty: buyerFaculty,
   return sendJson(res, 400, { success: false, error: 'Payment verification failed' });
 }
 
-    // ── Flutterwave webhook (server-to-server) ──
+    // ── Flutterwave webhook (server-to-server, automatic verification) ──
     if (pathname === '/api/webhook/flutterwave' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
-      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      try { data = JSON.parse(body || '{}'); } catch (e) {
+        return sendJson(res, 400, { success: false, error: 'Invalid JSON' });
+      }
 
-      const signature = req.headers['x-flutterwave-signature'] || '';
       const webhookHash = process.env.FLUTTERWAVE_WEBHOOK_HASH !== undefined
         ? process.env.FLUTTERWAVE_WEBHOOK_HASH
         : defaults.FLUTTERWAVE_WEBHOOK_HASH;
-      let validSignature = true;
-      if (webhookHash) {
-        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('hex');
-        validSignature = expected === signature;
+      if (!webhookHash) {
+        console.error('Flutterwave webhook rejected: FLUTTERWAVE_WEBHOOK_HASH is not configured');
+        return sendJson(res, 503, { success: false, error: 'Webhook security is not configured' });
+      }
+
+      // Current Flutterwave webhook signing: HMAC-SHA256(raw body, secret hash),
+      // base64-encoded in the flutterwave-signature header. Keep legacy v3
+      // verif-hash support as a compatibility fallback.
+      const signature = String(req.headers['flutterwave-signature'] || '').trim();
+      const legacySignature = String(req.headers['verif-hash'] || '').trim();
+      let validSignature = false;
+      if (signature) {
+        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('base64');
+        const a = Buffer.from(expected);
+        const b = Buffer.from(signature);
+        validSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
+      } else if (legacySignature) {
+        const a = Buffer.from(webhookHash);
+        const b = Buffer.from(legacySignature);
+        validSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
       }
       if (!validSignature) {
-        return sendJson(res, 401, { success: false, error: 'Invalid signature' });
+        return sendJson(res, 401, { success: false, error: 'Invalid webhook signature' });
       }
 
-      const txRef = String((data.txRef || (data.data && data.data.tx_ref) || ''));
-      const eventType = String((data.event || data['event.type'] || ''));
-      const status = String((data.data && data.data.status) || '');
-      const webhookAmount = parseFloat((data.data && data.data.amount) || 0);
-      const webhookCurrency = String((data.data && data.data.currency) || '');
-      const isSuccess = eventType === 'charge.completed' && (status === 'successful' || status === 'completed');
+      const payloadData = data.data || {};
+      const txRef = String(payloadData.tx_ref || data.txRef || '').trim();
+      const eventType = String(data.event || data.type || data['event.type'] || '').trim().toLowerCase();
+      const webhookStatus = String(payloadData.status || '').trim().toLowerCase();
+      const webhookId = String(data.id || data.webhook_id || '').trim();
 
-      if (!txRef) return sendJson(res, 200, { success: false, error: 'Missing tx_ref' });
+      if (!txRef) return sendJson(res, 200, { success: true, ignored: true, reason: 'Missing tx_ref' });
 
       const order = await getOrder(txRef);
-      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
-
-      if (isSuccess && order.status !== 'verified') {
-        // Webhooks are informational only in this manual-verification flow.
-        // Do not mark verified or issue tickets automatically. Record the
-        // provider observation so an admin can still verify the order manually.
-        const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
-        const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
-        if (!amountOk || !currencyOk) {
-          return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
-        }
-        await patchOrder(txRef, { flutterwavePaymentObserved: true, flutterwavePaymentObservedAt: new Date().toISOString() });
-        console.log('Flutterwave payment observed (awaiting manual verification):', txRef);
+      if (!order) {
+        // Acknowledge unknown events so Flutterwave does not retry forever.
+        return sendJson(res, 200, { success: true, ignored: true, reason: 'Order not found', tx_ref: txRef });
       }
-      return sendJson(res, 200, { success: true, tx_ref: txRef, manualVerificationRequired: true });
+
+      // Idempotency: Flutterwave may retry the same event.
+      const seenWebhookIds = Array.isArray(order.flutterwaveWebhookIds) ? order.flutterwaveWebhookIds : [];
+      if (webhookId && seenWebhookIds.includes(webhookId)) {
+        return sendJson(res, 200, { success: true, duplicate: true, tx_ref: txRef });
+      }
+      const nextWebhookIds = webhookId ? seenWebhookIds.concat(webhookId).slice(-20) : seenWebhookIds;
+      if (webhookId) await patchOrder(txRef, { flutterwaveWebhookIds: nextWebhookIds, flutterwaveLastWebhookAt: new Date().toISOString() });
+
+      const isChargeCompleted = eventType === 'charge.completed' || eventType === 'charge_completed';
+      const providerReportedSuccess = ['successful', 'succeeded', 'completed'].includes(webhookStatus);
+      if (!isChargeCompleted || !providerReportedSuccess) {
+        return sendJson(res, 200, { success: true, ignored: true, tx_ref: txRef, status: webhookStatus });
+      }
+
+      // Do not trust webhook amount/status/reference. Re-query Flutterwave and
+      // verify against the exact order before issuing any ticket.
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+      if (!result.success) {
+        console.warn('Flutterwave webhook received but verification failed:', txRef, result);
+        await patchOrder(txRef, { flutterwavePaymentObserved: true, flutterwavePaymentObservedAt: new Date().toISOString(), flutterwaveVerificationFailed: true });
+        return sendJson(res, 200, { success: true, verified: false, tx_ref: txRef });
+      }
+
+      if (order.status === 'verified') {
+        return sendJson(res, 200, { success: true, verified: true, alreadyVerified: true, tx_ref: txRef });
+      }
+
+      if (paymentVerificationLocks.has(txRef)) {
+        return sendJson(res, 200, { success: true, verified: true, processing: true, tx_ref: txRef });
+      }
+
+      paymentVerificationLocks.add(txRef);
+      try {
+        const latest = await getOrder(txRef);
+        if (!latest) return sendJson(res, 200, { success: true, ignored: true, reason: 'Order disappeared', tx_ref: txRef });
+        if (latest.status !== 'verified') {
+          const updated = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+            flutterwavePaymentVerifiedAt: new Date().toISOString(),
+            flutterwaveTransactionId: result.returnedTxRef || txRef,
+            flutterwavePaymentObserved: true,
+            flutterwavePaymentObservedAt: new Date().toISOString(),
+            flutterwaveVerificationFailed: false
+          }));
+          notifyOrderVerified(updated);
+          await refreshReferralStatsForVerifiedOrder(updated, latest.status);
+          console.log('Automatically verified Flutterwave payment:', txRef, 'amount:', result.amount, result.currency);
+          return sendJson(res, 200, { success: true, verified: true, automaticallyVerified: true, tx_ref: txRef, order: { orderId: updated.orderId, status: updated.status } });
+        }
+        return sendJson(res, 200, { success: true, verified: true, alreadyVerified: true, tx_ref: txRef });
+      } finally {
+        paymentVerificationLocks.delete(txRef);
+      }
     }
 
 // ── Order status lookup (pending page) ──
