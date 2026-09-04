@@ -1281,9 +1281,10 @@ email: email || 'customer@example.com',
   }
 
   window.placeOrder = function() {
-    if (!checkoutData || !checkoutData.eventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
+    const selectedEventId = checkoutData && (checkoutData.eventId || checkoutData.eventValue);
+    if (!checkoutData || !selectedEventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
       alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
-      window.location.href = 'tickets.html' + (checkoutData && checkoutData.eventId ? '?event=' + encodeURIComponent(checkoutData.eventId) : '');
+      window.location.href = 'tickets.html' + (selectedEventId ? '?event=' + encodeURIComponent(selectedEventId) : '');
       return;
     }
     const orderId = generateOrderId();
