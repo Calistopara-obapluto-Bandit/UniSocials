@@ -888,16 +888,9 @@ const tier = getSelectedTier();
             const tier = 'regular';
             const original = Number(ev.price || 0);
             const bonus = Number(ev.bonusPrice || 0);
-            sessionStorage.setItem('checkoutData', JSON.stringify({
-              eventValue: ev.id, eventId: ev.id, eventName: ev.name || ev.title || 'Event',
-              eventDate: ev.date || '', eventTime: ev.time || '', eventVenue: ev.venue || '',
-              eventCategory: ev.category || '', eventPrice: bonus > 0 ? bonus : original,
-              originalEventPrice: original, bonusEventPrice: bonus, ticketTier: tier,
-              included: ev.includedRegular || '', qty: 1, buyerName: '', buyerEmail: '', buyerPhone: '',
-              buyerFaculty: '', universityId: '', universityName: '', universitySlug: ''
-            }));
             const ref = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
-            window.location.href = 'checkout.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+            sessionStorage.setItem('selectedEventId', String(ev.id || ''));
+            window.location.href = 'tickets.html?event=' + encodeURIComponent(ev.id || '') + (ref ? '&ref=' + encodeURIComponent(ref) : '');
           });
         });
       }).catch(function(){
@@ -1288,6 +1281,11 @@ email: email || 'customer@example.com',
   }
 
   window.placeOrder = function() {
+    if (!checkoutData || !checkoutData.eventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
+      alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
+      window.location.href = 'tickets.html' + (checkoutData && checkoutData.eventId ? '?event=' + encodeURIComponent(checkoutData.eventId) : '');
+      return;
+    }
     const orderId = generateOrderId();
     const eventName = checkoutData.eventName;
     const qty = checkoutData.qty;
