@@ -1164,7 +1164,7 @@ var loginScreen = document.getElementById('loginScreen');
 
 function safeImg(value) {
         var v = String(value == null ? '' : value).trim();
-        if (!v || /^(?:https?:\/\/|\/[^\/])/.test(v)) return v;
+        if (!v || /^(?:https?:\/\/|\/[^\/]|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*)$/.test(v)) return v;
         return '';
       }
       function fmtN(n) {

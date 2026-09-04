@@ -1312,13 +1312,14 @@ function readBody(req) {
 
 // Accept only image URLs that cannot execute script in an HTML src attribute.
 // Relative site paths are allowed; remote images must use HTTPS (HTTP is kept
-// available for local/dev compatibility). Data:, javascript:, blob:, and other
-// executable schemes are rejected.
+// available for local/dev compatibility). Only base64 raster image data URLs
+// produced by the admin image resize flow are accepted.
 function isSafeImageUrl(value) {
   const v = String(value == null ? '' : value).trim();
   if (!v) return true;
   if (/^[\x00-\x1F\x7F]/.test(v) || /[\x00-\x1F\x7F]/.test(v)) return false;
   if (v.startsWith('/')) return !v.startsWith('//');
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(v)) return true;
   try {
     const u = new URL(v);
     return u.protocol === 'https:' || u.protocol === 'http:';
