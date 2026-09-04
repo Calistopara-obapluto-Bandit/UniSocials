@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow">
 <title>Influencer Dashboard — Unisocials</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,18 +31,27 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .influencer-logout{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}.influencer-logout:hover{background:var(--accent-ghost)}
 .influencer-hero{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:30px;margin-bottom:18px;position:relative;overflow:hidden}.influencer-hero:after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-120px;top:-130px;background:var(--accent-ghost)}.influencer-hero-content{position:relative;z-index:1;max-width:760px}.influencer-hero h2{font-family:'Playfair Display',serif;font-size:clamp(1.6rem,4vw,2.25rem);margin:0 0 8px}.influencer-hero p{color:var(--text-3);line-height:1.7;margin:0 0 24px}.ref-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:7px}.ref-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ref-code{font-weight:800;letter-spacing:.12em;color:var(--accent);background:var(--accent-ghost);border:1px solid var(--accent-border);padding:11px 14px;border-radius:10px}.copy-icon{width:42px;height:42px;border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:10px;display:grid;place-items:center;cursor:pointer}.copy-icon:hover{background:var(--accent-ghost)}.copy-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .ref-link-wrap{margin-top:20px}.ref-link-row{display:flex;gap:8px}.ref-link{flex:1;min-width:0;display:block;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:10px;padding:12px 13px;font:inherit;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box} .ref-link:focus{outline:2px solid var(--accent);outline-offset:2px}.copy-status{min-height:18px;margin-top:10px;margin-top:6px;font-size:.75rem;color:var(--accent);font-weight:700}
-.influencer-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.influencer-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)}.influencer-stat-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800}.influencer-stat-value{font-size:1.8rem;font-weight:800;margin-top:9px;letter-spacing:-.03em}.accent-value{color:var(--accent)}
+.influencer-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}.influencer-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)}.influencer-stat-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800}.influencer-stat-value{font-size:1.8rem;font-weight:800;margin-top:9px;letter-spacing:-.03em}.accent-value{color:var(--accent)}
 .influencer-notice{padding:16px 18px;background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:14px;color:var(--text-2);font-size:.82rem;line-height:1.65}
+@media(max-width:900px){.influencer-stats{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.influencer-login{padding:42px 0 60px}.influencer-dashboard-head{align-items:flex-start;flex-direction:column}.influencer-stats{grid-template-columns:1fr 1fr}.influencer-login-card{padding:30px 24px}.influencer-dashboard{padding-top:30px}}
 @media(max-width:480px){.influencer-login{padding:28px 0 44px}.influencer-login-card{padding:30px 20px}.influencer-stats{gap:10px}.influencer-stat{padding:16px}.influencer-stat-value{font-size:1.45rem}.influencer-hero{padding:22px}.ref-link-row{flex-direction:column}.ref-link{width:100%;box-sizing:border-box}.ref-link-row .copy-icon{width:100%;height:44px}}
+
+.portal-selector{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px}.portal-selector-copy{min-width:0}.portal-selector-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:5px}.portal-selector-title{font-size:.92rem;font-weight:800;color:var(--text-1)}.portal-select{min-width:250px;max-width:100%;padding:11px 38px 11px 13px;border:1px solid var(--accent-border);border-radius:10px;background:var(--bg);color:var(--text-1);font:inherit;font-weight:700;outline:0}.portal-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}.portal-meta{font-size:.73rem;color:var(--text-3);margin-top:4px}.portal-empty{padding:14px;border:1px dashed var(--border);border-radius:10px;color:var(--text-3);font-size:.8rem;background:var(--bg)}
+@media(max-width:600px){.portal-selector{align-items:stretch;flex-direction:column;padding:16px}.portal-select{width:100%;min-width:0}}
+.portal-events{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;margin-bottom:18px}.portal-events-head{margin-bottom:14px}.portal-events-head h2{font-size:1.05rem;margin:0 0 5px}.portal-events-head p{font-size:.78rem;color:var(--text-3);margin:0;line-height:1.5}.portal-events-list{display:grid;gap:10px}.portal-event{border:1px solid var(--border);border-radius:12px;padding:15px;background:var(--bg)}.portal-event-main{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.portal-event-name{font-weight:800;color:var(--text-1);font-size:.9rem}.portal-event-meta{font-size:.73rem;color:var(--text-3);margin-top:4px}.portal-event-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.portal-event-stat{border:1px solid var(--border);border-radius:9px;padding:9px}.portal-event-stat-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:800}.portal-event-stat-value{font-size:.88rem;font-weight:800;margin-top:4px;color:var(--text-1)}.all-overview{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;margin-bottom:18px}.all-overview-head{margin-bottom:14px}.all-overview-head h2{font-size:1.05rem;margin:0 0 5px}.all-overview-head p{font-size:.78rem;color:var(--text-3);margin:0;line-height:1.5}.all-overview-list{display:grid;gap:10px}.all-overview-row{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg)}.all-overview-row-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.all-overview-name{font-weight:800;color:var(--text-1);font-size:.9rem}.all-overview-meta{font-size:.72rem;color:var(--text-3);margin-top:3px}.all-overview-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px}.all-overview-stat{border:1px solid var(--border);border-radius:9px;padding:8px}.all-overview-stat-label{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:800}.all-overview-stat-value{font-size:.84rem;font-weight:800;margin-top:4px;color:var(--text-1)}@media(max-width:600px){.all-overview{padding:18px}.all-overview-stats{grid-template-columns:1fr 1fr}.all-overview-row-head{flex-direction:column}}.relationship-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;margin-bottom:18px}.relationship-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px}.relationship-head h2{font-size:1.05rem;margin:0 0 5px}.relationship-head p{font-size:.78rem;color:var(--text-3);margin:0;line-height:1.5}.relationship-list{display:grid;gap:10px}.relationship-item{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg);display:flex;justify-content:space-between;align-items:center;gap:14px}.relationship-info{min-width:0}.relationship-name{font-weight:800;color:var(--text-1);font-size:.9rem}.relationship-email{font-size:.74rem;color:var(--text-3);margin-top:3px;overflow:hidden;text-overflow:ellipsis}.relationship-status{display:inline-flex;align-items:center;border-radius:100px;padding:5px 10px;font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}.relationship-status.pending{background:#FFF8E1;color:#8D6E00;border:1px solid #FFE082}.relationship-status.accepted{background:var(--accent-ghost);color:var(--accent);border:1px solid var(--accent-border)}.relationship-status.rejected{background:#fff4f3;color:#b71c1c;border:1px solid #f1d2ce}.relationship-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.relationship-btn{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:9px;padding:8px 12px;font:inherit;font-size:.76rem;font-weight:700;cursor:pointer}.relationship-btn.accept{background:var(--accent);border-color:var(--accent);color:#fff}.relationship-btn.reject{color:#b71c1c;border-color:#f1d2ce}.relationship-btn:disabled{opacity:.6;cursor:wait}.relationship-empty{font-size:.8rem;color:var(--text-3);padding:8px 0}
+@media(max-width:480px){.relationship-panel{padding:18px}.relationship-item{align-items:flex-start;flex-direction:column}.relationship-status{align-self:flex-start}}
 </style>
 </head>
 <body class="influencer-page">
 <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="index.html">Home</a><a href="events.html">Events</a><a href="tickets.html">Tickets</a><a href="about.html">About</a><a href="contact.html">Contact</a><a href="events.html" class="mobile-cta btn-primary">Get Tickets</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner"><a href="index.html" class="nav-logo">Uni<span>socials</span></a><ul class="nav-links" role="list"><li><a href="index.html">Home</a></li><li><a href="events.html">Events</a></li><li><a href="tickets.html">Tickets</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul><div class="nav-cta"><a href="events.html" class="btn-primary">Get Tickets</a></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
 <section id="loginView"><section class="page-header"><div class="container"><div class="section-label reveal">Influencer Portal</div><h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1><p class="section-sub reveal reveal-delay-2">Sign in to manage your Unisocials referral link and track your results.</p></div></section><section class="influencer-login"><div class="auth-section"><div class="container"><div class="influencer-login-card reveal"><div class="influencer-mark">U</div><div class="influencer-kicker">Influencer Dashboard</div><h1>Sign In</h1><p class="influencer-subtitle">Use your influencer account to access your referral dashboard.</p><div class="influencer-error" id="loginError"></div><form id="loginForm"><div class="influencer-form-group"><label for="email">Email Address</label><input id="email" type="email" placeholder="you@university.edu.ng" autocomplete="username" required></div><div class="influencer-form-group"><label for="password">Password</label><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></div><button class="influencer-login-btn" type="submit" id="loginBtn">Sign In</button></form><p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p></div></div></div></section></section>
 <main id="dashboard" class="influencer-dashboard hidden"><div class="influencer-container"><div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1>Your referral dashboard</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div><button class="influencer-logout" id="logoutBtn" type="button">Log out</button></div>
+<section class="portal-selector" id="portalSelector" aria-label="Referral portal selector"><div class="portal-selector-copy"><div class="portal-selector-label">Working for</div><div class="portal-selector-title" id="portalTitle">Loading referral portals…</div><div class="portal-meta" id="portalMeta"></div></div><select class="portal-select" id="portalSelect" aria-label="Select Influencer Admin"></select></section><section class="relationship-panel" id="relationshipPanel"><div class="relationship-head"><div><h2>Influencer Admin requests</h2><p>Review requests to work with you. You keep the same influencer account and login.</p></div></div><div class="relationship-list" id="relationshipList"><div class="relationship-empty">Loading requests...</div></div></section>
 <section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
-<section class="influencer-stats"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div></section>
+<section class="influencer-stats"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
+<section class="portal-events" id="portalEvents"><div class="portal-events-head"><div><div class="influencer-overline">Selected portal</div><h2>Events &amp; performance</h2><p id="eventsSubtitle">Events authorised to the selected Influencer Admin.</p></div></div><div class="portal-events-list" id="portalEventsList"><div class="portal-empty">Loading events…</div></div></section>
+<section class="all-overview hidden" id="allOverview"><div class="all-overview-head"><div class="influencer-overline">All relationships</div><h2>Performance by Influencer Admin</h2><p>Each accepted relationship remains separate. The totals above are the combined overview of these individual portals.</p></div><div class="all-overview-list" id="allOverviewList"><div class="portal-empty">Loading relationship totals…</div></div></section>
 <div class="influencer-notice">Your account is limited to referral performance. You cannot access orders, events, check-in, universities, subscribers, or admin settings.</div></div></main>
 <script src="templatemo-622-clearwave.js"></script>
 <script>
@@ -53,32 +67,111 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     var t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();return Promise.resolve();
   }
   function showCopied(label){var s=document.getElementById('copyStatus');s.textContent=label+' copied';setTimeout(function(){s.textContent='';},1800);}
+  function renderRelationships(requests){
+    var list=document.getElementById('relationshipList');
+    list.textContent='';
+    if(!Array.isArray(requests)||!requests.length){var empty=document.createElement('div');empty.className='relationship-empty';empty.textContent='No Influencer Admin requests yet.';list.appendChild(empty);return;}
+    requests.forEach(function(item){
+      var row=document.createElement('div');row.className='relationship-item';
+      var info=document.createElement('div');info.className='relationship-info';
+      var name=document.createElement('div');name.className='relationship-name';name.textContent=(item.influencerAdmin&&item.influencerAdmin.name)||'Influencer Admin';info.appendChild(name);
+      if(item.influencerAdmin&&item.influencerAdmin.email){var em=document.createElement('div');em.className='relationship-email';em.textContent=item.influencerAdmin.email;info.appendChild(em);}
+      if(item.status==='pending'){
+        var actions=document.createElement('div');actions.className='relationship-actions';
+        var accept=document.createElement('button');accept.type='button';accept.className='relationship-btn accept';accept.textContent='Accept';accept.onclick=function(){respondToRelationship(item.id,'accept');};
+        var reject=document.createElement('button');reject.type='button';reject.className='relationship-btn reject';reject.textContent='Reject';reject.onclick=function(){respondToRelationship(item.id,'reject');};
+        actions.appendChild(accept);actions.appendChild(reject);info.appendChild(actions);
+      }
+      var status=document.createElement('span');status.className='relationship-status '+(item.status||'pending');status.textContent=item.status||'pending';
+      row.appendChild(info);row.appendChild(status);list.appendChild(row);
+    });
+  }
+  async function loadRelationships(){
+    try{var r=await fetch('/api/influencer/relationship-requests',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load requests');renderRelationships(d.requests||[]);}catch(e){var list=document.getElementById('relationshipList');list.textContent='';var err=document.createElement('div');err.className='relationship-empty';err.textContent='Unable to load requests right now.';list.appendChild(err);}
+  }
+  async function respondToRelationship(id,decision){
+    try{var r=await fetch('/api/influencer/relationship-requests/respond',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},headers()),body:JSON.stringify({assignmentId:id,decision:decision})});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to update request');await loadRelationships();}catch(e){alert(e.message||'Unable to update request');}
+  }
+  var portals=[];var selectedPortalId='';
+  function renderPortalSelector(){
+    var select=document.getElementById('portalSelect'),title=document.getElementById('portalTitle'),meta=document.getElementById('portalMeta');
+    select.textContent='';
+    if(!portals.length){title.textContent='No active referral portal yet';meta.textContent='Accept an Influencer Admin request to receive a dedicated referral code.';select.disabled=true;return;}
+    select.disabled=false;
+    portals.forEach(function(p){var o=document.createElement('option');o.value=p.assignmentId||'legacy';o.textContent=(p.influencerAdmin&&p.influencerAdmin.name)||'General referral';select.appendChild(o);});
+    var allOpt=document.createElement('option');allOpt.value='all';allOpt.textContent='All referral portals';select.appendChild(allOpt);
+    var current=selectedPortalId==='all'?null:(portals.find(function(p){return String(p.assignmentId||'legacy')===String(selectedPortalId||'')})||portals[0]);
+    if(selectedPortalId==='all'){select.value='all';title.textContent='All referral portals';meta.textContent='Combined results across all accepted Influencer Admin relationships';return;}
+    selectedPortalId=current.assignmentId||'legacy';select.value=selectedPortalId;
+    title.textContent=(current.influencerAdmin&&current.influencerAdmin.name)||'General referral';
+    meta.textContent=current.influencerAdmin&&current.influencerAdmin.email?current.influencerAdmin.email:'';
+  }
+  function renderAllOverview(rows){
+    var panel=document.getElementById('allOverview'),list=document.getElementById('allOverviewList');
+    if(!panel||!list)return;
+    if(!Array.isArray(rows)){panel.classList.add('hidden');return;}
+    panel.classList.remove('hidden');list.textContent='';
+    if(!rows.length){var empty=document.createElement('div');empty.className='portal-empty';empty.textContent='No accepted Influencer Admin relationships yet.';list.appendChild(empty);return;}
+    rows.forEach(function(a){
+      var row=document.createElement('article');row.className='all-overview-row';
+      var head=document.createElement('div');head.className='all-overview-row-head';
+      var info=document.createElement('div');var name=document.createElement('div');name.className='all-overview-name';name.textContent=(a.influencerAdmin&&a.influencerAdmin.name)||'Influencer Admin';
+      var meta=document.createElement('div');meta.className='all-overview-meta';meta.textContent=(a.influencerAdmin&&a.influencerAdmin.email)||'';info.appendChild(name);if(meta.textContent)info.appendChild(meta);head.appendChild(info);row.appendChild(head);
+      var stats=document.createElement('div');stats.className='all-overview-stats';
+      [['Orders',a.totalOrders],['Tickets',a.totalTickets],['Revenue',fmt(a.totalRevenue||0)],['Commission',fmt(a.totalCommission||0)]].forEach(function(pair){var box=document.createElement('div');box.className='all-overview-stat';var l=document.createElement('div');l.className='all-overview-stat-label';l.textContent=pair[0];var v=document.createElement('div');v.className='all-overview-stat-value';v.textContent=typeof pair[1]==='number'?Number(pair[1]).toLocaleString():pair[1];box.appendChild(l);box.appendChild(v);stats.appendChild(box);});
+      row.appendChild(stats);list.appendChild(row);
+    });
+  }
+  function applyPortal(link,stats){
+    link=link||{};stats=stats||{};var code=link.code||'';
+    document.getElementById('refCode').textContent=code||'—';
+    var referralUrl=link.referralUrl || (code ? (window.location.origin + '/events.html?ref=' + encodeURIComponent(code)) : '');
+    var refEl=document.getElementById('refLink');refEl.textContent=referralUrl||'Your referral link will appear here...';refEl.href=referralUrl||'#';refEl.classList.toggle('is-empty',!referralUrl);
+    document.getElementById('people').textContent=Number(stats.uniquePeople||0).toLocaleString();
+    document.getElementById('orders').textContent=Number(stats.totalOrders||0).toLocaleString();
+    document.getElementById('tickets').textContent=Number(stats.totalTickets||0).toLocaleString();
+    document.getElementById('revenue').textContent=fmt(stats.totalRevenue||0);
+    document.getElementById('commission').textContent=fmt(stats.totalCommission||0);
+    renderPortalEvents(stats.events||[], stats.overview===true);
+    renderAllOverview(stats.overview===true ? (stats.adminBreakdown||[]) : null);
+  }
+  function renderPortalEvents(events,isAll){
+    var list=document.getElementById('portalEventsList'),sub=document.getElementById('eventsSubtitle');
+    list.textContent='';
+    if(isAll) sub.textContent='Combined event performance across all accepted Influencer Admin relationships.';
+    else sub.textContent='Events authorised to the selected Influencer Admin.';
+    if(!events.length){var e=document.createElement('div');e.className='portal-empty';e.textContent=isAll?'No referral event activity yet.':'No authorised events are available for this referral portal yet.';list.appendChild(e);return;}
+    events.forEach(function(ev){
+      var row=document.createElement('article');row.className='portal-event';
+      var main=document.createElement('div');main.className='portal-event-main';
+      var info=document.createElement('div');var name=document.createElement('div');name.className='portal-event-name';name.textContent=ev.name||'Event';
+      var meta=document.createElement('div');meta.className='portal-event-meta';meta.textContent=[ev.date,ev.venue].filter(Boolean).join(' • ');info.appendChild(name);if(meta.textContent)info.appendChild(meta);main.appendChild(info);row.appendChild(main);
+      var stats=document.createElement('div');stats.className='portal-event-stats';
+      [['Orders',ev.orders],['Tickets',ev.tickets],['Revenue',fmt(ev.revenue||0)],['Commission',fmt(ev.commission||0)]].forEach(function(pair){var box=document.createElement('div');box.className='portal-event-stat';var l=document.createElement('div');l.className='portal-event-stat-label';l.textContent=pair[0];var v=document.createElement('div');v.className='portal-event-stat-value';v.textContent=typeof pair[1]==='number'?Number(pair[1]).toLocaleString():pair[1];box.appendChild(l);box.appendChild(v);stats.appendChild(box);});
+      row.appendChild(stats);list.appendChild(row);
+    });
+  }
+  async function selectPortal(id){
+    selectedPortalId=id||'legacy';if(selectedPortalId==='all'){document.getElementById('portalSelect').value='all';document.getElementById('portalTitle').textContent='All referral portals';document.getElementById('portalMeta').textContent='Combined results across all accepted Influencer Admin relationships';try{var r=await fetch('/api/influencer/referral-stats?assignmentId=all',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral stats');applyPortal(null,d.stats||{});return;}catch(e){applyPortal(null,null);return;}}var portal=portals.find(function(p){return String(p.assignmentId||'legacy')===String(selectedPortalId)})||portals[0];if(!portal)return;
+    selectedPortalId=portal.assignmentId||'legacy';document.getElementById('portalSelect').value=selectedPortalId;
+    document.getElementById('portalTitle').textContent=(portal.influencerAdmin&&portal.influencerAdmin.name)||'General referral';document.getElementById('portalMeta').textContent=(portal.influencerAdmin&&portal.influencerAdmin.email)||'';
+    try{var q=portal.assignmentId?'?assignmentId='+encodeURIComponent(portal.assignmentId):'';var r=await fetch('/api/influencer/referral-stats'+q,{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral stats');applyPortal((d.stats&&d.stats.link)||portal.link,d.stats||{});}catch(e){applyPortal(portal.link,portal.link||{});}
+  }
+  async function loadPortals(){
+    var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
+  }
   async function load(){
     var token=localStorage.getItem(KEY);if(!token)return false;
     try{
       var me=await fetch('/api/auth/me',{headers:headers()});var md=await me.json();
       if(!md.success||!md.user||md.user.role!=='influencer') throw new Error('invalid');
       document.getElementById('userName').textContent=md.user.name||md.user.fullName||md.user.email||'Influencer';
-      var r=await fetch('/api/influencer/referral-link',{headers:headers()});var ld=await r.json();
-      if(!ld.success) throw new Error(ld.error||'Unable to load referral link');
-      var link=ld.link||{};
-      var code=link.code||'';
-      document.getElementById('refCode').textContent=code||'—';
-      var referralUrl=link.referralUrl || (code ? (window.location.origin + '/events.html?ref=' + encodeURIComponent(code)) : '');
-      var refEl=document.getElementById('refLink');
-      refEl.textContent=referralUrl||'Your referral link will appear here...';
-      refEl.href=referralUrl||'#';
-      refEl.classList.toggle('is-empty',!referralUrl);
-      var r=await fetch('/api/influencer/referral-stats',{headers:headers()});var d=await r.json();
-      if(!d.success) throw new Error(d.error||'Unable to load dashboard');
-      var st=d.stats||{};
-      document.getElementById('people').textContent=Number(st.uniquePeople||0).toLocaleString();
-      document.getElementById('orders').textContent=Number(st.totalOrders||0).toLocaleString();
-      document.getElementById('tickets').textContent=Number(st.totalTickets||0).toLocaleString();
-      document.getElementById('revenue').textContent=fmt(st.totalRevenue||0);
+      await loadPortals();
+      await loadRelationships();
       loginView.classList.add('hidden');dash.classList.remove('hidden');return true;
     }catch(e){localStorage.removeItem(KEY);return false;}
   }
+  document.getElementById('portalSelect').addEventListener('change',function(){selectPortal(this.value);});
   document.getElementById('loginForm').addEventListener('submit',async function(e){
     e.preventDefault();var btn=document.getElementById('loginBtn');btn.disabled=true;document.getElementById('loginError').classList.remove('show');
     try{

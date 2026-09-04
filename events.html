@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Events — Unisocials</title>
@@ -260,7 +265,12 @@
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
         });
       }
-      function fmtN(n) {
+function safeImg(value) {
+        var v = String(value == null ? '' : value).trim();
+        if (!v || /^(?:https?:\/\/|\/[^\/])/.test(v)) return v;
+        return '';
+      }
+            function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
       function eventImageHtml(ev, fallback, gradient) {
@@ -268,7 +278,7 @@
         var badge = esc(ev.category || 'General');
         if (img) {
           return '<div class="event-card-image has-photo">' +
-            '<img class="event-card-image-photo" src="' + esc(img) + '" alt="' + esc(ev.name || 'Event image') + '">' +
+            '<img class="event-card-image-photo" src="' + esc(safeImg(img)) + '" alt="' + esc(ev.name || 'Event image') + '">' +
             '<div class="event-card-badge">' + badge + '</div>' +
           '</div>';
         }
@@ -315,6 +325,11 @@
       }
 
 function renderEvents(events) {
+  events = (events || []).slice().sort(function(a, b) {
+    var universityOrder = String(a.universityName || a.university || '').trim().localeCompare(String(b.universityName || b.university || '').trim(), undefined, { sensitivity: 'base' });
+    if (universityOrder) return universityOrder;
+    return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+  });
         renderMonthSummary(events);
         if (!events || !events.length) {
           grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83C\uDF9F\uFE0F</span><p style="color:var(--text-3);">No events available for this campus yet. Check back soon!</p></div>';
@@ -413,7 +428,6 @@ function renderEvents(events) {
               var val = uniSel.value;
               var found = list.find(function(u) { return (u.slug || u.id) === val; });
 if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
-              if (window.onUniversityChange) window.onUniversityChange(found || null);
             });
             // Enable the searchable university selector (search box + button).
             if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);

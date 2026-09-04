@@ -18,6 +18,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 // ── Load local .env (if present) so local dev uses the same secrets as Render.
 // Never commit .env — it holds live API keys (gitignored).
@@ -39,6 +40,8 @@ const PORT = process.env.PORT || 3000;
 
 const PUBLIC_DIR = __dirname;
 const DATA_DIR = path.join(__dirname, 'data');
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 
 // ────────────────────────────────────────────
 // STORAGE LAYER (async)
@@ -52,7 +55,23 @@ async function initStorage() {
   if (process.env.DATABASE_URL) {
     try {
       const { Pool } = require('pg');
-      db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      // Database connection hardening: keep the pool bounded and fail slow/hung
+      // database operations instead of allowing them to consume all server workers.
+      // Neon/Postgres normally provides a trusted TLS certificate; an explicit
+      // opt-out is available only when a deployment requires it.
+      const sslConfig = String(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() === 'false'
+        ? { rejectUnauthorized: false }
+        : { rejectUnauthorized: true };
+      db = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: sslConfig,
+        max: 10,
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
+        query_timeout: 15000,
+        statement_timeout: 15000,
+        keepAlive: true
+      });
       await db.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
 await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
@@ -65,9 +84,18 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       console.log('Storage: PostgreSQL connected.');
       return;
     } catch (e) {
-      console.warn('PostgreSQL unavailable, falling back to JSON files:', e.message);
       db = null;
       usePg = false;
+      // In production, never silently fall back from the persistent database to
+      // local JSON storage. Render's filesystem is not a safe substitute for the
+      // production database and a silent fallback could make writes appear to
+      // succeed while the real data remains unchanged.
+      if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        console.error('FATAL: PostgreSQL is configured but unavailable:', e.message);
+        process.exitCode = 1;
+        throw e;
+      }
+      console.warn('PostgreSQL unavailable, using JSON files for local development:', e.message);
     }
   }
   console.log('Storage: JSON files in ./data (set DATABASE_URL to use PostgreSQL).');
@@ -188,6 +216,109 @@ async function addUser(user) {
   await writeUsers(users);
 }
 
+/* ── Influencer ↔ Influencer Admin relationships ── */
+// One influencer account can have multiple independent IA relationships.
+// Referral codes remain separate and will be attached in Step 4.
+function normalizeInfluencerAssignments(influencer) {
+  if (!influencer || influencer.role !== 'influencer') return [];
+  const existing = Array.isArray(influencer.influencerAssignments) ? influencer.influencerAssignments : [];
+  const out = [];
+  const seen = new Set();
+  for (const a of existing) {
+    const adminId = String(a && (a.influencerAdminId || a.adminId || '')).trim();
+    if (!adminId || seen.has(adminId)) continue;
+    const status = ['pending','accepted','rejected'].includes(String(a.status || '').toLowerCase()) ? String(a.status).toLowerCase() : 'accepted';
+    out.push({
+      id: String(a.id || ('IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase())),
+      influencerAdminId: adminId,
+      status,
+      requestedAt: a.requestedAt || a.createdAt || new Date().toISOString(),
+      acceptedAt: status === 'accepted' ? (a.acceptedAt || a.requestedAt || a.createdAt || new Date().toISOString()) : (a.acceptedAt || null),
+      rejectedAt: status === 'rejected' ? (a.rejectedAt || new Date().toISOString()) : (a.rejectedAt || null),
+      legacy: a.legacy === true
+    });
+    seen.add(adminId);
+  }
+
+  // Migrate the current single-admin ownership fields into one accepted
+  // relationship so existing influencers continue working unchanged.
+  const legacyAdminId = String(
+    influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId ||
+    (typeof influencer.createdBy === 'string' ? influencer.createdBy : (influencer.createdBy && influencer.createdBy.id)) || ''
+  ).trim();
+  if (legacyAdminId && !seen.has(legacyAdminId)) {
+    out.push({
+      id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+      influencerAdminId: legacyAdminId,
+      status: 'accepted',
+      requestedAt: influencer.createdAt || new Date().toISOString(),
+      acceptedAt: influencer.createdAt || new Date().toISOString(),
+      rejectedAt: null,
+      legacy: true
+    });
+  }
+  return out;
+}
+
+function getInfluencerAssignments(influencer) { return normalizeInfluencerAssignments(influencer); }
+function getAcceptedInfluencerAssignments(influencer) { return getInfluencerAssignments(influencer).filter(a => a.status === 'accepted'); }
+function influencerHasAdminAssignment(influencer, influencerAdminId, statuses = ['accepted']) {
+  const adminId = String(influencerAdminId || '').trim();
+  return !!adminId && getInfluencerAssignments(influencer).some(a => a.influencerAdminId === adminId && statuses.includes(a.status));
+}
+
+async function migrateInfluencerAssignments() {
+  const users = await readUsers();
+  let changed = false;
+  const migrated = users.map(user => {
+    if (!user || user.role !== 'influencer') return user;
+    const before = Array.isArray(user.influencerAssignments) ? JSON.stringify(user.influencerAssignments) : '';
+    const assignments = normalizeInfluencerAssignments(user);
+    if (before !== JSON.stringify(assignments)) {
+      changed = true;
+      return Object.assign({}, user, { influencerAssignments: assignments });
+    }
+    return user;
+  });
+  if (changed) await writeUsers(migrated);
+  return migrated;
+}
+
+// Step 4 migration: attach existing influencer referral records to their
+// accepted relationship when possible, without changing existing codes.
+async function migrateInfluencerReferralLinks() {
+  const [users, links] = await Promise.all([readUsers(), readReferralLinks()]);
+  let changed = false;
+  for (const link of links) {
+    const influencerId = String(link.influencerId || '').trim();
+    if (!influencerId || link.assignmentId) continue;
+    const influencer = users.find(u => String(u.id || '') === influencerId && u.role === 'influencer');
+    if (!influencer) continue;
+    const accepted = getAcceptedInfluencerAssignments(influencer);
+    const originalAdminId = String(
+      link.influencerAdminId || influencer.assignedInfluencerAdminId || influencer.influencerAdminId ||
+      influencer.ownerInfluencerAdminId ||
+      (typeof influencer.createdBy === 'string' ? influencer.createdBy : (influencer.createdBy && influencer.createdBy.id)) || ''
+    ).trim();
+    const originalAssignment = accepted.find(a => String(a.influencerAdminId || '').trim() === originalAdminId) ||
+      (accepted.length === 1 ? accepted[0] : null);
+    if (originalAssignment) {
+      link.assignmentId = originalAssignment.id;
+      link.influencerAdminId = originalAssignment.influencerAdminId;
+      link.legacyScoped = true;
+      if (!link.ownerRole || link.ownerRole === 'subadmin') link.ownerRole = 'influencer';
+      link.subadminId = null;
+      link.subadminName = null;
+      link.subadminEmail = null;
+      link.influencerName = link.influencerName || influencer.name || '';
+      link.influencerEmail = link.influencerEmail || influencer.email || '';
+      changed = true;
+    }
+  }
+  if (changed) await writeReferralLinks(links);
+  return links;
+}
+
 /* ── Sessions ── */
 async function readSessions() {
   if (usePg) {
@@ -215,24 +346,45 @@ async function createSession(token, userId) {
   if (usePg) {
     // Do not rewrite the entire sessions table. A full DELETE + INSERT cycle
     // can race with another login/logout and accidentally remove a live session.
-    await db.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id', [token, userId]);
+    await db.query('INSERT INTO sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, created_at = NOW()', [token, userId]);
     return;
   }
   const sessions = await readSessions();
   sessions[token] = userId;
   await writeSessions(sessions);
+  // Keep creation times separately so existing JSON session format remains compatible.
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}; } catch (e) {}
+  meta[token] = Date.now();
+  fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
 }
 async function getSessionUser(token) {
   if (!token) return null;
   if (usePg) {
-    const r = await db.query('SELECT user_id FROM sessions WHERE token = $1 LIMIT 1', [token]);
-    if (!r.rows.length) return null;
+    const r = await db.query("SELECT user_id FROM sessions WHERE token = $1 AND created_at > NOW() - INTERVAL '7 days' LIMIT 1", [token]);
+    if (!r.rows.length) {
+      // Expired sessions are removed so a stolen token cannot be reused indefinitely.
+      await db.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
+      return null;
+    }
     const user = await findUserById(r.rows[0].user_id);
     return user && user.archived === true ? null : user;
   }
   const sessions = await readSessions();
   const userId = sessions[token];
   if (!userId) return null;
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}; } catch (e) {}
+  const createdAt = Number(meta[token] || 0);
+  if (!createdAt || Date.now() - createdAt > SESSION_MAX_AGE_MS) {
+    delete sessions[token];
+    delete meta[token];
+    await writeSessions(sessions);
+    try { fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8'); } catch (e) {}
+    return null;
+  }
   const user = await findUserById(userId);
   return user && user.archived === true ? null : user;
 }
@@ -245,6 +397,12 @@ async function deleteSession(token) {
   const sessions = await readSessions();
   delete sessions[token];
   await writeSessions(sessions);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    delete meta[token];
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  } catch (e) {}
 }
 async function deleteUserSessions(userId) {
   if (usePg) {
@@ -252,10 +410,17 @@ async function deleteUserSessions(userId) {
     return;
   }
   const sessions = await readSessions();
+  const removed = [];
   for (const [t, uid] of Object.entries(sessions)) {
-    if (uid === userId) delete sessions[t];
+    if (uid === userId) { delete sessions[t]; removed.push(t); }
   }
   await writeSessions(sessions);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    removed.forEach(t => delete meta[t]);
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  } catch (e) {}
 }
 
 /* ── Referral Links (subadmin referral tracking) ── */
@@ -320,6 +485,16 @@ async function getReferralLinkByInfluencerId(influencerId) {
   const links = await readReferralLinks();
   return links.find(l => l.influencerId === influencerId || l.ownerId === influencerId) || null;
 }
+async function getReferralLinksByInfluencerId(influencerId) {
+  const id = String(influencerId || '').trim();
+  if (!id) return [];
+  const links = await readReferralLinks();
+  return links.filter(l => String(l.influencerId || l.ownerId || '').trim() === id);
+}
+async function getReferralLinkForAssignment(influencerId, assignmentId) {
+  const links = await getReferralLinksByInfluencerId(influencerId);
+  return links.find(l => String(l.assignmentId || '') === String(assignmentId || '')) || null;
+}
 function canonicalReferralUrl(code) {
   const safeCode = String(code || '').trim().toUpperCase();
   return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events.html?ref=' + encodeURIComponent(safeCode)) : '';
@@ -329,13 +504,18 @@ function referralLinkResponse(link) {
   if (!link) return null;
   return { ...link, referralUrl: canonicalReferralUrl(link.code) };
 }
-async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin') {
+async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin', assignmentId = null, influencerAdminId = null) {
   const links = await readReferralLinks();
-  // Keep each referral owner on exactly one stable referral record.
-  const existing = links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId);
+  // Sub-admins keep one stable global referral record. Influencers get one
+  // separate code for each accepted Influencer Admin relationship.
+  const existing = ownerRole === 'influencer' && assignmentId
+    ? links.find(l => String(l.influencerId || l.ownerId || '') === String(ownerId) && String(l.assignmentId || '') === String(assignmentId))
+    : ownerRole === 'influencer'
+      ? links.find(l => String(l.influencerId || l.ownerId || '') === String(ownerId) && !l.assignmentId)
+      : links.find(l => l.ownerId === ownerId || l.subadminId === ownerId);
   if (existing) return existing;
-  
-  // Generate unique code
+
+  // Generate a cryptographically strong unique code.
   let code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
   while (links.find(l => l.code === code)) {
     code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -351,6 +531,8 @@ async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 
     subadminEmail: ownerRole === 'subadmin' ? ownerEmail : null,
     influencerName: ownerRole === 'influencer' ? ownerName : null,
     influencerEmail: ownerRole === 'influencer' ? ownerEmail : null,
+    assignmentId: ownerRole === 'influencer' ? (assignmentId || null) : null,
+    influencerAdminId: ownerRole === 'influencer' ? (influencerAdminId || null) : null,
     createdAt: new Date().toISOString(),
     totalOrders: 0,
     totalRevenue: 0,
@@ -368,14 +550,65 @@ function isReferralOrderCounted(order, referralCode) {
   return status === 'verified';
 }
 
+// Influencer referral codes are scoped to the Influencer Admin who created the
+// influencer. That admin must be authorized for the event (or own the event)
+// before the code can be used. Sub-admin referral links are intentionally not
+// subject to this rule because their referral model is global.
+async function influencerReferralAuthorizedForEvent(referralLink, event) {
+  if (!referralLink || !event) return false;
+
+  const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
+  if (!influencerId) return true; // legacy/sub-admin referral link
+
+  const users = await readUsers();
+  const influencer = users.find(u => String(u.id || '').trim() === influencerId && u.role === 'influencer');
+  if (!influencer) return false;
+
+  // Step 5: relationship-scoped links must still belong to an ACTIVE
+  // accepted relationship. Merely having influencerAdminId on the link is
+  // not enough: a relationship may have been rejected after the link was
+  // created, and that must immediately revoke the referral code.
+  const authorizedIds = new Set(getAuthorizedInfluencerAdminIds(event));
+  const assignment = getAcceptedInfluencerAssignments(influencer).find(a =>
+    String(a.id || '') === String(referralLink.assignmentId || '')
+  );
+  if (!assignment) return false;
+  const adminId = String(assignment.influencerAdminId || '').trim();
+  return !!adminId && authorizedIds.has(adminId);
+}
+
+async function getScopedReferralOrders(referralLink, orders, events, scopedAdminId = null) {
+  if (!referralLink) return [];
+  const verifiedOrders = orders.filter(o => isReferralOrderCounted(o, referralLink.code));
+
+  // Sub-admin/global referral links retain their existing global scope.
+  const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
+  if (!influencerId) return verifiedOrders;
+
+  const users = await readUsers();
+  const influencer = users.find(u => String(u.id || '').trim() === influencerId && u.role === 'influencer');
+  if (!influencer) return [];
+
+  let ownerAdminId = String(scopedAdminId || '').trim();
+  if (!ownerAdminId) ownerAdminId = String(referralLink.influencerAdminId || '').trim();
+  if (referralLink.assignmentId && referralLink.influencerAdminId && ownerAdminId !== String(referralLink.influencerAdminId).trim()) return [];
+  if (!ownerAdminId) return verifiedOrders;
+
+  return verifiedOrders.filter(order => {
+    const event = events.find(ev => eventMatchesOrder(order, ev));
+    if (!event) return false;
+    return getAuthorizedInfluencerAdminIds(event).includes(ownerAdminId);
+  });
+}
+
 async function updateReferralStats(referralCode) {
   if (!referralCode) return;
   const links = await readReferralLinks();
   const link = links.find(l => l.code === referralCode);
   if (!link) return;
   
-  const orders = await readOrders();
-  const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  const referredOrders = await getScopedReferralOrders(link, orders, events);
   
   link.totalOrders = referredOrders.length;
   link.totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
@@ -425,6 +658,12 @@ async function readEvents() {
 function getAuthorizedInfluencerAdminIds(ev) {
   const ids = Array.isArray(ev && ev.authorizedInfluencerAdminIds) ? ev.authorizedInfluencerAdminIds : [];
   return ids.map(String).filter(Boolean);
+}
+
+function eventIdentifierMatches(event, eventId) {
+  const requestedId = String(eventId || '').trim();
+  if (!requestedId || !event) return false;
+  return [event.id, event._id, event.eventId].some(id => String(id || '').trim() === requestedId);
 }
 
 function eventMatchesOrder(order, ev) {
@@ -743,7 +982,7 @@ const orderLogLimit = 1000;
 function randCode6() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
   let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++) code += chars[crypto.randomInt(chars.length)];
   return code;
 }
 function generateTicketCodes(qty) {
@@ -773,13 +1012,58 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+  return String(crypto.randomInt(100000, 1000000)); // cryptographically secure 6-digit OTP
+}
+function hashResetSecret(value) {
+  return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
+}
+function validateEmail(email) {
+  const value = String(email || '').trim().toLowerCase();
+  if (!value) return 'Email address is required.';
+  if (value.length > 254) return 'Email address is too long.';
+  // Practical application-level email validation; DNS/mailbox existence is not checked here.
+  if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(value)) {
+    return 'Please enter a valid email address.';
+  }
+  return null;
+}
+function validatePhone(phone) {
+  const value = String(phone || '').trim();
+  if (!value) return 'Phone number is required.';
+  if (value.length > 25) return 'Phone number is too long.';
+  // Accept common Nigerian formats: 08012345678 or +2348012345678,
+  // allowing spaces, hyphens and parentheses for readability.
+  const normalized = value.replace(/[\s()-]/g, '');
+  if (!/^(?:0[789][01]\d{8}|\+234[789][01]\d{8})$/.test(normalized)) {
+    return 'Please enter a valid Nigerian phone number.';
+  }
+  return null;
+}
+function validatePassword(password) {
+  const pw = String(password || '');
+  if (pw.length < 8) return 'Password must be at least 8 characters long.';
+  if (pw.length > 128) return 'Password must be 128 characters or fewer.';
+  if (!/[A-Za-z]/.test(pw)) return 'Password must contain at least one letter.';
+  if (!/[0-9]/.test(pw)) return 'Password must contain at least one number.';
+  if (!/[^A-Za-z0-9\s]/.test(pw)) return 'Password must contain at least one symbol.';
+  return null;
 }
 function isAdminAuthorized(req) {
-  const auth = req.headers['authorization'] || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const expected = process.env.ADMIN_PASSWORD !== undefined ? process.env.ADMIN_PASSWORD : defaults.ADMIN_PASSWORD;
-  return !!token && token === expected;
+  const auth = String(req.headers['authorization'] || '');
+  if (!auth.startsWith('Bearer ')) return false;
+
+  const token = auth.slice(7).trim();
+  // Fail closed: never allow the documented/default placeholder to become
+  // a real admin credential if ADMIN_PASSWORD was forgotten in production.
+  const expected = String(process.env.ADMIN_PASSWORD || '').trim();
+  if (!token || !expected || expected === 'CHANGE_ME_STRONG_PASSWORD') return false;
+
+  // Compare secrets in constant time to avoid leaking the password through
+  // timing differences. Buffer lengths must match before timingSafeEqual().
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 // Authorize either the master admin password OR a logged-in sub-admin account.
 // Sub-admins have limited privileges (check-in + add events).
@@ -798,6 +1082,15 @@ async function isAdminOrInfluencerAdmin(req) {
 function influencerAdminOwnsInfluencer(authCtx, influencer) {
   if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !influencer) return false;
   const adminId = String(authCtx.user.id || '').trim();
+  const hasRelationshipArray = Array.isArray(influencer.influencerAssignments);
+  if (hasRelationshipArray) {
+    // Once the relationship model exists, its explicit status is authoritative.
+    // This prevents a rejected relationship from accidentally retaining access
+    // through one of the old single-admin ownership fields.
+    return influencerHasAdminAssignment(influencer, adminId, ['accepted']);
+  }
+
+  // Legacy fallback for records that predate the relationship migration.
   const adminEmail = String(authCtx.user.email || '').trim().toLowerCase();
   const adminName = String(authCtx.user.name || '').trim().toLowerCase();
   const assigned = influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId;
@@ -821,12 +1114,53 @@ function canManageInfluencer(authCtx, influencer) {
   if (authCtx.role === 'admin') return true;
   return influencerAdminOwnsInfluencer(authCtx, influencer);
 }
+
+// Event ownership/authorization is checked server-side. An Influencer Admin may
+// edit/archive only events they created; authorized events are view-only. Main
+// Admin has unrestricted event access.
+function influencerAdminOwnsEvent(authCtx, event) {
+  if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !event) return false;
+  const myId = String(authCtx.user.id || '').trim();
+  const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
+  const directOwnerId = String(event.influencerAdminId || event.ownerInfluencerAdminId || event.createdByInfluencerAdminId || '').trim();
+  if (directOwnerId && directOwnerId === myId) return true;
+  const c = event.createdBy;
+  if (typeof c === 'string') return c.trim() === myId || (!!myEmail && c.trim().toLowerCase() === myEmail);
+  if (c && typeof c === 'object') {
+    const oid = String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim();
+    const oemail = String(c.email || '').trim().toLowerCase();
+    return oid === myId || (!!myEmail && oemail === myEmail);
+  }
+  return false;
+}
 async function isAdminOrSubadmin(req) {
+  // This helper is intentionally limited to management roles. Ordinary
+  // influencers and check-in staff must never inherit admin/sub-admin API
+  // privileges merely because they have a valid login session.
   if (isAdminAuthorized(req)) return { role: 'admin' };
   const auth = req.headers['authorization'] || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   const user = await getSessionUser(token);
-  if (user && ['subadmin','influencer','checkin_staff','influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role))) return { role: (['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : user.role), user: user };
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  if (role === 'subadmin') return { role: 'subadmin', user: user };
+  if (['influencer_admin','influencer-admin','influencerAdmin'].includes(role)) {
+    return { role: 'influencer_admin', user: Object.assign({}, user, { role: 'influencer_admin' }) };
+  }
+  return null;
+}
+
+// Check-in is a separate privilege from management. Keeping it separate
+// prevents check-in staff from inheriting event/account/coupon management
+// access through a shared authorization helper.
+async function isAdminOrCheckinStaff(req) {
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const user = await getSessionUser(token);
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  if (role === 'checkin_staff' || role === 'subadmin') return { role: role, user: user };
   return null;
 }
 
@@ -895,13 +1229,33 @@ const MIME_TYPES = {
 // SECURITY HARDENING
 // ────────────────────────────────────────────
 // Security headers applied to every response.
-function securityHeaders() {
-  return {
+function securityHeaders(req) {
+  const headers = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self' https://formsubmit.co",
+      "script-src 'self' 'unsafe-inline' https://checkout.flutterwave.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' https://checkout.flutterwave.com https://api.flutterwave.com https://ravesandboxapi.flutterwave.com",
+      "frame-src 'self' https://checkout.flutterwave.com",
+      "manifest-src 'self'",
+      "worker-src 'self' blob:",
+      "upgrade-insecure-requests"
+    ].join('; ')
   };
+  const forwardedProto = req && req.headers ? String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase() : '';
+  const isHttps = Boolean((req && req.socket && req.socket.encrypted) || forwardedProto === 'https');
+  if (isHttps) headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+  return headers;
 }
 
 // Very small in-memory rate limiter for sensitive endpoints (auth).
@@ -929,8 +1283,8 @@ function rateLimit(req, route, limit, windowMs) {
 }
 
 // Apply security headers to a plain header object.
-function withSecurityHeaders(headers) {
-  return Object.assign({}, headers, securityHeaders());
+function withSecurityHeaders(headers, req) {
+  return Object.assign({}, headers, securityHeaders(req));
 }
 
 function sendJson(res, status, obj) {
@@ -941,10 +1295,36 @@ function sendJson(res, status, obj) {
 function readBody(req) {
   return new Promise((resolve) => {
     let body = '';
-    req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
-    req.on('end', () => { resolve(body); });
-    req.on('error', () => { resolve(''); });
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (body.length > 1e6) {
+        tooLarge = true;
+        resolve(null);
+        req.destroy();
+      }
+    });
+    req.on('end', () => { if (!tooLarge) resolve(body); });
+    req.on('error', () => { if (!tooLarge) resolve(''); });
   });
+}
+
+// Accept only image URLs that cannot execute script in an HTML src attribute.
+// Relative site paths are allowed; remote images must use HTTPS (HTTP is kept
+// available for local/dev compatibility). Data:, javascript:, blob:, and other
+// executable schemes are rejected.
+function isSafeImageUrl(value) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return true;
+  if (/^[\x00-\x1F\x7F]/.test(v) || /[\x00-\x1F\x7F]/.test(v)) return false;
+  if (v.startsWith('/')) return !v.startsWith('//');
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch (e) {
+    return false;
+  }
 }
 
 // Prevent duplicate fulfillment when Flutterwave retries a webhook or an admin
@@ -956,15 +1336,26 @@ const paymentVerificationLocks = new Set();
 function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
   return new Promise((resolve) => {
     const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
-      ? process.env.FLUTTERWAVE_SECRET_KEY
-      : defaults.FLUTTERWAVE_SECRET_KEY;
-    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(txRef);
+      ? String(process.env.FLUTTERWAVE_SECRET_KEY).trim()
+      : String(defaults.FLUTTERWAVE_SECRET_KEY || '').trim();
+    const cleanTxRef = String(txRef || '').trim();
+    const expected = Number(expectedAmount);
+    const expectedCur = String(expectedCurrency || '').trim().toUpperCase();
+
+    // Never call the provider with incomplete verification inputs. A payment
+    // is only eligible for fulfillment when our order has a real reference,
+    // positive amount and expected currency, and the secret key is configured.
+    if (!secretKey || !cleanTxRef || !Number.isFinite(expected) || expected <= 0 || !expectedCur) {
+      return resolve({ success: false, apiSuccess: false, error: 'Incomplete Flutterwave verification configuration' });
+    }
+
+    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(cleanTxRef);
     const options = {
       hostname: 'api.flutterwave.com',
       port: 443,
       path: apiPath,
       method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json' }
+      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json', 'Accept': 'application/json' }
     };
     const apiReq = https.request(options, (apiRes) => {
       let data = '';
@@ -979,14 +1370,16 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
           const returnedTxRef = String(t.tx_ref || t.reference || '').trim();
           const verified = json.status === 'success' && ['successful', 'succeeded', 'completed'].includes(status);
 
-          // Strong verification: the provider must return the same transaction
-          // reference, amount, and currency that our order expects.
-          const txRefOk = !txRef || !returnedTxRef || returnedTxRef === String(txRef).trim();
-          const amountOk = !expectedAmount || Math.abs(amount - expectedAmount) < 1;
-          const currencyOk = !expectedCurrency || currency === String(expectedCurrency).toUpperCase();
+          // Strong verification: Flutterwave must return the exact transaction
+          // reference, exact expected currency, and the expected amount. Do not
+          // treat missing provider fields as a match.
+          const txRefOk = !!returnedTxRef && returnedTxRef === cleanTxRef;
+          const amountOk = Number.isFinite(amount) && Math.abs(amount - expected) < 0.01;
+          const currencyOk = !!currency && currency === expectedCur;
+          const httpOk = Number(apiRes.statusCode || 0) >= 200 && Number(apiRes.statusCode || 0) < 300;
 
           resolve({
-            success: verified && txRefOk && amountOk && currencyOk,
+            success: httpOk && verified && txRefOk && amountOk && currencyOk,
             apiSuccess: verified,
             amount: amount,
             currency: currency,
@@ -1000,6 +1393,10 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
           resolve({ success: false, apiSuccess: false, error: 'Bad response' });
         }
       });
+    });
+    apiReq.setTimeout(10000, () => {
+      apiReq.destroy();
+      resolve({ success: false, apiSuccess: false, error: 'Flutterwave verification timed out' });
     });
     apiReq.on('error', () => {
       resolve({ success: false, apiSuccess: false, error: 'Network error' });
@@ -1575,6 +1972,7 @@ setInterval(function() {
 // HTTP SERVER
 // ────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
+  for (const [key, value] of Object.entries(securityHeaders(req))) res.setHeader(key, value);
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
 
@@ -1620,8 +2018,11 @@ const server = http.createServer(async (req, res) => {
       const phone = String(data.phone || '').trim();
       const password = String(data.password || '');
 
-      if (!name || !email || !phone || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Please provide name, email, phone and a password of at least 6 characters.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      const phoneError = validatePhone(phone);
+      if (!name || !email || !phone || passwordError || emailError || phoneError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || phoneError || 'Please provide name, email and phone.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) {
@@ -1670,6 +2071,217 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
+    // ── Influencer Admin: search existing influencer accounts to request ──
+    // This does NOT create a second account. It only lets an Influencer Admin
+    // start a relationship with an influencer who already has a login.
+    if (pathname === '/api/influencer-admin/influencers/search' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const search = String(url.searchParams.get('q') || '').trim().toLowerCase();
+      if (!search || search.length < 2) return sendJson(res, 400, { success: false, error: 'Enter at least 2 characters to search.' });
+      if (search.length > 120) return sendJson(res, 400, { success: false, error: 'Search term is too long.' });
+      const users = await readUsers();
+      const myId = String(authCtx.user.id || '').trim();
+      const matches = users
+        .filter(u => u && u.role === 'influencer' && u.archived !== true)
+        .filter(u => {
+          if (!search) return true;
+          return String(u.name || '').toLowerCase().includes(search) || String(u.email || '').toLowerCase().includes(search);
+        })
+        .slice(0, 25)
+        .map(u => {
+          const assignment = getInfluencerAssignments(u).find(a => a.influencerAdminId === myId) || null;
+          return {
+            id: u.id,
+            name: u.name || '',
+            email: u.email || '',
+            assignmentStatus: assignment ? assignment.status : 'none',
+            assignmentId: assignment ? assignment.id : null
+          };
+        });
+      return sendJson(res, 200, { success: true, influencers: matches });
+    }
+
+    // ── Influencer Admin: request an existing influencer ──
+    if (pathname === '/api/influencer-admin/influencer-requests' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const influencerId = String(data.influencerId || '').trim();
+      if (!influencerId || influencerId.length > 120) return sendJson(res, 400, { success: false, error: 'A valid influencer is required.' });
+      const users = await readUsers();
+      const index = users.findIndex(u => u && u.id === influencerId && u.role === 'influencer');
+      if (index < 0) return sendJson(res, 404, { success: false, error: 'Influencer not found.' });
+      if (users[index].archived === true) return sendJson(res, 409, { success: false, error: 'This influencer account is archived.' });
+
+      const myId = String(authCtx.user.id || '').trim();
+      const influencer = Object.assign({}, users[index]);
+      const assignments = getInfluencerAssignments(influencer);
+      const existing = assignments.find(a => a.influencerAdminId === myId) || null;
+      if (existing && existing.status === 'accepted') return sendJson(res, 409, { success: false, error: 'This influencer already works with your Influencer Admin account.', status: 'accepted' });
+      if (existing && existing.status === 'pending') return sendJson(res, 409, { success: false, error: 'A request for this influencer is already pending.', status: 'pending' });
+
+      const now = new Date().toISOString();
+      const nextAssignments = assignments.filter(a => a.influencerAdminId !== myId);
+      nextAssignments.push({
+        id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+        influencerAdminId: myId,
+        status: 'pending',
+        requestedAt: now,
+        acceptedAt: null,
+        rejectedAt: null,
+        legacy: false
+      });
+      influencer.influencerAssignments = nextAssignments;
+      users[index] = influencer;
+      await writeUsers(users);
+      return sendJson(res, 200, { success: true, status: 'pending', influencer: { id: influencer.id, name: influencer.name || '', email: influencer.email || '' } });
+    }
+
+    // ── Influencer: relationship requests ──
+    // An influencer uses the same existing login to review requests from
+    // Influencer Admins. No duplicate account is created and no referral code
+    // is generated at this stage; code generation belongs to Step 4.
+    if (pathname === '/api/influencer/relationship-requests' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const assignments = getInfluencerAssignments(user);
+      const users = await readUsers();
+      const requests = assignments.map(a => {
+        const admin = users.find(u => u && u.id === a.influencerAdminId && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(u.role)));
+        return {
+          id: a.id,
+          influencerAdminId: a.influencerAdminId,
+          status: a.status,
+          requestedAt: a.requestedAt || null,
+          acceptedAt: a.acceptedAt || null,
+          rejectedAt: a.rejectedAt || null,
+          influencerAdmin: admin ? { id: admin.id, name: admin.name || '', email: admin.email || '' } : { id: a.influencerAdminId, name: 'Influencer Admin', email: '' }
+        };
+      }).filter(r => ['pending','accepted','rejected'].includes(r.status));
+      return sendJson(res, 200, { success: true, requests });
+    }
+
+    if (pathname === '/api/influencer/relationship-requests/respond' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const assignmentId = String(data.assignmentId || '').trim();
+      const decision = String(data.decision || '').trim().toLowerCase();
+      if (!assignmentId || assignmentId.length > 120) return sendJson(res, 400, { success: false, error: 'A valid relationship request is required.' });
+      if (!['accept','reject'].includes(decision)) return sendJson(res, 400, { success: false, error: 'Decision must be accept or reject.' });
+
+      const users = await readUsers();
+      const influencerIndex = users.findIndex(u => u && u.id === sessionUser.id && u.role === 'influencer');
+      if (influencerIndex < 0) return sendJson(res, 404, { success: false, error: 'Influencer account not found.' });
+      const influencer = Object.assign({}, users[influencerIndex]);
+      const assignments = getInfluencerAssignments(influencer);
+      const idx = assignments.findIndex(a => a.id === assignmentId);
+      if (idx < 0) return sendJson(res, 404, { success: false, error: 'Relationship request not found.' });
+      if (assignments[idx].status !== 'pending') {
+        return sendJson(res, 409, { success: false, error: 'This relationship request has already been decided.', status: assignments[idx].status });
+      }
+
+      const admin = users.find(u => u && u.id === assignments[idx].influencerAdminId && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(u.role)));
+      if (!admin || admin.archived === true) {
+        return sendJson(res, 409, { success: false, error: 'The Influencer Admin account is no longer available.' });
+      }
+
+      const now = new Date().toISOString();
+      assignments[idx] = Object.assign({}, assignments[idx], {
+        status: decision === 'accept' ? 'accepted' : 'rejected',
+        acceptedAt: decision === 'accept' ? now : null,
+        rejectedAt: decision === 'reject' ? now : null,
+        legacy: false
+      });
+      influencer.influencerAssignments = assignments;
+      users[influencerIndex] = influencer;
+      await writeUsers(users);
+
+      // Acceptance creates the referral portal for this relationship. The
+      // influencer keeps the same account/login; only the referral relationship
+      // gets its own code.
+      let referralLink = null;
+      if (decision === 'accept') {
+        referralLink = await generateReferralLink(
+          influencer.id,
+          influencer.name,
+          influencer.email,
+          'influencer',
+          assignments[idx].id,
+          assignments[idx].influencerAdminId
+        );
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        status: assignments[idx].status,
+        request: {
+          id: assignments[idx].id,
+          influencerAdminId: assignments[idx].influencerAdminId,
+          status: assignments[idx].status,
+          requestedAt: assignments[idx].requestedAt,
+          acceptedAt: assignments[idx].acceptedAt,
+          rejectedAt: assignments[idx].rejectedAt,
+          referralCode: referralLink ? referralLink.code : null,
+          referralUrl: referralLink ? canonicalReferralUrl(referralLink.code) : null
+        }
+      });
+    }
+
+    // ── Influencer Admin: list assigned influencers with relationship-scoped stats ──
+    // This endpoint is deliberately separate from the master/global influencer list.
+    // It returns only influencers with an explicit ACCEPTED relationship to the
+    // authenticated Influencer Admin and calculates stats from that relationship's
+    // referral code plus the admin's authorized/owned events.
+    if (pathname === '/api/influencer-admin/influencers' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success: false, error: 'Influencer Admin access only' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+      const adminId = String(authCtx.user.id || '').trim();
+
+      const influencers = await Promise.all(users
+        .filter(u => u && u.role === 'influencer' && u.archived !== true)
+        .map(async influencer => {
+          const assignment = getAcceptedInfluencerAssignments(influencer)
+            .find(a => String(a.influencerAdminId || '').trim() === adminId) || null;
+          if (!assignment) return null;
+
+          const link = links.find(l => String(l.influencerId || l.ownerId || '').trim() === String(influencer.id)) || null;
+          const referredOrders = link ? await getScopedReferralOrders(link, orders, events, adminId) : [];
+          const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+          const totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+          return {
+            ...publicUser(influencer),
+            assignmentId: assignment.id,
+            relationshipStatus: assignment.status,
+            requestedAt: assignment.requestedAt || null,
+            acceptedAt: assignment.acceptedAt || null,
+            referralCode: link ? link.code : null,
+            referralUrl: link ? canonicalReferralUrl(link.code) : null,
+            referralStats: {
+              totalOrders: referredOrders.length,
+              totalRevenue,
+              totalTickets,
+              uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+            }
+          };
+        })
+      );
+
+      return sendJson(res, 200, { success: true, influencers: influencers.filter(Boolean) });
+    }
+
     // ── Admin (master only): list influencer accounts ──
     if (pathname === '/api/admin/influencers' && req.method === 'GET') {
       // Main Admin, Sub-admin and Influencer Admin can view influencer accounts.
@@ -1678,13 +2290,24 @@ const user = {
       if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const users = await readUsers();
       const links = await readReferralLinks();
-      const orders = await readOrders();
+      const [orders, events] = await Promise.all([readOrders(), readEvents()]);
       const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
-      const influencers = users.filter(u => u.role === 'influencer' && (canViewAll || influencerAdminOwnsInfluencer(authCtx, u))).map(u => {
-        const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null;
-        const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
-        const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-        const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+      const influencerUsers = users.filter(u => u.role === 'influencer' && (canViewAll || influencerAdminOwnsInfluencer(authCtx, u)));
+      const influencers = await Promise.all(influencerUsers.map(async u => {
+        const acceptedAssignments = getAcceptedInfluencerAssignments(u);
+        const scopedAssignment = authCtx.role === 'influencer_admin'
+          ? (acceptedAssignments.find(a => String(a.influencerAdminId) === String(authCtx.user.id)) || null)
+          : null;
+        const link = scopedAssignment
+          ? (links.find(l => String(l.influencerId || l.ownerId || '') === String(u.id) && String(l.assignmentId || '') === String(scopedAssignment.id)) || null)
+          : (links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null);
+        const referredOrders = link
+          ? (authCtx.role === 'influencer_admin'
+            ? await getScopedReferralOrders(link, orders, events)
+            : orders.filter(o => isReferralOrderCounted(o, link.code)))
+          : [];
+        const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+        const totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
         return {
           ...publicUser(u),
           referralCode: link ? link.code : null,
@@ -1695,7 +2318,7 @@ const user = {
             uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
           }
         };
-      });
+      }));
       return sendJson(res, 200, { success: true, influencers });
     }
 
@@ -1709,8 +2332,10 @@ const user = {
       const name = String(data.name || '').trim();
       const email = String(data.email || '').trim().toLowerCase();
       const password = String(data.password || '');
-      if (!name || !email || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
@@ -1719,10 +2344,19 @@ const user = {
         name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer',
         createdBy: authCtx.role === 'admin' ? null : authCtx.user.id,
         assignedInfluencerAdminId: authCtx.role === 'influencer_admin' ? authCtx.user.id : null,
+        influencerAssignments: authCtx.role === 'influencer_admin' ? [{
+          id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+          influencerAdminId: authCtx.user.id,
+          status: 'accepted',
+          requestedAt: new Date().toISOString(),
+          acceptedAt: new Date().toISOString(),
+          rejectedAt: null
+        }] : [],
         createdAt: new Date().toISOString()
       };
       await addUser(influencer);
-      const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email);
+      const createdAssignment = influencer.influencerAssignments && influencer.influencerAssignments[0];
+      const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email, 'influencer', createdAssignment ? createdAssignment.id : null, createdAssignment ? createdAssignment.influencerAdminId : null);
       return sendJson(res, 200, {
         success: true,
         influencer: { ...publicUser(influencer), referralCode: referralLink.code, referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 } }
@@ -1785,8 +2419,10 @@ const user = {
       const name = String(data.name || '').trim();
       const email = String(data.email || '').trim().toLowerCase();
       const password = String(data.password || '');
-      if (!name || !email || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) {
@@ -1874,8 +2510,9 @@ const user = {
         const email = String(data.email || '').trim().toLowerCase();
         const password = String(data.password || '');
         const role = String(data.role || '').trim();
-        if (!name || !email || password.length < 6 || !['checkin_staff','influencer_admin'].includes(role)) {
-          return sendJson(res, 400, { success: false, error: 'Name, email, password (6+ characters), and a valid role are required.' });
+        const passwordError = validatePassword(password);
+        if (!name || !email || passwordError || !['checkin_staff','influencer_admin'].includes(role)) {
+          return sendJson(res, 400, { success: false, error: passwordError || 'Name, email, and a valid role are required.' });
         }
         if (await findUserByEmail(email)) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
         const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
@@ -1901,8 +2538,9 @@ const user = {
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const email = String(data.email || '').trim().toLowerCase();
       const newPassword = String(data.password || '');
-      if (!email || newPassword.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Email and a new password of at least 6 characters are required.' });
+      const passwordError = validatePassword(newPassword);
+      if (!email || passwordError) {
+        return sendJson(res, 400, { success: false, error: passwordError || 'Email and a new password are required.' });
       }
       const target = await findUserByEmail(email);
       if (!target) return sendJson(res, 404, { success: false, error: 'Account not found.' });
@@ -1949,7 +2587,7 @@ const user = {
 
       const otp = generateOtp();
       const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-      user.otp = otp;
+      user.otp = hashResetSecret(otp);
       user.otpExpires = otpExpires;
       await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
 
@@ -1995,13 +2633,19 @@ const user = {
       if (Date.now() > user.otpExpires) {
         return sendJson(res, 400, { success: false, error: 'This OTP has expired. Please request a new one.' });
       }
-      if (String(user.otp) !== String(otp)) {
+      const otpHash = hashResetSecret(otp);
+      const storedOtpHash = String(user.otp || '');
+      // Accept a still-valid legacy plaintext OTP once for compatibility with
+      // resets started before this security update, then replace it with a hash.
+      const otpOk = (storedOtpHash.length === otpHash.length && crypto.timingSafeEqual(Buffer.from(storedOtpHash, 'utf8'), Buffer.from(otpHash, 'utf8'))) ||
+        (storedOtpHash.length === 6 && /^\d{6}$/.test(storedOtpHash) && storedOtpHash === otp);
+      if (!otpOk) {
         return sendJson(res, 400, { success: false, error: 'Invalid OTP. Please check and try again.' });
       }
 
       // Issue a one-time reset token (valid 15 minutes)
       const resetToken = generateToken();
-      user.resetToken = resetToken;
+      user.resetToken = hashResetSecret(resetToken);
       user.resetTokenExpires = Date.now() + 15 * 60 * 1000;
       user.otp = null;
       user.otpExpires = null;
@@ -2012,14 +2656,21 @@ const user = {
 
     // ── AUTH: Reset password (with reset token) ──
     if (pathname === '/api/auth/reset-password' && req.method === 'POST') {
+      const rl = rateLimit(req, 'reset-password', 5, 60000);
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const email = String(data.email || '').trim().toLowerCase();
       const resetToken = String(data.resetToken || '').trim();
       const newPassword = String(data.password || '');
-      if (!email || !resetToken || newPassword.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Email, reset token, and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(newPassword);
+      if (!email || !resetToken || passwordError) {
+        return sendJson(res, 400, { success: false, error: passwordError || 'Email and reset token are required.' });
       }
 
       const user = await findUserByEmail(email);
@@ -2029,7 +2680,11 @@ const user = {
       if (Date.now() > user.resetTokenExpires) {
         return sendJson(res, 400, { success: false, error: 'This reset link has expired. Please request a new OTP.' });
       }
-      if (user.resetToken !== resetToken) {
+      const resetTokenHash = hashResetSecret(resetToken);
+      // Accept a still-valid legacy plaintext reset token once for compatibility.
+      const storedResetToken = String(user.resetToken || '');
+      const resetTokenOk = storedResetToken === resetTokenHash || (storedResetToken && storedResetToken === resetToken);
+      if (!resetTokenOk) {
         return sendJson(res, 400, { success: false, error: 'Invalid reset token. Please start over.' });
       }
 
@@ -2082,6 +2737,10 @@ function getTierInventory(event, tier, orders) {
 
 // ── Create order (PENDING until payment is server-verified) ──
     if (pathname === '/api/orders' && req.method === 'POST') {
+      const rl = rateLimit(req, 'create-order', 20, 60000); // 20 order attempts/min per IP
+      if (!rl.allowed) {
+        return sendJson(res, 429, { success: false, error: 'Too many order attempts. Please try again later.', retryAfter: rl.retryAfter });
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2092,9 +2751,10 @@ function getTierInventory(event, tier, orders) {
       const eventDate = String(data.eventDate || '').trim();
       const eventVenue = String(data.eventVenue || '').trim();
       const eventCategory = String(data.eventCategory || '').trim();
-      const qty = parseInt(data.qty) || 1;
-      let amount = parseFloat(data.amount) || 0;
-      const currency = String(data.currency || 'NGN');
+      const qty = Number.isInteger(Number(data.qty)) ? Number(data.qty) : 1;
+      let amount = Number(data.amount);
+      if (!Number.isFinite(amount)) amount = 0;
+      const currency = String(data.currency || 'NGN').trim().toUpperCase();
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
       const buyerPhone = String(data.buyerPhone || '').trim();
@@ -2106,26 +2766,54 @@ function getTierInventory(event, tier, orders) {
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
+      // Reject malformed/oversized order input before touching storage or payment state.
+      if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || couponCode.length > 100) {
+        return sendJson(res, 400, { success: false, error: 'One or more order fields are too long.' });
+      }
+      if (qty < 1 || qty > 100) {
+        return sendJson(res, 400, { success: false, error: 'Ticket quantity must be between 1 and 100.' });
+      }
+      if (currency !== 'NGN') {
+        return sendJson(res, 400, { success: false, error: 'Only NGN payments are supported.' });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+        return sendJson(res, 400, { success: false, error: 'Please provide a valid email address.' });
+      }
       let couponDiscount = 0;
       let baseAmountBeforeCoupon = amount;
       let referralApplied = false;
+      let referralLink = null;
+      let eventRecord = null;
 
-      // Validate referral before pricing. A valid referral intentionally switches
-      // this order from the event's bonus price to the selected tier's original price.
+      // Resolve the event before applying referral pricing so an Influencer
+      // Admin's code cannot be used on an event that admin is not authorized
+      // to manage.
+      if (eventId) {
+        const eventCatalog = await readEvents();
+        eventRecord = eventCatalog.find(e => eventIdentifierMatches(e, eventId));
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+      }
+
       if (referralCode) {
-        const referralLink = await getReferralLinkByCode(referralCode);
+        referralLink = await getReferralLinkByCode(referralCode);
         if (!referralLink) {
           return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
+        }
+        // A relationship-specific referral code must always be evaluated
+        // against a real event. Never allow a caller to omit eventId and
+        // bypass event authorization.
+        if (referralLink.influencerId && !eventRecord) {
+          return sendJson(res, 400, { success: false, error: 'An event is required when using this referral code.' });
+        }
+        if (eventRecord && !(await influencerReferralAuthorizedForEvent(referralLink, eventRecord))) {
+          return sendJson(res, 403, { success: false, error: 'This referral code is not authorized for this event.' });
         }
         referralApplied = true;
       }
 
       // Server-authoritative pricing: bonus is the default; a valid referral
       // switches the selected tier back to its original price.
-      if (eventId) {
-        const eventCatalog = await readEvents();
-        const eventRecord = eventCatalog.find(e => String(e.id) === eventId);
-        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+      if (eventRecord) {
         const ordersForInventory = await readOrders();
         const inv = getTierInventory(eventRecord, ticketTier, ordersForInventory);
         if (inv.total > 0 && Number(qty) > inv.remaining) {
@@ -2520,8 +3208,8 @@ eventName: order.eventName,
 
 // ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
-      const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx || !['admin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
+      const authCtx = await isAdminOrCheckinStaff(req);
+      if (!authCtx || !['admin','subadmin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2563,15 +3251,59 @@ codes[idx] = entry;
       });
     }
 
-    // ── Influencer: referral link ──
+    // ── Influencer: relationship-scoped referral portals ──
+    if (pathname === '/api/influencer/referral-portals' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const freshUser = await findUserById(user.id);
+      const assignments = getAcceptedInfluencerAssignments(freshUser || user);
+      const admins = await readUsers();
+      let links = await getReferralLinksByInfluencerId(user.id);
+      const portals = [];
+      for (const assignment of assignments) {
+        let link = links.find(l => String(l.influencerId || l.ownerId || '') === String(user.id) && String(l.assignmentId || '') === String(assignment.id)) || null;
+        if (!link) {
+          link = await generateReferralLink(user.id, user.name, user.email, 'influencer', assignment.id, assignment.influencerAdminId);
+          links.push(link);
+        }
+        const admin = admins.find(a => String(a.id || '') === String(assignment.influencerAdminId) && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(a.role)));
+        await updateReferralStats(link.code);
+        const refreshed = await getReferralLinkByCode(link.code);
+        portals.push({
+          assignmentId: assignment.id,
+          influencerAdminId: assignment.influencerAdminId,
+          influencerAdmin: admin ? { id: admin.id, name: admin.name || '', email: admin.email || '' } : { id: assignment.influencerAdminId, name: 'Influencer Admin', email: '' },
+          link: referralLinkResponse(refreshed || link)
+        });
+      }
+      // Preserve a legacy/global influencer referral link if this account has
+      // one and no accepted relationship can own it.
+      const legacy = links.find(l => !l.assignmentId && (l.influencerId === user.id || l.ownerId === user.id)) || null;
+      if (legacy && !portals.length) {
+        await updateReferralStats(legacy.code);
+        const refreshed = await getReferralLinkByCode(legacy.code);
+        portals.push({ assignmentId: null, influencerAdminId: null, influencerAdmin: { id: null, name: 'General referral', email: '' }, link: referralLinkResponse(refreshed || legacy) });
+      }
+      return sendJson(res, 200, { success: true, portals });
+    }
+
+    // Backward-compatible single-link endpoint. It returns the first portal,
+    // while new dashboard code uses /api/influencer/referral-portals.
     if (pathname === '/api/influencer/referral-link' && req.method === 'GET') {
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
       if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
-      let link = await getReferralLinkByInfluencerId(user.id);
-      if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer');
-      else { await updateReferralStats(link.code); link = await getReferralLinkByInfluencerId(user.id); }
+      const freshUser = await findUserById(user.id);
+      const assignment = getAcceptedInfluencerAssignments(freshUser || user)[0] || null;
+      let link = assignment
+        ? await getReferralLinkForAssignment(user.id, assignment.id)
+        : await getReferralLinkByInfluencerId(user.id);
+      if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer', assignment ? assignment.id : null, assignment ? assignment.influencerAdminId : null);
+      await updateReferralStats(link.code);
+      link = await getReferralLinkByCode(link.code);
       return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
     }
 
@@ -2581,16 +3313,104 @@ codes[idx] = entry;
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
       if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
-      const link = await getReferralLinkByInfluencerId(user.id);
-      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const assignmentId = String(url.searchParams.get('assignmentId') || '').trim();
+      const freshUser = await findUserById(user.id);
+      const acceptedAssignments = getAcceptedInfluencerAssignments(freshUser || user);
       const orders = await getOrdersForCurrentSiteEvents();
-      const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
+      const events = await readEvents();
+      const admins = await readUsers();
+
+      // "all" is an overview across every accepted Influencer Admin relationship.
+      // It intentionally returns no single referral link because each relationship
+      // has its own independent code/link.
+      function commissionForOrder(order) {
+        // Respect an explicitly stored commission amount/rate when the order has one.
+        // Step 7 only displays commission; it must not invent a new rate or alter payout logic.
+        const explicit = Number(order && (order.commissionAmount ?? order.influencerCommission ?? order.referralCommission));
+        if (Number.isFinite(explicit)) return explicit;
+        const rate = Number(order && (order.commissionRate ?? order.influencerCommissionRate));
+        if (Number.isFinite(rate) && rate >= 0) return (Number(order.amount) || 0) * rate;
+        return 0;
+      }
+      function buildEventBreakdown(referredOrders, assignmentAdminId) {
+        const allowed = events.filter(ev => {
+          const ids = getAuthorizedInfluencerAdminIds(ev);
+          return ids.includes(String(assignmentAdminId || '')) || influencerAdminOwnsEvent({ role:'influencer_admin', user:{ id:String(assignmentAdminId || '') } }, ev);
+        });
+        return allowed.map(ev => {
+          const rows = referredOrders.filter(o => eventMatchesOrder(o, ev));
+          return {
+            id: ev.id, name: ev.name || ev.eventName || 'Event', date: ev.date || ev.eventDate || null, venue: ev.venue || ev.eventVenue || '',
+            orders: rows.length, tickets: rows.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0),
+            revenue: rows.reduce((n,o)=>n+(Number(o.amount)||0),0),
+            commission: rows.reduce((n,o)=>n+commissionForOrder(o),0)
+          };
+        });
+      }
+      if (assignmentId.toLowerCase() === 'all') {
+        // Build the overview from the same per-relationship scopes used by the
+        // individual portals. This guarantees that All = the sum of each
+        // accepted relationship for orders/tickets/revenue/commission.
+        const allReferredOrders = [];
+        const allPeople = new Set();
+        const eventMap = new Map();
+        const adminBreakdown = [];
+        for (const assignment of acceptedAssignments) {
+          const link = await getReferralLinkForAssignment(user.id, assignment.id);
+          if (!link) continue;
+          const scoped = await getScopedReferralOrders(link, orders, events, assignment.influencerAdminId);
+          const admin = admins.find(a => String(a.id || '') === String(assignment.influencerAdminId || '') && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(a.role)));
+          const eventRows = buildEventBreakdown(scoped, assignment.influencerAdminId);
+          const adminStats = {
+            assignmentId: assignment.id,
+            influencerAdminId: assignment.influencerAdminId,
+            influencerAdmin: { id: assignment.influencerAdminId, name: admin ? (admin.name || '') : 'Influencer Admin', email: admin ? (admin.email || '') : '' },
+            totalOrders: scoped.length,
+            totalRevenue: scoped.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+            totalTickets: scoped.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+            totalCommission: scoped.reduce((sum, o) => sum + commissionForOrder(o), 0),
+            uniquePeople: new Set(scoped.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          };
+          adminBreakdown.push(adminStats);
+          allReferredOrders.push(...scoped);
+          scoped.forEach(o => { const email = String(o.buyerEmail || '').trim().toLowerCase(); if (email) allPeople.add(email); });
+          for (const ev of eventRows) {
+            const key = String(ev.id || ev.name);
+            const existing = eventMap.get(key);
+            if (!existing) eventMap.set(key, ev);
+            else { existing.orders += ev.orders; existing.tickets += ev.tickets; existing.revenue += ev.revenue; existing.commission += ev.commission; }
+          }
+        }
+        const sumOrders = adminBreakdown.reduce((n, a) => n + a.totalOrders, 0);
+        const sumTickets = adminBreakdown.reduce((n, a) => n + a.totalTickets, 0);
+        const sumRevenue = adminBreakdown.reduce((n, a) => n + a.totalRevenue, 0);
+        const sumCommission = adminBreakdown.reduce((n, a) => n + a.totalCommission, 0);
+        return sendJson(res, 200, { success: true, stats: {
+          totalOrders: sumOrders,
+          totalRevenue: sumRevenue,
+          totalTickets: sumTickets,
+          totalCommission: sumCommission,
+          uniquePeople: allPeople.size,
+          link: null, overview: true,
+          adminBreakdown, events: Array.from(eventMap.values())
+        }});
+      }
+
+      const assignment = assignmentId ? acceptedAssignments.find(a => a.id === assignmentId) : null;
+      if (assignmentId && !assignment) return sendJson(res, 403, { success: false, error: 'You are not assigned to this referral portal.' });
+      let link = assignment ? await getReferralLinkForAssignment(user.id, assignment.id) : await getReferralLinkByInfluencerId(user.id);
+      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const referredOrders = await getScopedReferralOrders(link, orders, events, assignment ? assignment.influencerAdminId : null);
       const uniquePeople = new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+      const totalCommission = referredOrders.reduce((sum, o) => sum + commissionForOrder(o), 0);
+      const eventBreakdown = buildEventBreakdown(referredOrders, assignment.influencerAdminId);
       return sendJson(res, 200, { success: true, stats: {
         totalOrders: referredOrders.length,
-        totalRevenue: referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0),
-        totalTickets: referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0),
-        uniquePeople, link: referralLinkResponse(link)
+        totalRevenue,
+        totalTickets: referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+        totalCommission,
+        uniquePeople, link: referralLinkResponse(link), events: eventBreakdown
       }});
     }
 
@@ -2884,7 +3704,13 @@ codes[idx] = entry;
       } else {
         const authCtx = await isAdminOrSubadmin(req);
         if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+          // Archived records are never exposed to unauthenticated/public callers.
           events = allEvents.filter(e => e.archived !== true);
+        } else if (authCtx.role === 'influencer_admin') {
+          // Influencer Admins may see archived events only when they own them.
+          // Explicitly authorized events remain view-only and are not treated as
+          // owned management records.
+          events = allEvents.filter(e => e.archived !== true || influencerAdminOwnsEvent(authCtx, e));
         }
       }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
@@ -2898,8 +3724,19 @@ codes[idx] = entry;
         }});
       }
       if (uniSlug) {
+        const universities = await readUniversities();
+        const selectedUniversity = universities.find(function(university) {
+          return [university.id, university.slug, university.name].some(function(value) {
+            return String(value || '').trim().toLowerCase() === uniSlug.toLowerCase();
+          });
+        });
+        const universityKeys = new Set([uniSlug, selectedUniversity && selectedUniversity.id, selectedUniversity && selectedUniversity.slug, selectedUniversity && selectedUniversity.name]
+          .map(function(value) { return String(value || '').trim().toLowerCase(); })
+          .filter(Boolean));
         const filtered = events.filter(function(e) {
-          return (e.universityId === uniSlug || e.universitySlug === uniSlug);
+          return [e.universityId, e.universitySlug, e.universityName].some(function(value) {
+            return universityKeys.has(String(value || '').trim().toLowerCase());
+          });
         }).map(enrich);
         return sendJson(res, 200, { success: true, events: filtered });
       }
@@ -3006,7 +3843,11 @@ codes[idx] = entry;
       const result = authorizedEvents.map(ev => {
         const eventOrders = orders.filter(o => eventMatchesOrder(o, ev));
         const influencerRows = ownInfluencers.map(inf => {
-          const link = links.find(l => l.influencerId === inf.id || l.ownerId === inf.id || l.subadminId === inf.id);
+          const acceptedAssignments = getAcceptedInfluencerAssignments(inf);
+          const assignment = acceptedAssignments.find(a => a.influencerAdminId === String(authCtx.user.id)) || null;
+          const link = assignment
+            ? links.find(l => String(l.influencerId || l.ownerId || '') === String(inf.id) && String(l.assignmentId || '') === String(assignment.id))
+            : links.find(l => l.influencerId === inf.id || l.ownerId === inf.id || l.subadminId === inf.id);
           const code = link && link.code;
           const rows = code ? eventOrders.filter(o => {
             const status = String(o.status || '').toLowerCase();
@@ -3014,7 +3855,25 @@ codes[idx] = entry;
           }) : [];
           const verified = rows.filter(o => String(o.status || '').toLowerCase() === 'verified');
           const pending = rows.filter(o => String(o.status || '').toLowerCase() === 'pending');
-          return { influencer: publicUser(inf), referralCode: code || null, orders: rows, totalOrders: rows.length, verifiedOrders: verified.length, pendingOrders: pending.length, ticketsSold: verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), pendingTickets: pending.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue: verified.reduce((n,o)=>n+(Number(o.amount)||0),0) };
+          // Influencer Admins need sales visibility, not customers' private contact data.
+          // Never pass buyer email/phone or other unnecessary PII through this dashboard API.
+          const safeRows = rows.map(o => ({
+            orderId: o.orderId,
+            status: o.status,
+            eventId: o.eventId,
+            eventName: o.eventName,
+            eventDate: o.eventDate,
+            eventVenue: o.eventVenue,
+            qty: o.qty,
+            amount: o.amount,
+            currency: o.currency,
+            paymentMethod: o.paymentMethod,
+            ticketTier: o.ticketTier,
+            verifiedAt: o.verifiedAt,
+            createdAt: o.createdAt,
+            referralCode: o.referralCode
+          }));
+          return { influencer: publicUser(inf), referralCode: code || null, orders: safeRows, totalOrders: rows.length, verifiedOrders: verified.length, pendingOrders: pending.length, ticketsSold: verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), pendingTickets: pending.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue: verified.reduce((n,o)=>n+(Number(o.amount)||0),0) };
         });
         const visibleOrders = eventOrders.filter(o => String(o.status || '').toLowerCase() !== 'rejected');
         const verified = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
@@ -3074,13 +3933,17 @@ codes[idx] = entry;
       const existingEvents = await readEvents();
       const existingEvent = existingEvents.find(e => String(e.id) === id);
       if (authCtx.role === 'influencer_admin' && existingEvent) {
-        const c = existingEvent.createdBy; const directOwnerId = String(existingEvent.influencerAdminId || existingEvent.ownerInfluencerAdminId || existingEvent.createdByInfluencerAdminId || '').trim();
-        const myId = String(authCtx.user?.id || '').trim();
-        const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
-        const owns = directOwnerId === myId || (c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail)));
-        if (!owns) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
+        if (!influencerAdminOwnsEvent(authCtx, existingEvent)) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
       }
       const isInfluencerAdminEdit = authCtx.role === 'influencer_admin' && !!existingEvent;
+      const imageUrl = String(data.image || '').trim();
+      if (imageUrl.length > 2000 || !isSafeImageUrl(imageUrl)) {
+        return sendJson(res, 400, { success: false, error: 'Please provide a valid event image URL.' });
+      }
+      const rawTags = Array.isArray(data.tags) ? data.tags : [];
+      if (rawTags.length > 20 || rawTags.some(t => String(t == null ? '' : t).length > 80)) {
+        return sendJson(res, 400, { success: false, error: 'Event tags are too long or too many.' });
+      }
       const ev = {
         id: id,
         name: name,
@@ -3106,7 +3969,7 @@ codes[idx] = entry;
         venue: String(data.venue || '').trim(),
         description: String(data.description || '').trim(),
         tags: data.tags || [],
-        image: String(data.image || '').trim(),
+        image: imageUrl,
         icon: data.icon || '🎟️',
         featured: !!data.featured,
         archived: isInfluencerAdminEdit ? !!existingEvent.archived : !!data.archived,
@@ -3123,8 +3986,9 @@ codes[idx] = entry;
         console.log('✓ Event created:', ev.id, '—', ev.name, '(', ev.universityName, ')');
         return sendJson(res, 200, { success: true, event: ev });
       } catch (e) {
-        console.error('✗ Error creating event:', e.message);
-        return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
+        console.error('✗ Error creating/updating event:', e);
+        // Never expose database/filesystem/provider error details to clients.
+        return sendJson(res, 500, { success: false, error: 'Failed to save event. Please try again.' });
       }
     }
 
@@ -3143,12 +4007,7 @@ codes[idx] = entry;
       const idx = events.findIndex(e => String(e.id) === eventId);
       if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
       if (authCtx.role === 'influencer_admin') {
-        const c = events[idx].createdBy;
-        const directOwnerId = String(events[idx].influencerAdminId || events[idx].ownerInfluencerAdminId || events[idx].createdByInfluencerAdminId || '').trim();
-        const myId = String(authCtx.user?.id || '').trim();
-        const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
-        const owns = directOwnerId === myId || (c && (typeof c === 'string' ? (c === myId || c.toLowerCase() === myEmail) : (String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim() === myId || String(c.email || '').trim().toLowerCase() === myEmail)));
-        if (!owns) return sendJson(res,403,{success:false,error:'You can only archive events you created.'});
+        if (!influencerAdminOwnsEvent(authCtx, events[idx])) return sendJson(res,403,{success:false,error:'You can only archive events you created.'});
       }
       events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
       await writeEvents(events);
@@ -3325,19 +4184,24 @@ const events = await readEvents();
       return;
     }
 
-    const filePath = path.join(PUBLIC_DIR, urlPath);
+    const filePath = path.resolve(PUBLIC_DIR, '.' + urlPath);
     // Shortlink referral handler: /r/REF-XXXX  (optionally ?to=/path)
     if (urlPath && urlPath.toLowerCase().startsWith('/r/')) {
-      const rawCode = decodeURIComponent(urlPath.slice(3) || '').trim();
-      const code = String(rawCode || '').toUpperCase();
-      const to = String(url.searchParams.get('to') || '/');
-      const safeTo = to && to.startsWith('/') ? to : '/';
-      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");localStorage.setItem("unn_referral_code", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      let rawCode = '';
+      try { rawCode = decodeURIComponent(urlPath.slice(3) || '').trim(); } catch (e) { rawCode = ''; }
+      const code = String(rawCode || '').toUpperCase().slice(0, 100);
+      const requestedTo = String(url.searchParams.get('to') || '/');
+      const safeTo = requestedTo.startsWith('/') && !requestedTo.startsWith('//') && !/[\x00-\x1F\x7F]/.test(requestedTo)
+        ? requestedTo.slice(0, 500) : '/';
+      const codeJs = JSON.stringify(code);
+      const toJs = JSON.stringify(safeTo);
+      const safeToHtml = safeTo.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", ' + codeJs + ');localStorage.setItem("unn_referral_code", ' + codeJs + ');}catch(e){}window.location.replace(' + toJs + ');</script><noscript><meta http-equiv="refresh" content="0;url=' + safeToHtml + '"></noscript></body></html>';
+      res.writeHead(200, withSecurityHeaders({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }));
       res.end(html);
       return;
     }
-    if (!filePath.startsWith(PUBLIC_DIR)) {
+    if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
       res.writeHead(403);
       res.end('Forbidden');
       return;
@@ -3356,14 +4220,36 @@ const events = await readEvents();
             return;
           }
           const ext = path.extname(indexPath).toLowerCase();
-          res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-          fs.createReadStream(indexPath).pipe(res);
+          const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+          const cacheControl = ext === '.html' ? 'no-cache, max-age=0, must-revalidate' : 'public, max-age=3600';
+          const headers = withSecurityHeaders({ 'Content-Type': contentType, 'Cache-Control': cacheControl }, req);
+          const acceptsGzip = /\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''));
+          if (acceptsGzip && ['.html', '.css', '.js', '.json', '.svg', '.txt'].includes(ext)) {
+            headers['Content-Encoding'] = 'gzip';
+            headers['Vary'] = 'Accept-Encoding';
+            res.writeHead(200, headers);
+            fs.createReadStream(indexPath).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+          } else {
+            res.writeHead(200, headers);
+            fs.createReadStream(indexPath).pipe(res);
+          }
         });
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-      fs.createReadStream(filePath).pipe(res);
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const cacheControl = ext === '.html' ? 'no-cache, max-age=0, must-revalidate' : 'public, max-age=3600';
+      const headers = withSecurityHeaders({ 'Content-Type': contentType, 'Cache-Control': cacheControl }, req);
+      const acceptsGzip = /\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''));
+      if (acceptsGzip && ['.html', '.css', '.js', '.json', '.svg', '.txt'].includes(ext)) {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(200, headers);
+        fs.createReadStream(filePath).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+      } else {
+        res.writeHead(200, headers);
+        fs.createReadStream(filePath).pipe(res);
+      }
     });
   } catch (err) {
     console.error('Request handler error:', err);
@@ -3438,10 +4324,15 @@ async function removeDemoDataAndKeepSiteCreatedEvents() {
   }
 }
 
-initStorage().then(async () => {
-  await removeDemoDataAndKeepSiteCreatedEvents();
-  server.listen(PORT, () => {
-    console.log('Unisocials server running at http://localhost:' + PORT);
+server.listen(PORT, () => {
+  console.log('Unisocials server running at http://localhost:' + PORT);
+  initStorage().then(async () => {
+    await migrateInfluencerAssignments();
+    await migrateInfluencerReferralLinks();
+    await removeDemoDataAndKeepSiteCreatedEvents();
+    console.log('Unisocials storage initialization complete.');
+  }).catch((err) => {
+    console.error('Storage initialization failed:', err.message);
   });
 });
 

@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
@@ -658,6 +663,27 @@
         return h;
       }
 
+      function safeImg(value) {
+
+
+        var v = String(value == null ? '' : value).trim();
+
+
+        if (!v) return '';
+
+
+        if (/^https?:\/\//i.test(v)) return v;
+
+
+        if (/^\/[^\/]/.test(v)) return v;
+
+
+        return '';
+
+
+      }
+
+
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
@@ -1142,7 +1168,7 @@ resultBox.className = 'admin-scan-result show';
               var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ₦' + vvipValue.toLocaleString() + '</span>' : '';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
-                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
+                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(safeImg(ev.image)) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +

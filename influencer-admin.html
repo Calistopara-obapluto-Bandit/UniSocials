@@ -2,6 +2,11 @@
 
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <meta content="noindex, nofollow" name="robots"/>
@@ -243,6 +248,8 @@
     }
     .admin-panel-heading h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-1); }
     .admin-panel-heading p { font-size: 0.85rem; color: var(--text-3); margin-top: 3px; }
+    #panel-influencers > .admin-panel-heading { display:grid; grid-template-columns:minmax(0, 1fr) minmax(240px, 360px); align-items:start; }
+    #panel-influencers > .admin-panel-heading > div:first-child { min-width:0; }
     @media (max-width: 768px) {
       .admin-tabs-inner { padding: 0 16px; }
       .admin-tab { padding: 12px 12px; font-size: 0.8rem; }
@@ -676,6 +683,20 @@
   #panel-events { display:none; }
   #panel-event-sales { display:none; }
   #panel-events.active, #panel-event-sales.active, #panel-overview.active, #panel-influencers.active { display:block; }
+  .influencer-section-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; }
+  .influencer-section-heading strong { color:var(--text-1); font-size:.92rem; }
+  .influencer-section-heading div div { color:var(--text-3); font-size:.76rem; margin-top:3px; }
+  .influencer-header-search { position:relative; flex:0 1 360px; min-width:220px; }
+  .influencer-header-search > button { width:100%; }
+  .influencer-header-search-panel { position:absolute; z-index:5; right:0; top:calc(100% + 8px); width:min(640px, calc(100vw - 48px)); padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:var(--shadow-md, 0 12px 30px rgba(0,0,0,.12)); }
+  .influencer-search-toolbar { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; gap:8px; align-items:center; }
+  .influencer-search-toolbar input { flex:1 1 auto; min-width:0; }
+  .influencer-search-toolbar button { flex:0 0 auto; white-space:nowrap; }
+  .influencer-search-results:empty { display:none; }
+  .influencer-search-result { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; padding:11px 0; border-bottom:1px solid var(--border); }
+  .influencer-search-result:last-child { border-bottom:0; }
+  .influencer-search-result-action { flex:0 0 auto; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 </style>
 
 <style id="influencer-admin-mobile-tight">
@@ -703,6 +724,9 @@
     .admin-panel-heading h1 { font-size: 1.08rem; line-height: 1.3; }
     .admin-panel-heading p { font-size: .76rem; line-height: 1.45; }
     .admin-panel-heading > div { min-width: 0; flex: 1 1 auto; }
+    .influencer-header-search { width:100%; min-width:0; flex:1 1 100%; }
+    .influencer-header-search-panel { position:static; width:100%; margin-top:8px; }
+    #panel-influencers > .admin-panel-heading { display:flex; }
 
     .admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
     .admin-stat { padding: 12px; border-radius: 12px; }
@@ -742,6 +766,11 @@
     .admin-ticket-codes { overflow-x: auto; }
 
     .admin-toast { max-width: calc(100vw - 24px); padding: 10px 14px; border-radius: 12px; font-size: .78rem; }
+    .influencer-search-toolbar { grid-template-columns:minmax(0, 1fr) 1fr; align-items:stretch; }
+    .influencer-search-toolbar input { grid-column:1 / -1; }
+    .influencer-search-toolbar button { min-width:0; }
+    .influencer-search-result-action { width:100%; }
+    .influencer-search-result-action .admin-refresh-btn { width:100%; }
   }
 
   @media (max-width: 380px) {
@@ -922,12 +951,27 @@
       <h1>📣 My Influencers</h1>
       <p>Create and manage the influencers you created. They receive their own login and referral link, and their sales remain associated with your Influencer Admin account.</p>
     </div>
+    <div class="influencer-header-search">
+      <button class="admin-refresh-btn" type="button" id="toggleExistingInfluencerSearch" aria-expanded="false" aria-controls="existingInfluencerSearchPanel">🔎 Find influencer</button>
+      <div class="influencer-header-search-panel" id="existingInfluencerSearchPanel" hidden>
+        <label class="sr-only" for="existingInfluencerSearch">Search existing influencers</label>
+        <div class="influencer-search-toolbar">
+          <input id="existingInfluencerSearch" type="search" placeholder="Name or email" autocomplete="off" />
+          <button class="admin-refresh-btn" type="button" onclick="searchExistingInfluencers()">Search</button>
+          <button class="admin-refresh-btn influencer-search-clear" type="button" onclick="clearExistingInfluencerSearch()" aria-label="Clear influencer search">Clear</button>
+        </div>
+        <div id="existingInfluencerResults" class="influencer-search-results"></div>
+      </div>
+    </div>
   </div>
   <div class="admin-scan-panel">
+    <div class="influencer-section-heading">
+      <div><strong>Create an influencer</strong><div>Give them a login and a referral link for your events.</div></div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
       <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" autocomplete="name" /></div>
       <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" autocomplete="email" /></div>
-      <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="At least 6 characters" autocomplete="new-password" /></div>
+      <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="8+ chars, letter, number & symbol" autocomplete="new-password" /></div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
@@ -984,6 +1028,20 @@ function fmtN(n) {
         if (isNaN(d)) return iso;
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
+      function safeImg(value) {
+
+        var v = String(value == null ? '' : value).trim();
+
+        if (!v) return '';
+
+        if (/^https?:\/\//i.test(v)) return v;
+
+        if (/^\/[^\/]/.test(v)) return v;
+
+        return '';
+
+      }
+
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
@@ -1237,7 +1295,7 @@ function fmtN(n) {
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr;gap:8px;padding:10px 0;' + (archived ? 'opacity:.68;' : '') + '">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' +
-                (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;">' : esc(ev.icon || '🎤')) +
+                (ev.image ? '<img src="' + esc(safeImg(ev.image)) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;">' : esc(ev.icon || '🎤')) +
                 '</span><strong>' + esc(ev.name || '') + '</strong>' +
                 '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.category || 'General') + '</span>' +
                 '<span style="font-size:.75rem;color:var(--text-3);">₦' + Number(ev.price || 0).toLocaleString() + '</span>' +
@@ -1788,7 +1846,7 @@ fetch('/api/admin/events/notify', {
 
       // ── Influencer Manager (master admin only) ──
       window.loadInfluencers = function() {
-        fetch('/api/admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+        fetch('/api/influencer-admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var list = (data && data.success && data.influencers) || [];
@@ -1797,17 +1855,75 @@ fetch('/api/admin/events/notify', {
             if (count) count.textContent = list.length + ' influencer' + (list.length !== 1 ? 's' : '');
             if (!container) return;
             if (!list.length) { container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No influencers yet. Create your first influencer above.</div>'; return; }
-            var html = '<div class="admin-ticket-codes-label">📣 Active Influencers (' + list.length + ')</div>';
+            var html = '<div class="admin-ticket-codes-label">📣 My Assigned Influencers (' + list.length + ')</div>';
             list.forEach(function(u) {
               var stats = u.referralStats || {};
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
                 '<div style="display:flex;flex-direction:column;gap:6px;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Relationship: <strong>Accepted</strong></span><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
                 '</div><div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || '') + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
             });
             container.innerHTML = html;
           }).catch(function() {});
+      };
+
+      window.searchExistingInfluencers = function() {
+        var input = document.getElementById('existingInfluencerSearch');
+        var box = document.getElementById('existingInfluencerResults');
+        var q = input ? String(input.value || '').trim() : '';
+        if (!q || q.length < 2) { if (box) box.innerHTML = '<div style="color:#B71C1C;font-size:.82rem;padding:8px 0;">Enter at least 2 characters to search.</div>'; return; }
+        if (box) box.innerHTML = '<div style="color:var(--text-3);font-size:.82rem;padding:8px 0;">Searching…</div>';
+        fetch('/api/influencer-admin/influencers/search?q=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+          .then(function(x){
+            if (!x.ok || !x.d.success) throw new Error(x.d.error || 'Search failed');
+            var list = x.d.influencers || [];
+            if (!box) return;
+            if (!list.length) { box.innerHTML = '<div style="color:var(--text-3);font-size:.82rem;padding:8px 0;">No matching existing influencer found.</div>'; return; }
+            box.innerHTML = list.map(function(u){
+              var status = String(u.assignmentStatus || 'none');
+              var action = '';
+              if (status === 'accepted') action = '<span class="influencer-search-result-action" style="font-size:.75rem;font-weight:700;color:#2E7D32;">✓ Already working with you</span>';
+              else if (status === 'pending') action = '<span class="influencer-search-result-action" style="font-size:.75rem;font-weight:700;color:#B26A00;">⏳ Request pending</span>';
+              else action = '<span class="influencer-search-result-action"><button class="admin-refresh-btn" type="button" onclick="requestExistingInfluencer(\'' + esc(u.id) + '\')">Request influencer</button></span>';
+              return '<div class="influencer-search-result">' +
+                '<div><strong>' + esc(u.name || '—') + '</strong><div style="font-size:.75rem;color:var(--text-3);">' + esc(u.email || '') + '</div></div>' + action + '</div>';
+            }).join('');
+          }).catch(function(e){ if (box) box.innerHTML = '<div style="color:#B71C1C;font-size:.82rem;padding:8px 0;">' + esc(e.message || 'Search failed') + '</div>'; });
+      };
+
+      window.clearExistingInfluencerSearch = function() {
+        var input = document.getElementById('existingInfluencerSearch');
+        var box = document.getElementById('existingInfluencerResults');
+        if (input) input.value = '';
+        if (box) box.innerHTML = '';
+        if (input) input.focus();
+      };
+
+      var existingInfluencerSearchInput = document.getElementById('existingInfluencerSearch');
+      if (existingInfluencerSearchInput) existingInfluencerSearchInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') { event.preventDefault(); searchExistingInfluencers(); }
+      });
+      var toggleExistingInfluencerSearch = document.getElementById('toggleExistingInfluencerSearch');
+      var existingInfluencerSearchPanel = document.getElementById('existingInfluencerSearchPanel');
+      if (toggleExistingInfluencerSearch && existingInfluencerSearchPanel) toggleExistingInfluencerSearch.addEventListener('click', function() {
+        var isOpen = !existingInfluencerSearchPanel.hidden;
+        existingInfluencerSearchPanel.hidden = isOpen;
+        toggleExistingInfluencerSearch.setAttribute('aria-expanded', String(!isOpen));
+        if (!isOpen && existingInfluencerSearchInput) existingInfluencerSearchInput.focus();
+      });
+
+      window.requestExistingInfluencer = function(influencerId) {
+        if (!influencerId) return;
+        if (!confirm('Send a request to this existing influencer? No new account will be created.')) return;
+        fetch('/api/influencer-admin/influencer-requests', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({influencerId:influencerId}) })
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+          .then(function(x){
+            if (!x.ok || !x.d.success) throw new Error(x.d.error || 'Request failed');
+            showToast('Influencer request sent. Waiting for acceptance.');
+            searchExistingInfluencers();
+          }).catch(function(e){ showToast(e.message || 'Request failed', true); });
       };
 
       window.addInfluencer = function() {
@@ -1838,7 +1954,7 @@ fetch('/api/admin/events/notify', {
 
       window.resetManagedPassword = function(email) {
         if (!email) return;
-        var first = prompt('Enter a new password for ' + email + ' (minimum 6 characters):');
+        var first = prompt('Enter a new password for ' + email + ' (8+ chars, letter, number & symbol):');
         if (first === null) return;
         var password = String(first).trim();
         if (password.length < 6) return showToast('Password must be at least 6 characters.', true);

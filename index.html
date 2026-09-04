@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Unisocials — Event Ticket Selling Platform</title>
@@ -8,8 +13,25 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <link rel="stylesheet" href="landing.css" />
 </head>
 <body>
+
+  <!-- UniSocials branded first-load intro. The existing homepage remains underneath and is revealed after ~4 seconds. -->
+  <div id="unisocials-intro" aria-label="Loading UniSocials" role="status">
+    <div class="un-intro-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="un-intro-shell">
+      <div class="un-intro-logo-wrap">
+        <img class="un-intro-logo" src="images/unisocials-logo.jpg" alt="UniSocials logo" />
+      </div>
+      <div class="un-intro-name"><span>UNI</span>SOCIALS</div>
+      <div class="un-intro-rule"><div class="un-intro-tagline">Connect. <b>Engage.</b> Experience.</div></div>
+      <p class="un-intro-copy">Your university events, communities and connections — made simple.</p>
+      <div class="un-intro-loader" aria-hidden="true"><span></span></div>
+      <div class="un-intro-status">Welcome to UniSocials</div>
+    </div>
+  </div>
+
 
   <!-- ── WHATSAPP FLOAT ── -->
   <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" class="whatsapp-float" aria-label="Chat on WhatsApp">
@@ -257,7 +279,12 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
           return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
         });
       }
-      function fmtN(n) {
+function safeImg(value) {
+        var v = String(value == null ? '' : value).trim();
+        if (!v || /^(?:https?:\/\/|\/[^\/])/.test(v)) return v;
+        return '';
+      }
+            function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
       function eventImageHtml(ev, fallback, gradient) {
@@ -265,7 +292,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         var badge = esc(ev.category || 'General');
         if (img) {
           return '<div class="event-card-image has-photo">' +
-            '<img class="event-card-image-photo" src="' + esc(img) + '" alt="' + esc(ev.name || 'Event image') + '">' +
+            '<img class="event-card-image-photo" src="' + esc(safeImg(img)) + '" alt="' + esc(ev.name || 'Event image') + '">' +
             '<div class="event-card-badge">' + badge + '</div>' +
           '</div>';
         }
@@ -302,7 +329,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         if (heroMedia) {
           var image = String(ev.image || '').trim();
           if (image) {
-            heroMedia.innerHTML = '<img src="' + esc(image) + '" alt="' + esc(ev.name || 'Featured event') + '">';
+            heroMedia.innerHTML = '<img src="' + esc(safeImg(image)) + '" alt="' + esc(ev.name || 'Featured event') + '">';
           } else {
             heroMedia.innerHTML = '<div class="hero-card-fallback" id="heroEventIcon">' + esc(ev.icon || '\uD83C\uDF9F\uFE0F') + '</div>';
           }
@@ -467,6 +494,26 @@ homeUni.addEventListener('change', function() {
           });
       });
     })();
+  </script>
+
+  <script>
+  (function () {
+    var intro = document.getElementById('unisocials-intro');
+    if (!intro) return;
+    var start = Date.now();
+    var minimumMs = 4000;
+    function hideIntro() {
+      var elapsed = Date.now() - start;
+      var wait = Math.max(0, minimumMs - elapsed);
+      setTimeout(function () {
+        intro.classList.add('is-hidden');
+        setTimeout(function () { if (intro.parentNode) intro.parentNode.removeChild(intro); }, 800);
+      }, wait);
+    }
+    if (document.readyState === 'complete') hideIntro();
+    else window.addEventListener('load', hideIntro, { once: true });
+    setTimeout(hideIntro, 5000);
+  })();
   </script>
 </body>
 </html>
