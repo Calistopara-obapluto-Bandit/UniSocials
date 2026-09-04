@@ -761,7 +761,12 @@
     #evImagePreview { max-width: 100% !important; height: auto !important; max-height: 190px; }
 
     #panel-event-sales .admin-scan-panel { overflow-x: hidden !important; }
-    #aesInfluencers { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #aesInfluencers { overflow-x: hidden; }
+    #aesInfluencers > div { min-width: 0 !important; grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 1fr)) !important; align-items: start !important; }
+    #aesInfluencers > div > div:first-child { grid-column: 1 / -1; }
+    #aesInfluencers small { font-size: .66rem; }
+    #overviewEvents > div { min-width: 0; overflow-wrap: anywhere; }
+    #overviewEvents > div > div { gap: 8px 12px !important; font-size: .74rem !important; }
     #overviewEvents { min-width: 0; }
     .admin-ticket-codes { overflow-x: auto; }
 
@@ -783,6 +788,7 @@
     .admin-stats { grid-template-columns: minmax(0, 1fr); }
     .admin-panel-heading > div + div { width: 100%; }
     .admin-panel-heading > div + div button { flex: 1 1 auto; }
+    #aesInfluencers > div { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; padding-left: 0 !important; padding-right: 0 !important; }
   }
 </style>
 </head>
