@@ -1240,7 +1240,7 @@ function securityHeaders(req) {
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
-      "form-action 'self' https://formsubmit.co",
+      "form-action 'self'",
       "script-src 'self' 'unsafe-inline' https://checkout.flutterwave.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
@@ -1527,6 +1527,18 @@ async function sendBrevoEmail(to, subject, text, html, toName) {
     console.warn('Brevo email error:', e.message);
     return null;
   }
+}
+
+async function sendContactEmail(data) {
+  const subject = '[Unisocials Contact] ' + data.subject;
+  const text = 'Name: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + (data.phone || '—') + '\nSubject: ' + data.subject + '\n\n' + data.message;
+  const html = '<div style="font-family:Arial,sans-serif;white-space:pre-wrap"><strong>Name:</strong> ' + escapeHtml(data.name) + '<br><strong>Email:</strong> ' + escapeHtml(data.email) + '<br><strong>Phone:</strong> ' + escapeHtml(data.phone || '—') + '<br><strong>Subject:</strong> ' + escapeHtml(data.subject) + '<br><br>' + escapeHtml(data.message).replace(/\n/g, '<br>') + '</div>';
+  const to = adminEmail();
+  if (brevoApiKey()) return !!(await sendBrevoEmail(to, subject, text, html));
+  const key = resendKey();
+  if (!key) return false;
+  const result = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, { from: emailFrom(), to: [to], subject: subject, text: text, html: html });
+  return result.status === 200;
 }
 
 // Plain-text digest of the order for the email body
@@ -1978,6 +1990,25 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   try {
+    if (pathname === '/api/contact' && req.method === 'POST') {
+      const rl = rateLimit(req, 'contact', 5, 60000);
+      if (!rl.allowed) return sendJson(res, 429, { success: false, error: 'Too many messages. Please try again shortly.' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim();
+      const phone = String(data.phone || '').trim();
+      const subject = String(data.subject || '').trim();
+      const message = String(data.message || '').trim();
+      if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !subject || subject.length > 120 || !message || message.length > 5000) {
+        return sendJson(res, 400, { success: false, error: 'Please complete the form with a valid name, email, subject, and message.' });
+      }
+      const sent = await sendContactEmail({ name, email, phone, subject, message });
+      if (!sent) return sendJson(res, 503, { success: false, error: 'Email delivery is not configured. Please contact us on WhatsApp.' });
+      return sendJson(res, 200, { success: true });
+    }
+
     // Lightweight health/keep-alive endpoint.
     // Deliberately performs no database queries or external API calls so periodic
     // uptime checks keep the web service warm without consuming Neon compute.

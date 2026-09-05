@@ -89,11 +89,7 @@
         </div>
 
         <div class="contact-form reveal reveal-delay-1">
-          <form action="https://formsubmit.co/support.sbiamautos@gmail.com" method="POST" id="contactForm">
-            <input type="hidden" name="_subject" value="New Contact Form Submission from Unisocials" />
-            <input type="hidden" name="_captcha" value="false" />
-            <input type="hidden" name="_template" value="table" />
-            <input type="hidden" name="_next" value="https://unisocials.onrender.com/thank-you.html" id="formNext" />
+          <form action="/api/contact" method="POST" id="contactForm">
             <div class="form-group">
               <label for="name">Full Name</label>
               <input type="text" id="name" name="Name" placeholder="Enter your full name" required />
@@ -122,6 +118,7 @@
               <textarea id="message" name="Message" placeholder="Tell us how we can help..." required></textarea>
             </div>
             <button type="submit" class="btn-submit">Send Message</button>
+            <p id="contactFormStatus" role="status" style="margin-top:12px;font-size:.84rem;"></p>
           </form>
         </div>
       </div>
@@ -179,5 +176,36 @@
 
   <script src="config.js"></script>
   <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+  <script>
+    (function () {
+      var form = document.getElementById('contactForm');
+      var status = document.getElementById('contactFormStatus');
+      if (!form || !status) return;
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var button = form.querySelector('button[type="submit"]');
+        status.textContent = 'Sending…';
+        status.style.color = 'var(--text-3)';
+        if (button) { button.disabled = true; button.textContent = 'Sending…'; }
+        fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: form.elements.Name.value, email: form.elements.Email.value, phone: form.elements.Phone.value, subject: form.elements.Subject.value, message: form.elements.Message.value })
+        }).then(function (response) {
+          return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+        }).then(function (result) {
+          if (!result.ok || !result.data.success) throw new Error(result.data.error || 'Message could not be sent.');
+          form.reset();
+          status.textContent = 'Message sent. We will get back to you soon.';
+          status.style.color = 'var(--accent)';
+        }).catch(function (error) {
+          status.textContent = error.message || 'Message could not be sent. Please try WhatsApp.';
+          status.style.color = '#b71c1c';
+        }).finally(function () {
+          if (button) { button.disabled = false; button.textContent = 'Send Message'; }
+        });
+      });
+    }());
+  </script>
 </body>
 </html>
