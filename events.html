@@ -433,7 +433,14 @@ function renderEvents(events) {
             });
             uniSel.innerHTML = html;
             var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
-            if (cur && (cur.slug || cur.id)) uniSel.value = cur.slug || cur.id;
+            if (cur && (cur.slug || cur.id)) {
+              uniSel.value = cur.slug || cur.id;
+              // The initial event request may have run before the universities
+              // finished loading. Re-apply the persisted campus now so the UI
+              // selection and the event list can never disagree.
+              loadEvents(cur);
+              rebuildCategoryFilter(cur);
+            }
             // If the dropdown is used, selecting a campus updates the global selection.
             uniSel.addEventListener('change', function() {
               var val = uniSel.value;
@@ -443,22 +450,36 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
             // Enable the searchable university selector (search box + button).
             if (window.UNUniversitySearch) {
               window.UNUniversitySearch(uniSel);
-              // On the Events page, pressing the university Search button must
-              // also apply a single matching university to the event list.
-              // The shared search widget only filters the dropdown options; it
-              // does not itself change the selected university.
-              var uniSearchBtn = uniSel.parentElement && uniSel.parentElement.querySelector('.uni-search-btn');
+              // The shared search widget only filters the <select> options. On the
+              // Events page we must also apply the result to the event request.
+              // Replace its button listeners with this page-specific handler so the
+              // search action cannot stop at visually filtering the dropdown.
+              var uniSearchWrap = uniSel.parentElement;
+              var uniSearchBtn = uniSearchWrap && uniSearchWrap.querySelector('.uni-search-btn');
+              var uniSearchInput = uniSearchWrap && uniSearchWrap.querySelector('.uni-search-input');
               if (uniSearchBtn) {
-                uniSearchBtn.addEventListener('click', function() {
-                  setTimeout(function() {
-                    var visibleMatches = Array.prototype.filter.call(uniSel.options, function(opt, idx) {
-                      return idx > 0 && opt.style.display !== 'none';
-                    });
-                    if (visibleMatches.length === 1) {
-                      uniSel.value = visibleMatches[0].value;
-                      uniSel.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                  }, 0);
+                var replacementBtn = uniSearchBtn.cloneNode(true);
+                uniSearchBtn.parentNode.replaceChild(replacementBtn, uniSearchBtn);
+                replacementBtn.addEventListener('click', function() {
+                  var query = uniSearchInput ? String(uniSearchInput.value || '').trim().toLowerCase() : '';
+                  if (!query) return;
+                  var matches = Array.prototype.filter.call(uniSel.options, function(opt, idx) {
+                    if (idx === 0) return false;
+                    var text = String(opt.textContent || opt.text || '').trim().toLowerCase();
+                    return text === query || text.indexOf(query) !== -1;
+                  });
+                  if (matches.length !== 1) return;
+                  uniSel.value = matches[0].value;
+                  var selected = list.find(function(u) { return (u.slug || u.id) === matches[0].value; }) || null;
+                  if (window.UNUniversity) {
+                    window.UNUniversity.setUniversity(selected);
+                  } else {
+                    uniSel.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+                  // Explicitly load from this exact selection as a safeguard: the
+                  // Events page must update immediately, without requiring refresh.
+                  if (selected) loadEvents(selected);
+                  rebuildCategoryFilter(selected);
                 });
               }
             }
