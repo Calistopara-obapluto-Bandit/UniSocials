@@ -3785,20 +3785,32 @@ codes[idx] = entry;
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      // Events happening this month (parse the event date string)
+      // Normalize admin-entered dates such as "SEP. 25TH 2026" before counting.
+      function parseEventDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        const native = new Date(raw);
+        if (!isNaN(native)) return native;
+        const normalized = raw
+          .replace(/\b(\d{1,2})(?:ST|ND|RD|TH)\b/ig, '$1')
+          .replace(/\./g, '')
+          .replace(/\s+/g, ' ');
+        const parsed = new Date(normalized);
+        return isNaN(parsed) ? null : parsed;
+      }
+
+      // Events happening this month (including admin-entered ordinal dates)
       let eventsThisMonth = 0;
       events.forEach(function(ev) {
-        if (!ev.date) return;
-        const d = new Date(ev.date);
-        if (isNaN(d)) return;
+        const d = parseEventDate(ev.date);
+        if (!d) return;
         if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) eventsThisMonth++;
       });
 
       // Upcoming events (date >= today)
       const upcomingEvents = events.filter(function(ev) {
-        if (!ev.date) return false;
-        const d = new Date(ev.date);
-        if (isNaN(d)) return false;
+        const d = parseEventDate(ev.date);
+        if (!d) return false;
         return d >= now;
       }).length;
 
