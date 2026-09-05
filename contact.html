@@ -187,14 +187,14 @@
         status.textContent = 'Sending…';
         status.style.color = 'var(--text-3)';
         if (button) { button.disabled = true; button.textContent = 'Sending…'; }
-        fetch('/api/contact', {
+        fetch('https://formsubmit.co/ajax/support.sbiamautos@gmail.com', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({ name: form.elements.Name.value, email: form.elements.Email.value, phone: form.elements.Phone.value, subject: form.elements.Subject.value, message: form.elements.Message.value })
         }).then(function (response) {
           return response.json().then(function (data) { return { ok: response.ok, data: data }; });
         }).then(function (result) {
-          if (!result.ok || !result.data.success) throw new Error(result.data.error || 'Message could not be sent.');
+          if (!result.ok || String(result.data.success) !== 'true') throw new Error(result.data.message || 'Message could not be sent.');
           form.reset();
           status.textContent = 'Message sent. We will get back to you soon.';
           status.style.color = 'var(--accent)';

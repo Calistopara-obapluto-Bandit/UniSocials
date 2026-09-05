@@ -1245,7 +1245,7 @@ function securityHeaders(req) {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://checkout.flutterwave.com https://checkout-v3.flutterwave.com https://api.flutterwave.com https://api.ravepay.co https://ravesandboxapi.flutterwave.com",
+      "connect-src 'self' https://formsubmit.co https://checkout.flutterwave.com https://checkout-v3.flutterwave.com https://api.flutterwave.com https://api.ravepay.co https://ravesandboxapi.flutterwave.com",
       "frame-src 'self' https://checkout.flutterwave.com https://checkout-v3.flutterwave.com",
       "manifest-src 'self'",
       "worker-src 'self' blob:",
