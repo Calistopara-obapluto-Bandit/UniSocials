@@ -457,91 +457,85 @@ function renderEvents(events) {
         window.UNNotify.subscribe(email, uniId, uniName, eventId, btn);
       };
 
-// Populate the university dropdown from /api/universities.
+// Populate and control the university filter on this page only.
+      // This page uses its own native select/search flow so changing campus
+      // immediately reloads events without relying on the shared search handler.
       if (uniSel) {
         fetch('/api/universities', { cache: 'no-store' })
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var rawList = (data && data.success && Array.isArray(data.universities)) ? data.universities : [];
-            // The catalogue historically contains duplicate records for some
-            // universities. Show each university name once in the selector.
-            var seenNames = new Set();
+            var seen = new Set();
             var list = rawList.filter(function(u) {
               var key = String(u && u.name || '').trim().toLowerCase();
-              if (!key || seenNames.has(key)) return false;
-              seenNames.add(key);
-              return true;
+              if (!key || seen.has(key)) return false;
+              seen.add(key); return true;
             });
-            var html = '<option value="">All Universities</option>';
-            list.forEach(function(u) {
-              html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
-            });
-            uniSel.innerHTML = html;
+            uniSel.innerHTML = '<option value="">All Universities</option>' + list.map(function(u) {
+              return '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
+            }).join('');
 
-            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
-            var curName = cur ? String(cur.name || '').trim().toLowerCase() : '';
-            var restored = curName ? list.find(function(u) { return String(u.name || '').trim().toLowerCase() === curName; }) : null;
+            function findSelected() {
+              var value = String(uniSel.value || '');
+              return list.find(function(u) { return String(u.slug || u.id) === value; }) || null;
+            }
+            function selectUniversity(selected) {
+              userSelectedUniversity = true;
+              currentUniversity = selected || null;
+              rebuildCategoryFilter(currentUniversity);
+              try {
+                if (selected) localStorage.setItem('selected_university', JSON.stringify(selected));
+                else localStorage.removeItem('selected_university');
+              } catch (e) {}
+              loadEvents(selected || null);
+            }
+
+            var restored = null;
+            try {
+              var raw = localStorage.getItem('selected_university');
+              var saved = raw ? JSON.parse(raw) : null;
+              if (saved && saved.name) {
+                var savedName = String(saved.name).trim().toLowerCase();
+                restored = list.find(function(u) { return String(u.name || '').trim().toLowerCase() === savedName; }) || null;
+              }
+            } catch (e) {}
             if (restored) {
               uniSel.value = restored.slug || restored.id;
               currentUniversity = restored;
+              rebuildCategoryFilter(restored);
             }
+            if (!userSelectedUniversity) loadEvents(restored || null);
 
-            // Now that the catalogue is ready, perform the first load exactly once.
-            // Never overwrite a university the user selected while the catalogue
-            // request was in flight.
-            if (!userSelectedUniversity) {
-              loadEvents(restored || initialUni || null);
-            }
-            function applySelectedUniversity(selected) {
-              userSelectedUniversity = true;
-              currentUniversity = selected || null;
-              if (window.UNUniversity) window.UNUniversity.setUniversity(selected || null);
-              else loadEvents(selected || null);
-            }
+            // The native select is authoritative. No shared change listener is
+            // initialized for this Events-page selector.
+            uniSel.onchange = function() { selectUniversity(findSelected()); };
 
-            uniSel.addEventListener('change', function() {
-              var val = uniSel.value;
-              var selected = list.find(function(u) { return (u.slug || u.id) === val; }) || null;
-              // Clear the shared search text before loading. The shared search
-              // widget also listens for <select> changes and otherwise re-applies
-              // its old search text on the next animation frame, which can hide
-              // the newly selected option and reset the select to 'All'.
-              var searchInput = uniSel.parentElement && uniSel.parentElement.querySelector('.uni-search-input');
-              if (searchInput) searchInput.value = '';
-              applySelectedUniversity(selected);
-            });
-
-            if (window.UNUniversitySearch) {
-              window.UNUniversitySearch(uniSel);
-              var wrap = uniSel.parentElement;
-              var btn = wrap && wrap.querySelector('.uni-search-btn');
-              var input = wrap && wrap.querySelector('.uni-search-input');
-              if (btn) {
-                var replacement = btn.cloneNode(true);
-                btn.parentNode.replaceChild(replacement, btn);
-                replacement.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  var q = input ? String(input.value || '').trim().toLowerCase() : '';
-                  if (!q) return;
-                  var matches = list.filter(function(u) {
-                    var name = String(u.name || '').toLowerCase();
-                    var shortName = String(u.shortName || '').toLowerCase();
-                    var state = String(u.state || '').toLowerCase();
-                    return name === q || name.indexOf(q) !== -1 || shortName === q || shortName.indexOf(q) !== -1 || state === q;
-                  });
-                  if (matches.length !== 1) return;
-                  var selected = matches[0];
-                  uniSel.value = selected.slug || selected.id;
-                  // Prevent the shared select-change listener from re-running
-                  // the previous search query after this selection is applied.
-                  if (input) input.value = '';
-                  applySelectedUniversity(selected);
-                  rebuildCategoryFilter(selected);
-                });
-              }
+            var parent = uniSel.parentElement;
+            var searchWrap = document.createElement('div');
+            searchWrap.className = 'events-page-uni-search';
+            searchWrap.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;';
+            searchWrap.innerHTML = '<input type="text" class="uni-search-input" placeholder="Search for your university…" aria-label="Search universities" style="flex:1;">' +
+              '<button type="button" class="uni-search-btn">🔍 Search</button>';
+            parent.insertBefore(searchWrap, uniSel);
+            var input = searchWrap.querySelector('.uni-search-input');
+            var btn = searchWrap.querySelector('.uni-search-btn');
+            function doSearch() {
+              var q = String(input.value || '').trim().toLowerCase();
+              if (!q) return;
+              var matches = list.filter(function(u) {
+                return String(u.name || '').toLowerCase().indexOf(q) !== -1 ||
+                  String(u.shortName || '').toLowerCase().indexOf(q) !== -1 ||
+                  String(u.state || '').toLowerCase() === q;
+              });
+              if (matches.length !== 1) return;
+              uniSel.value = matches[0].slug || matches[0].id;
+              input.value = '';
+              uniSel.onchange();
             }
+            btn.onclick = doSearch;
+            input.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } };
           })
-          .catch(function() {});
+          .catch(function() { loadEvents(null); });
       }
 
       // Initial load is performed only after the university catalogue has loaded.
