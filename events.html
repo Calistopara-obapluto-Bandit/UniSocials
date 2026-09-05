@@ -510,30 +510,32 @@ function renderEvents(events) {
             // initialized for this Events-page selector.
             uniSel.onchange = function() { selectUniversity(findSelected()); };
 
-            var parent = uniSel.parentElement;
-            var searchWrap = document.createElement('div');
-            searchWrap.className = 'events-page-uni-search';
-            searchWrap.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;';
-            searchWrap.innerHTML = '<input type="text" class="uni-search-input" placeholder="Search for your university…" aria-label="Search universities" style="flex:1;">' +
-              '<button type="button" class="uni-search-btn">🔍 Search</button>';
-            parent.insertBefore(searchWrap, uniSel);
-            var input = searchWrap.querySelector('.uni-search-input');
-            var btn = searchWrap.querySelector('.uni-search-btn');
-            function doSearch() {
-              var q = String(input.value || '').trim().toLowerCase();
-              if (!q) return;
-              var matches = list.filter(function(u) {
-                return String(u.name || '').toLowerCase().indexOf(q) !== -1 ||
-                  String(u.shortName || '').toLowerCase().indexOf(q) !== -1 ||
-                  String(u.state || '').toLowerCase() === q;
-              });
-              if (matches.length !== 1) return;
-              uniSel.value = matches[0].slug || matches[0].id;
-              input.value = '';
-              uniSel.onchange();
+            // Use the existing site-wide university search UI so the Events page
+            // keeps exactly the same responsive layout. We only add the missing
+            // selection behavior to its existing Search button.
+            if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);
+            var searchWrap = uniSel.parentElement && uniSel.parentElement.querySelector('.uni-search-wrap');
+            if (searchWrap) {
+              var input = searchWrap.querySelector('.uni-search-input');
+              var btn = searchWrap.querySelector('.uni-search-btn');
+              if (btn && input) {
+                btn.addEventListener('click', function() {
+                  var q = String(input.value || '').trim().toLowerCase();
+                  if (!q) return;
+                  var matches = list.filter(function(u) {
+                    return String(u.name || '').toLowerCase().indexOf(q) !== -1 ||
+                      String(u.shortName || '').toLowerCase().indexOf(q) !== -1 ||
+                      String(u.state || '').toLowerCase() === q ||
+                      String(u.location || '').toLowerCase().indexOf(q) !== -1;
+                  });
+                  if (matches.length !== 1) return;
+                  uniSel.value = matches[0].slug || matches[0].id;
+                  input.value = '';
+                  if (typeof uniSel.clearSearch === 'function') uniSel.clearSearch();
+                  uniSel.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+              }
             }
-            btn.onclick = doSearch;
-            input.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } };
           })
           .catch(function() { loadEvents(null); });
       }
