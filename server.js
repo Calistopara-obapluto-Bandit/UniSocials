@@ -3809,8 +3809,15 @@ codes[idx] = entry;
           .map(function(value) { return String(value || '').trim().toLowerCase(); })
           .filter(Boolean));
         const filtered = events.filter(function(e) {
-          return [e.universityId, e.universitySlug, e.universityName].some(function(value) {
-            return universityKeys.has(String(value || '').trim().toLowerCase());
+          // Treat the university metadata as one identity. If multiple fields
+          // are present, all of them must agree with the selected university.
+          // This prevents stale/conflicting metadata from leaking an event
+          // from another campus into the selected campus view.
+          const fields = [e.universityId, e.universitySlug, e.universityName]
+            .map(function(value) { return String(value || '').trim().toLowerCase(); })
+            .filter(Boolean);
+          return fields.length > 0 && fields.every(function(value) {
+            return universityKeys.has(value);
           });
         }).map(enrich);
         return sendJson(res, 200, { success: true, events: filtered });

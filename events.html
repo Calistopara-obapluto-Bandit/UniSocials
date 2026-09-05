@@ -412,8 +412,16 @@ function renderEvents(events) {
             // belonging to another university, even if an API/cache response is stale
             // or contains inconsistent university identifiers.
             var filtered = selectedKeys.size ? returned.filter(function(ev) {
-              return [ev.universityId, ev.universitySlug, ev.universityName].some(function(value) {
-                return selectedKeys.has(String(value || '').trim().toLowerCase());
+              // An event is allowed through only when every university field
+              // that it actually has agrees with the currently selected campus.
+              // This prevents a stale/inconsistent record (for example, an
+              // event named for UNN carrying an old Uyo id) from appearing
+              // under the wrong university.
+              var fields = [ev.universityId, ev.universitySlug, ev.universityName]
+                .map(function(value) { return String(value || '').trim().toLowerCase(); })
+                .filter(Boolean);
+              return fields.length > 0 && fields.every(function(value) {
+                return selectedKeys.has(value);
               });
             }) : returned;
             renderEvents(filtered);
