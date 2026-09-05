@@ -1556,7 +1556,9 @@ async function sendContactEmail(data) {
   const to = adminEmail();
   const formSubmitKey = String(process.env.FORMSUBMIT_KEY !== undefined ? process.env.FORMSUBMIT_KEY : defaults.FORMSUBMIT_KEY || '').trim();
   if (formSubmitKey) {
-    const result = await postForm('formsubmit.co', '/' + encodeURIComponent(formSubmitKey), {
+    const result = await postJson('formsubmit.co', '/ajax/' + encodeURIComponent(formSubmitKey), {
+      'Accept': 'application/json'
+    }, {
       Name: data.name,
       Email: data.email,
       Phone: data.phone || '',
@@ -1569,12 +1571,9 @@ async function sendContactEmail(data) {
     });
     if (result.status >= 200 && result.status < 400) return { sent: true, configured: true, provider: 'FormSubmit' };
     console.warn('FormSubmit contact delivery failed (' + result.status + '):', result.body && result.body.slice(0, 200));
+    return { sent: false, configured: true, provider: 'FormSubmit', status: result.status };
   }
-  if (brevoApiKey()) return { sent: !!(await sendBrevoEmail(to, subject, text, html)), configured: true, provider: 'Brevo' };
-  const key = resendKey();
-  if (!key) return { sent: false, configured: false, provider: '' };
-  const result = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, { from: emailFrom(), to: [to], subject: subject, text: text, html: html });
-  return { sent: result.status === 200, configured: true, provider: 'Resend' };
+  return { sent: false, configured: false, provider: '' };
 }
 
 // Plain-text digest of the order for the email body
