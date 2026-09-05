@@ -441,7 +441,27 @@ function renderEvents(events) {
 if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
             });
             // Enable the searchable university selector (search box + button).
-            if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);
+            if (window.UNUniversitySearch) {
+              window.UNUniversitySearch(uniSel);
+              // On the Events page, pressing the university Search button must
+              // also apply a single matching university to the event list.
+              // The shared search widget only filters the dropdown options; it
+              // does not itself change the selected university.
+              var uniSearchBtn = uniSel.parentElement && uniSel.parentElement.querySelector('.uni-search-btn');
+              if (uniSearchBtn) {
+                uniSearchBtn.addEventListener('click', function() {
+                  setTimeout(function() {
+                    var visibleMatches = Array.prototype.filter.call(uniSel.options, function(opt, idx) {
+                      return idx > 0 && opt.style.display !== 'none';
+                    });
+                    if (visibleMatches.length === 1) {
+                      uniSel.value = visibleMatches[0].value;
+                      uniSel.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                  }, 0);
+                });
+              }
+            }
           })
           .catch(function() {});
       }
