@@ -389,14 +389,34 @@ function renderEvents(events) {
       function loadEvents(uni) {
         var requestId = ++eventLoadRequest;
         var url = '/api/events';
+        var selectedKeys = new Set();
+        if (uni) {
+          [uni.id, uni.slug, uni.name].forEach(function(value) {
+            var key = String(value || '').trim().toLowerCase();
+            if (key) selectedKeys.add(key);
+          });
+        }
         if (uni && (uni.id || uni.slug)) {
           url += '?university=' + encodeURIComponent(uni.slug || uni.id);
         }
+        // Clear the old university's events immediately. Never leave the previous
+        // campus visible while the newly selected campus is loading.
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><p style="color:var(--text-3);">Loading events…</p></div>';
+        if (countEl) countEl.innerHTML = 'Loading events…';
         fetch(url)
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (requestId !== eventLoadRequest) return;
-            renderEvents(data && data.success ? data.events : []);
+            var returned = data && data.success && Array.isArray(data.events) ? data.events : [];
+            // Defense in depth: the Events page itself must never render an event
+            // belonging to another university, even if an API/cache response is stale
+            // or contains inconsistent university identifiers.
+            var filtered = selectedKeys.size ? returned.filter(function(ev) {
+              return [ev.universityId, ev.universitySlug, ev.universityName].some(function(value) {
+                return selectedKeys.has(String(value || '').trim().toLowerCase());
+              });
+            }) : returned;
+            renderEvents(filtered);
           })
           .catch(function() {
             if (requestId !== eventLoadRequest) return;
