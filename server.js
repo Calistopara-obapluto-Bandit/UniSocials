@@ -1477,6 +1477,26 @@ function postJson(hostname, pathname, headers, body) {
   });
 }
 
+function postForm(hostname, pathname, fields) {
+  return new Promise((resolve) => {
+    const data = new URLSearchParams(fields).toString();
+    const options = {
+      hostname: hostname,
+      port: 443,
+      path: pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(data) }
+    };
+    const req = https.request(options, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, body: body }));
+    });
+    req.on('error', (error) => resolve({ status: 0, body: error.message }));
+    req.end(data);
+  });
+}
+
 function emailFrom() {
   return process.env.EMAIL_FROM !== undefined ? process.env.EMAIL_FROM : defaults.EMAIL_FROM;
 }
@@ -1534,6 +1554,22 @@ async function sendContactEmail(data) {
   const text = 'Name: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + (data.phone || '—') + '\nSubject: ' + data.subject + '\n\n' + data.message;
   const html = '<div style="font-family:Arial,sans-serif;white-space:pre-wrap"><strong>Name:</strong> ' + escapeHtml(data.name) + '<br><strong>Email:</strong> ' + escapeHtml(data.email) + '<br><strong>Phone:</strong> ' + escapeHtml(data.phone || '—') + '<br><strong>Subject:</strong> ' + escapeHtml(data.subject) + '<br><br>' + escapeHtml(data.message).replace(/\n/g, '<br>') + '</div>';
   const to = adminEmail();
+  const formSubmitKey = String(process.env.FORMSUBMIT_KEY !== undefined ? process.env.FORMSUBMIT_KEY : defaults.FORMSUBMIT_KEY || '').trim();
+  if (formSubmitKey) {
+    const result = await postForm('formsubmit.co', '/' + encodeURIComponent(formSubmitKey), {
+      Name: data.name,
+      Email: data.email,
+      Phone: data.phone || '',
+      Subject: data.subject,
+      Message: data.message,
+      _subject: 'New Contact Form Submission from Unisocials',
+      _captcha: 'false',
+      _template: 'table',
+      _next: siteUrl() + '/thank-you.html'
+    });
+    if (result.status >= 200 && result.status < 400) return { sent: true, configured: true, provider: 'FormSubmit' };
+    console.warn('FormSubmit contact delivery failed (' + result.status + '):', result.body && result.body.slice(0, 200));
+  }
   if (brevoApiKey()) return { sent: !!(await sendBrevoEmail(to, subject, text, html)), configured: true, provider: 'Brevo' };
   const key = resendKey();
   if (!key) return { sent: false, configured: false, provider: '' };
