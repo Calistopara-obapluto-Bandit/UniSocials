@@ -17,7 +17,7 @@ Free for personal and commercial use
     const params = new URLSearchParams(window.location.search);
     const referralCode = (params.get('ref') || '').trim();
     if (referralCode) {
-      sessionStorage.setItem('referralCode', referralCode.toUpperCase());
+      sessionStorage.setItem('referralCode', referralCode.toUpperCase()); localStorage.setItem('unn_referral_code', referralCode.toUpperCase());
     }
   } catch (e) {}
 
@@ -74,13 +74,13 @@ const UNI_KEY = 'selected_university';
     } catch (e) {}
     // Notify any page (e.g. home featured events) to re-render for the new campus.
     if (typeof window.onUniversityChange === 'function') {
-      try { window.onUniversityChange(); } catch (e) {}
+      try { window.onUniversityChange(uni); } catch (e) {}
     }
   }
   function clearUniversity() {
     try { localStorage.removeItem(UNI_KEY); } catch (e) {}
     if (typeof window.onUniversityChange === 'function') {
-      try { window.onUniversityChange(); } catch (e) {}
+      try { window.onUniversityChange(null); } catch (e) {}
     }
   }
 
@@ -650,7 +650,10 @@ if (nav) {
     const email = buyerEmail ? buyerEmail.value.trim() : '';
     const phone = buyerPhone ? buyerPhone.value.trim() : '';
     const qty = getQty();
-    const canContinue = !!opt.value && name.length > 0 && email.length > 0 && phone.length > 0 && qty >= 1 && qty <= 100;
+    const nameOk = /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(name);
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const phoneOk = /^[+0-9 ()-]{7,20}$/.test(phone) && /\d{7,}/.test(phone.replace(/\D/g, ''));
+    const canContinue = !!opt.value && nameOk && emailOk && phoneOk && qty >= 1 && qty <= 100;
     if (continueBtn) continueBtn.disabled = !canContinue;
   }
 
@@ -664,13 +667,17 @@ function getSelectedTier() {
     const opt = getSelectedOption();
     const tier = getSelectedTier();
     const reg = parseFloat(opt.dataset.price || 0);
+    const bonusReg = parseFloat(opt.dataset.bonusPrice || 0);
     const vip = parseFloat(opt.dataset.vipPrice || 0);
+    const bonusVip = parseFloat(opt.dataset.bonusVipPrice || 0);
     const vvip = parseFloat(opt.dataset.vvipPrice || 0);
+    const bonusVvip = parseFloat(opt.dataset.bonusVvipPrice || 0);
     const table = parseFloat(opt.dataset.tablePrice || 0);
-    if (tier === 'vip') return vip > 0 ? vip : reg;
-    if (tier === 'vvip') return vvip > 0 ? vvip : reg;
-    if (tier === 'table') return table > 0 ? table : reg;
-    return reg;
+    const bonusTable = parseFloat(opt.dataset.bonusTablePrice || 0);
+    if (tier === 'vip') return bonusVip > 0 ? bonusVip : (vip > 0 ? vip : reg);
+    if (tier === 'vvip') return bonusVvip > 0 ? bonusVvip : (vvip > 0 ? vvip : reg);
+    if (tier === 'table') return bonusTable > 0 ? bonusTable : (table > 0 ? table : reg);
+    return bonusReg > 0 ? bonusReg : reg;
   }
 
   window.continueToCheckout = function() {
@@ -679,12 +686,38 @@ function getSelectedTier() {
     const name = buyerName ? buyerName.value.trim() : '';
     const email = buyerEmail ? buyerEmail.value.trim() : '';
     const phone = buyerPhone ? buyerPhone.value.trim() : '';
-    if (!name || !email || !phone) { alert('Please fill in your name, email, and phone number.'); return; }
+    const nameOk = /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(name);
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const phoneOk = /^[+0-9 ()-]{7,20}$/.test(phone) && /\d{7,}/.test(phone.replace(/\D/g, ''));
+    if (!nameOk || !emailOk || !phoneOk) {
+      if (buyerName) buyerName.setCustomValidity(nameOk ? '' : 'Enter a valid full name using letters and spaces.');
+      if (buyerEmail) buyerEmail.setCustomValidity(emailOk ? '' : 'Enter a valid email address.');
+      if (buyerPhone) buyerPhone.setCustomValidity(phoneOk ? '' : 'Enter a valid phone number.');
+      const invalid = [buyerName, buyerEmail, buyerPhone].find(function(field) { return field && !field.checkValidity(); });
+      if (invalid) invalid.reportValidity();
+      return;
+    }
+    [buyerName, buyerEmail, buyerPhone].forEach(function(field) { if (field) field.setCustomValidity(''); });
     const qty = getQty();
     if (qty < 1 || qty > 100) { alert('Please enter a quantity between 1 and 100 tickets.'); return; }
 
 const tier = getSelectedTier();
+    var selectedOpt = document.querySelector('input[name=\"ticketTier\"][value=\"'+tier+'\"]');
+    var selectedCard = selectedOpt && selectedOpt.closest ? selectedOpt.closest('.ticket-type-option') : null;
+    if (selectedCard && selectedCard.classList.contains('sold-out')) { alert(tier.toUpperCase() + ' tickets are sold out.'); return; }
     const tierPrice = getTierPrice();
+    const tierOriginalPrice = (function(){
+      const reg=parseFloat(opt.dataset.price||0), vip=parseFloat(opt.dataset.vipPrice||0), vvip=parseFloat(opt.dataset.vvipPrice||0), table=parseFloat(opt.dataset.tablePrice||0);
+      if (tier==='vip') return vip>0?vip:reg;
+      if (tier==='vvip') return vvip>0?vvip:reg;
+      if (tier==='table') return table>0?table:reg;
+      return reg;
+    })();
+    const tierBonusPrice = (function(){
+      const reg=parseFloat(opt.dataset.bonusPrice||0), vip=parseFloat(opt.dataset.bonusVipPrice||0), vvip=parseFloat(opt.dataset.bonusVvipPrice||0), table=parseFloat(opt.dataset.bonusTablePrice||0);
+      const bonus = tier==='vip' ? vip : (tier==='vvip' ? vvip : (tier==='table' ? table : reg));
+      return bonus>0 ? bonus : 0;
+    })();
 
     // Resolve the "What's Included" list for the selected tier.
     const included = tier === 'vip' ? (opt.dataset.includedVip || '')
@@ -698,12 +731,15 @@ const tier = getSelectedTier();
 
     sessionStorage.setItem('checkoutData', JSON.stringify({
       eventValue: opt.value,
+      eventId: opt.value,
       eventName: opt.dataset.name,
       eventDate: opt.dataset.date,
       eventTime: opt.dataset.time,
       eventVenue: opt.dataset.venue,
       eventCategory: opt.dataset.category || '',
-      eventPrice: tierPrice,
+      eventPrice: tierBonusPrice || tierPrice,
+      originalEventPrice: tierOriginalPrice,
+      bonusEventPrice: tierBonusPrice,
       ticketTier: tier,
       included: included,
       qty: qty,
@@ -716,7 +752,15 @@ const tier = getSelectedTier();
       universitySlug: universityObj ? (universityObj.slug || universityObj.id || '') : ''
     }));
 
-    window.location.href = 'checkout.html';
+    let checkoutRef = '';
+    try {
+      checkoutRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+      if (checkoutRef) {
+        sessionStorage.setItem('referralCode', checkoutRef);
+        localStorage.setItem('unn_referral_code', checkoutRef);
+      }
+    } catch (e) {}
+    window.location.href = 'checkout.html' + (checkoutRef ? '?ref=' + encodeURIComponent(checkoutRef) : '');
   };
 
   function readUrlParams() {
@@ -745,7 +789,10 @@ const tier = getSelectedTier();
   if (eventSelect) eventSelect.addEventListener('change', updateEventDetails);
   if (qtySelect) {
     qtySelect.addEventListener('change', updateContinueBtn);
-    qtySelect.addEventListener('input', updateContinueBtn);
+    qtySelect.addEventListener('input', function() {
+      qtySelect.value = qtySelect.value.replace(/[^0-9]/g, '').slice(0, 3);
+      updateContinueBtn();
+    });
     // Keep the value clamped between 1 and 100 as the user types
     qtySelect.addEventListener('blur', function() {
       const q = getQty();
@@ -753,8 +800,16 @@ const tier = getSelectedTier();
       updateContinueBtn();
     });
   }
-  if (buyerName) buyerName.addEventListener('input', updateContinueBtn);
-  if (buyerEmail) buyerEmail.addEventListener('input', updateContinueBtn);
+  if (buyerName) buyerName.addEventListener('input', function() {
+    buyerName.value = buyerName.value.replace(/[^A-Za-z .'-]/g, '').slice(0, 80);
+    buyerName.setCustomValidity('');
+    updateContinueBtn();
+  });
+  if (buyerEmail) buyerEmail.addEventListener('input', function() {
+    buyerEmail.value = buyerEmail.value.replace(/[\s,;<>()[\]{}]/g, '').slice(0, 254);
+    buyerEmail.setCustomValidity('');
+    updateContinueBtn();
+  });
   if (buyerPhone) buyerPhone.addEventListener('input', updateContinueBtn);
 
   window.updateEventDetails = updateEventDetails;
@@ -791,22 +846,70 @@ const tier = getSelectedTier();
   } catch(e) {}
 
   if (!checkoutData) {
-    if (summaryTotal) summaryTotal.textContent = 'No order data';
-    if (summaryEventName) summaryEventName.textContent = 'Session expired';
-    if (placeOrderBtn) placeOrderBtn.disabled = true;
-    if (mobilePlaceOrderBtn) mobilePlaceOrderBtn.disabled = true;
-    document.querySelectorAll('.checkout-form .checkout-card').forEach(function(card) {
-      const p = document.createElement('p');
-      p.style.textAlign = 'center';
-      p.style.padding = '20px 0';
-      p.innerHTML = '<a href="tickets.html" class="btn-primary" style="display:inline-flex;gap:8px;padding:12px 28px;">Start Over</a>';
-      card.innerHTML = '';
-      card.appendChild(p);
-    });
+    // A referral link can intentionally open checkout before an event has been
+    // selected. In that case, keep the visitor on checkout, let them choose
+    // an available event, and carry the referral code into the selected order.
+    const checkoutSection = document.querySelector('.checkout-section');
+    if (checkoutSection) {
+      const container = checkoutSection.querySelector('.container') || checkoutSection;
+      const refFromUrl = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+      if (refFromUrl) {
+        try { sessionStorage.setItem('referralCode', refFromUrl); localStorage.setItem('unn_referral_code', refFromUrl); } catch(e) {}
+      }
+      container.innerHTML = '<div class="checkout-event-picker" style="max-width:980px;margin:0 auto;">' +
+        '<div style="text-align:center;margin-bottom:26px;"><div class="section-label">Choose an event</div><h2 style="margin:8px 0 8px;">Select the event you want to attend</h2><p style="color:var(--text-3);margin:0;">Your referral code will be applied automatically after you choose an event.</p>' +
+        (refFromUrl ? '<div style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:.84rem;">🎁 Referral code: ' + refFromUrl.replace(/[<>]/g,'') + '</div>' : '') +
+        '</div><div id="checkoutEventList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;"><div style="grid-column:1/-1;text-align:center;padding:34px;color:var(--text-3);">Loading available events…</div></div></div>';
+      const list = document.getElementById('checkoutEventList');
+      fetch('/api/events').then(function(r){ return r.json(); }).then(function(payload){
+        const events = (payload && payload.success && Array.isArray(payload.events)) ? payload.events : [];
+        if (!events.length) {
+          list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2);"><strong>No events are currently available.</strong><p style="color:var(--text-3);margin:8px 0 18px;">Please check back later.</p><a href="events.html" class="btn-primary">Browse Events</a></div>';
+          return;
+        }
+        list.innerHTML = events.map(function(ev){
+          const id = String(ev.id || '');
+          const name = String(ev.name || ev.title || 'Event');
+          const date = String(ev.date || '');
+          const time = String(ev.time || '');
+          const venue = String(ev.venue || '');
+          const price = Number(ev.price || 0);
+          const bonus = Number(ev.bonusPrice || 0);
+          return '<article style="border:1px solid var(--border);border-radius:16px;background:var(--surface-2);padding:20px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:12px;">' +
+            '<div><h3 style="margin:0 0 7px;">' + name.replace(/[<>]/g,'') + '</h3><div style="color:var(--text-3);font-size:.85rem;line-height:1.6;">' + (date ? date + (time ? ' · ' + time : '') : 'Date TBA') + (venue ? '<br>' + venue.replace(/[<>]/g,'') : '') + '</div></div>' +
+            '<div style="font-weight:800;color:var(--accent);">From ₦' + (bonus > 0 ? bonus : price).toLocaleString() + '</div>' +
+            '<button type="button" class="btn-primary checkout-choose-event" data-event-id="' + id.replace(/[<>"']/g,'') + '" style="width:100%;justify-content:center;">Choose this event</button>' +
+          '</article>';
+        }).join('');
+        list.querySelectorAll('.checkout-choose-event').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            const ev = events.find(function(item){ return String(item.id || '') === String(btn.getAttribute('data-event-id') || ''); });
+            if (!ev) return;
+            const tier = 'regular';
+            const original = Number(ev.price || 0);
+            const bonus = Number(ev.bonusPrice || 0);
+            const ref = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+            sessionStorage.setItem('selectedEventId', String(ev.id || ''));
+            window.location.href = 'tickets.html?event=' + encodeURIComponent(ev.id || '') + (ref ? '&ref=' + encodeURIComponent(ref) : '');
+          });
+        });
+      }).catch(function(){
+        list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2);"><strong>Unable to load events right now.</strong><p style="color:var(--text-3);margin:8px 0 18px;">Please try again.</p><button type="button" class="btn-primary" onclick="location.reload()">Retry</button></div>';
+      });
+    }
     return;
   }
 
-  const total = checkoutData.eventPrice * checkoutData.qty;
+  // Bonus price is the default checkout price. A VALID referral switches the
+  // selected tier back to its original price. Coupons are applied after that.
+  const storedOriginal = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
+  const storedBonus = Number(checkoutData.bonusEventPrice || 0);
+  let referralApplied = false;
+  let baseUnitPrice = storedBonus > 0 ? storedBonus : storedOriginal;
+  let baseTotal = baseUnitPrice * Number(checkoutData.qty || 1);
+  let total = baseTotal;
+  let appliedCoupon = null;
+  let appliedReferralCode = '';
 
   if (summaryEventName) summaryEventName.textContent = checkoutData.eventName || 'Not selected';
   if (summaryDate) summaryDate.textContent = checkoutData.eventDate ? (checkoutData.eventDate + ' \u00B7 ' + (checkoutData.eventTime || '')) : '\u2014';
@@ -816,16 +919,164 @@ const tier = getSelectedTier();
     const tierMap = { regular: '🎟 Regular', vip: '⭐ VIP', vvip: '👑 VVIP', table: '🪑 Table' };
     summaryTier.textContent = tierMap[checkoutData.ticketTier] || '🎟 Regular';
   }
-  if (summaryUnitPrice) summaryUnitPrice.textContent = '\u20A6' + (checkoutData.eventPrice || 0).toLocaleString();
+  if (summaryUnitPrice) {
+    const payablePrice = Number(checkoutData.eventPrice || 0);
+    const originalPrice = Number(checkoutData.originalEventPrice || 0);
+    summaryUnitPrice.innerHTML = (originalPrice > payablePrice && payablePrice > 0)
+      ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + originalPrice.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong><small style="display:block;color:var(--text-3);font-size:.72em;margin-top:3px;">Bonus price</small>'
+      : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong>';
+  }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
+
+  // Always refresh checkout pricing from the server so the checkout page uses
+  // the event's current original + bonus price, even if the ticket page was
+  // opened from an older browser tab/session.
+  (async function refreshAuthoritativePricing() {
+    try {
+      const eventId = checkoutData.eventId || checkoutData.eventValue || '';
+      if (!eventId) return;
+      const r = await fetch('/api/events');
+      const payload = await r.json();
+      const events = (payload && payload.success && payload.events) || [];
+      const ev = events.find(function(item) { return String(item.id || '') === String(eventId); });
+      if (!ev) return;
+      const tier = String(checkoutData.ticketTier || 'regular').toLowerCase();
+      const originals = { regular:Number(ev.price||0), vip:Number(ev.vipPrice||0), vvip:Number(ev.vvipPrice||0), table:Number(ev.tablePrice||0) };
+      const bonuses = { regular:Number(ev.bonusPrice||0), vip:Number(ev.bonusVipPrice||0), vvip:Number(ev.bonusVvipPrice||0), table:Number(ev.bonusTablePrice||0) };
+      const original = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonus = bonuses[tier] || 0;
+      const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
+      checkoutData.originalEventPrice = original;
+      checkoutData.bonusEventPrice = bonus;
+      checkoutData.eventPrice = payable;
+      try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
+      baseUnitPrice = payable;
+      total = payable * Number(checkoutData.qty || 1);
+      baseTotal = total;
+      if (summaryUnitPrice) {
+        summaryUnitPrice.innerHTML = (!referralApplied && original > payable && payable > 0)
+          ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
+          : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
+      }
+      renderCouponTotal();
+    } catch (e) {
+      // Keep the already stored checkout price if the refresh request fails.
+    }
+  })();
+
+  function renderCheckoutPrice(original, bonus) {
+    const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
+    baseUnitPrice = payable;
+    baseTotal = payable * Number(checkoutData.qty || 1);
+    total = appliedCoupon ? Math.max(0, baseTotal - Number(appliedCoupon.amount || 0)) : baseTotal;
+    checkoutData.originalEventPrice = original;
+    checkoutData.bonusEventPrice = bonus;
+    checkoutData.eventPrice = payable;
+    try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
+    if (summaryUnitPrice) {
+      summaryUnitPrice.innerHTML = (!referralApplied && original > payable && payable > 0)
+        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
+        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
+    }
+    renderCouponTotal();
+  }
+
+  async function applyReferralCode() {
+    const input = document.getElementById('referralCodeInput');
+    const btn = document.getElementById('applyReferralBtn');
+    const msg = document.getElementById('referralMessage');
+    const code = String(input && input.value || '').trim().toUpperCase();
+    if (!code) {
+      referralApplied = false; appliedReferralCode = '';
+      if (msg) { msg.textContent = 'No referral applied. Your bonus price remains active.'; msg.className = 'form-hint referral-message'; }
+      await refreshReferralPricing();
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+    try {
+      const r = await fetch('/api/referrals/validate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+      const data = await r.json();
+      if (!r.ok || !data.success) throw new Error(data.error || 'Invalid referral code.');
+      referralApplied = true; appliedReferralCode = code;
+      sessionStorage.setItem('referralCode', code); localStorage.setItem('unn_referral_code', code);
+      if (msg) { msg.textContent = '✓ Referral applied — original ticket price unlocked.'; msg.className = 'form-hint referral-message success'; }
+      await refreshReferralPricing();
+    } catch (e) {
+      referralApplied = false; appliedReferralCode = '';
+      if (msg) { msg.textContent = e.message || 'Invalid referral code.'; msg.className = 'form-hint referral-message error'; }
+      await refreshReferralPricing();
+    } finally { if (btn) { btn.disabled = false; btn.textContent = 'Apply'; } }
+  }
+
+  async function refreshReferralPricing() {
+    try {
+      const eventId = checkoutData.eventId || checkoutData.eventValue || '';
+      if (!eventId) return;
+      const r = await fetch('/api/events'); const payload = await r.json();
+      const events = (payload && payload.success && payload.events) || [];
+      const ev = events.find(function(item) { return String(item.id || '') === String(eventId); });
+      if (!ev) return;
+      const tier = String(checkoutData.ticketTier || 'regular').toLowerCase();
+      const originals = {regular:Number(ev.price||0),vip:Number(ev.vipPrice||0),vvip:Number(ev.vvipPrice||0),table:Number(ev.tablePrice||0)};
+      const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
+      const original = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonus = bonuses[tier] || 0;
+      renderCheckoutPrice(original, bonus);
+    } catch(e) {}
+  }
+
+  const referralInput = document.getElementById('referralCodeInput');
+  const applyReferralBtn = document.getElementById('applyReferralBtn');
+  const removeReferralBtn = document.getElementById('removeReferralBtn');
+  if (applyReferralBtn) applyReferralBtn.addEventListener('click', applyReferralCode);
+  if (removeReferralBtn) removeReferralBtn.addEventListener('click', async function() {
+    referralApplied = false;
+    appliedReferralCode = '';
+    if (referralInput) referralInput.value = '';
+    try { sessionStorage.removeItem('referralCode'); } catch (e) {}
+    try { localStorage.removeItem('unn_referral_code'); } catch (e) {}
+    const msg = document.getElementById('referralMessage');
+    if (msg) {
+      msg.textContent = 'Referral removed. Your bonus price is active.';
+      msg.className = 'form-hint referral-message';
+    }
+    await refreshReferralPricing();
+  });
+  if (referralInput) referralInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyReferralCode(); } });
+
+  function renderCouponTotal() {
+    if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
+    if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
+    if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
+    const box=document.getElementById('couponSummary'), baseEl=document.getElementById('couponBaseTotal'), discEl=document.getElementById('couponDiscountTotal'), finalEl=document.getElementById('couponFinalTotal');
+    if (box && appliedCoupon) { box.style.display='block'; if(baseEl)baseEl.textContent='\u20A6'+baseTotal.toLocaleString(); if(discEl)discEl.textContent='−\u20A6'+Number(appliedCoupon.amount||0).toLocaleString(); if(finalEl)finalEl.textContent='\u20A6'+total.toLocaleString(); }
+    else if(box) box.style.display='none';
+  }
+
+  const couponInput=document.getElementById('couponCodeInput');
+  const applyCouponBtn=document.getElementById('applyCouponBtn');
+  const couponMessage=document.getElementById('couponMessage');
+  if(applyCouponBtn) applyCouponBtn.addEventListener('click', function(){
+    const code=(couponInput&&couponInput.value||'').trim().toUpperCase();
+    if(!code){ appliedCoupon=null; total=baseTotal; renderCouponTotal(); if(couponMessage)couponMessage.textContent='Enter a coupon code first.'; return; }
+    applyCouponBtn.disabled=true; applyCouponBtn.textContent='Checking…';
+    fetch('/api/coupons/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,eventId:checkoutData.eventId||checkoutData.eventValue||'',ticketTier:checkoutData.ticketTier||'regular',qty:checkoutData.qty,referralCode:appliedReferralCode})})
+      .then(r=>r.json().then(d=>({ok:r.ok,data:d}))).then(function(x){
+        if(!x.ok||!x.data.success) throw new Error(x.data.error||'Invalid coupon');
+        appliedCoupon=x.data.coupon; total=Number(x.data.total)||baseTotal; if(couponMessage) {couponMessage.textContent='✓ Coupon applied — saved ₦'+Number(appliedCoupon.amount||0).toLocaleString(); couponMessage.style.color='var(--accent)';} renderCouponTotal();
+      }).catch(function(err){ appliedCoupon=null; total=baseTotal; renderCouponTotal(); if(couponMessage){couponMessage.textContent=err.message||'Invalid coupon code.';couponMessage.style.color='#B71C1C';} })
+      .finally(function(){applyCouponBtn.disabled=false;applyCouponBtn.textContent='Apply Coupon';});
+  });
+  if(couponInput) couponInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();if(applyCouponBtn)applyCouponBtn.click();}});
+
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
   if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '\u2014';
 
-  // Pre-fill referral code from session/URL if available
-  const refInput = document.getElementById('checkoutReferralCode');
+  // Pre-fill and automatically apply referral code from URL/session when present.
+  const refInput = document.getElementById('referralCodeInput');
   if (refInput) {
-    const savedRef = (sessionStorage.getItem('referralCode') || '').trim();
-    if (savedRef) refInput.value = savedRef;
+    const savedRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
+    if (savedRef) { refInput.value = savedRef.toUpperCase(); setTimeout(function(){ applyReferralCode(); }, 50); }
   }
 
   if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
@@ -834,7 +1085,7 @@ const tier = getSelectedTier();
   function updatePaymentNote() {
     const note = document.getElementById('paymentNote');
     if (note) {
-      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.';
+      note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. After payment, you will receive a confirmation email while your order awaits manual verification. Tickets are sent after verification.';
     }
   }
 
@@ -903,20 +1154,17 @@ const tier = getSelectedTier();
   function getReferralCodeFromUrlOrSessionOrInput() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      let referralCode = (urlParams.get('ref') || '').trim();
-      if (!referralCode) {
-        referralCode = (sessionStorage.getItem('referralCode') || '').trim();
-      }
-      // Also check the input field on checkout page
-      if (!referralCode) {
-        const inputEl = document.getElementById('referralCodeInput');
-        if (inputEl && inputEl.value) {
-          referralCode = inputEl.value.trim();
-        }
-      }
+      // A code typed by the buyer must take priority over a previously stored
+      // referral code. This prevents one buyer/session from accidentally
+      // attributing a later purchase to an old influencer.
+      const inputEl = document.getElementById('referralCodeInput');
+      let referralCode = inputEl && inputEl.value ? inputEl.value.trim() : '';
+      if (!referralCode) referralCode = (urlParams.get('ref') || '').trim();
+      if (!referralCode) referralCode = (sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
       if (referralCode) {
         referralCode = referralCode.toUpperCase();
         sessionStorage.setItem('referralCode', referralCode);
+        localStorage.setItem('unn_referral_code', referralCode);
       }
       return referralCode;
     } catch (e) {
@@ -924,32 +1172,18 @@ const tier = getSelectedTier();
     }
   }
 
-<<<<<<< HEAD
   function createOrderViaApi(orderId, orderTotal, successCallback) {
-<<<<<<< HEAD
-    // Extract referral code from URL or session so it survives navigation to checkout.
-    const referralCode = getReferralCodeFromUrlOrSession();
-=======
-    // Extract referral code from URL, session, or input field so it survives navigation to checkout.
+    // Manual referral input takes priority; otherwise use the saved referral URL/session code.
+    // Referral is optional. If a referral link/session code exists, attach it;
+    // otherwise the order proceeds without a referral code.
     const referralCode = getReferralCodeFromUrlOrSessionOrInput();
-=======
-    function createOrderViaApi(orderId, orderTotal, successCallback) {
-    // Priority: 1. Manual Input field, 2. URL/Session
-    let referralCode = '';
-    const refInput = document.getElementById('checkoutReferralCode');
-    if (refInput && refInput.value.trim()) {
-      referralCode = refInput.value.trim();
-    } else {
-      referralCode = getReferralCodeFromUrlOrSession();
-    }
->>>>>>> 8368b8a (Fix server logic for Render and implement referral tracking system)
->>>>>>> f232237 (Fix server logic for Render and implement referral tracking system)
-    
+
     fetch('/api/orders', {
       method: 'POST',
       headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         orderId: orderId,
+        eventId: checkoutData.eventId || checkoutData.eventValue || '',
         eventName: checkoutData.eventName,
         eventDate: checkoutData.eventDate ? (checkoutData.eventDate + ' · ' + (checkoutData.eventTime || '')) : '',
         eventVenue: checkoutData.eventVenue || '',
@@ -967,12 +1201,13 @@ const tier = getSelectedTier();
         universityId: checkoutData.universityId || '',
         universityName: checkoutData.universityName || '',
         universitySlug: checkoutData.universitySlug || '',
-        referralCode: referralCode  // Add referral code to order
+        referralCode: referralCode,  // Add referral code to order
+        couponCode: appliedCoupon ? appliedCoupon.code : ''
       })
     })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCodes : null);
+      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCodes : null, data && data.order ? Number(data.order.amount || 0) : 0);
     })
     .catch(function() {
       if (successCallback) successCallback(false, null);
@@ -1009,28 +1244,27 @@ email: email || 'customer@example.com',
       },
       callback: function(response) {
         if (response && (response.status === 'successful' || response.status === 'completed')) {
-          fetch('/api/verify-payment', {
+          // IMPORTANT: this callback must NOT verify the payment. It only records
+          // that Flutterwave reported a successful checkout and triggers the
+          // pre-verification acknowledgement email. Manual admin verification
+          // is the only path that issues tickets.
+          fetch('/api/payment-received', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
           })
           .then(function(res) { return res.json(); })
           .then(function(data) {
+            var paidTotal = orderTotal;
             if (data && data.success) {
-              const verifiedAmount = parseFloat(data.order && data.order.amount) || orderTotal;
-              const totalPaid = verifiedAmount > 0 ? verifiedAmount : orderTotal;
-              const ticketCodes = (data.order && data.order.ticketCodes) || [];
-              const withIndex = ticketCodes.map(function(tc, i) { return { code: tc.code, index: i + 1 }; });
-              sendOrderToWhatsApp(orderId, eventName, qty, totalPaid, 'Flutterwave', name, email, phone, withIndex);
-              showSuccessModal(orderId, eventName, totalPaid, withIndex);
-            } else {
-              // Payment not yet verified — redirect to pending tracker
-              alert('Payment received but verification is still processing. We\'ll confirm shortly.');
-              window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
+              sendOrderToWhatsApp(orderId, eventName, qty, paidTotal, 'Flutterwave — awaiting verification', name, email, phone, []);
             }
+            window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
           })
           .catch(function() {
-            window.location.href = 'pending.html?orderId=' + encodeURIComponent(orderId);
+            // Even if the acknowledgement request fails, never verify or issue
+            // tickets from the browser. Send the buyer to the thank-you page.
+            window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
           });
         } else {
           alert('Payment was not completed. You can try again.');
@@ -1047,6 +1281,12 @@ email: email || 'customer@example.com',
   }
 
   window.placeOrder = function() {
+    const selectedEventId = checkoutData && (checkoutData.eventId || checkoutData.eventValue);
+    if (!checkoutData || !selectedEventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
+      alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
+      window.location.href = 'tickets.html' + (selectedEventId ? '?event=' + encodeURIComponent(selectedEventId) : '');
+      return;
+    }
     const orderId = generateOrderId();
     const eventName = checkoutData.eventName;
     const qty = checkoutData.qty;
@@ -1058,14 +1298,17 @@ email: email || 'customer@example.com',
     if (placeBtn) { placeBtn.disabled = true; placeBtn.textContent = 'Starting payment…'; }
 
     // 1) Create the pending order server-side FIRST
-    createOrderViaApi(orderId, total, function(success) {
+    createOrderViaApi(orderId, total, function(success, ticketCodes, serverAmount) {
       if (!success) {
         alert('Could not create your order. Please try again.');
         if (placeBtn) { placeBtn.disabled = false; placeBtn.textContent = '🛒 Place Order — ₦' + total.toLocaleString(); }
         return;
       }
       // 2) Open Flutterwave to pay for that exact order id
-      startFlutterwavePayment(orderId, eventName, qty, total, name, email, phone);
+      const paymentAmount = serverAmount > 0 ? serverAmount : total;
+      total = paymentAmount;
+      renderCouponTotal();
+      startFlutterwavePayment(orderId, eventName, qty, paymentAmount, name, email, phone);
       // Re-enable in case user closes modal
       setTimeout(function() {
         if (placeBtn) { placeBtn.disabled = false; placeBtn.textContent = '🛒 Place Order — ₦' + total.toLocaleString(); }

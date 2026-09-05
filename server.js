@@ -6,8 +6,8 @@ Unisocials — Node.js server
     • PostgreSQL if DATABASE_URL is set (recommended for Render — survives restarts/redeploys)
     • JSON files in ./data otherwise (persists on local disk)
 - Flutterwave-only checkout with server-authoritative verification:
-    order is created PENDING → Flutterwave confirms → /api/verify-payment or webhook
-    checks amount+currency against the order BEFORE issuing tickets.
+    order is created PENDING → Flutterwave confirms → webhook or /api/verify-payment
+    re-verifies the transaction server-side and checks reference+amount+currency BEFORE issuing tickets.
 - One unique ticket code per ticket purchased (qty = N → N QR tickets).
 - Buyer accounts (register/login) so tickets are stored and don't require refresh.
 - Admin gate scan endpoint for check-in.
@@ -18,6 +18,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 // ── Load local .env (if present) so local dev uses the same secrets as Render.
 // Never commit .env — it holds live API keys (gitignored).
@@ -39,6 +40,8 @@ const PORT = process.env.PORT || 3000;
 
 const PUBLIC_DIR = __dirname;
 const DATA_DIR = path.join(__dirname, 'data');
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 
 // ────────────────────────────────────────────
 // STORAGE LAYER (async)
@@ -52,7 +55,23 @@ async function initStorage() {
   if (process.env.DATABASE_URL) {
     try {
       const { Pool } = require('pg');
-      db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      // Database connection hardening: keep the pool bounded and fail slow/hung
+      // database operations instead of allowing them to consume all server workers.
+      // Neon/Postgres normally provides a trusted TLS certificate; an explicit
+      // opt-out is available only when a deployment requires it.
+      const sslConfig = String(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() === 'false'
+        ? { rejectUnauthorized: false }
+        : { rejectUnauthorized: true };
+      db = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: sslConfig,
+        max: 10,
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
+        query_timeout: 15000,
+        statement_timeout: 15000,
+        keepAlive: true
+      });
       await db.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
 await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
@@ -60,13 +79,23 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
     } catch (e) {
-      console.warn('PostgreSQL unavailable, falling back to JSON files:', e.message);
       db = null;
       usePg = false;
+      // In production, never silently fall back from the persistent database to
+      // local JSON storage. Render's filesystem is not a safe substitute for the
+      // production database and a silent fallback could make writes appear to
+      // succeed while the real data remains unchanged.
+      if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        console.error('FATAL: PostgreSQL is configured but unavailable:', e.message);
+        process.exitCode = 1;
+        throw e;
+      }
+      console.warn('PostgreSQL unavailable, using JSON files for local development:', e.message);
     }
   }
   console.log('Storage: JSON files in ./data (set DATABASE_URL to use PostgreSQL).');
@@ -116,6 +145,41 @@ async function patchOrder(orderId, patch) {
   return orders[idx];
 }
 
+/* ── Coupons ── */
+async function readCoupons() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM coupons ORDER BY created_at DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'coupons.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writeCoupons(coupons) {
+  if (usePg) {
+    for (const c of coupons) {
+      await db.query('INSERT INTO coupons (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data', [c.id, JSON.stringify(c)]);
+    }
+    const ids = coupons.map(c => c.id);
+    if (ids.length) await db.query('DELETE FROM coupons WHERE NOT (id = ANY($1::text[]))', [ids]);
+    else await db.query('DELETE FROM coupons');
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'coupons.json'), JSON.stringify(coupons, null, 2), 'utf8');
+}
+async function getCouponByCode(code) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return null;
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.code || '').toUpperCase() === normalized && c.active !== false) || null;
+}
+async function getCouponById(id) {
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.id) === String(id)) || null;
+}
+
 /* ── Users ── */
 async function readUsers() {
   if (usePg) {
@@ -152,6 +216,109 @@ async function addUser(user) {
   await writeUsers(users);
 }
 
+/* ── Influencer ↔ Influencer Admin relationships ── */
+// One influencer account can have multiple independent IA relationships.
+// Referral codes remain separate and will be attached in Step 4.
+function normalizeInfluencerAssignments(influencer) {
+  if (!influencer || influencer.role !== 'influencer') return [];
+  const existing = Array.isArray(influencer.influencerAssignments) ? influencer.influencerAssignments : [];
+  const out = [];
+  const seen = new Set();
+  for (const a of existing) {
+    const adminId = String(a && (a.influencerAdminId || a.adminId || '')).trim();
+    if (!adminId || seen.has(adminId)) continue;
+    const status = ['pending','accepted','rejected'].includes(String(a.status || '').toLowerCase()) ? String(a.status).toLowerCase() : 'accepted';
+    out.push({
+      id: String(a.id || ('IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase())),
+      influencerAdminId: adminId,
+      status,
+      requestedAt: a.requestedAt || a.createdAt || new Date().toISOString(),
+      acceptedAt: status === 'accepted' ? (a.acceptedAt || a.requestedAt || a.createdAt || new Date().toISOString()) : (a.acceptedAt || null),
+      rejectedAt: status === 'rejected' ? (a.rejectedAt || new Date().toISOString()) : (a.rejectedAt || null),
+      legacy: a.legacy === true
+    });
+    seen.add(adminId);
+  }
+
+  // Migrate the current single-admin ownership fields into one accepted
+  // relationship so existing influencers continue working unchanged.
+  const legacyAdminId = String(
+    influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId ||
+    (typeof influencer.createdBy === 'string' ? influencer.createdBy : (influencer.createdBy && influencer.createdBy.id)) || ''
+  ).trim();
+  if (legacyAdminId && !seen.has(legacyAdminId)) {
+    out.push({
+      id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+      influencerAdminId: legacyAdminId,
+      status: 'accepted',
+      requestedAt: influencer.createdAt || new Date().toISOString(),
+      acceptedAt: influencer.createdAt || new Date().toISOString(),
+      rejectedAt: null,
+      legacy: true
+    });
+  }
+  return out;
+}
+
+function getInfluencerAssignments(influencer) { return normalizeInfluencerAssignments(influencer); }
+function getAcceptedInfluencerAssignments(influencer) { return getInfluencerAssignments(influencer).filter(a => a.status === 'accepted'); }
+function influencerHasAdminAssignment(influencer, influencerAdminId, statuses = ['accepted']) {
+  const adminId = String(influencerAdminId || '').trim();
+  return !!adminId && getInfluencerAssignments(influencer).some(a => a.influencerAdminId === adminId && statuses.includes(a.status));
+}
+
+async function migrateInfluencerAssignments() {
+  const users = await readUsers();
+  let changed = false;
+  const migrated = users.map(user => {
+    if (!user || user.role !== 'influencer') return user;
+    const before = Array.isArray(user.influencerAssignments) ? JSON.stringify(user.influencerAssignments) : '';
+    const assignments = normalizeInfluencerAssignments(user);
+    if (before !== JSON.stringify(assignments)) {
+      changed = true;
+      return Object.assign({}, user, { influencerAssignments: assignments });
+    }
+    return user;
+  });
+  if (changed) await writeUsers(migrated);
+  return migrated;
+}
+
+// Step 4 migration: attach existing influencer referral records to their
+// accepted relationship when possible, without changing existing codes.
+async function migrateInfluencerReferralLinks() {
+  const [users, links] = await Promise.all([readUsers(), readReferralLinks()]);
+  let changed = false;
+  for (const link of links) {
+    const influencerId = String(link.influencerId || '').trim();
+    if (!influencerId || link.assignmentId) continue;
+    const influencer = users.find(u => String(u.id || '') === influencerId && u.role === 'influencer');
+    if (!influencer) continue;
+    const accepted = getAcceptedInfluencerAssignments(influencer);
+    const originalAdminId = String(
+      link.influencerAdminId || influencer.assignedInfluencerAdminId || influencer.influencerAdminId ||
+      influencer.ownerInfluencerAdminId ||
+      (typeof influencer.createdBy === 'string' ? influencer.createdBy : (influencer.createdBy && influencer.createdBy.id)) || ''
+    ).trim();
+    const originalAssignment = accepted.find(a => String(a.influencerAdminId || '').trim() === originalAdminId) ||
+      (accepted.length === 1 ? accepted[0] : null);
+    if (originalAssignment) {
+      link.assignmentId = originalAssignment.id;
+      link.influencerAdminId = originalAssignment.influencerAdminId;
+      link.legacyScoped = true;
+      if (!link.ownerRole || link.ownerRole === 'subadmin') link.ownerRole = 'influencer';
+      link.subadminId = null;
+      link.subadminName = null;
+      link.subadminEmail = null;
+      link.influencerName = link.influencerName || influencer.name || '';
+      link.influencerEmail = link.influencerEmail || influencer.email || '';
+      changed = true;
+    }
+  }
+  if (changed) await writeReferralLinks(links);
+  return links;
+}
+
 /* ── Sessions ── */
 async function readSessions() {
   if (usePg) {
@@ -176,28 +343,84 @@ async function writeSessions(sessions) {
   fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify(sessions, null, 2), 'utf8');
 }
 async function createSession(token, userId) {
+  if (usePg) {
+    // Do not rewrite the entire sessions table. A full DELETE + INSERT cycle
+    // can race with another login/logout and accidentally remove a live session.
+    await db.query('INSERT INTO sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, created_at = NOW()', [token, userId]);
+    return;
+  }
   const sessions = await readSessions();
   sessions[token] = userId;
   await writeSessions(sessions);
+  // Keep creation times separately so existing JSON session format remains compatible.
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}; } catch (e) {}
+  meta[token] = Date.now();
+  fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
 }
 async function getSessionUser(token) {
   if (!token) return null;
+  if (usePg) {
+    const r = await db.query("SELECT user_id FROM sessions WHERE token = $1 AND created_at > NOW() - INTERVAL '7 days' LIMIT 1", [token]);
+    if (!r.rows.length) {
+      // Expired sessions are removed so a stolen token cannot be reused indefinitely.
+      await db.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
+      return null;
+    }
+    const user = await findUserById(r.rows[0].user_id);
+    return user && user.archived === true ? null : user;
+  }
   const sessions = await readSessions();
   const userId = sessions[token];
   if (!userId) return null;
-  return await findUserById(userId);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}; } catch (e) {}
+  const createdAt = Number(meta[token] || 0);
+  if (!createdAt || Date.now() - createdAt > SESSION_MAX_AGE_MS) {
+    delete sessions[token];
+    delete meta[token];
+    await writeSessions(sessions);
+    try { fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8'); } catch (e) {}
+    return null;
+  }
+  const user = await findUserById(userId);
+  return user && user.archived === true ? null : user;
 }
 async function deleteSession(token) {
+  if (!token) return;
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE token = $1', [token]);
+    return;
+  }
   const sessions = await readSessions();
   delete sessions[token];
   await writeSessions(sessions);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    delete meta[token];
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  } catch (e) {}
 }
 async function deleteUserSessions(userId) {
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    return;
+  }
   const sessions = await readSessions();
+  const removed = [];
   for (const [t, uid] of Object.entries(sessions)) {
-    if (uid === userId) delete sessions[t];
+    if (uid === userId) { delete sessions[t]; removed.push(t); }
   }
   await writeSessions(sessions);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    removed.forEach(t => delete meta[t]);
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  } catch (e) {}
 }
 
 /* ── Referral Links (subadmin referral tracking) ── */
@@ -214,29 +437,85 @@ async function readReferralLinks() {
 }
 async function writeReferralLinks(links) {
   if (usePg) {
-    await db.query('DELETE FROM referral_links');
+    // Keep the PostgreSQL table authoritative without deleting every referral
+    // row on each update. The old DELETE+INSERT approach could erase or race
+    // with another referral update and made statistics unreliable.
     for (const l of links) {
-      await db.query('INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [l.code, JSON.stringify(l)]);
+      await db.query(
+        'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [l.code, JSON.stringify(l)]
+      );
     }
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
 }
+
+async function writeReferralLink(link) {
+  if (!link) return;
+  if (usePg) {
+    await db.query(
+      'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [link.code, JSON.stringify(link)]
+    );
+    return;
+  }
+  const links = await readReferralLinks();
+  const idx = links.findIndex(l => l.code === link.code);
+  if (idx >= 0) links[idx] = link; else links.push(link);
+  await writeReferralLinks(links);
+}
 async function getReferralLinkByCode(code) {
   const links = await readReferralLinks();
   return links.find(l => l.code === code) || null;
 }
+async function getReferralLinkByOwnerId(ownerId) {
+  const links = await readReferralLinks();
+  return links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId) || null;
+}
+
+// Backward-compatible helper for existing sub-admin referral records.
 async function getReferralLinkBySubadminId(subadminId) {
   const links = await readReferralLinks();
-  return links.find(l => l.subadminId === subadminId) || null;
+  return links.find(l => l.subadminId === subadminId || l.ownerId === subadminId) || null;
 }
-async function generateReferralLink(subadminId, subadminName, subadminEmail) {
+
+// Backward-compatible helper for influencer referral records.
+async function getReferralLinkByInfluencerId(influencerId) {
   const links = await readReferralLinks();
-  // Check if this subadmin already has a referral link
-  const existing = links.find(l => l.subadminId === subadminId);
+  return links.find(l => l.influencerId === influencerId || l.ownerId === influencerId) || null;
+}
+async function getReferralLinksByInfluencerId(influencerId) {
+  const id = String(influencerId || '').trim();
+  if (!id) return [];
+  const links = await readReferralLinks();
+  return links.filter(l => String(l.influencerId || l.ownerId || '').trim() === id);
+}
+async function getReferralLinkForAssignment(influencerId, assignmentId) {
+  const links = await getReferralLinksByInfluencerId(influencerId);
+  return links.find(l => String(l.assignmentId || '') === String(assignmentId || '')) || null;
+}
+function canonicalReferralUrl(code) {
+  const safeCode = String(code || '').trim().toUpperCase();
+  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events.html?ref=' + encodeURIComponent(safeCode)) : '';
+}
+
+function referralLinkResponse(link) {
+  if (!link) return null;
+  return { ...link, referralUrl: canonicalReferralUrl(link.code) };
+}
+async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin', assignmentId = null, influencerAdminId = null) {
+  const links = await readReferralLinks();
+  // Sub-admins keep one stable global referral record. Influencers get one
+  // separate code for each accepted Influencer Admin relationship.
+  const existing = ownerRole === 'influencer' && assignmentId
+    ? links.find(l => String(l.influencerId || l.ownerId || '') === String(ownerId) && String(l.assignmentId || '') === String(assignmentId))
+    : ownerRole === 'influencer'
+      ? links.find(l => String(l.influencerId || l.ownerId || '') === String(ownerId) && !l.assignmentId)
+      : links.find(l => l.ownerId === ownerId || l.subadminId === ownerId);
   if (existing) return existing;
-  
-  // Generate unique code
+
+  // Generate a cryptographically strong unique code.
   let code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
   while (links.find(l => l.code === code)) {
     code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -244,12 +523,21 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
   
   const link = {
     code: code,
-    subadminId: subadminId,
-    subadminName: subadminName,
-    subadminEmail: subadminEmail,
+    ownerId: ownerId,
+    ownerRole: ownerRole,
+    subadminId: ownerRole === 'subadmin' ? ownerId : null,
+    influencerId: ownerRole === 'influencer' ? ownerId : null,
+    subadminName: ownerRole === 'subadmin' ? ownerName : null,
+    subadminEmail: ownerRole === 'subadmin' ? ownerEmail : null,
+    influencerName: ownerRole === 'influencer' ? ownerName : null,
+    influencerEmail: ownerRole === 'influencer' ? ownerEmail : null,
+    assignmentId: ownerRole === 'influencer' ? (assignmentId || null) : null,
+    influencerAdminId: ownerRole === 'influencer' ? (influencerAdminId || null) : null,
     createdAt: new Date().toISOString(),
     totalOrders: 0,
-    totalRevenue: 0
+    totalRevenue: 0,
+    uniquePeople: 0,
+    totalTickets: 0
   };
   links.push(link);
   await writeReferralLinks(links);
@@ -262,20 +550,77 @@ function isReferralOrderCounted(order, referralCode) {
   return status === 'verified';
 }
 
+// Influencer referral codes are scoped to the Influencer Admin who created the
+// influencer. That admin must be authorized for the event (or own the event)
+// before the code can be used. Sub-admin referral links are intentionally not
+// subject to this rule because their referral model is global.
+async function influencerReferralAuthorizedForEvent(referralLink, event) {
+  if (!referralLink || !event) return false;
+
+  const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
+  if (!influencerId) return true; // legacy/sub-admin referral link
+
+  const users = await readUsers();
+  const influencer = users.find(u => String(u.id || '').trim() === influencerId && u.role === 'influencer');
+  if (!influencer) return false;
+
+  // Step 5: relationship-scoped links must still belong to an ACTIVE
+  // accepted relationship. Merely having influencerAdminId on the link is
+  // not enough: a relationship may have been rejected after the link was
+  // created, and that must immediately revoke the referral code.
+  const authorizedIds = new Set(getAuthorizedInfluencerAdminIds(event));
+  const assignment = getAcceptedInfluencerAssignments(influencer).find(a =>
+    String(a.id || '') === String(referralLink.assignmentId || '')
+  );
+  if (!assignment) return false;
+  const adminId = String(assignment.influencerAdminId || '').trim();
+  return !!adminId && authorizedIds.has(adminId);
+}
+
+async function getScopedReferralOrders(referralLink, orders, events, scopedAdminId = null) {
+  if (!referralLink) return [];
+  const verifiedOrders = orders.filter(o => isReferralOrderCounted(o, referralLink.code));
+
+  // Sub-admin/global referral links retain their existing global scope.
+  const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
+  if (!influencerId) return verifiedOrders;
+
+  const users = await readUsers();
+  const influencer = users.find(u => String(u.id || '').trim() === influencerId && u.role === 'influencer');
+  if (!influencer) return [];
+
+  let ownerAdminId = String(scopedAdminId || '').trim();
+  if (!ownerAdminId) ownerAdminId = String(referralLink.influencerAdminId || '').trim();
+  if (referralLink.assignmentId && referralLink.influencerAdminId && ownerAdminId !== String(referralLink.influencerAdminId).trim()) return [];
+  if (!ownerAdminId) return verifiedOrders;
+
+  return verifiedOrders.filter(order => {
+    const event = events.find(ev => eventMatchesOrder(order, ev));
+    if (!event) return false;
+    return getAuthorizedInfluencerAdminIds(event).includes(ownerAdminId);
+  });
+}
+
 async function updateReferralStats(referralCode) {
   if (!referralCode) return;
   const links = await readReferralLinks();
   const link = links.find(l => l.code === referralCode);
   if (!link) return;
   
-  const orders = await readOrders();
-  const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  const referredOrders = await getScopedReferralOrders(link, orders, events);
   
   link.totalOrders = referredOrders.length;
-  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-  
-  console.log(`updateReferralStats: code=${referralCode} totalOrders=${link.totalOrders} totalRevenue=${link.totalRevenue}`);
-  await writeReferralLinks(links);
+  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+  link.totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+  link.uniquePeople = new Set(
+    referredOrders
+      .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+      .filter(Boolean)
+  ).size;
+
+  console.log(`updateReferralStats: code=${referralCode} orders=${link.totalOrders} tickets=${link.totalTickets} people=${link.uniquePeople} revenue=${link.totalRevenue}`);
+  await writeReferralLink(link);
 }
 
 async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
@@ -294,153 +639,64 @@ async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
 }
 
 /* ── Events (admin-managed catalog shown on client pages) ── */
-const DEFAULT_EVENTS = [
-  {
-id: 'arts-cultural-night',
-    name: 'Faculty of Arts Cultural Night',
-    category: 'Arts & Culture',
-    price: 2500,
-    vipPrice: 5000,
-    vvipPrice: 5000,
-    tablePrice: 10000,
-    date: 'March 10, 2025',
-    time: '4:00 PM',
-    venue: 'Arts Theatre',
-    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.',
-    tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '🎭',
-    featured: true,
-    seats: '150 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'engineering-dinner',
-    name: 'Engineering Annual Dinner',
-category: 'Engineering',
-    price: 5000,
-    vipPrice: 10000,
-    vvipPrice: 10000,
-    tablePrice: 25000,
-    date: 'March 15, 2025',
-    time: '5:00 PM',
-    venue: 'Engineering Auditorium',
-    description: 'The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.',
-    tags: ['🏆 Awards', '🍽️ Dinner', '🤝 Networking'],
-    image: 'images/tm-622-screen-02.jpg',
-    icon: '⚙️',
-    featured: true,
-    seats: '80 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'entrepreneurship-summit',
-    name: 'Entrepreneurship Summit',
-category: 'Business',
-    price: 3000,
-    vipPrice: 0,
-    date: 'March 22, 2025',
-    time: '10:00 AM',
-    venue: 'Business School Hall',
-    description: 'Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.',
-    tags: ['💡 Pitching', '💰 Funding', '📈 Workshops'],
-    image: 'images/tm-622-screen-03.jpg',
-    icon: '💼',
-    featured: true,
-    seats: '200 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'music-festival',
-    name: 'Campus Music Festival',
-category: 'Music',
-    price: 4000,
-    vipPrice: 8000,
-    vvipPrice: 8000,
-    tablePrice: 20000,
-    date: 'March 29, 2025',
-    time: '6:00 PM',
-    venue: 'Sports Complex',
-    description: 'Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.',
-    tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
-    image: 'images/tm-622-screen-04.jpg',
-    icon: '🎵',
-    featured: true,
-    seats: '300 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'law-moot-court',
-    name: 'Faculty of Law Moot Court',
-    category: 'Academic',
-    price: 1500,
-    vipPrice: 0,
-    date: 'April 5, 2025',
-    time: '9:00 AM',
-    venue: 'Faculty of Law',
-    description: 'The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.',
-    tags: ['⚖️ Mock Trial', '📜 Legal Debate', '🏅 Competition'],
-    image: 'images/tm-622-screen-05.jpg',
-    icon: '📚',
-    featured: false,
-    seats: '100 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'sports-day',
-    name: 'Inter-Faculty Sports Day',
-    category: 'Sports',
-    price: 1000,
-    vipPrice: 0,
-    date: 'April 12, 2025',
-    time: '8:00 AM',
-venue: 'Main Stadium',
-    description: 'A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!',
-    tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '⚽',
-    featured: false,
-    seats: 'Unlimited',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  }
-];
+const DEFAULT_EVENTS = [];
 
 async function readEvents() {
   if (usePg) {
-    const r = await db.query('SELECT data FROM events ORDER BY data->>\'date\' ASC');
-    const list = r.rows.map(row => row.data);
-    // Auto-seed the default UNN events catalog when the events table is empty
-    // (e.g. first run or an empty PostgreSQL table) so events are never missing.
-    if (list.length === 0) {
-      for (const ev of DEFAULT_EVENTS) {
-        await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
-          [ev.id, JSON.stringify(ev)]);
-      }
-      console.log('Seeded ' + DEFAULT_EVENTS.length + ' default events into PostgreSQL.');
-      return DEFAULT_EVENTS.slice();
-    }
-    return list;
+    const r = await db.query("SELECT data FROM events ORDER BY data->>'date' ASC");
+    return r.rows.map(row => row.data);
   }
   try {
     const raw = fs.readFileSync(path.join(DATA_DIR, 'events.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_EVENTS;
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return DEFAULT_EVENTS;
+    return [];
   }
 }
+
+function getAuthorizedInfluencerAdminIds(ev) {
+  const ids = Array.isArray(ev && ev.authorizedInfluencerAdminIds) ? ev.authorizedInfluencerAdminIds : [];
+  return ids.map(String).filter(Boolean);
+}
+
+function eventIdentifierMatches(event, eventId) {
+  const requestedId = String(eventId || '').trim();
+  if (!requestedId || !event) return false;
+  return [event.id, event._id, event.eventId].some(id => String(id || '').trim() === requestedId);
+}
+
+function eventMatchesOrder(order, ev) {
+  if (!order || !ev) return false;
+  const oid = String(order.eventId || '').trim();
+  const eid = String(ev.id || '').trim();
+  if (oid && eid && oid === eid) return true;
+  return String(order.eventName || '').trim().toLowerCase() === String(ev.name || '').trim().toLowerCase();
+}
+
+async function getOrdersForCurrentSiteEvents() {
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  // Match orders against the live event catalog using every identifier the
+  // site has historically used.  Do NOT require eventId to match when the
+  // order also carries the event name: existing orders can legitimately have
+  // an older/alternate event id while still belonging to the same event.
+  const eventIds = new Set();
+  const eventNames = new Set();
+  events.forEach(e => {
+    [e && e.id, e && e._id, e && e.eventId].forEach(v => {
+      const id = String(v || '').trim();
+      if (id) eventIds.add(id);
+    });
+    const name = String(e && (e.name || e.eventName) || '').trim().toLowerCase();
+    if (name) eventNames.add(name);
+  });
+  return orders.filter(o => {
+    const id = String(o && (o.eventId || o.event_id || o.eventID) || '').trim();
+    const name = String(o && (o.eventName || o.event_name) || '').trim().toLowerCase();
+    return (id && eventIds.has(id)) || (name && eventNames.has(name));
+  });
+}
+
 async function writeEvents(events) {
   if (usePg) {
     await db.query('DELETE FROM events');
@@ -726,7 +982,7 @@ const orderLogLimit = 1000;
 function randCode6() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
   let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++) code += chars[crypto.randomInt(chars.length)];
   return code;
 }
 function generateTicketCodes(qty) {
@@ -756,22 +1012,155 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+  return String(crypto.randomInt(100000, 1000000)); // cryptographically secure 6-digit OTP
+}
+function hashResetSecret(value) {
+  return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
+}
+function validateEmail(email) {
+  const value = String(email || '').trim().toLowerCase();
+  if (!value) return 'Email address is required.';
+  if (value.length > 254) return 'Email address is too long.';
+  // Practical application-level email validation; DNS/mailbox existence is not checked here.
+  if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(value)) {
+    return 'Please enter a valid email address.';
+  }
+  return null;
+}
+function validatePhone(phone) {
+  const value = String(phone || '').trim();
+  if (!value) return 'Phone number is required.';
+  if (value.length > 25) return 'Phone number is too long.';
+  // Accept common Nigerian formats: 08012345678 or +2348012345678,
+  // allowing spaces, hyphens and parentheses for readability.
+  const normalized = value.replace(/[\s()-]/g, '');
+  if (!/^(?:0[789][01]\d{8}|\+234[789][01]\d{8})$/.test(normalized)) {
+    return 'Please enter a valid Nigerian phone number.';
+  }
+  return null;
+}
+function validatePassword(password) {
+  const pw = String(password || '');
+  if (pw.length < 8) return 'Password must be at least 8 characters long.';
+  if (pw.length > 128) return 'Password must be 128 characters or fewer.';
+  if (!/[A-Za-z]/.test(pw)) return 'Password must contain at least one letter.';
+  if (!/[0-9]/.test(pw)) return 'Password must contain at least one number.';
+  if (!/[^A-Za-z0-9\s]/.test(pw)) return 'Password must contain at least one symbol.';
+  return null;
 }
 function isAdminAuthorized(req) {
-  const auth = req.headers['authorization'] || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const expected = process.env.ADMIN_PASSWORD !== undefined ? process.env.ADMIN_PASSWORD : defaults.ADMIN_PASSWORD;
-  return !!token && token === expected;
+  const auth = String(req.headers['authorization'] || '');
+  if (!auth.startsWith('Bearer ')) return false;
+
+  const token = auth.slice(7).trim();
+  // Fail closed: never allow the documented/default placeholder to become
+  // a real admin credential if ADMIN_PASSWORD was forgotten in production.
+  const expected = String(process.env.ADMIN_PASSWORD || '').trim();
+  if (!token || !expected || expected === 'CHANGE_ME_STRONG_PASSWORD') return false;
+
+  // Compare secrets in constant time to avoid leaking the password through
+  // timing differences. Buffer lengths must match before timingSafeEqual().
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 // Authorize either the master admin password OR a logged-in sub-admin account.
 // Sub-admins have limited privileges (check-in + add events).
-async function isAdminOrSubadmin(req) {
+async function isAdminOrInfluencerAdmin(req) {
   if (isAdminAuthorized(req)) return { role: 'admin' };
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && user.role === 'subadmin') return { role: 'subadmin', user: user };
+  if (user && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role))) return { role: 'influencer_admin', user: Object.assign({}, user, { role: 'influencer_admin' }) };
+  return null;
+}
+
+// Influencer ownership is enforced server-side. Master admin can manage any
+// influencer; an influencer admin can manage only accounts whose createdBy
+// matches the authenticated influencer admin's user id.
+function influencerAdminOwnsInfluencer(authCtx, influencer) {
+  if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !influencer) return false;
+  const adminId = String(authCtx.user.id || '').trim();
+  const hasRelationshipArray = Array.isArray(influencer.influencerAssignments);
+  if (hasRelationshipArray) {
+    // Once the relationship model exists, its explicit status is authoritative.
+    // This prevents a rejected relationship from accidentally retaining access
+    // through one of the old single-admin ownership fields.
+    return influencerHasAdminAssignment(influencer, adminId, ['accepted']);
+  }
+
+  // Legacy fallback for records that predate the relationship migration.
+  const adminEmail = String(authCtx.user.email || '').trim().toLowerCase();
+  const adminName = String(authCtx.user.name || '').trim().toLowerCase();
+  const assigned = influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId;
+  if (assigned && String(assigned) === adminId) return true;
+  const owner = influencer.createdBy;
+  if (owner && typeof owner === 'object') {
+    const oid = String(owner.id || owner.userId || owner.ownerId || owner.influencerAdminId || '').trim();
+    const oemail = String(owner.email || '').trim().toLowerCase();
+    const oname = String(owner.name || '').trim().toLowerCase();
+    if (oid && oid === adminId) return true;
+    if (oemail && adminEmail && oemail === adminEmail) return true;
+    if (oname && adminName && oname === adminName) return true;
+    return false;
+  }
+  const ownerValue = String(owner || '').trim();
+  return ownerValue === adminId || (!!adminEmail && ownerValue.toLowerCase() === adminEmail) || (!!adminName && ownerValue.toLowerCase() === adminName);
+}
+
+function canManageInfluencer(authCtx, influencer) {
+  if (!authCtx || !influencer || influencer.role !== 'influencer') return false;
+  if (authCtx.role === 'admin') return true;
+  return influencerAdminOwnsInfluencer(authCtx, influencer);
+}
+
+// Event ownership/authorization is checked server-side. An Influencer Admin may
+// edit/archive only events they created; authorized events are view-only. Main
+// Admin has unrestricted event access.
+function influencerAdminOwnsEvent(authCtx, event) {
+  if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !event) return false;
+  const myId = String(authCtx.user.id || '').trim();
+  const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
+  const directOwnerId = String(event.influencerAdminId || event.ownerInfluencerAdminId || event.createdByInfluencerAdminId || '').trim();
+  if (directOwnerId && directOwnerId === myId) return true;
+  const c = event.createdBy;
+  if (typeof c === 'string') return c.trim() === myId || (!!myEmail && c.trim().toLowerCase() === myEmail);
+  if (c && typeof c === 'object') {
+    const oid = String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim();
+    const oemail = String(c.email || '').trim().toLowerCase();
+    return oid === myId || (!!myEmail && oemail === myEmail);
+  }
+  return false;
+}
+async function isAdminOrSubadmin(req) {
+  // This helper is intentionally limited to management roles. Ordinary
+  // influencers and check-in staff must never inherit admin/sub-admin API
+  // privileges merely because they have a valid login session.
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const user = await getSessionUser(token);
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  if (role === 'subadmin') return { role: 'subadmin', user: user };
+  if (['influencer_admin','influencer-admin','influencerAdmin'].includes(role)) {
+    return { role: 'influencer_admin', user: Object.assign({}, user, { role: 'influencer_admin' }) };
+  }
+  return null;
+}
+
+// Check-in is a separate privilege from management. Keeping it separate
+// prevents check-in staff from inheriting event/account/coupon management
+// access through a shared authorization helper.
+async function isAdminOrCheckinStaff(req) {
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const user = await getSessionUser(token);
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  if (role === 'checkin_staff' || role === 'subadmin') return { role: role, user: user };
   return null;
 }
 
@@ -840,13 +1229,33 @@ const MIME_TYPES = {
 // SECURITY HARDENING
 // ────────────────────────────────────────────
 // Security headers applied to every response.
-function securityHeaders() {
-  return {
+function securityHeaders(req) {
+  const headers = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "script-src 'self' 'unsafe-inline' https://checkout.flutterwave.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' https://formsubmit.co https://checkout.flutterwave.com https://checkout-v3.flutterwave.com https://api.flutterwave.com https://api.ravepay.co https://ravesandboxapi.flutterwave.com",
+      "frame-src 'self' https://checkout.flutterwave.com https://checkout-v3.flutterwave.com",
+      "manifest-src 'self'",
+      "worker-src 'self' blob:",
+      "upgrade-insecure-requests"
+    ].join('; ')
   };
+  const forwardedProto = req && req.headers ? String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase() : '';
+  const isHttps = Boolean((req && req.socket && req.socket.encrypted) || forwardedProto === 'https');
+  if (isHttps) headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+  return headers;
 }
 
 // Very small in-memory rate limiter for sensitive endpoints (auth).
@@ -874,8 +1283,8 @@ function rateLimit(req, route, limit, windowMs) {
 }
 
 // Apply security headers to a plain header object.
-function withSecurityHeaders(headers) {
-  return Object.assign({}, headers, securityHeaders());
+function withSecurityHeaders(headers, req) {
+  return Object.assign({}, headers, securityHeaders(req));
 }
 
 function sendJson(res, status, obj) {
@@ -886,25 +1295,71 @@ function sendJson(res, status, obj) {
 function readBody(req) {
   return new Promise((resolve) => {
     let body = '';
-    req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
-    req.on('end', () => { resolve(body); });
-    req.on('error', () => { resolve(''); });
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (body.length > 1e6) {
+        tooLarge = true;
+        resolve(null);
+        req.destroy();
+      }
+    });
+    req.on('end', () => { if (!tooLarge) resolve(body); });
+    req.on('error', () => { if (!tooLarge) resolve(''); });
   });
 }
+
+// Accept only image URLs that cannot execute script in an HTML src attribute.
+// Relative site paths are allowed; remote images must use HTTPS (HTTP is kept
+// available for local/dev compatibility). Only base64 raster image data URLs
+// produced by the admin image resize flow are accepted.
+function isSafeImageUrl(value) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return true;
+  if (/^[\x00-\x1F\x7F]/.test(v) || /[\x00-\x1F\x7F]/.test(v)) return false;
+  if (v.startsWith('/')) return !v.startsWith('//');
+  // Admin image uploads are converted in the browser to base64 image data.
+  // Allow those uploads (up to the request-body safety limit) instead of
+  // treating them like short remote image URLs.
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(v)) return v.length <= 850000;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch (e) {
+    return false;
+  }
+}
+
+// Prevent duplicate fulfillment when Flutterwave retries a webhook or an admin
+// verifies the same order at the same time. Persistent ticketIssued/ticketEmailSent
+// flags below remain the source of truth across restarts.
+const paymentVerificationLocks = new Set();
 
 // Verify a transaction reference against Flutterwave (server-side)
 function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
   return new Promise((resolve) => {
     const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
-      ? process.env.FLUTTERWAVE_SECRET_KEY
-      : defaults.FLUTTERWAVE_SECRET_KEY;
-    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(txRef);
+      ? String(process.env.FLUTTERWAVE_SECRET_KEY).trim()
+      : String(defaults.FLUTTERWAVE_SECRET_KEY || '').trim();
+    const cleanTxRef = String(txRef || '').trim();
+    const expected = Number(expectedAmount);
+    const expectedCur = String(expectedCurrency || '').trim().toUpperCase();
+
+    // Never call the provider with incomplete verification inputs. A payment
+    // is only eligible for fulfillment when our order has a real reference,
+    // positive amount and expected currency, and the secret key is configured.
+    if (!secretKey || !cleanTxRef || !Number.isFinite(expected) || expected <= 0 || !expectedCur) {
+      return resolve({ success: false, apiSuccess: false, error: 'Incomplete Flutterwave verification configuration' });
+    }
+
+    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(cleanTxRef);
     const options = {
       hostname: 'api.flutterwave.com',
       port: 443,
       path: apiPath,
       method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json' }
+      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json', 'Accept': 'application/json' }
     };
     const apiReq = https.request(options, (apiRes) => {
       let data = '';
@@ -913,21 +1368,28 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
         try {
           const json = JSON.parse(data);
           const t = json.data || {};
-          const status = String(t.status || '');
+          const status = String(t.status || '').toLowerCase();
           const amount = parseFloat(t.amount) || 0;
-          const currency = String(t.currency || '');
-          const verified = json.status === 'success' && (status === 'successful' || status === 'completed');
+          const currency = String(t.currency || '').toUpperCase();
+          const returnedTxRef = String(t.tx_ref || t.reference || '').trim();
+          const verified = json.status === 'success' && ['successful', 'succeeded', 'completed'].includes(status);
 
-          // Strong verification: match amount & currency against the order
-          const amountOk = !expectedAmount || Math.abs(amount - expectedAmount) < 1;
-          const currencyOk = !expectedCurrency || currency === expectedCurrency;
+          // Strong verification: Flutterwave must return the exact transaction
+          // reference, exact expected currency, and the expected amount. Do not
+          // treat missing provider fields as a match.
+          const txRefOk = !!returnedTxRef && returnedTxRef === cleanTxRef;
+          const amountOk = Number.isFinite(amount) && Math.abs(amount - expected) < 0.01;
+          const currencyOk = !!currency && currency === expectedCur;
+          const httpOk = Number(apiRes.statusCode || 0) >= 200 && Number(apiRes.statusCode || 0) < 300;
 
           resolve({
-            success: verified && amountOk && currencyOk,
+            success: httpOk && verified && txRefOk && amountOk && currencyOk,
             apiSuccess: verified,
             amount: amount,
             currency: currency,
             status: status,
+            returnedTxRef: returnedTxRef,
+            txRefOk: txRefOk,
             amountOk: amountOk,
             currencyOk: currencyOk
           });
@@ -935,6 +1397,10 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
           resolve({ success: false, apiSuccess: false, error: 'Bad response' });
         }
       });
+    });
+    apiReq.setTimeout(10000, () => {
+      apiReq.destroy();
+      resolve({ success: false, apiSuccess: false, error: 'Flutterwave verification timed out' });
     });
     apiReq.on('error', () => {
       resolve({ success: false, apiSuccess: false, error: 'Network error' });
@@ -1014,6 +1480,26 @@ function postJson(hostname, pathname, headers, body) {
   });
 }
 
+function postForm(hostname, pathname, fields) {
+  return new Promise((resolve) => {
+    const data = new URLSearchParams(fields).toString();
+    const options = {
+      hostname: hostname,
+      port: 443,
+      path: pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(data) }
+    };
+    const req = https.request(options, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, body: body }));
+    });
+    req.on('error', (error) => resolve({ status: 0, body: error.message }));
+    req.end(data);
+  });
+}
+
 function emailFrom() {
   return process.env.EMAIL_FROM !== undefined ? process.env.EMAIL_FROM : defaults.EMAIL_FROM;
 }
@@ -1066,6 +1552,33 @@ async function sendBrevoEmail(to, subject, text, html, toName) {
   }
 }
 
+async function sendContactEmail(data) {
+  const subject = '[Unisocials Contact] ' + data.subject;
+  const text = 'Name: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + (data.phone || '—') + '\nSubject: ' + data.subject + '\n\n' + data.message;
+  const html = '<div style="font-family:Arial,sans-serif;white-space:pre-wrap"><strong>Name:</strong> ' + escapeHtml(data.name) + '<br><strong>Email:</strong> ' + escapeHtml(data.email) + '<br><strong>Phone:</strong> ' + escapeHtml(data.phone || '—') + '<br><strong>Subject:</strong> ' + escapeHtml(data.subject) + '<br><br>' + escapeHtml(data.message).replace(/\n/g, '<br>') + '</div>';
+  const to = adminEmail();
+  const formSubmitKey = String(process.env.FORMSUBMIT_KEY !== undefined ? process.env.FORMSUBMIT_KEY : defaults.FORMSUBMIT_KEY || '').trim();
+  if (formSubmitKey) {
+    const result = await postJson('formsubmit.co', '/ajax/' + encodeURIComponent(formSubmitKey), {
+      'Accept': 'application/json'
+    }, {
+      Name: data.name,
+      Email: data.email,
+      Phone: data.phone || '',
+      Subject: data.subject,
+      Message: data.message,
+      _subject: 'New Contact Form Submission from Unisocials',
+      _captcha: 'false',
+      _template: 'table',
+      _next: siteUrl() + '/thank-you.html'
+    });
+    if (result.status >= 200 && result.status < 400) return { sent: true, configured: true, provider: 'FormSubmit' };
+    console.warn('FormSubmit contact delivery failed (' + result.status + '):', result.body && result.body.slice(0, 200));
+    return { sent: false, configured: true, provider: 'FormSubmit', status: result.status };
+  }
+  return { sent: false, configured: false, provider: '' };
+}
+
 // Plain-text digest of the order for the email body
 function orderEmailLines(order) {
   const site = siteUrl();
@@ -1116,9 +1629,67 @@ function buildBuyerHtml(order) {
     '</div></div>';
 }
 
-// Send buyer confirmation email. Prefers Brevo (works WITHOUT a domain — you just
-// verify a sender email address in Brevo), falls back to Resend if BREVO_API_KEY
-// isn't set. Best-effort: never throws / never blocks.
+// Send the immediate post-purchase acknowledgement BEFORE admin verification.
+// This email confirms that the purchase/payment submission was received; it does
+// NOT contain tickets. Tickets are sent only after an admin/server verification.
+// Best-effort and non-blocking so the purchase flow is never held up by email.
+async function sendBuyerPurchaseAcknowledgement(order) {
+  try {
+    const email = String(order && order.buyerEmail || '').trim();
+    if (!email) return false;
+    const name = order.buyerName || 'there';
+    const subject = 'Payment received — your Unisocials tickets will be sent shortly';
+    const text =
+      'Hi ' + name + ',\n\n' +
+      'Thank you for your purchase on Unisocials. We have received your payment submission.\n\n' +
+      'Your tickets will be sent to you shortly after your payment is verified. Please keep an eye on your inbox (and your spam/junk folder just in case).\n\n' +
+      'Order ID: ' + order.orderId + '\n' +
+      'Event: ' + order.eventName + '\n' +
+      'Quantity: ' + order.qty + '\n\n' +
+      'Thank you for choosing Unisocials.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Payment Received ✓</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(name) + '</strong>,</p>' +
+      '<p style="margin:0 0 16px;color:#475569">Thank you for your purchase on Unisocials. We have received your payment submission.</p>' +
+      '<p style="margin:0 0 16px;color:#0f172a;font-weight:600">Your tickets will be sent to you shortly after your payment is verified.</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+      rowHtml('Order ID', escapeHtml(order.orderId)) +
+      rowHtml('Event', escapeHtml(order.eventName)) +
+      rowHtml('Quantity', String(order.qty)) +
+      '</table>' +
+      '<p style="font-size:12px;color:#64748b;margin:0">Please keep an eye on your inbox and check your spam/junk folder if you do not see the ticket email.</p>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Unisocials Team</p>' +
+      '</div></div>';
+
+    if (brevoApiKey()) {
+      const sent = await sendBrevoEmail(email, subject, text, html, name);
+      if (sent) console.log('Immediate purchase acknowledgement sent via Brevo to', email);
+      return !!sent;
+    }
+    const key = resendKey();
+    if (!key) {
+      console.warn('Buyer acknowledgement not sent: no BREVO_API_KEY or RESEND_API_KEY configured');
+      return false;
+    }
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, {
+      from: emailFrom(), to: [email], subject: subject, text: text, html: html
+    });
+    if (r.status === 200) {
+      console.log('Immediate purchase acknowledgement sent via Resend to', email);
+      return true;
+    }
+    console.warn('Resend purchase acknowledgement failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    return false;
+  } catch (e) {
+    console.warn('Buyer purchase acknowledgement error:', e.message);
+    return false;
+  }
+}
+
+// Send buyer ticket email. Prefers Brevo and falls back to Resend.
+// Best-effort: never throws / never blocks the payment response.
 async function sendBuyerConfirmation(order) {
   try {
     const email = order.buyerEmail;
@@ -1249,11 +1820,15 @@ function ticketLinksHtml(order) {
   return html;
 }
 
-// Fire buyer + admin emails after an order becomes verified (best-effort, non-blocking).
+// Fire ONLY the ticket-delivery email after an order becomes verified.
+// The pre-verification acknowledgement is sent when the order is first created.
+// This separation guarantees that no ticket links are emailed before verification.
 async function notifyOrderVerified(order) {
   try {
-    sendBuyerConfirmation(order);
     sendAdminAlert(order);
+    setTimeout(function() {
+      try { sendBuyerConfirmation(order); } catch (e) { console.warn('Delayed buyer ticket email error:', e.message); }
+    }, 1500);
   } catch (e) {
     console.warn('notifyOrderVerified error:', e.message);
   }
@@ -1321,9 +1896,14 @@ async function sendNewOrderAlert(order) {
   }
 }
 
-// Fire the new-order alert (best-effort, non-blocking).
+// Fire only the admin alert when an order is created.
+// The buyer's payment-received acknowledgement is sent only after the server
+// verifies the Flutterwave transaction. Actual tickets are sent only from
+// notifyOrderVerified() after the order becomes verified.
 function notifyNewOrder(order) {
-  try { sendNewOrderAlert(order); } catch (e) { console.warn('notifyNewOrder error:', e.message); }
+  try {
+    sendNewOrderAlert(order);
+  } catch (e) { console.warn('notifyNewOrder error:', e.message); }
 }
 
 // ────────────────────────────────────────────
@@ -1443,10 +2023,51 @@ setInterval(function() {
 // HTTP SERVER
 // ────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
+  for (const [key, value] of Object.entries(securityHeaders(req))) res.setHeader(key, value);
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
 
   try {
+    if (pathname === '/api/contact' && req.method === 'POST') {
+      const rl = rateLimit(req, 'contact', 5, 60000);
+      if (!rl.allowed) return sendJson(res, 429, { success: false, error: 'Too many messages. Please try again shortly.' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim();
+      const phone = String(data.phone || '').trim();
+      const subject = String(data.subject || '').trim();
+      const message = String(data.message || '').trim();
+      if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !subject || subject.length > 120 || !message || message.length > 5000) {
+        return sendJson(res, 400, { success: false, error: 'Please complete the form with a valid name, email, subject, and message.' });
+      }
+      const delivery = await sendContactEmail({ name, email, phone, subject, message });
+      if (!delivery.sent) {
+        const error = delivery.configured
+          ? 'Email provider rejected the message. Check the sender verification and API key in Render.'
+          : 'No email provider is configured. Add BREVO_API_KEY or RESEND_API_KEY in Render.';
+        return sendJson(res, 503, { success: false, error: error, provider: delivery.provider || null });
+      }
+      return sendJson(res, 200, { success: true });
+    }
+
+    // Lightweight health/keep-alive endpoint.
+    // Deliberately performs no database queries or external API calls so periodic
+    // uptime checks keep the web service warm without consuming Neon compute.
+    if (pathname === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.writeHead(200, withSecurityHeaders({
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
+      }));
+      if (req.method === 'HEAD') {
+        res.end();
+      } else {
+        res.end(JSON.stringify({ status: 'ok' }));
+      }
+      return;
+    }
+
     // ── Dynamic config.js ──
     if (pathname === '/config.js') {
       const cfg = getConfig();
@@ -1472,8 +2093,11 @@ const server = http.createServer(async (req, res) => {
       const phone = String(data.phone || '').trim();
       const password = String(data.password || '');
 
-      if (!name || !email || !phone || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Please provide name, email, phone and a password of at least 6 characters.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      const phoneError = validatePhone(phone);
+      if (!name || !email || !phone || passwordError || emailError || phoneError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || phoneError || 'Please provide name, email and phone.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) {
@@ -1511,12 +2135,324 @@ const user = {
         return sendJson(res, 400, { success: false, error: 'Please enter your email and password.' });
       }
       const user = await findUserByEmail(email);
+      if (user && user.archived === true) {
+        return sendJson(res, 403, { success: false, error: 'This account has been archived and cannot be used. Please contact an administrator.' });
+      }
       if (!user || !verifyPassword(password, user.passwordHash)) {
         return sendJson(res, 401, { success: false, error: 'Invalid email or password.' });
       }
       const token = generateToken();
       await createSession(token, user.id);
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
+    }
+
+    // ── Influencer Admin: search existing influencer accounts to request ──
+    // This does NOT create a second account. It only lets an Influencer Admin
+    // start a relationship with an influencer who already has a login.
+    if (pathname === '/api/influencer-admin/influencers/search' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const search = String(url.searchParams.get('q') || '').trim().toLowerCase();
+      if (!search || search.length < 2) return sendJson(res, 400, { success: false, error: 'Enter at least 2 characters to search.' });
+      if (search.length > 120) return sendJson(res, 400, { success: false, error: 'Search term is too long.' });
+      const users = await readUsers();
+      const myId = String(authCtx.user.id || '').trim();
+      const matches = users
+        .filter(u => u && u.role === 'influencer' && u.archived !== true)
+        .filter(u => {
+          if (!search) return true;
+          return String(u.name || '').toLowerCase().includes(search) || String(u.email || '').toLowerCase().includes(search);
+        })
+        .slice(0, 25)
+        .map(u => {
+          const assignment = getInfluencerAssignments(u).find(a => a.influencerAdminId === myId) || null;
+          return {
+            id: u.id,
+            name: u.name || '',
+            email: u.email || '',
+            assignmentStatus: assignment ? assignment.status : 'none',
+            assignmentId: assignment ? assignment.id : null
+          };
+        });
+      return sendJson(res, 200, { success: true, influencers: matches });
+    }
+
+    // ── Influencer Admin: request an existing influencer ──
+    if (pathname === '/api/influencer-admin/influencer-requests' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const influencerId = String(data.influencerId || '').trim();
+      if (!influencerId || influencerId.length > 120) return sendJson(res, 400, { success: false, error: 'A valid influencer is required.' });
+      const users = await readUsers();
+      const index = users.findIndex(u => u && u.id === influencerId && u.role === 'influencer');
+      if (index < 0) return sendJson(res, 404, { success: false, error: 'Influencer not found.' });
+      if (users[index].archived === true) return sendJson(res, 409, { success: false, error: 'This influencer account is archived.' });
+
+      const myId = String(authCtx.user.id || '').trim();
+      const influencer = Object.assign({}, users[index]);
+      const assignments = getInfluencerAssignments(influencer);
+      const existing = assignments.find(a => a.influencerAdminId === myId) || null;
+      if (existing && existing.status === 'accepted') return sendJson(res, 409, { success: false, error: 'This influencer already works with your Influencer Admin account.', status: 'accepted' });
+      if (existing && existing.status === 'pending') return sendJson(res, 409, { success: false, error: 'A request for this influencer is already pending.', status: 'pending' });
+
+      const now = new Date().toISOString();
+      const nextAssignments = assignments.filter(a => a.influencerAdminId !== myId);
+      nextAssignments.push({
+        id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+        influencerAdminId: myId,
+        status: 'pending',
+        requestedAt: now,
+        acceptedAt: null,
+        rejectedAt: null,
+        legacy: false
+      });
+      influencer.influencerAssignments = nextAssignments;
+      users[index] = influencer;
+      await writeUsers(users);
+      return sendJson(res, 200, { success: true, status: 'pending', influencer: { id: influencer.id, name: influencer.name || '', email: influencer.email || '' } });
+    }
+
+    // ── Influencer: relationship requests ──
+    // An influencer uses the same existing login to review requests from
+    // Influencer Admins. No duplicate account is created and no referral code
+    // is generated at this stage; code generation belongs to Step 4.
+    if (pathname === '/api/influencer/relationship-requests' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const assignments = getInfluencerAssignments(user);
+      const users = await readUsers();
+      const requests = assignments.map(a => {
+        const admin = users.find(u => u && u.id === a.influencerAdminId && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(u.role)));
+        return {
+          id: a.id,
+          influencerAdminId: a.influencerAdminId,
+          status: a.status,
+          requestedAt: a.requestedAt || null,
+          acceptedAt: a.acceptedAt || null,
+          rejectedAt: a.rejectedAt || null,
+          influencerAdmin: admin ? { id: admin.id, name: admin.name || '', email: admin.email || '' } : { id: a.influencerAdminId, name: 'Influencer Admin', email: '' }
+        };
+      }).filter(r => ['pending','accepted','rejected'].includes(r.status));
+      return sendJson(res, 200, { success: true, requests });
+    }
+
+    if (pathname === '/api/influencer/relationship-requests/respond' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const assignmentId = String(data.assignmentId || '').trim();
+      const decision = String(data.decision || '').trim().toLowerCase();
+      if (!assignmentId || assignmentId.length > 120) return sendJson(res, 400, { success: false, error: 'A valid relationship request is required.' });
+      if (!['accept','reject'].includes(decision)) return sendJson(res, 400, { success: false, error: 'Decision must be accept or reject.' });
+
+      const users = await readUsers();
+      const influencerIndex = users.findIndex(u => u && u.id === sessionUser.id && u.role === 'influencer');
+      if (influencerIndex < 0) return sendJson(res, 404, { success: false, error: 'Influencer account not found.' });
+      const influencer = Object.assign({}, users[influencerIndex]);
+      const assignments = getInfluencerAssignments(influencer);
+      const idx = assignments.findIndex(a => a.id === assignmentId);
+      if (idx < 0) return sendJson(res, 404, { success: false, error: 'Relationship request not found.' });
+      if (assignments[idx].status !== 'pending') {
+        return sendJson(res, 409, { success: false, error: 'This relationship request has already been decided.', status: assignments[idx].status });
+      }
+
+      const admin = users.find(u => u && u.id === assignments[idx].influencerAdminId && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(u.role)));
+      if (!admin || admin.archived === true) {
+        return sendJson(res, 409, { success: false, error: 'The Influencer Admin account is no longer available.' });
+      }
+
+      const now = new Date().toISOString();
+      assignments[idx] = Object.assign({}, assignments[idx], {
+        status: decision === 'accept' ? 'accepted' : 'rejected',
+        acceptedAt: decision === 'accept' ? now : null,
+        rejectedAt: decision === 'reject' ? now : null,
+        legacy: false
+      });
+      influencer.influencerAssignments = assignments;
+      users[influencerIndex] = influencer;
+      await writeUsers(users);
+
+      // Acceptance creates the referral portal for this relationship. The
+      // influencer keeps the same account/login; only the referral relationship
+      // gets its own code.
+      let referralLink = null;
+      if (decision === 'accept') {
+        referralLink = await generateReferralLink(
+          influencer.id,
+          influencer.name,
+          influencer.email,
+          'influencer',
+          assignments[idx].id,
+          assignments[idx].influencerAdminId
+        );
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        status: assignments[idx].status,
+        request: {
+          id: assignments[idx].id,
+          influencerAdminId: assignments[idx].influencerAdminId,
+          status: assignments[idx].status,
+          requestedAt: assignments[idx].requestedAt,
+          acceptedAt: assignments[idx].acceptedAt,
+          rejectedAt: assignments[idx].rejectedAt,
+          referralCode: referralLink ? referralLink.code : null,
+          referralUrl: referralLink ? canonicalReferralUrl(referralLink.code) : null
+        }
+      });
+    }
+
+    // ── Influencer Admin: list assigned influencers with relationship-scoped stats ──
+    // This endpoint is deliberately separate from the master/global influencer list.
+    // It returns only influencers with an explicit ACCEPTED relationship to the
+    // authenticated Influencer Admin and calculates stats from that relationship's
+    // referral code plus the admin's authorized/owned events.
+    if (pathname === '/api/influencer-admin/influencers' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success: false, error: 'Influencer Admin access only' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+      const adminId = String(authCtx.user.id || '').trim();
+
+      const influencers = await Promise.all(users
+        .filter(u => u && u.role === 'influencer' && u.archived !== true)
+        .map(async influencer => {
+          const assignment = getAcceptedInfluencerAssignments(influencer)
+            .find(a => String(a.influencerAdminId || '').trim() === adminId) || null;
+          if (!assignment) return null;
+
+          const link = links.find(l => String(l.influencerId || l.ownerId || '').trim() === String(influencer.id)) || null;
+          const referredOrders = link ? await getScopedReferralOrders(link, orders, events, adminId) : [];
+          const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+          const totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+          return {
+            ...publicUser(influencer),
+            assignmentId: assignment.id,
+            relationshipStatus: assignment.status,
+            requestedAt: assignment.requestedAt || null,
+            acceptedAt: assignment.acceptedAt || null,
+            referralCode: link ? link.code : null,
+            referralUrl: link ? canonicalReferralUrl(link.code) : null,
+            referralStats: {
+              totalOrders: referredOrders.length,
+              totalRevenue,
+              totalTickets,
+              uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+            }
+          };
+        })
+      );
+
+      return sendJson(res, 200, { success: true, influencers: influencers.filter(Boolean) });
+    }
+
+    // ── Admin (master only): list influencer accounts ──
+    if (pathname === '/api/admin/influencers' && req.method === 'GET') {
+      // Main Admin, Sub-admin and Influencer Admin can view influencer accounts.
+      // Sub-admins get the global list; Influencer Admins remain scoped to accounts they created.
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+      const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
+      const influencerUsers = users.filter(u => u.role === 'influencer' && (canViewAll || influencerAdminOwnsInfluencer(authCtx, u)));
+      const influencers = await Promise.all(influencerUsers.map(async u => {
+        const acceptedAssignments = getAcceptedInfluencerAssignments(u);
+        const scopedAssignment = authCtx.role === 'influencer_admin'
+          ? (acceptedAssignments.find(a => String(a.influencerAdminId) === String(authCtx.user.id)) || null)
+          : null;
+        const link = scopedAssignment
+          ? (links.find(l => String(l.influencerId || l.ownerId || '') === String(u.id) && String(l.assignmentId || '') === String(scopedAssignment.id)) || null)
+          : (links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null);
+        const referredOrders = link
+          ? (authCtx.role === 'influencer_admin'
+            ? await getScopedReferralOrders(link, orders, events)
+            : orders.filter(o => isReferralOrderCounted(o, link.code)))
+          : [];
+        const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+        const totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+        return {
+          ...publicUser(u),
+          referralCode: link ? link.code : null,
+          referralStats: {
+            totalOrders: referredOrders.length,
+            totalRevenue,
+            totalTickets,
+            uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          }
+        };
+      }));
+      return sendJson(res, 200, { success: true, influencers });
+    }
+
+    // ── Admin (master only): create influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      const influencer = {
+        id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer',
+        createdBy: authCtx.role === 'admin' ? null : authCtx.user.id,
+        assignedInfluencerAdminId: authCtx.role === 'influencer_admin' ? authCtx.user.id : null,
+        influencerAssignments: authCtx.role === 'influencer_admin' ? [{
+          id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+          influencerAdminId: authCtx.user.id,
+          status: 'accepted',
+          requestedAt: new Date().toISOString(),
+          acceptedAt: new Date().toISOString(),
+          rejectedAt: null
+        }] : [],
+        createdAt: new Date().toISOString()
+      };
+      await addUser(influencer);
+      const createdAssignment = influencer.influencerAssignments && influencer.influencerAssignments[0];
+      const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email, 'influencer', createdAssignment ? createdAssignment.id : null, createdAssignment ? createdAssignment.influencerAdminId : null);
+      return sendJson(res, 200, {
+        success: true,
+        influencer: { ...publicUser(influencer), referralCode: referralLink.code, referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 } }
+      });
+    }
+
+    // ── Admin (master only): remove influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'influencer') return sendJson(res, 404, { success: false, error: 'Influencer not found' });
+      if (!canManageInfluencer(authCtx, user)) {
+        return sendJson(res, 403, { success: false, error: 'You can only manage influencers you created.' });
+      }
+      const users = await readUsers();
+      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
     }
 
     // ── Admin (master only): list sub-admin accounts ──
@@ -1526,7 +2462,7 @@ const user = {
       const links = await readReferralLinks();
       const orders = await readOrders();
       const subs = users.filter(u => u.role === 'subadmin').map(u => {
-        const link = links.find(l => l.subadminId === u.id) || null;
+        const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
@@ -1537,7 +2473,12 @@ const user = {
           referralStats: {
             totalOrders: referredOrders.length,
             totalRevenue: totalRevenue,
-            totalTickets: totalTickets
+            totalTickets: totalTickets,
+            uniquePeople: new Set(
+              referredOrders
+                .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+                .filter(Boolean)
+            ).size
           }
         };
       });
@@ -1553,8 +2494,10 @@ const user = {
       const name = String(data.name || '').trim();
       const email = String(data.email || '').trim().toLowerCase();
       const password = String(data.password || '');
-      if (!name || !email || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) {
@@ -1576,7 +2519,7 @@ const user = {
         subadmin: {
           ...publicUser(sub),
           referralCode: referralLink.code,
-          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0 }
+          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 }
         }
       });
     }
@@ -1594,6 +2537,101 @@ const user = {
       await writeUsers(users.filter(u => u.id !== user.id));
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
+    }
+
+    // ── Archive/unarchive managed accounts ──
+    if (pathname === '/api/admin/accounts/archive' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res,403,{success:false,error:'Only Admin, Sub-admin, or Influencer Admin can archive accounts'});
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const archived = data.archived !== false;
+      if (!email) return sendJson(res,400,{success:false,error:'Missing email'});
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res,404,{success:false,error:'Account not found'});
+      if (target.role === 'admin') return sendJson(res,403,{success:false,error:'The Main Admin account cannot be archived'});
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
+        return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
+      }
+      // Sub-admins can archive/unarchive influencer accounts globally. They cannot
+      // archive other admin/staff accounts; the Main Admin retains full account control.
+      if (authCtx.role === 'subadmin' && target.role !== 'influencer') {
+        return sendJson(res,403,{success:false,error:'Sub-admins can only archive influencer accounts.'});
+      }
+      const users = await readUsers();
+      const idx = users.findIndex(u => u.id === target.id);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Account not found'});
+      users[idx] = Object.assign({}, users[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeUsers(users);
+      if (archived) await deleteUserSessions(target.id);
+      return sendJson(res,200,{success:true,user:publicUser(users[idx])});
+    }
+
+    // ── Admin: dedicated staff accounts (check-in staff / influencer admin) ──
+    if (pathname === '/api/admin/staff' && (req.method === 'GET' || req.method === 'POST' || req.method === 'DELETE')) {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (req.method === 'GET') {
+        const users = await readUsers();
+        const staff = users.filter(u => ['checkin_staff','influencer_admin'].includes(u.role)).map(u => publicUser(u));
+        return sendJson(res, 200, { success: true, staff });
+      }
+      if (req.method === 'POST') {
+        const body = await readBody(req); let data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) {}
+        const name = String(data.name || '').trim();
+        const email = String(data.email || '').trim().toLowerCase();
+        const password = String(data.password || '');
+        const role = String(data.role || '').trim();
+        const passwordError = validatePassword(password);
+        if (!name || !email || passwordError || !['checkin_staff','influencer_admin'].includes(role)) {
+          return sendJson(res, 400, { success: false, error: passwordError || 'Name, email, and a valid role are required.' });
+        }
+        if (await findUserByEmail(email)) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+        const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
+        await addUser(user);
+        return sendJson(res, 200, { success:true, staff: publicUser(user) });
+      }
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success:false, error:'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) return sendJson(res,404,{success:false,error:'Staff account not found'});
+      const users = await readUsers(); await writeUsers(users.filter(u => u.id !== user.id)); await deleteUserSessions(user.id);
+      return sendJson(res,200,{success:true});
+    }
+
+    // ── ADMIN: Reset password for an account this admin manages ──
+    // Main Admin can reset any non-main-admin account. Influencer Admin can
+    // reset only influencers that were created by that Influencer Admin.
+    if (pathname === '/api/admin/account-password' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const newPassword = String(data.password || '');
+      const passwordError = validatePassword(newPassword);
+      if (!email || passwordError) {
+        return sendJson(res, 400, { success: false, error: passwordError || 'Email and a new password are required.' });
+      }
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res, 404, { success: false, error: 'Account not found.' });
+      if (target.role === 'admin') return sendJson(res, 403, { success: false, error: 'The Main Admin password cannot be changed from this dashboard.' });
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx, target)) {
+        return sendJson(res, 403, { success: false, error: 'You can only reset passwords for influencers you created.' });
+      }
+      target.passwordHash = hashPassword(newPassword);
+      target.otp = null;
+      target.otpExpires = null;
+      target.resetToken = null;
+      target.resetTokenExpires = null;
+      const users = await readUsers();
+      await writeUsers(users.map(u => u.id === target.id ? target : u));
+      await deleteUserSessions(target.id);
+      return sendJson(res, 200, { success: true, message: 'Password reset successfully. The account must sign in again.' });
     }
 
     // ── AUTH: Logout ──
@@ -1624,7 +2662,7 @@ const user = {
 
       const otp = generateOtp();
       const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-      user.otp = otp;
+      user.otp = hashResetSecret(otp);
       user.otpExpires = otpExpires;
       await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
 
@@ -1670,13 +2708,19 @@ const user = {
       if (Date.now() > user.otpExpires) {
         return sendJson(res, 400, { success: false, error: 'This OTP has expired. Please request a new one.' });
       }
-      if (String(user.otp) !== String(otp)) {
+      const otpHash = hashResetSecret(otp);
+      const storedOtpHash = String(user.otp || '');
+      // Accept a still-valid legacy plaintext OTP once for compatibility with
+      // resets started before this security update, then replace it with a hash.
+      const otpOk = (storedOtpHash.length === otpHash.length && crypto.timingSafeEqual(Buffer.from(storedOtpHash, 'utf8'), Buffer.from(otpHash, 'utf8'))) ||
+        (storedOtpHash.length === 6 && /^\d{6}$/.test(storedOtpHash) && storedOtpHash === otp);
+      if (!otpOk) {
         return sendJson(res, 400, { success: false, error: 'Invalid OTP. Please check and try again.' });
       }
 
       // Issue a one-time reset token (valid 15 minutes)
       const resetToken = generateToken();
-      user.resetToken = resetToken;
+      user.resetToken = hashResetSecret(resetToken);
       user.resetTokenExpires = Date.now() + 15 * 60 * 1000;
       user.otp = null;
       user.otpExpires = null;
@@ -1687,14 +2731,21 @@ const user = {
 
     // ── AUTH: Reset password (with reset token) ──
     if (pathname === '/api/auth/reset-password' && req.method === 'POST') {
+      const rl = rateLimit(req, 'reset-password', 5, 60000);
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const email = String(data.email || '').trim().toLowerCase();
       const resetToken = String(data.resetToken || '').trim();
       const newPassword = String(data.password || '');
-      if (!email || !resetToken || newPassword.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Email, reset token, and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(newPassword);
+      if (!email || !resetToken || passwordError) {
+        return sendJson(res, 400, { success: false, error: passwordError || 'Email and reset token are required.' });
       }
 
       const user = await findUserByEmail(email);
@@ -1704,7 +2755,11 @@ const user = {
       if (Date.now() > user.resetTokenExpires) {
         return sendJson(res, 400, { success: false, error: 'This reset link has expired. Please request a new OTP.' });
       }
-      if (user.resetToken !== resetToken) {
+      const resetTokenHash = hashResetSecret(resetToken);
+      // Accept a still-valid legacy plaintext reset token once for compatibility.
+      const storedResetToken = String(user.resetToken || '');
+      const resetTokenOk = storedResetToken === resetTokenHash || (storedResetToken && storedResetToken === resetToken);
+      if (!resetTokenOk) {
         return sendJson(res, 400, { success: false, error: 'Invalid reset token. Please start over.' });
       }
 
@@ -1742,20 +2797,39 @@ const user = {
       return sendJson(res, 200, { success: true, orders: mine });
     }
 
-    // ── Create order (PENDING until payment is server-verified) ──
+    
+function getTierInventory(event, tier, orders) {
+  const t = String(tier || 'regular').toLowerCase();
+  const names = {regular:'Regular', vip:'Vip', vvip:'Vvip', table:'Table'};
+  const n = names[t] || 'Regular';
+  const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
+  const list = Array.isArray(orders) ? orders : [];
+  const relevant = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && ['pending','verified'].includes(String(o.status || '').toLowerCase()));
+  const reserved = relevant.reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  const sold = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && String(o.status || '').toLowerCase() === 'verified').reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  return {total, sold, reserved, remaining: total > 0 ? Math.max(0,total-reserved) : 0, soldOut: total > 0 && reserved >= total};
+}
+
+// ── Create order (PENDING until payment is server-verified) ──
     if (pathname === '/api/orders' && req.method === 'POST') {
+      const rl = rateLimit(req, 'create-order', 20, 60000); // 20 order attempts/min per IP
+      if (!rl.allowed) {
+        return sendJson(res, 429, { success: false, error: 'Too many order attempts. Please try again later.', retryAfter: rl.retryAfter });
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
 
       const orderId = String(data.orderId || '').trim();
+      const eventId = String(data.eventId || '').trim();
       const eventName = String(data.eventName || '').trim();
       const eventDate = String(data.eventDate || '').trim();
       const eventVenue = String(data.eventVenue || '').trim();
       const eventCategory = String(data.eventCategory || '').trim();
-      const qty = parseInt(data.qty) || 1;
-      const amount = parseFloat(data.amount) || 0;
-      const currency = String(data.currency || 'NGN');
+      const qty = Number.isInteger(Number(data.qty)) ? Number(data.qty) : 1;
+      let amount = Number(data.amount);
+      if (!Number.isFinite(amount)) amount = 0;
+      const currency = String(data.currency || 'NGN').trim().toUpperCase();
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
       const buyerPhone = String(data.buyerPhone || '').trim();
@@ -1765,7 +2839,78 @@ const user = {
       const universityId = String(data.universityId || '').trim();
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
-      const referralCode = String(data.referralCode || '').trim();  // Optional referral tracking
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      const couponCode = String(data.couponCode || '').trim().toUpperCase();
+      // Reject malformed/oversized order input before touching storage or payment state.
+      if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || couponCode.length > 100) {
+        return sendJson(res, 400, { success: false, error: 'One or more order fields are too long.' });
+      }
+      if (qty < 1 || qty > 100) {
+        return sendJson(res, 400, { success: false, error: 'Ticket quantity must be between 1 and 100.' });
+      }
+      if (currency !== 'NGN') {
+        return sendJson(res, 400, { success: false, error: 'Only NGN payments are supported.' });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+        return sendJson(res, 400, { success: false, error: 'Please provide a valid email address.' });
+      }
+      let couponDiscount = 0;
+      let baseAmountBeforeCoupon = amount;
+      let referralApplied = false;
+      let referralLink = null;
+      let eventRecord = null;
+
+      // Resolve the event before applying referral pricing so an Influencer
+      // Admin's code cannot be used on an event that admin is not authorized
+      // to manage.
+      if (eventId) {
+        const eventCatalog = await readEvents();
+        eventRecord = eventCatalog.find(e => eventIdentifierMatches(e, eventId));
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+      }
+
+      if (referralCode) {
+        referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) {
+          return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
+        }
+        // A relationship-specific referral code must always be evaluated
+        // against a real event. Never allow a caller to omit eventId and
+        // bypass event authorization.
+        if (referralLink.influencerId && !eventRecord) {
+          return sendJson(res, 400, { success: false, error: 'An event is required when using this referral code.' });
+        }
+        if (eventRecord && !(await influencerReferralAuthorizedForEvent(referralLink, eventRecord))) {
+          return sendJson(res, 403, { success: false, error: 'This referral code is not authorized for this event.' });
+        }
+        referralApplied = true;
+      }
+
+      // Server-authoritative pricing: bonus is the default; a valid referral
+      // switches the selected tier back to its original price.
+      if (eventRecord) {
+        const ordersForInventory = await readOrders();
+        const inv = getTierInventory(eventRecord, ticketTier, ordersForInventory);
+        if (inv.total > 0 && Number(qty) > inv.remaining) {
+          return sendJson(res, 409, { success:false, error: inv.remaining > 0 ? ('Only ' + inv.remaining + ' ' + ticketTier + ' ticket(s) remaining.') : (ticketTier.toUpperCase() + ' tickets are sold out.') });
+        }
+        const tierOriginals = { regular: Number(eventRecord.price || 0), vip: Number(eventRecord.vipPrice || 0), vvip: Number(eventRecord.vvipPrice || 0), table: Number(eventRecord.tablePrice || 0) };
+        const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
+        const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
+        const bonusUnit = tierBonuses[ticketTier] || 0;
+        const payableUnit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
+        amount = payableUnit * qty;
+        baseAmountBeforeCoupon = amount;
+      }
+
+      if (couponCode) {
+        const coupon = await getCouponByCode(couponCode);
+        if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+        couponDiscount = Math.max(0, Number(coupon.amount) || 0);
+        if (couponDiscount <= 0) return sendJson(res, 400, { success: false, error: 'Coupon discount is invalid.' });
+        if (couponDiscount >= baseAmountBeforeCoupon) return sendJson(res, 400, { success: false, error: 'Coupon discount cannot cover the full ticket price.' });
+        amount = Math.max(0, baseAmountBeforeCoupon - couponDiscount);
+      }
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1784,6 +2929,7 @@ const user = {
       const order = {
         orderId: orderId,
         status: 'pending',                 // ALWAYS pending until server verification
+        eventId: eventId || null,
         eventName: eventName,
         eventCategory: eventCategory,
         eventDate: eventDate,
@@ -1802,28 +2948,79 @@ buyerFaculty: buyerFaculty,
         universityName: universityName,
         universitySlug: universitySlug,
         referralCode: referralCode || null,  // Track which subadmin referred this order
+        couponCode: couponCode || null,
+        couponDiscount: couponDiscount || 0,
+        amountBeforeCoupon: baseAmountBeforeCoupon,
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
         notifyAdmin: true,
         seenByAdmin: false,
-        ticketCodes: generateTicketCodes(qty),  // one code per ticket
+        ticketCodes: [],                    // generated only after manual verification
         ticketCode: null
       };
-      order.ticketCode = order.ticketCodes[0].code;
+      // Do not create or access a ticket code while the order is pending.
+      // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
       await addOrder(order);
-      // Update referral stats if this order came from a referral link
-      if (referralCode) {
-        await updateReferralStats(referralCode);
-      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
       return sendJson(res, 200, { success: true, order: order });
     }
 
-    // ── Verify payment (server-authoritative) ──
+    // ── Buyer payment-received acknowledgement (SERVER-VERIFIED) ──
+    // The browser may report that Flutterwave completed checkout, but it is NOT
+    // trusted. We re-query Flutterwave first, then send only the acknowledgement
+    // email. Tickets are still issued only by the verified-order path below.
+    if (pathname === '/api/payment-received' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const txRef = String(data.tx_ref || '').trim();
+      if (!txRef) return sendJson(res, 400, { success: false, error: 'Missing tx_ref' });
+      const order = await getOrder(txRef);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
+      if (order.status === 'rejected') return sendJson(res, 409, { success: false, error: 'Order has been rejected.' });
+
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+      if (!result.success) {
+        return sendJson(res, 400, { success: false, error: 'Payment could not be server-verified', verification: { status: result.status, amountOk: result.amountOk, currencyOk: result.currencyOk, txRefOk: result.txRefOk } });
+      }
+
+      // The browser callback is NOT trusted as proof of payment. The server has
+      // just independently verified the transaction with Flutterwave above, so
+      // this is now safe to fulfill even if the webhook is delayed/unavailable.
+      const latest = await getOrder(txRef);
+      const wasVerified = latest.status === 'verified';
+      let current = latest;
+      if (!wasVerified) {
+        current = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+          paymentReceivedAt: latest.paymentReceivedAt || new Date().toISOString(),
+          paymentReceived: true,
+          flutterwavePaymentVerifiedAt: new Date().toISOString(),
+          flutterwaveTransactionId: result.returnedTxRef || data.id || txRef,
+          flutterwavePaymentObserved: true,
+          flutterwavePaymentObservedAt: new Date().toISOString(),
+          flutterwaveVerificationFailed: false
+        }));
+        if (!wasVerified) {
+          notifyOrderVerified(current);
+          await refreshReferralStatsForVerifiedOrder(current, latest.status);
+        }
+      }
+
+      if (!current.paymentReceivedEmailSent) {
+        const sent = await sendBuyerPurchaseAcknowledgement(current);
+        if (sent) {
+          current = await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
+        }
+      }
+      return sendJson(res, 200, { success: true, paymentReceived: true, automaticallyVerified: true, acknowledgementSent: !!current.paymentReceivedEmailSent, order: { orderId: current.orderId, status: current.status } });
+    }
+
+    // ── Verify payment (server-authoritative, ADMIN ONLY) ──
     if (pathname === '/api/verify-payment' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1851,51 +3048,108 @@ buyerFaculty: buyerFaculty,
   return sendJson(res, 400, { success: false, error: 'Payment verification failed' });
 }
 
-    // ── Flutterwave webhook (server-to-server) ──
+    // ── Flutterwave webhook (server-to-server, automatic verification) ──
     if (pathname === '/api/webhook/flutterwave' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
-      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      try { data = JSON.parse(body || '{}'); } catch (e) {
+        return sendJson(res, 400, { success: false, error: 'Invalid JSON' });
+      }
 
-      const signature = req.headers['x-flutterwave-signature'] || '';
       const webhookHash = process.env.FLUTTERWAVE_WEBHOOK_HASH !== undefined
         ? process.env.FLUTTERWAVE_WEBHOOK_HASH
         : defaults.FLUTTERWAVE_WEBHOOK_HASH;
-      let validSignature = true;
-      if (webhookHash) {
-        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('hex');
-        validSignature = expected === signature;
+      if (!webhookHash) {
+        console.error('Flutterwave webhook rejected: FLUTTERWAVE_WEBHOOK_HASH is not configured');
+        return sendJson(res, 503, { success: false, error: 'Webhook security is not configured' });
+      }
+
+      // Current Flutterwave webhook signing: HMAC-SHA256(raw body, secret hash),
+      // base64-encoded in the flutterwave-signature header. Keep legacy v3
+      // verif-hash support as a compatibility fallback.
+      const signature = String(req.headers['flutterwave-signature'] || '').trim();
+      const legacySignature = String(req.headers['verif-hash'] || '').trim();
+      let validSignature = false;
+      if (signature) {
+        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('base64');
+        const a = Buffer.from(expected);
+        const b = Buffer.from(signature);
+        validSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
+      } else if (legacySignature) {
+        const a = Buffer.from(webhookHash);
+        const b = Buffer.from(legacySignature);
+        validSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
       }
       if (!validSignature) {
-        return sendJson(res, 401, { success: false, error: 'Invalid signature' });
+        return sendJson(res, 401, { success: false, error: 'Invalid webhook signature' });
       }
 
-      const txRef = String((data.txRef || (data.data && data.data.tx_ref) || ''));
-      const eventType = String((data.event || data['event.type'] || ''));
-      const status = String((data.data && data.data.status) || '');
-      const webhookAmount = parseFloat((data.data && data.data.amount) || 0);
-      const webhookCurrency = String((data.data && data.data.currency) || '');
-      const isSuccess = eventType === 'charge.completed' && (status === 'successful' || status === 'completed');
+      const payloadData = data.data || {};
+      const txRef = String(payloadData.tx_ref || payloadData.reference || data.txRef || data.tx_ref || '').trim();
+      const eventType = String(data.event || data.type || data['event.type'] || '').trim().toLowerCase();
+      const webhookStatus = String(payloadData.status || '').trim().toLowerCase();
+      const webhookId = String(data.id || data.webhook_id || '').trim();
 
-      if (!txRef) return sendJson(res, 200, { success: false, error: 'Missing tx_ref' });
+      if (!txRef) return sendJson(res, 200, { success: true, ignored: true, reason: 'Missing tx_ref' });
 
       const order = await getOrder(txRef);
-      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
-
-      if (isSuccess && order.status !== 'verified') {
-        // Verify amount/currency from webhook payload too
-        const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
-        const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
-        if (amountOk && currencyOk) {
-          const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
-          console.log('Webhook verified order:', txRef);
-          notifyOrderVerified(updated);
-          await refreshReferralStatsForVerifiedOrder(updated, order.status);
-        } else {
-          return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
-        }
+      if (!order) {
+        // Acknowledge unknown events so Flutterwave does not retry forever.
+        return sendJson(res, 200, { success: true, ignored: true, reason: 'Order not found', tx_ref: txRef });
       }
-      return sendJson(res, 200, { success: true, tx_ref: txRef });
+
+      // Idempotency: Flutterwave may retry the same event.
+      const seenWebhookIds = Array.isArray(order.flutterwaveWebhookIds) ? order.flutterwaveWebhookIds : [];
+      if (webhookId && seenWebhookIds.includes(webhookId)) {
+        return sendJson(res, 200, { success: true, duplicate: true, tx_ref: txRef });
+      }
+      const nextWebhookIds = webhookId ? seenWebhookIds.concat(webhookId).slice(-20) : seenWebhookIds;
+      if (webhookId) await patchOrder(txRef, { flutterwaveWebhookIds: nextWebhookIds, flutterwaveLastWebhookAt: new Date().toISOString() });
+
+      const isChargeCompleted = eventType === 'charge.completed' || eventType === 'charge_completed';
+      const providerReportedSuccess = ['successful', 'succeeded', 'completed'].includes(webhookStatus);
+      if (!isChargeCompleted || !providerReportedSuccess) {
+        return sendJson(res, 200, { success: true, ignored: true, tx_ref: txRef, status: webhookStatus });
+      }
+
+      // Do not trust webhook amount/status/reference. Re-query Flutterwave and
+      // verify against the exact order before issuing any ticket.
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+      if (!result.success) {
+        console.warn('Flutterwave webhook received but verification failed:', txRef, result);
+        await patchOrder(txRef, { flutterwavePaymentObserved: true, flutterwavePaymentObservedAt: new Date().toISOString(), flutterwaveVerificationFailed: true });
+        return sendJson(res, 200, { success: true, verified: false, tx_ref: txRef });
+      }
+
+      if (order.status === 'verified') {
+        return sendJson(res, 200, { success: true, verified: true, alreadyVerified: true, tx_ref: txRef });
+      }
+
+      if (paymentVerificationLocks.has(txRef)) {
+        return sendJson(res, 200, { success: true, verified: true, processing: true, tx_ref: txRef });
+      }
+
+      paymentVerificationLocks.add(txRef);
+      try {
+        const latest = await getOrder(txRef);
+        if (!latest) return sendJson(res, 200, { success: true, ignored: true, reason: 'Order disappeared', tx_ref: txRef });
+        if (latest.status !== 'verified') {
+          const updated = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+            flutterwavePaymentVerifiedAt: new Date().toISOString(),
+            flutterwaveTransactionId: result.returnedTxRef || txRef,
+            flutterwavePaymentObserved: true,
+            flutterwavePaymentObservedAt: new Date().toISOString(),
+            flutterwaveVerificationFailed: false
+          }));
+          notifyOrderVerified(updated);
+          await refreshReferralStatsForVerifiedOrder(updated, latest.status);
+          console.log('Automatically verified Flutterwave payment:', txRef, 'amount:', result.amount, result.currency);
+          return sendJson(res, 200, { success: true, verified: true, automaticallyVerified: true, tx_ref: txRef, order: { orderId: updated.orderId, status: updated.status } });
+        }
+        return sendJson(res, 200, { success: true, verified: true, alreadyVerified: true, tx_ref: txRef });
+      } finally {
+        paymentVerificationLocks.delete(txRef);
+      }
     }
 
 // ── Order status lookup (pending page) ──
@@ -1925,8 +3179,8 @@ buyerFaculty: buyerFaculty,
           currency: order.currency,
           paymentMethod: order.paymentMethod,
           verifiedAt: order.verifiedAt,
-          ticketCodes: order.ticketCodes || [],
-          ticketCode: order.ticketCode || null
+          ticketCodes: order.status === 'verified' ? (order.ticketCodes || []) : [],
+          ticketCode: order.status === 'verified' ? (order.ticketCode || null) : null
         }
       });
     }
@@ -1969,8 +3223,8 @@ buyerFaculty: buyerFaculty,
         paymentMethod: order.paymentMethod,
         verifiedAt: order.verifiedAt,
         // Only include ticket codes when the requester is signed in AND owns the order.
-        ticketCodes: ownsOrder ? (order.ticketCodes || []) : [],
-        ticketCode: ownsOrder ? (order.ticketCode || null) : null,
+        ticketCodes: (ownsOrder && order.status === 'verified') ? (order.ticketCodes || []) : [],
+        ticketCode: (ownsOrder && order.status === 'verified') ? (order.ticketCode || null) : null,
         requiresSignIn: !ownsOrder
       };
       return sendJson(res, 200, { success: true, order: payload });
@@ -2029,8 +3283,8 @@ eventName: order.eventName,
 
 // ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
-      const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrCheckinStaff(req);
+      if (!authCtx || !['admin','subadmin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2058,7 +3312,7 @@ const entry = codes[idx];
       entry.used = true;
       entry.usedAt = new Date().toISOString();
       // Record which staff member performed the check-in (for sub-admin audit).
-      if (authCtx.role === 'subadmin' && authCtx.user) {
+      if (authCtx.user && ['subadmin','checkin_staff'].includes(authCtx.role)) {
         entry.checkedInBy = authCtx.user.name || authCtx.user.email;
       } else {
         entry.checkedInBy = 'Admin';
@@ -2072,6 +3326,169 @@ codes[idx] = entry;
       });
     }
 
+    // ── Influencer: relationship-scoped referral portals ──
+    if (pathname === '/api/influencer/referral-portals' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const freshUser = await findUserById(user.id);
+      const assignments = getAcceptedInfluencerAssignments(freshUser || user);
+      const admins = await readUsers();
+      let links = await getReferralLinksByInfluencerId(user.id);
+      const portals = [];
+      for (const assignment of assignments) {
+        let link = links.find(l => String(l.influencerId || l.ownerId || '') === String(user.id) && String(l.assignmentId || '') === String(assignment.id)) || null;
+        if (!link) {
+          link = await generateReferralLink(user.id, user.name, user.email, 'influencer', assignment.id, assignment.influencerAdminId);
+          links.push(link);
+        }
+        const admin = admins.find(a => String(a.id || '') === String(assignment.influencerAdminId) && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(a.role)));
+        await updateReferralStats(link.code);
+        const refreshed = await getReferralLinkByCode(link.code);
+        portals.push({
+          assignmentId: assignment.id,
+          influencerAdminId: assignment.influencerAdminId,
+          influencerAdmin: admin ? { id: admin.id, name: admin.name || '', email: admin.email || '' } : { id: assignment.influencerAdminId, name: 'Influencer Admin', email: '' },
+          link: referralLinkResponse(refreshed || link)
+        });
+      }
+      // Preserve a legacy/global influencer referral link if this account has
+      // one and no accepted relationship can own it.
+      const legacy = links.find(l => !l.assignmentId && (l.influencerId === user.id || l.ownerId === user.id)) || null;
+      if (legacy && !portals.length) {
+        await updateReferralStats(legacy.code);
+        const refreshed = await getReferralLinkByCode(legacy.code);
+        portals.push({ assignmentId: null, influencerAdminId: null, influencerAdmin: { id: null, name: 'General referral', email: '' }, link: referralLinkResponse(refreshed || legacy) });
+      }
+      return sendJson(res, 200, { success: true, portals });
+    }
+
+    // Backward-compatible single-link endpoint. It returns the first portal,
+    // while new dashboard code uses /api/influencer/referral-portals.
+    if (pathname === '/api/influencer/referral-link' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const freshUser = await findUserById(user.id);
+      const assignment = getAcceptedInfluencerAssignments(freshUser || user)[0] || null;
+      let link = assignment
+        ? await getReferralLinkForAssignment(user.id, assignment.id)
+        : await getReferralLinkByInfluencerId(user.id);
+      if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer', assignment ? assignment.id : null, assignment ? assignment.influencerAdminId : null);
+      await updateReferralStats(link.code);
+      link = await getReferralLinkByCode(link.code);
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── Influencer: referral stats ──
+    if (pathname === '/api/influencer/referral-stats' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const assignmentId = String(url.searchParams.get('assignmentId') || '').trim();
+      const freshUser = await findUserById(user.id);
+      const acceptedAssignments = getAcceptedInfluencerAssignments(freshUser || user);
+      const orders = await getOrdersForCurrentSiteEvents();
+      const events = await readEvents();
+      const admins = await readUsers();
+
+      // "all" is an overview across every accepted Influencer Admin relationship.
+      // It intentionally returns no single referral link because each relationship
+      // has its own independent code/link.
+      function commissionForOrder(order) {
+        // Respect an explicitly stored commission amount/rate when the order has one.
+        // Step 7 only displays commission; it must not invent a new rate or alter payout logic.
+        const explicit = Number(order && (order.commissionAmount ?? order.influencerCommission ?? order.referralCommission));
+        if (Number.isFinite(explicit)) return explicit;
+        const rate = Number(order && (order.commissionRate ?? order.influencerCommissionRate));
+        if (Number.isFinite(rate) && rate >= 0) return (Number(order.amount) || 0) * rate;
+        return 0;
+      }
+      function buildEventBreakdown(referredOrders, assignmentAdminId) {
+        const allowed = events.filter(ev => {
+          const ids = getAuthorizedInfluencerAdminIds(ev);
+          return ids.includes(String(assignmentAdminId || '')) || influencerAdminOwnsEvent({ role:'influencer_admin', user:{ id:String(assignmentAdminId || '') } }, ev);
+        });
+        return allowed.map(ev => {
+          const rows = referredOrders.filter(o => eventMatchesOrder(o, ev));
+          return {
+            id: ev.id, name: ev.name || ev.eventName || 'Event', date: ev.date || ev.eventDate || null, venue: ev.venue || ev.eventVenue || '',
+            orders: rows.length, tickets: rows.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0),
+            revenue: rows.reduce((n,o)=>n+(Number(o.amount)||0),0),
+            commission: rows.reduce((n,o)=>n+commissionForOrder(o),0)
+          };
+        });
+      }
+      if (assignmentId.toLowerCase() === 'all') {
+        // Build the overview from the same per-relationship scopes used by the
+        // individual portals. This guarantees that All = the sum of each
+        // accepted relationship for orders/tickets/revenue/commission.
+        const allReferredOrders = [];
+        const allPeople = new Set();
+        const eventMap = new Map();
+        const adminBreakdown = [];
+        for (const assignment of acceptedAssignments) {
+          const link = await getReferralLinkForAssignment(user.id, assignment.id);
+          if (!link) continue;
+          const scoped = await getScopedReferralOrders(link, orders, events, assignment.influencerAdminId);
+          const admin = admins.find(a => String(a.id || '') === String(assignment.influencerAdminId || '') && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(a.role)));
+          const eventRows = buildEventBreakdown(scoped, assignment.influencerAdminId);
+          const adminStats = {
+            assignmentId: assignment.id,
+            influencerAdminId: assignment.influencerAdminId,
+            influencerAdmin: { id: assignment.influencerAdminId, name: admin ? (admin.name || '') : 'Influencer Admin', email: admin ? (admin.email || '') : '' },
+            totalOrders: scoped.length,
+            totalRevenue: scoped.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+            totalTickets: scoped.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+            totalCommission: scoped.reduce((sum, o) => sum + commissionForOrder(o), 0),
+            uniquePeople: new Set(scoped.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          };
+          adminBreakdown.push(adminStats);
+          allReferredOrders.push(...scoped);
+          scoped.forEach(o => { const email = String(o.buyerEmail || '').trim().toLowerCase(); if (email) allPeople.add(email); });
+          for (const ev of eventRows) {
+            const key = String(ev.id || ev.name);
+            const existing = eventMap.get(key);
+            if (!existing) eventMap.set(key, ev);
+            else { existing.orders += ev.orders; existing.tickets += ev.tickets; existing.revenue += ev.revenue; existing.commission += ev.commission; }
+          }
+        }
+        const sumOrders = adminBreakdown.reduce((n, a) => n + a.totalOrders, 0);
+        const sumTickets = adminBreakdown.reduce((n, a) => n + a.totalTickets, 0);
+        const sumRevenue = adminBreakdown.reduce((n, a) => n + a.totalRevenue, 0);
+        const sumCommission = adminBreakdown.reduce((n, a) => n + a.totalCommission, 0);
+        return sendJson(res, 200, { success: true, stats: {
+          totalOrders: sumOrders,
+          totalRevenue: sumRevenue,
+          totalTickets: sumTickets,
+          totalCommission: sumCommission,
+          uniquePeople: allPeople.size,
+          link: null, overview: true,
+          adminBreakdown, events: Array.from(eventMap.values())
+        }});
+      }
+
+      const assignment = assignmentId ? acceptedAssignments.find(a => a.id === assignmentId) : null;
+      if (assignmentId && !assignment) return sendJson(res, 403, { success: false, error: 'You are not assigned to this referral portal.' });
+      let link = assignment ? await getReferralLinkForAssignment(user.id, assignment.id) : await getReferralLinkByInfluencerId(user.id);
+      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const referredOrders = await getScopedReferralOrders(link, orders, events, assignment ? assignment.influencerAdminId : null);
+      const uniquePeople = new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+      const totalCommission = referredOrders.reduce((sum, o) => sum + commissionForOrder(o), 0);
+      const eventBreakdown = buildEventBreakdown(referredOrders, assignment.influencerAdminId);
+      return sendJson(res, 200, { success: true, stats: {
+        totalOrders: referredOrders.length,
+        totalRevenue,
+        totalTickets: referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+        totalCommission,
+        uniquePeople, link: referralLinkResponse(link), events: eventBreakdown
+      }});
+    }
+
     // ── Sub-admin: list the check-ins performed by this sub-admin account ──
     // Returns a summary of every ticket this sub-admin has scanned (checked-in),
     // so they can see their own activity. Requires a logged-in sub-admin session
@@ -2080,8 +3497,8 @@ codes[idx] = entry;
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
-      if (!user || user.role !== 'subadmin') {
-        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      if (!user || !['subadmin','checkin_staff'].includes(user.role)) {
+        return sendJson(res, 403, { success: false, error: 'Check-in staff access only' });
       }
       const staffName = user.name || user.email;
       const orders = await readOrders();
@@ -2126,7 +3543,46 @@ codes[idx] = entry;
         link = await getReferralLinkBySubadminId(user.id);
       }
       
-      return sendJson(res, 200, { success: true, link: link });
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── Sub-admin: global sales overview (all verified sales, not referral-limited) ──
+    if (pathname === '/api/subadmin/sales-overview' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const orders = await getOrdersForCurrentSiteEvents();
+      const statusOf = o => String(o.status || 'pending').trim().toLowerCase();
+      const pending = orders.filter(o => statusOf(o) === 'pending');
+      const verified = orders.filter(o => statusOf(o) === 'verified');
+      const rejected = orders.filter(o => statusOf(o) === 'rejected');
+      const ticketsSold = verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+      const revenue = verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+      const uniquePeople = new Set(verified.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      const eventMap = {};
+      verified.forEach(o => {
+        const key = String(o.eventId || o.eventName || 'unknown');
+        if (!eventMap[key]) eventMap[key] = { eventId: o.eventId || null, eventName: o.eventName || 'Unknown Event', tickets: 0, orders: 0, revenue: 0 };
+        eventMap[key].tickets += parseInt(o.qty, 10) || 0;
+        eventMap[key].orders += 1;
+        eventMap[key].revenue += Number(o.amount) || 0;
+      });
+      return sendJson(res, 200, {
+        success: true,
+        sales: {
+          totalOrders: orders.length,
+          pendingOrders: pending.length,
+          verifiedOrders: verified.length,
+          rejectedOrders: rejected.length,
+          totalTickets: ticketsSold,
+          totalRevenue: revenue,
+          uniquePeople,
+          events: Object.values(eventMap).sort((a,b) => b.tickets - a.tickets)
+        }
+      });
     }
 
     // ── Sub-admin: get referral stats ──
@@ -2140,10 +3596,10 @@ codes[idx] = entry;
       
       const link = await getReferralLinkBySubadminId(user.id);
       if (!link) {
-        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, link: null } });
+        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
       }
       
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
       const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -2181,6 +3637,7 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
@@ -2188,6 +3645,7 @@ codes[idx] = entry;
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
@@ -2239,17 +3697,143 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, order: updated });
     }
 
+    // ── Coupons: Main Admin + Sub-admin only ──
+    if (pathname === '/api/admin/coupons' && req.method === 'GET') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const coupons = await readCoupons();
+      return sendJson(res, 200, { success: true, coupons });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const id = String(data.id || '').trim() || 'cpn-' + Date.now().toString(36);
+      const code = String(data.code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      const amount = Math.max(0, Number(data.amount) || 0);
+      if (!code || code.length < 3) return sendJson(res, 400, { success: false, error: 'Coupon code must be at least 3 characters.' });
+      if (amount <= 0) return sendJson(res, 400, { success: false, error: 'Discount amount must be greater than 0.' });
+      const coupons = await readCoupons();
+      const duplicate = coupons.find(c => String(c.code || '').toUpperCase() === code && String(c.id) !== id);
+      if (duplicate) return sendJson(res, 409, { success: false, error: 'That coupon code already exists.' });
+      const existing = coupons.find(c => String(c.id) === id);
+      const coupon = Object.assign({}, existing || {}, { id, code, amount, active: data.active !== false, updatedAt: new Date().toISOString(), createdBy: existing && existing.createdBy ? existing.createdBy : (authCtx.user ? authCtx.user.id : 'admin') });
+      if (!coupon.createdAt) coupon.createdAt = new Date().toISOString();
+      const next = existing ? coupons.map(c => String(c.id) === id ? coupon : c) : [coupon].concat(coupons);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true, coupon });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const id = String(url.searchParams.get('id') || '').trim();
+      if (!id) return sendJson(res, 400, { success: false, error: 'Missing coupon id' });
+      const coupons = await readCoupons();
+      const next = coupons.filter(c => String(c.id) !== id);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true });
+    }
+    if (pathname === '/api/referrals/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      if (!code) return sendJson(res, 400, { success:false, error:'Enter a referral code.' });
+      const link = await getReferralLinkByCode(code);
+      if (!link) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+      return sendJson(res, 200, { success:true, referral:{code:link.code, name:link.subadminName || link.name || ''} });
+    }
+
+    if (pathname === '/api/coupons/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      const eventId = String(data.eventId || '').trim();
+      const tier = String(data.ticketTier || 'regular').toLowerCase();
+      const qty = Math.max(1, parseInt(data.qty) || 1);
+      const coupon = await getCouponByCode(code);
+      if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+      const events = await readEvents(); const ev = events.find(e => String(e.id) === eventId);
+      if (!ev) return sendJson(res, 400, { success: false, error: 'Event not found.' });
+      const originals = {regular:Number(ev.price||0),vip:Number(ev.vipPrice||0),vvip:Number(ev.vvipPrice||0),table:Number(ev.tablePrice||0)};
+      const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
+      const originalUnit = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonusUnit = bonuses[tier] || 0;
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      let referralApplied = false;
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+        referralApplied = true;
+      }
+      const unit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
+      const baseTotal = unit * qty; const discount = Number(coupon.amount) || 0;
+      if (discount >= baseTotal) return sendJson(res, 400, { success:false, error:'Coupon discount cannot cover the full ticket price.' });
+      return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });
+    }
+
     // ── Public events list (used by events.html, tickets.html, index.html) ──
     if (pathname === '/api/events' && req.method === 'GET') {
-      const events = await readEvents();
+      const allEvents = await readEvents();
+      const includeArchived = url.searchParams.get('includeArchived') === '1';
+      let events = allEvents;
+      if (!includeArchived) {
+        events = allEvents.filter(e => e.archived !== true);
+      } else {
+        const authCtx = await isAdminOrSubadmin(req);
+        if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+          // Archived records are never exposed to unauthenticated/public callers.
+          events = allEvents.filter(e => e.archived !== true);
+        } else if (authCtx.role === 'influencer_admin') {
+          // Influencer Admins may see archived events only when they own them.
+          // Explicitly authorized events remain view-only and are not treated as
+          // owned management records.
+          events = allEvents.filter(e => e.archived !== true || influencerAdminOwnsEvent(authCtx, e));
+        }
+      }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
+      const orders = await readOrders();
+      function enrich(ev) {
+        return Object.assign({}, ev, { inventory: {
+          regular: getTierInventory(ev,'regular',orders),
+          vip: getTierInventory(ev,'vip',orders),
+          vvip: getTierInventory(ev,'vvip',orders),
+          table: getTierInventory(ev,'table',orders)
+        }});
+      }
       if (uniSlug) {
-        const filtered = events.filter(function(e) {
-          return (e.universityId === uniSlug || e.universitySlug === uniSlug);
+        const universities = await readUniversities();
+        const queryKey = uniSlug.toLowerCase();
+        const selectedMatches = universities.filter(function(university) {
+          return [university.id, university.slug, university.name].some(function(value) {
+            return String(value || '').trim().toLowerCase() === queryKey;
+          });
         });
+        // A university name is the user-facing identity. If duplicate catalogue
+        // records share the same name, treat them as one university instead of
+        // arbitrarily selecting one ID. This keeps events consistent for every
+        // university, including older records created with an alternate ID.
+        const selectedUniversity = selectedMatches[0] || null;
+        const universityKeys = new Set();
+        selectedMatches.forEach(function(university) {
+          [university.id, university.slug, university.name].forEach(function(value) {
+            const key = String(value || '').trim().toLowerCase();
+            if (key) universityKeys.add(key);
+          });
+        });
+        if (!selectedMatches.length) universityKeys.add(queryKey);
+        const filtered = events.filter(function(e) {
+          // Treat the university metadata as one identity. If multiple fields
+          // are present, all of them must agree with the selected university.
+          // This prevents stale/conflicting metadata from leaking an event
+          // from another campus into the selected campus view.
+          const fields = [e.universityId, e.universitySlug, e.universityName]
+            .map(function(value) { return String(value || '').trim().toLowerCase(); })
+            .filter(Boolean);
+          return fields.length > 0 && fields.every(function(value) {
+            return universityKeys.has(value);
+          });
+        }).map(enrich);
         return sendJson(res, 200, { success: true, events: filtered });
       }
-      return sendJson(res, 200, { success: true, events: events });
+      return sendJson(res, 200, { success: true, events: events.map(enrich) });
     }
 
     // ── Public site stats (events, tickets sold, faculties) ──
@@ -2262,20 +3846,32 @@ codes[idx] = entry;
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      // Events happening this month (parse the event date string)
+      // Normalize admin-entered dates such as "SEP. 25TH 2026" before counting.
+      function parseEventDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        const native = new Date(raw);
+        if (!isNaN(native)) return native;
+        const normalized = raw
+          .replace(/\b(\d{1,2})(?:ST|ND|RD|TH)\b/ig, '$1')
+          .replace(/\./g, '')
+          .replace(/\s+/g, ' ');
+        const parsed = new Date(normalized);
+        return isNaN(parsed) ? null : parsed;
+      }
+
+      // Events happening this month (including admin-entered ordinal dates)
       let eventsThisMonth = 0;
       events.forEach(function(ev) {
-        if (!ev.date) return;
-        const d = new Date(ev.date);
-        if (isNaN(d)) return;
+        const d = parseEventDate(ev.date);
+        if (!d) return;
         if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) eventsThisMonth++;
       });
 
       // Upcoming events (date >= today)
       const upcomingEvents = events.filter(function(ev) {
-        if (!ev.date) return false;
-        const d = new Date(ev.date);
-        if (isNaN(d)) return false;
+        const d = parseEventDate(ev.date);
+        if (!d) return false;
         return d >= now;
       }).length;
 
@@ -2304,10 +3900,127 @@ codes[idx] = entry;
       });
     }
 
-// ── Admin/Sub-admin: create/update an event ──
+// ── Main Admin: list ALL existing events for management/authorization ──
+    if (pathname === '/api/admin/events' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      return sendJson(res, 200, { success: true, events: await readEvents() });
+    }
+
+    // ── Main Admin: explicitly authorize an existing event to an Influencer Admin ──
+    if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can authorize events.' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const influencerAdminId = String(data.influencerAdminId || '').trim();
+      const action = String(data.action || 'add').toLowerCase();
+      if (!eventId || !influencerAdminId) return sendJson(res, 400, { success:false, error:'Event and Influencer Admin are required.' });
+      const users = await readUsers();
+      const staff = users.find(u => String(u.id) === influencerAdminId && u.role === 'influencer_admin' && u.archived !== true);
+      if (!staff) return sendJson(res, 404, { success:false, error:'Influencer Admin not found.' });
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res, 404, { success:false, error:'Event not found.' });
+      const ids = getAuthorizedInfluencerAdminIds(events[idx]);
+      if (action === 'remove') {
+        events[idx].authorizedInfluencerAdminIds = ids.filter(id => id !== influencerAdminId);
+      } else {
+        if (!ids.includes(influencerAdminId)) ids.push(influencerAdminId);
+        events[idx].authorizedInfluencerAdminIds = ids;
+      }
+      await writeEvents(events);
+      return sendJson(res, 200, { success:true, event:events[idx] });
+    }
+
+    // ── Influencer Admin: event-specific sales overview ──
+    if (pathname === '/api/influencer-admin/event-overview' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const events = await readEvents();
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
+      const ownInfluencers = users.filter(u => {
+        if (u.role !== 'influencer' || u.archived === true) return false;
+        return influencerAdminOwnsInfluencer(authCtx, u);
+      });
+      const result = authorizedEvents.map(ev => {
+        const eventOrders = orders.filter(o => eventMatchesOrder(o, ev));
+        const influencerRows = ownInfluencers.map(inf => {
+          const acceptedAssignments = getAcceptedInfluencerAssignments(inf);
+          const assignment = acceptedAssignments.find(a => a.influencerAdminId === String(authCtx.user.id)) || null;
+          const link = assignment
+            ? links.find(l => String(l.influencerId || l.ownerId || '') === String(inf.id) && String(l.assignmentId || '') === String(assignment.id))
+            : links.find(l => l.influencerId === inf.id || l.ownerId === inf.id || l.subadminId === inf.id);
+          const code = link && link.code;
+          const rows = code ? eventOrders.filter(o => {
+            const status = String(o.status || '').toLowerCase();
+            return o.referralCode === code && status !== 'rejected';
+          }) : [];
+          const verified = rows.filter(o => String(o.status || '').toLowerCase() === 'verified');
+          const pending = rows.filter(o => String(o.status || '').toLowerCase() === 'pending');
+          // Influencer Admins need sales visibility, not customers' private contact data.
+          // Never pass buyer email/phone or other unnecessary PII through this dashboard API.
+          const safeRows = rows.map(o => ({
+            orderId: o.orderId,
+            status: o.status,
+            eventId: o.eventId,
+            eventName: o.eventName,
+            eventDate: o.eventDate,
+            eventVenue: o.eventVenue,
+            qty: o.qty,
+            amount: o.amount,
+            currency: o.currency,
+            paymentMethod: o.paymentMethod,
+            ticketTier: o.ticketTier,
+            verifiedAt: o.verifiedAt,
+            createdAt: o.createdAt,
+            referralCode: o.referralCode
+          }));
+          return { influencer: publicUser(inf), referralCode: code || null, orders: safeRows, totalOrders: rows.length, verifiedOrders: verified.length, pendingOrders: pending.length, ticketsSold: verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), pendingTickets: pending.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue: verified.reduce((n,o)=>n+(Number(o.amount)||0),0) };
+        });
+        const visibleOrders = eventOrders.filter(o => String(o.status || '').toLowerCase() !== 'rejected');
+        const verified = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
+        const pending = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
+      });
+      return sendJson(res, 200, { success:true, events:result });
+    }
+
+    // ── Influencer Admin: Add Events list ──
+    // Keep the site's original Add Events flow: the Influencer Admin can see
+    // events they created AND existing events explicitly authorized to them.
+    // Authorized events are visible here for context, but are not treated as
+    // newly-created/owned events.
+    if (pathname === '/api/influencer-admin/events' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success:false, error:'Influencer Admin access only' });
+      const myId = String(authCtx.user.id || '').trim();
+      const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
+      const allEvents = await readEvents();
+      const isMine = (ev) => {
+        const c = ev && ev.createdBy;
+        const direct = String(ev?.influencerAdminId || ev?.ownerInfluencerAdminId || ev?.createdByInfluencerAdminId || '').trim();
+        if (direct && direct === myId) return true;
+        if (typeof c === 'string') return c.trim() === myId || c.trim().toLowerCase() === myEmail;
+        if (c && typeof c === 'object') {
+          const oid = String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim();
+          const oemail = String(c.email || '').trim().toLowerCase();
+          return oid === myId || (!!myEmail && oemail === myEmail);
+        }
+        return false;
+      };
+      const events = allEvents.filter(ev => isMine(ev) || getAuthorizedInfluencerAdminIds(ev).includes(myId)).map(ev =>
+        Object.assign({}, ev, { visibleToInfluencerAdmin: true, createdByCurrentInfluencerAdmin: isMine(ev), authorizedToCurrentInfluencerAdmin: getAuthorizedInfluencerAdminIds(ev).includes(myId) })
+      );
+      return sendJson(res, 200, { success:true, events });
+    }
+
+    // ── Admin/Sub-admin/Influencer Admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2322,14 +4035,37 @@ codes[idx] = entry;
         const uni = await findUniversityById(universityId);
         if (uni) uniSlug = uni.slug || uni.id;
       }
+      const existingEvents = await readEvents();
+      const existingEvent = existingEvents.find(e => String(e.id) === id);
+      if (authCtx.role === 'influencer_admin' && existingEvent) {
+        if (!influencerAdminOwnsEvent(authCtx, existingEvent)) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
+      }
+      const isInfluencerAdminEdit = authCtx.role === 'influencer_admin' && !!existingEvent;
+      const imageUrl = String(data.image || '').trim();
+      const isInlineImage = /^data:image\/(?:png|jpe?g|gif|webp);base64,/.test(imageUrl);
+      if ((!isInlineImage && imageUrl.length > 2000) || !isSafeImageUrl(imageUrl)) {
+        return sendJson(res, 400, { success: false, error: 'Please provide a valid event image URL.' });
+      }
+      const rawTags = Array.isArray(data.tags) ? data.tags : [];
+      if (rawTags.length > 20 || rawTags.some(t => String(t == null ? '' : t).length > 80)) {
+        return sendJson(res, 400, { success: false, error: 'Event tags are too long or too many.' });
+      }
       const ev = {
         id: id,
         name: name,
         category: String(data.category || '').trim() || 'General',
         price: parseFloat(data.price) || 0,
+        bonusPrice: parseFloat(data.bonusPrice) || 0,
         vipPrice: parseFloat(data.vipPrice) || 0,
+        bonusVipPrice: parseFloat(data.bonusVipPrice) || 0,
         vvipPrice: parseFloat(data.vvipPrice) || 0,
+        bonusVvipPrice: parseFloat(data.bonusVvipPrice) || 0,
         tablePrice: parseFloat(data.tablePrice) || 0,
+        bonusTablePrice: parseFloat(data.bonusTablePrice) || 0,
+        regularTicketLimit: Math.max(0, parseInt(data.regularTicketLimit) || 0),
+        vipTicketLimit: Math.max(0, parseInt(data.vipTicketLimit) || 0),
+        vvipTicketLimit: Math.max(0, parseInt(data.vvipTicketLimit) || 0),
+        tableTicketLimit: Math.max(0, parseInt(data.tableTicketLimit) || 0),
         includedRegular: String(data.includedRegular || '').trim(),
         includedVip: String(data.includedVip || '').trim(),
         includedVVIP: String(data.includedVVIP || '').trim(),
@@ -2339,28 +4075,55 @@ codes[idx] = entry;
         venue: String(data.venue || '').trim(),
         description: String(data.description || '').trim(),
         tags: data.tags || [],
-        image: String(data.image || '').trim(),
+        image: imageUrl,
         icon: data.icon || '🎟️',
         featured: !!data.featured,
+        archived: isInfluencerAdminEdit ? !!existingEvent.archived : !!data.archived,
+        authorizedInfluencerAdminIds: getAuthorizedInfluencerAdminIds(existingEvent),
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
-        universitySlug: uniSlug
+        universitySlug: uniSlug,
+        createdAt: isInfluencerAdminEdit ? (existingEvent.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        createdBy: isInfluencerAdminEdit ? existingEvent.createdBy : { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
       };
             try {
         await addEvent(ev);
         console.log('✓ Event created:', ev.id, '—', ev.name, '(', ev.universityName, ')');
         return sendJson(res, 200, { success: true, event: ev });
       } catch (e) {
-        console.error('✗ Error creating event:', e.message);
-        return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
+        console.error('✗ Error creating/updating event:', e);
+        // Never expose database/filesystem/provider error details to clients.
+        return sendJson(res, 500, { success: false, error: 'Failed to save event. Please try again.' });
       }
     }
 
-    // ── Admin/Sub-admin: delete an event ──
-    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+    // ── Archive/unarchive event: admin, sub-admin, or influencer admin ──
+    if (pathname === '/api/admin/events/archive' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res, 403, { success:false, error:'Only Admin, Sub-admin, or Influencer Admin can archive events' });
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const archived = data.archived !== false;
+      if (!eventId) return sendJson(res,400,{success:false,error:'Missing eventId'});
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
+      if (authCtx.role === 'influencer_admin') {
+        if (!influencerAdminOwnsEvent(authCtx, events[idx])) return sendJson(res,403,{success:false,error:'You can only archive events you created.'});
+      }
+      events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeEvents(events);
+      return sendJson(res,200,{success:true,event:events[idx]});
+    }
+
+    // ── Main Admin only: delete an event ──
+    // Sub-admins, Influencer Admins, Check-in Staff and Influencers may never delete events.
+    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete events' });
       const eventId = String(url.searchParams.get('eventId') || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
       
@@ -2413,7 +4176,7 @@ codes[idx] = entry;
 
     // ── Admin: delete a university ──
 if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete universities' });
       const uniId = String(url.searchParams.get('uniId') || url.searchParams.get('universityId') || '').trim();
       if (!uniId) return sendJson(res, 400, { success: false, error: 'Missing uniId' });
       // Capture the university to derive its id/slug so we can remove its events too.
@@ -2511,19 +4274,40 @@ const events = await readEvents();
     // ── Static files ──
     let urlPath = decodeURIComponent(pathname);
     if (urlPath === '/') urlPath = '/index.html';
-    const filePath = path.join(PUBLIC_DIR, urlPath);
+
+    // Canonical referral landing page. Older links may still contain
+    // /referral-events.html; redirect them server-side so existing links,
+    // browser bookmarks, and cached dashboard links all converge on Events.
+    if (urlPath.toLowerCase() === '/referral-events.html') {
+      const ref = String(url.searchParams.get('ref') || '').trim().toUpperCase();
+      const target = '/events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+      res.writeHead(301, {
+        'Location': target,
+        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'text/plain; charset=utf-8'
+      });
+      res.end('Moved permanently to ' + target);
+      return;
+    }
+
+    const filePath = path.resolve(PUBLIC_DIR, '.' + urlPath);
     // Shortlink referral handler: /r/REF-XXXX  (optionally ?to=/path)
     if (urlPath && urlPath.toLowerCase().startsWith('/r/')) {
-      const rawCode = decodeURIComponent(urlPath.slice(3) || '').trim();
-      const code = String(rawCode || '').toUpperCase();
-      const to = String(url.searchParams.get('to') || '/');
-      const safeTo = to && to.startsWith('/') ? to : '/';
-      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      let rawCode = '';
+      try { rawCode = decodeURIComponent(urlPath.slice(3) || '').trim(); } catch (e) { rawCode = ''; }
+      const code = String(rawCode || '').toUpperCase().slice(0, 100);
+      const requestedTo = String(url.searchParams.get('to') || '/');
+      const safeTo = requestedTo.startsWith('/') && !requestedTo.startsWith('//') && !/[\x00-\x1F\x7F]/.test(requestedTo)
+        ? requestedTo.slice(0, 500) : '/';
+      const codeJs = JSON.stringify(code);
+      const toJs = JSON.stringify(safeTo);
+      const safeToHtml = safeTo.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", ' + codeJs + ');localStorage.setItem("unn_referral_code", ' + codeJs + ');}catch(e){}window.location.replace(' + toJs + ');</script><noscript><meta http-equiv="refresh" content="0;url=' + safeToHtml + '"></noscript></body></html>';
+      res.writeHead(200, withSecurityHeaders({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }));
       res.end(html);
       return;
     }
-    if (!filePath.startsWith(PUBLIC_DIR)) {
+    if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
       res.writeHead(403);
       res.end('Forbidden');
       return;
@@ -2542,15 +4326,44 @@ const events = await readEvents();
             return;
           }
           const ext = path.extname(indexPath).toLowerCase();
-          res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-          fs.createReadStream(indexPath).pipe(res);
+          const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+          const cacheControl = ext === '.html' ? 'no-cache, max-age=0, must-revalidate' : 'public, max-age=3600';
+          const headers = withSecurityHeaders({ 'Content-Type': contentType, 'Cache-Control': cacheControl }, req);
+          const acceptsGzip = /\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''));
+          if (acceptsGzip && ['.html', '.css', '.js', '.json', '.svg', '.txt'].includes(ext)) {
+            headers['Content-Encoding'] = 'gzip';
+            headers['Vary'] = 'Accept-Encoding';
+            res.writeHead(200, headers);
+            fs.createReadStream(indexPath).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+          } else {
+            res.writeHead(200, headers);
+            fs.createReadStream(indexPath).pipe(res);
+          }
         });
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-      fs.createReadStream(filePath).pipe(res);
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const cacheControl = ext === '.html' ? 'no-cache, max-age=0, must-revalidate' : 'public, max-age=3600';
+      const headers = withSecurityHeaders({ 'Content-Type': contentType, 'Cache-Control': cacheControl }, req);
+      const acceptsGzip = /\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''));
+      if (acceptsGzip && ['.html', '.css', '.js', '.json', '.svg', '.txt'].includes(ext)) {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(200, headers);
+        fs.createReadStream(filePath).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+      } else {
+        res.writeHead(200, headers);
+        fs.createReadStream(filePath).pipe(res);
+      }
     });
+  } catch (err) {
+    console.error('Request handler error:', err);
+    if (!res.headersSent) {
+      sendJson(res, 500, { success: false, error: 'Internal server error' });
+    } else {
+      try { res.end(); } catch (e) {}
+    }
   }
 });
 
@@ -2565,14 +4378,67 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     phone: user.phone,
-    role: user.role || 'buyer',
-    createdAt: user.createdAt
+    role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : (user.role || 'buyer'),
+    createdAt: user.createdAt,
+    archived: user.archived === true
   };
 }
 
-initStorage().then(() => {
-  server.listen(PORT, () => {
-    console.log('Unisocials server running at http://localhost:' + PORT);
+async function removeDemoDataAndKeepSiteCreatedEvents() {
+  // Keep all existing real events. Only remove the known demo Music Festival
+  // event and its demo order. Do NOT classify events as seed/demo merely because
+  // they lack createdBy: existing events such as TikTok Fest must remain visible.
+  const normalize = v => String(v ?? '').trim().toLowerCase();
+  const DEMO_EVENT_IDS = new Set(['campus-music-festival', 'music-festival', 'unn-music-festival']);
+  const DEMO_EVENT_NAMES = new Set(['campus music festival', 'music festival', 'unn music festival']);
+  const DEMO_ORDER_IDS = new Set(['unn-msc60k06-ewot']);
+  try {
+    if (usePg) {
+      await db.query(`
+        DELETE FROM orders
+        WHERE lower(trim(COALESCE(data->>'id',''))) IN (${Array.from(DEMO_ORDER_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'orderId',''))) IN (${Array.from(DEMO_ORDER_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'eventId',''))) IN (${Array.from(DEMO_EVENT_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'eventName',''))) IN (${Array.from(DEMO_EVENT_NAMES).map(x => `'${x}'`).join(',')})
+      `);
+      await db.query(`
+        DELETE FROM events
+        WHERE lower(trim(COALESCE(data->>'id',''))) IN (${Array.from(DEMO_EVENT_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'name',''))) IN (${Array.from(DEMO_EVENT_NAMES).map(x => `'${x}'`).join(',')})
+      `);
+      return;
+    }
+
+    const events = await readEvents();
+    const keepEvents = events.filter(ev => {
+      const id = normalize(ev && ev.id);
+      const name = normalize(ev && ev.name);
+      return !DEMO_EVENT_IDS.has(id) && !DEMO_EVENT_NAMES.has(name);
+    });
+    if (keepEvents.length !== events.length) await writeEvents(keepEvents);
+
+    const orders = await readOrders();
+    const cleanOrders = orders.filter(o => {
+      const id = normalize(o && (o.orderId || o.id));
+      const eventId = normalize(o && o.eventId);
+      const eventName = normalize(o && o.eventName);
+      return !DEMO_ORDER_IDS.has(id) && !DEMO_EVENT_IDS.has(eventId) && !DEMO_EVENT_NAMES.has(eventName);
+    });
+    if (cleanOrders.length !== orders.length) await writeOrders(cleanOrders);
+  } catch (e) {
+    console.warn('Demo Music Festival cleanup failed:', e.message);
+  }
+}
+
+server.listen(PORT, () => {
+  console.log('Unisocials server running at http://localhost:' + PORT);
+  initStorage().then(async () => {
+    await migrateInfluencerAssignments();
+    await migrateInfluencerReferralLinks();
+    await removeDemoDataAndKeepSiteCreatedEvents();
+    console.log('Unisocials storage initialization complete.');
+  }).catch((err) => {
+    console.error('Storage initialization failed:', err.message);
   });
 });
 
