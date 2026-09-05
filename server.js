@@ -1534,11 +1534,11 @@ async function sendContactEmail(data) {
   const text = 'Name: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + (data.phone || '—') + '\nSubject: ' + data.subject + '\n\n' + data.message;
   const html = '<div style="font-family:Arial,sans-serif;white-space:pre-wrap"><strong>Name:</strong> ' + escapeHtml(data.name) + '<br><strong>Email:</strong> ' + escapeHtml(data.email) + '<br><strong>Phone:</strong> ' + escapeHtml(data.phone || '—') + '<br><strong>Subject:</strong> ' + escapeHtml(data.subject) + '<br><br>' + escapeHtml(data.message).replace(/\n/g, '<br>') + '</div>';
   const to = adminEmail();
-  if (brevoApiKey()) return !!(await sendBrevoEmail(to, subject, text, html));
+  if (brevoApiKey()) return { sent: !!(await sendBrevoEmail(to, subject, text, html)), configured: true, provider: 'Brevo' };
   const key = resendKey();
-  if (!key) return false;
+  if (!key) return { sent: false, configured: false, provider: '' };
   const result = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, { from: emailFrom(), to: [to], subject: subject, text: text, html: html });
-  return result.status === 200;
+  return { sent: result.status === 200, configured: true, provider: 'Resend' };
 }
 
 // Plain-text digest of the order for the email body
@@ -2004,8 +2004,13 @@ const server = http.createServer(async (req, res) => {
       if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !subject || subject.length > 120 || !message || message.length > 5000) {
         return sendJson(res, 400, { success: false, error: 'Please complete the form with a valid name, email, subject, and message.' });
       }
-      const sent = await sendContactEmail({ name, email, phone, subject, message });
-      if (!sent) return sendJson(res, 503, { success: false, error: 'Email delivery is not configured. Please contact us on WhatsApp.' });
+      const delivery = await sendContactEmail({ name, email, phone, subject, message });
+      if (!delivery.sent) {
+        const error = delivery.configured
+          ? 'Email provider rejected the message. Check the sender verification and API key in Render.'
+          : 'No email provider is configured. Add BREVO_API_KEY or RESEND_API_KEY in Render.';
+        return sendJson(res, 503, { success: false, error: error, provider: delivery.provider || null });
+      }
       return sendJson(res, 200, { success: true });
     }
 
