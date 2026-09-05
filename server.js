@@ -3800,14 +3800,25 @@ codes[idx] = entry;
       }
       if (uniSlug) {
         const universities = await readUniversities();
-        const selectedUniversity = universities.find(function(university) {
+        const queryKey = uniSlug.toLowerCase();
+        const selectedMatches = universities.filter(function(university) {
           return [university.id, university.slug, university.name].some(function(value) {
-            return String(value || '').trim().toLowerCase() === uniSlug.toLowerCase();
+            return String(value || '').trim().toLowerCase() === queryKey;
           });
         });
-        const universityKeys = new Set([uniSlug, selectedUniversity && selectedUniversity.id, selectedUniversity && selectedUniversity.slug, selectedUniversity && selectedUniversity.name]
-          .map(function(value) { return String(value || '').trim().toLowerCase(); })
-          .filter(Boolean));
+        // A university name is the user-facing identity. If duplicate catalogue
+        // records share the same name, treat them as one university instead of
+        // arbitrarily selecting one ID. This keeps events consistent for every
+        // university, including older records created with an alternate ID.
+        const selectedUniversity = selectedMatches[0] || null;
+        const universityKeys = new Set();
+        selectedMatches.forEach(function(university) {
+          [university.id, university.slug, university.name].forEach(function(value) {
+            const key = String(value || '').trim().toLowerCase();
+            if (key) universityKeys.add(key);
+          });
+        });
+        if (!selectedMatches.length) universityKeys.add(queryKey);
         const filtered = events.filter(function(e) {
           // Treat the university metadata as one identity. If multiple fields
           // are present, all of them must agree with the selected university.

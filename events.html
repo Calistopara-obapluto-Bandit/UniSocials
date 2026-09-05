@@ -349,7 +349,7 @@ function renderEvents(events) {
           var uniName = ev.universityName || ev.universityName || '';
           var notifyBtn = '<button class="btn-notify" onclick="notifyMe(this)" data-event="' + esc(ev.id || '') + '" data-uni="' + esc(ev.universityId || '') + '" data-uni-name="' + esc(ev.universityName || '') + '" title="Get notified when this event is happening">🔔 Notify me</button>';
           html +=
-            '<div class="event-card reveal' + delay + '" data-category="' + esc(ev.category || '') + '" data-price="' + (ev.price || 0) + '" data-date="' + esc(ev.date || '') + '">' +
+            '<div class="event-card reveal' + delay + '" data-category="' + esc(ev.category || '') + '" data-price="' + (ev.price || 0) + '" data-date="' + esc(ev.date || '') + '" data-university-id="' + esc(ev.universityId || '') + '" data-university-slug="' + esc(ev.universitySlug || '') + '" data-university-name="' + esc(ev.universityName || '') + '">' +
               eventImageHtml(ev, ev.icon || '\uD83C\uDF9F\uFE0F') +
               '<div class="event-card-body">' +
                 '<div class="event-card-meta">' +
@@ -381,62 +381,70 @@ function renderEvents(events) {
         if (window.filterEvents) window.filterEvents();
       }
 
-      // Keep only the response for the latest university selection. This prevents
-      // a slower request for the previous university from putting its events back
-      // into the grid after the user has already selected another university.
+      // University-scoped event loading for this page. This is intentionally
+      // self-contained: changing the university always clears the current cards,
+      // requests the selected university, and renders only that university.
       var eventLoadRequest = 0;
+      var currentUniversity = null;
+
+      function universityKeySet(uni) {
+        var keys = new Set();
+        if (!uni) return keys;
+        [uni.id, uni.slug, uni.name].forEach(function(value) {
+          var key = String(value || '').trim().toLowerCase();
+          if (key) keys.add(key);
+        });
+        return keys;
+      }
+
+      function eventBelongsToUniversity(ev, uni) {
+        if (!uni) return true;
+        var keys = universityKeySet(uni);
+        var fields = [ev.universityId, ev.universitySlug, ev.universityName]
+          .map(function(value) { return String(value || '').trim().toLowerCase(); })
+          .filter(Boolean);
+        // An event with no university metadata must never leak into a campus view.
+        if (!fields.length) return false;
+        // Match the canonical university identity by ANY stored identifier.
+        // This is deliberate because older events may contain only one of these
+        // fields, and duplicate catalogue records can use different IDs for the
+        // same university name.
+        return fields.some(function(value) { return keys.has(value); });
+      }
 
       function loadEvents(uni) {
+        currentUniversity = uni || null;
         var requestId = ++eventLoadRequest;
         var url = '/api/events';
-        var selectedKeys = new Set();
-        if (uni) {
-          [uni.id, uni.slug, uni.name].forEach(function(value) {
-            var key = String(value || '').trim().toLowerCase();
-            if (key) selectedKeys.add(key);
-          });
+        if (uni && (uni.slug || uni.id || uni.name)) {
+          // Prefer the canonical name when duplicate university IDs exist. The
+          // server resolves the name to all records representing that university.
+          url += '?university=' + encodeURIComponent(uni.name || uni.slug || uni.id);
         }
-        if (uni && (uni.id || uni.slug)) {
-          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
-        }
-        // Clear the old university's events immediately. Never leave the previous
-        // campus visible while the newly selected campus is loading.
+
         grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><p style="color:var(--text-3);">Loading events…</p></div>';
         if (countEl) countEl.innerHTML = 'Loading events…';
-        fetch(url)
+
+        fetch(url, { cache: 'no-store' })
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (requestId !== eventLoadRequest) return;
             var returned = data && data.success && Array.isArray(data.events) ? data.events : [];
-            // Defense in depth: the Events page itself must never render an event
-            // belonging to another university, even if an API/cache response is stale
-            // or contains inconsistent university identifiers.
-            var filtered = selectedKeys.size ? returned.filter(function(ev) {
-              // An event is allowed through only when every university field
-              // that it actually has agrees with the currently selected campus.
-              // This prevents a stale/inconsistent record (for example, an
-              // event named for UNN carrying an old Uyo id) from appearing
-              // under the wrong university.
-              var fields = [ev.universityId, ev.universitySlug, ev.universityName]
-                .map(function(value) { return String(value || '').trim().toLowerCase(); })
-                .filter(Boolean);
-              return fields.length > 0 && fields.every(function(value) {
-                return selectedKeys.has(value);
-              });
-            }) : returned;
+            var filtered = currentUniversity
+              ? returned.filter(function(ev) { return eventBelongsToUniversity(ev, currentUniversity); })
+              : returned;
             renderEvents(filtered);
           })
           .catch(function() {
             if (requestId !== eventLoadRequest) return;
-            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">😔</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
           });
       }
 
-      // When the university changes, immediately scope the event list to that
-      // university. The selected campus is the only source used for this page.
       window.onUniversityChange = function(uni) {
-        rebuildCategoryFilter(uni);
-        loadEvents(uni || null);
+        currentUniversity = uni || null;
+        rebuildCategoryFilter(currentUniversity);
+        loadEvents(currentUniversity);
       };
 
 // Exposed for the inline "Notify me" button.
@@ -451,62 +459,83 @@ function renderEvents(events) {
 
 // Populate the university dropdown from /api/universities.
       if (uniSel) {
-        fetch('/api/universities')
+        fetch('/api/universities', { cache: 'no-store' })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            var list = (data && data.success && data.universities) || [];
+            var rawList = (data && data.success && Array.isArray(data.universities)) ? data.universities : [];
+            // The catalogue historically contains duplicate records for some
+            // universities. Show each university name once in the selector.
+            var seenNames = new Set();
+            var list = rawList.filter(function(u) {
+              var key = String(u && u.name || '').trim().toLowerCase();
+              if (!key || seenNames.has(key)) return false;
+              seenNames.add(key);
+              return true;
+            });
             var html = '<option value="">All Universities</option>';
             list.forEach(function(u) {
               html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
             });
             uniSel.innerHTML = html;
+
             var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
-            if (cur && (cur.slug || cur.id)) {
-              uniSel.value = cur.slug || cur.id;
-              // The initial event request may have run before the universities
-              // finished loading. Re-apply the persisted campus now so the UI
-              // selection and the event list can never disagree.
-              loadEvents(cur);
-              rebuildCategoryFilter(cur);
+            var curName = cur ? String(cur.name || '').trim().toLowerCase() : '';
+            var restored = curName ? list.find(function(u) { return String(u.name || '').trim().toLowerCase() === curName; }) : null;
+            if (restored) {
+              uniSel.value = restored.slug || restored.id;
+              currentUniversity = restored;
             }
-            // If the dropdown is used, selecting a campus updates the global selection.
+
+            // Now that the catalogue is ready, perform the first load exactly once.
+            // Never overwrite a university the user selected while the catalogue
+            // request was in flight.
+            if (!userSelectedUniversity) {
+              loadEvents(restored || initialUni || null);
+            }
+            function applySelectedUniversity(selected) {
+              userSelectedUniversity = true;
+              currentUniversity = selected || null;
+              if (window.UNUniversity) window.UNUniversity.setUniversity(selected || null);
+              else loadEvents(selected || null);
+            }
+
             uniSel.addEventListener('change', function() {
               var val = uniSel.value;
-              var found = list.find(function(u) { return (u.slug || u.id) === val; });
-if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
+              var selected = list.find(function(u) { return (u.slug || u.id) === val; }) || null;
+              // Clear the shared search text before loading. The shared search
+              // widget also listens for <select> changes and otherwise re-applies
+              // its old search text on the next animation frame, which can hide
+              // the newly selected option and reset the select to 'All'.
+              var searchInput = uniSel.parentElement && uniSel.parentElement.querySelector('.uni-search-input');
+              if (searchInput) searchInput.value = '';
+              applySelectedUniversity(selected);
             });
-            // Enable the searchable university selector (search box + button).
+
             if (window.UNUniversitySearch) {
               window.UNUniversitySearch(uniSel);
-              // The shared search widget only filters the <select> options. On the
-              // Events page we must also apply the result to the event request.
-              // Replace its button listeners with this page-specific handler so the
-              // search action cannot stop at visually filtering the dropdown.
-              var uniSearchWrap = uniSel.parentElement;
-              var uniSearchBtn = uniSearchWrap && uniSearchWrap.querySelector('.uni-search-btn');
-              var uniSearchInput = uniSearchWrap && uniSearchWrap.querySelector('.uni-search-input');
-              if (uniSearchBtn) {
-                var replacementBtn = uniSearchBtn.cloneNode(true);
-                uniSearchBtn.parentNode.replaceChild(replacementBtn, uniSearchBtn);
-                replacementBtn.addEventListener('click', function() {
-                  var query = uniSearchInput ? String(uniSearchInput.value || '').trim().toLowerCase() : '';
-                  if (!query) return;
-                  var matches = Array.prototype.filter.call(uniSel.options, function(opt, idx) {
-                    if (idx === 0) return false;
-                    var text = String(opt.textContent || opt.text || '').trim().toLowerCase();
-                    return text === query || text.indexOf(query) !== -1;
+              var wrap = uniSel.parentElement;
+              var btn = wrap && wrap.querySelector('.uni-search-btn');
+              var input = wrap && wrap.querySelector('.uni-search-input');
+              if (btn) {
+                var replacement = btn.cloneNode(true);
+                btn.parentNode.replaceChild(replacement, btn);
+                replacement.addEventListener('click', function(e) {
+                  e.preventDefault();
+                  var q = input ? String(input.value || '').trim().toLowerCase() : '';
+                  if (!q) return;
+                  var matches = list.filter(function(u) {
+                    var name = String(u.name || '').toLowerCase();
+                    var shortName = String(u.shortName || '').toLowerCase();
+                    var state = String(u.state || '').toLowerCase();
+                    return name === q || name.indexOf(q) !== -1 || shortName === q || shortName.indexOf(q) !== -1 || state === q;
                   });
                   if (matches.length !== 1) return;
-                  uniSel.value = matches[0].value;
-                  var selected = list.find(function(u) { return (u.slug || u.id) === matches[0].value; }) || null;
-                  if (window.UNUniversity) {
-                    window.UNUniversity.setUniversity(selected);
-                  } else {
-                    uniSel.dispatchEvent(new Event('change', { bubbles: true }));
-                  }
-                  // Explicitly load from this exact selection as a safeguard: the
-                  // Events page must update immediately, without requiring refresh.
-                  if (selected) loadEvents(selected);
+                  var selected = matches[0];
+                  uniSel.value = selected.slug || selected.id;
+                  // Prevent the shared select-change listener from re-running
+                  // the previous search query after this selection is applied.
+                  if (input) input.value = '';
+                  applySelectedUniversity(selected);
                   rebuildCategoryFilter(selected);
                 });
               }
@@ -515,12 +544,20 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
           .catch(function() {});
       }
 
-      // Initial load — if a university is already selected, use it.
+      // Initial load is performed only after the university catalogue has loaded.
+      // The old code loaded /api/events immediately and then the async university
+      // catalogue could load again with the old/null selection, overwriting the
+      // newly selected campus. That made a refresh appear to be required.
       var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
-      if (initialUni && initialUni.id) {
-        rebuildCategoryFilter(initialUni);
+      var userSelectedUniversity = false;
+
+      // The university catalogue block above owns the initial load. This guard
+      // prevents the fallback initial load from racing it.
+      if (uniSel) {
+        uniSel.addEventListener('change', function() {
+          userSelectedUniversity = true;
+        }, true);
       }
-      loadEvents(initialUni);
     })();
   </script>
 </body>
