@@ -1319,7 +1319,10 @@ function isSafeImageUrl(value) {
   if (!v) return true;
   if (/^[\x00-\x1F\x7F]/.test(v) || /[\x00-\x1F\x7F]/.test(v)) return false;
   if (v.startsWith('/')) return !v.startsWith('//');
-  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(v)) return true;
+  // Admin image uploads are converted in the browser to base64 image data.
+  // Allow those uploads (up to the request-body safety limit) instead of
+  // treating them like short remote image URLs.
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(v)) return v.length <= 850000;
   try {
     const u = new URL(v);
     return u.protocol === 'https:' || u.protocol === 'http:';
@@ -4021,7 +4024,8 @@ codes[idx] = entry;
       }
       const isInfluencerAdminEdit = authCtx.role === 'influencer_admin' && !!existingEvent;
       const imageUrl = String(data.image || '').trim();
-      if (imageUrl.length > 2000 || !isSafeImageUrl(imageUrl)) {
+      const isInlineImage = /^data:image\/(?:png|jpe?g|gif|webp);base64,/.test(imageUrl);
+      if ((!isInlineImage && imageUrl.length > 2000) || !isSafeImageUrl(imageUrl)) {
         return sendJson(res, 400, { success: false, error: 'Please provide a valid event image URL.' });
       }
       const rawTags = Array.isArray(data.tags) ? data.tags : [];

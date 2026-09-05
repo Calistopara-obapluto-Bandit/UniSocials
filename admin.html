@@ -1710,7 +1710,7 @@ fetch('/api/ticket/scan', {
       }
 
       function resizeImageFile(file, maxSize) {
-        maxSize = maxSize || 1280;
+        maxSize = maxSize || 1024;
         return new Promise(function(resolve, reject) {
           var img = new Image();
           var url = URL.createObjectURL(file);
@@ -1725,7 +1725,26 @@ fetch('/api/ticket/scan', {
               var ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, width, height);
               URL.revokeObjectURL(url);
-              resolve(canvas.toDataURL('image/jpeg', 0.84));
+
+              // Keep the inline image comfortably below the server request-body limit.
+              var quality = 0.78;
+              var dataUrl = canvas.toDataURL('image/jpeg', quality);
+              while (dataUrl.length > 800000 && quality > 0.45) {
+                quality -= 0.05;
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+              }
+              if (dataUrl.length > 800000) {
+                var smaller = Math.max(640, Math.round(maxSize * 0.75));
+                var scale = smaller / Math.max(width, height);
+                var w2 = Math.max(1, Math.round(width * scale));
+                var h2 = Math.max(1, Math.round(height * scale));
+                canvas.width = w2;
+                canvas.height = h2;
+                ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w2, h2);
+                dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+              }
+              resolve(dataUrl);
             } catch (err) {
               URL.revokeObjectURL(url);
               reject(err);
