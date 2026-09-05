@@ -381,23 +381,34 @@ function renderEvents(events) {
         if (window.filterEvents) window.filterEvents();
       }
 
+      // Keep only the response for the latest university selection. This prevents
+      // a slower request for the previous university from putting its events back
+      // into the grid after the user has already selected another university.
+      var eventLoadRequest = 0;
+
       function loadEvents(uni) {
+        var requestId = ++eventLoadRequest;
         var url = '/api/events';
         if (uni && (uni.id || uni.slug)) {
           url += '?university=' + encodeURIComponent(uni.slug || uni.id);
         }
         fetch(url)
           .then(function(r) { return r.json(); })
-          .then(function(data) { renderEvents(data && data.success ? data.events : []); })
+          .then(function(data) {
+            if (requestId !== eventLoadRequest) return;
+            renderEvents(data && data.success ? data.events : []);
+          })
           .catch(function() {
+            if (requestId !== eventLoadRequest) return;
             grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">\uD83D\uDE14</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
           });
       }
 
-      // When the university changes, reload events + rebuild category filter.
+      // When the university changes, immediately scope the event list to that
+      // university. The selected campus is the only source used for this page.
       window.onUniversityChange = function(uni) {
         rebuildCategoryFilter(uni);
-        loadEvents(uni);
+        loadEvents(uni || null);
       };
 
 // Exposed for the inline "Notify me" button.
