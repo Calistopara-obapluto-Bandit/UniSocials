@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Sub-Admin Dashboard — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .admin-body { padding-top: 90px; }
+    .admin-topbar {
+      background: var(--text-1);
+      color: #fff;
+      padding: 14px 0;
+    }
+    .admin-topbar-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
+    .admin-topbar .nav-logo span { color: var(--accent-light); }
+    .admin-user-name { display:inline-flex; align-items:center; padding:7px 11px; border:1px solid rgba(255,255,255,.18); border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .admin-topbar-actions { display: flex; align-items: center; gap: 12px; }
+    .admin-logout {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.8);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 7px 18px;
+      border-radius: 100px;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.3s, color 0.3s;
+      text-decoration: none;
+    }
+    .admin-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .admin-topbar-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent-light);
+    }
+    .admin-topbar-status .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #66BB6A;
+      animation: whatsappPulse 2s infinite;
+    }
+
+    /* ── Gate scan / check-in panel ── */
+    .admin-scan-panel {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-scan-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .admin-scan-header h3 { font-size: 1rem; font-weight: 700; color: var(--text-1); }
+    .admin-scan-header p { font-size: 0.8rem; color: var(--text-3); margin-top: 4px; line-height: 1.5; }
+    .admin-scan-inputs { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .admin-scan-inputs .form-group { min-width: 260px; flex: 1; margin-bottom: 0; }
+    .admin-scan-result { margin-top: 14px; display: none; }
+    .admin-scan-result.show { display: block; }
+    .scan-result-box { border-radius: 10px; padding: 14px 16px; font-size: 0.85rem; line-height: 1.6; word-break: break-word; }
+    .scan-result-box.success { background: #E8F5E9; border: 1px solid #C8E6C9; color: #1B5E20; }
+    .scan-result-box.error { background: #FDECEA; border: 1px solid #F5C6CB; color: #B71C1C; }
+    .scan-result-box.warn { background: #FFF3E0; border: 1px solid #FFE0B2; color: #E65100; }
+    .admin-scan-camera {
+      margin-top: 14px;
+      border: 2px dashed var(--accent-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: var(--bg);
+      text-align: center;
+    }
+    .admin-scan-camera-inner {
+      position: relative;
+      max-width: 400px;
+      margin: 0 auto;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+    .admin-scan-camera-inner video {
+      width: 100%;
+      height: auto;
+      display: block;
+      transform: scaleX(-1);
+    }
+    .admin-scan-camera-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      text-align: center;
+    }
+
+    /* ── Per-ticket code list in admin order cards ── */
+    .admin-ticket-codes {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+    }
+    .admin-ticket-codes-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .admin-ticket-code {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 0.8rem;
+    }
+    .admin-ticket-copy {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--text-2);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .admin-ticket-copy:hover {
+      border-color: var(--accent-border);
+      color: var(--accent);
+      background: var(--accent-ghost);
+    }
+
+    /* ── Top tab bar ── */
+    .admin-tabs {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-tabs-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .admin-tabs-inner::-webkit-scrollbar { display: none; }
+    .admin-tab {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 14px 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.25s, border-color 0.25s, background 0.25s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .admin-tab:hover { color: var(--accent); background: var(--accent-ghost); }
+    .admin-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 700;
+    }
+    .admin-panel { display: none; }
+    .admin-panel.active { display: block; }
+    .admin-panel-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .admin-panel-heading h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-1); }
+    .admin-panel-heading p { font-size: 0.85rem; color: var(--text-3); margin-top: 3px; }
+    @media (max-width: 768px) {
+      .admin-tabs-inner { padding: 0 16px; }
+      .admin-tab { padding: 12px 12px; font-size: 0.8rem; }
+    }
+
+    /* ── Login screen ── */
+    .admin-login-wrap {
+      min-height: calc(100vh - 90px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+    }
+    .admin-login-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 32px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+    .admin-login-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 18px;
+    }
+    .admin-login-card h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 8px;
+    }
+    .admin-login-card p {
+      font-size: 0.86rem;
+      color: var(--text-3);
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .admin-login-error {
+      display: none;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      color: #B71C1C;
+      font-size: 0.82rem;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .admin-login-error.show { display: block; }
+
+    /* ── Dashboard ── */
+    .admin-dash { display: none; padding: 32px 0 64px; }
+    .admin-dash.visible { display: block; }
+    .admin-heading h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 4px;
+    }
+    .admin-heading p {
+      font-size: 0.88rem;
+      color: var(--text-3);
+    }
+    .admin-empty {
+      text-align: center;
+      padding: 60px 20px;
+      background: var(--surface-2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+    .admin-empty span { font-size: 2.8rem; display: block; margin-bottom: 12px; }
+    .admin-empty p { font-size: 0.9rem; color: var(--text-3); }
+    .admin-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--text-1);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 12px 24px;
+      border-radius: 100px;
+      box-shadow: var(--shadow-lg);
+      opacity: 0;
+      transition: transform 0.4s var(--silk), opacity 0.4s var(--silk);
+      z-index: 99999;
+      pointer-events: none;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .admin-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .admin-toast.error { background: #B71C1C; }
+
+    .btn-submit { width: 100%; }
+    @media (max-width: 400px) {
+      .admin-topbar-inner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── SUB-ADMIN TOP BAR ── -->
+  <div class="admin-topbar">
+    <div class="admin-topbar-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Check-in Staff</a>
+      <div class="admin-topbar-actions">
+        <span class="admin-user-name" id="adminUserName" style="display:none;"></span>
+        <span class="admin-topbar-status" id="connStatus" style="display:none;">
+          <span class="pulse"></span> <span id="connStatusText">Connected</span>
+        </span>
+        <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
+        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-body">
+
+    <!-- ── LOGIN SCREEN ── -->
+    <div class="admin-login-wrap" id="loginScreen">
+      <div class="admin-login-card reveal visible">
+        <div class="admin-login-icon">👤</div>
+        <h2>Check-in Staff Access</h2>
+        <p>Sign in with your check-in staff account to scan and verify tickets.</p>
+        <div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
+
+        <form id="loginForm" onsubmit="subAdminLogin(event)">
+          <div class="form-group">
+            <label for="subAdminEmail">Check-in Staff Email</label>
+            <input type="email" id="subAdminEmail" placeholder="staff@email.com" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="subAdminPassword">Password</label>
+            <input type="password" id="subAdminPassword" placeholder="Enter your password" autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
+        </form>
+
+        <p class="auth-switch" style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
+          Are you the site admin? <a href="admin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Admin Dashboard</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- ── DASHBOARD ── -->
+    <div class="admin-dash" id="dashboard">
+      <div class="admin-tabs">
+        <div class="admin-tabs-inner">
+          <button class="admin-tab active" data-tab="checkin">🎫 Check-in</button>
+          <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
+        </div>
+      </div>
+
+      <div class="container">
+        <!-- ── CHECK-IN PANEL ── -->
+        <div class="admin-panel active" id="panel-checkin">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🎫 Gate Check-in / Scan Ticket</h1>
+              <p>Enter the Order ID and ticket code, or tap <strong>📷 Scan QR</strong> to scan the buyer's ticket QR code with your camera. The ticket will be marked as used and cannot be reused.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div class="admin-scan-inputs">
+              <div class="form-group">
+                <label for="scanOrderId">Order ID</label>
+                <input type="text" id="scanOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label for="scanCode">Ticket Code</label>
+                <input type="text" id="scanCode" placeholder="TKT-XXXXXX" autocomplete="off" />
+              </div>
+              <button class="btn-submit" style="width:auto;white-space:nowrap;" onclick="scanTicket()">✅ Check In</button>
+              <button class="admin-filter-btn" id="qrScanBtn" onclick="toggleQRScanner()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:600;color:var(--text-2);background:var(--surface-2);border:1.5px solid var(--border);border-radius:100px;padding:7px 16px;cursor:pointer;">📷 Scan QR</button>
+            </div>
+            <div class="admin-scan-camera" id="scanCameraWrap" style="display:none;">
+              <div class="admin-scan-camera-inner">
+                <video id="qrVideo" autoplay playsinline muted></video>
+                <canvas id="qrCanvas" style="display:none;"></canvas>
+                <div class="admin-scan-camera-overlay" id="scanOverlay">Point camera at the ticket QR code</div>
+              </div>
+              <button class="action-btn action-reject" onclick="stopQRScanner()" style="margin-top:8px;font-size:0.78rem;font-weight:600;padding:8px 16px;border-radius:100px;cursor:pointer;background:transparent;color:#B71C1C;border-color:#F5C6CB;border:1.5px solid #F5C6CB;">✕ Stop Camera</button>
+            </div>
+            <div class="admin-scan-result" id="scanResult"></div>
+          </div>
+        </div>
+
+        <!-- ── MY CHECK-INS / OVERVIEW PANEL ── -->
+        <div class="admin-panel" id="panel-overview">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>📊 My Check-ins Overview</h1>
+              <p>Every ticket you have checked in at the gate, so you can track your own activity.</p>
+            </div>
+            <button class="admin-refresh-btn" onclick="loadMyCheckins()">↻ Refresh</button>
+          </div>
+
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinTotal">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Total Check-ins</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinEvents">0</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Events</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;">
+                <div style="font-size:1.9rem;font-weight:800;color:var(--accent);" id="checkinLast">—</div>
+                <div style="font-size:0.75rem;color:var(--text-3);margin-top:2px;">Last Check-in</div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px;">
+              <div class="admin-ticket-codes-label">🧾 Checked-in Tickets</div>
+              <input type="text" id="checkinSearch" placeholder="Search ticket or attendee…" style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-size:0.82rem;color:var(--text-1);min-width:220px;" onkeyup="filterCheckins()" />
+            </div>
+
+            <div id="checkinList" class="admin-ticket-codes" style="margin-top:4px;"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-toast" id="adminToast"></div>
+
+  <script src="config.js"></script>
+  <script src="jsqr.min.js"></script>
+  <script>
+    (function() {
+      var SUB_KEY = 'unn_checkin_token';
+      var SUB_USER_KEY = 'unn_checkin_user';
+
+      var loginScreen = document.getElementById('loginScreen');
+      var dashboard = document.getElementById('dashboard');
+      var logoutBtn = document.getElementById('logoutBtn');
+      var viewSiteBtn = document.getElementById('viewSiteBtn');
+      var connStatus = document.getElementById('connStatus');
+      var toastTimer = null;
+      var allUniversities = [];
+
+      function getSubToken() {
+        try { return localStorage.getItem(SUB_KEY) || ''; } catch(e) { return ''; }
+      }
+      function setSubAuth(token, user) {
+        try {
+          if (token) localStorage.setItem(SUB_KEY, token);
+          if (user) localStorage.setItem(SUB_USER_KEY, JSON.stringify(user));
+        } catch(e) {}
+      }
+      function getSubUser() {
+        try {
+          var raw = localStorage.getItem(SUB_USER_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+      }
+      function clearSubAuth() {
+        try {
+          localStorage.removeItem(SUB_KEY);
+          localStorage.removeItem(SUB_USER_KEY);
+        } catch(e) {}
+      }
+
+      function authHeaders(extra) {
+        var h = extra || {};
+        var t = getSubToken();
+        if (t) h['Authorization'] = 'Bearer ' + t;
+        if (!h['Content-Type']) h['Content-Type'] = 'application/json';
+        return h;
+      }
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
+      }
+      function fmtDate(iso) {
+        if (!iso) return '\u2014';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      function showToast(msg, isError) {
+        var t = document.getElementById('adminToast');
+        t.textContent = msg;
+        t.className = 'admin-toast show' + (isError ? ' error' : '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { t.className = 'admin-toast'; }, 3000);
+      }
+
+      function showLoggedIn() {
+        var u = getSubUser();
+        var nameEl = document.getElementById('adminUserName');
+        if (nameEl) { nameEl.textContent = (u && (u.name || u.fullName || u.email)) ? (u.name || u.fullName || u.email) : 'Check-in Staff'; nameEl.style.display = 'inline-flex'; }
+        loginScreen.style.display = 'none';
+        dashboard.classList.add('visible');
+        logoutBtn.style.display = 'inline-block';
+        viewSiteBtn.style.display = 'inline-block';
+        connStatus.style.display = 'inline-flex';
+      }
+      function showLoggedOut() {
+        loginScreen.style.display = 'flex';
+        dashboard.classList.remove('visible');
+        logoutBtn.style.display = 'none';
+        viewSiteBtn.style.display = 'none';
+        connStatus.style.display = 'none';
+        var nameEl = document.getElementById('adminUserName'); if (nameEl) nameEl.style.display = 'none';
+      }
+
+      // Login handler — dedicated check-in staff only (email + password)
+      window.subAdminLogin = function(e) {
+        e.preventDefault();
+        var errBox = document.getElementById('loginError');
+        var btn = document.getElementById('loginBtn');
+
+        // If already logged in, just continue
+        if (getSubToken()) {
+          showLoggedIn();
+          
+          return;
+        }
+
+        var email = document.getElementById('subAdminEmail').value.trim();
+        var spwd = document.getElementById('subAdminPassword').value.trim();
+        if (!email || !spwd) {
+          errBox.textContent = 'Enter your check-in staff email and password.';
+          errBox.classList.add('show');
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Verifying…';
+
+        fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: spwd })
+        })
+        .then(function(res) {
+          if (res.status === 401) throw new Error('unauthorized');
+          if (!res.ok) throw new Error('network');
+          return res.json();
+        })
+        .then(function(data) {
+          if (!data || !data.success || !data.token) throw new Error('unauthorized');
+          // Only dedicated check-in staff may use this page. Sub-admins have a separate dashboard.
+          if (!data.user || data.user.role !== 'checkin_staff') throw new Error('not-checkin-staff');
+          setSubAuth(data.token, data.user);
+          errBox.classList.remove('show');
+          showLoggedIn();
+          
+        })
+        .catch(function(err) {
+          if (err.message === 'not-checkin-staff') {
+            errBox.textContent = 'This account is not authorized for check-in.';
+            errBox.classList.add('show');
+          } else if (err.message === 'unauthorized') {
+            errBox.textContent = 'Incorrect check-in staff credentials.';
+            errBox.classList.add('show');
+          } else {
+            errBox.textContent = 'Cannot reach server. Check that the site is running.';
+            errBox.classList.add('show');
+          }
+          btn.disabled = false;
+          btn.textContent = 'Login to Dashboard';
+        });
+      };
+
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getSubToken();
+        // Clear locally first so logout always works, even if the server request
+        // is slow or the device temporarily has no network connection.
+        clearSubAuth();
+        showLoggedOut();
+        logoutBtn.disabled = false;
+        if (token) {
+          fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
+        }
+        var email = document.getElementById('subAdminEmail');
+        if (email) email.value = '';
+        var password = document.getElementById('subAdminPassword');
+        if (password) password.value = '';
+      });
+
+      // ── Gate check-in: scan/validate a ticket code ──
+      window.scanTicket = function() {
+        var orderId = document.getElementById('scanOrderId').value.trim();
+        var code = document.getElementById('scanCode').value.trim();
+        var resultBox = document.getElementById('scanResult');
+
+        if (!orderId || !code) {
+          if (resultBox) {
+            resultBox.className = 'admin-scan-result show';
+            resultBox.innerHTML = '<div class="scan-result-box warn">⚠️ Enter both the Order ID and the Ticket Code.</div>';
+          }
+          return;
+        }
+
+        fetch('/api/ticket/scan', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ orderId: orderId, code: code })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (!resultBox) return;
+resultBox.className = 'admin-scan-result show';
+          if (data && data.success) {
+            var t = data.ticket || {};
+            var cls = data.alreadyUsed ? 'warn' : 'success';
+            var status = data.alreadyUsed ? '♻️ Already checked in' : '✅ Check-in successful!';
+            var rows = '';
+            function row(label, val) {
+              if (val === null || val === undefined || val === '') return '';
+              return '<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;"><span style="opacity:0.75;">' + label + '</span><strong>' + val + '</strong></div>';
+            }
+            rows += row('🎤 Event', esc((t.eventName || '\u2014')));
+            if (t.ticketIndex) rows += row('🎟 Ticket', '#' + esc(String(t.ticketIndex)) + ' of ' + esc(String(t.totalTickets || t.qty)));
+            if (t.ticketTier) rows += row('🪑 Tier', esc(String(t.ticketTier).replace(/^./, function(c) { return c.toUpperCase(); })));
+            if (t.qty) rows += row('📦 Qty', esc(String(t.qty)));
+            rows += row('📅 Date', esc((t.eventDate || '\u2014')));
+            rows += row('📍 Venue', esc((t.eventVenue || '\u2014')));
+            rows += row('🏛 University', esc((t.universityName || '\u2014')));
+            rows += row('👤 Buyer', esc((t.buyerName || '\u2014')));
+            rows += row('📧 Email', esc((t.buyerEmail || '\u2014')));
+            rows += row('📞 Phone', esc((t.buyerPhone || '\u2014')));
+            if (t.amount) rows += row('💰 Amount', esc('\u20A6' + Number(t.amount).toLocaleString()));
+            rows += row('🧾 Order', esc((t.orderId || '\u2014')));
+            rows += row('🔑 Code', esc(code));
+            if (data.checkedInBy) rows += row('👮 By', esc(String(data.checkedInBy)));
+            if (t.usedAt) rows += row('♻️ Used at', esc(fmtDate(t.usedAt)));
+            resultBox.innerHTML = '<div class="scan-result-box ' + cls + '">' +
+              '<div style="margin-bottom:8px;"><strong>' + status + '</strong> <span style="opacity:0.8;">' + esc(data.message || '') + '</span></div>' +
+              '<div style="border-top:1px dashed rgba(0,0,0,0.2);margin:8px 0;padding-top:8px;">' + rows + '</div>' +
+              '</div>';
+            showToast(data.alreadyUsed ? 'Ticket was already used' : 'Ticket checked in ✅', data.alreadyUsed);
+            document.getElementById('scanOrderId').value = '';
+            document.getElementById('scanCode').value = '';
+          } else {
+            var err = (data && data.error) || 'Ticket could not be verified';
+            resultBox.innerHTML = '<div class="scan-result-box error">❌ ' + esc(err) + '</div>';
+            showToast('Check-in failed', true);
+          }
+        })
+        .catch(function() {
+          if (resultBox) {
+            resultBox.className = 'admin-scan-result show';
+            resultBox.innerHTML = '<div class="scan-result-box error">❌ Network error checking in ticket.</div>';
+          }
+          showToast('Network error checking in', true);
+        });
+      };
+
+      // ── My Check-ins overview (tickets this check-in staff member has scanned) ──
+      var allCheckins = [];
+
+      window.loadMyCheckins = function() {
+        var user = getSubUser();
+        var list = document.getElementById('checkinList');
+        if (list) list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">Loading your check-ins…</div>';
+        fetch('/api/subadmin/checkins', { headers: authHeaders() })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            allCheckins = (data && data.success && data.checkins) || [];
+            renderCheckins();
+          })
+          .catch(function() {
+            if (list) list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">Could not load your check-ins.</div>';
+          });
+      };
+
+      window.renderCheckins = function() {
+        var list = document.getElementById('checkinList');
+        var totalEl = document.getElementById('checkinTotal');
+        var eventsEl = document.getElementById('checkinEvents');
+        var lastEl = document.getElementById('checkinLast');
+        var total = allCheckins.length;
+        if (totalEl) totalEl.textContent = total;
+        var uniqueEvents = {};
+        allCheckins.forEach(function(c) { if (c.eventName) uniqueEvents[c.eventName] = true; });
+        if (eventsEl) eventsEl.textContent = Object.keys(uniqueEvents).length;
+        if (lastEl) {
+          var last = allCheckins[0];
+          if (last && last.usedAt) {
+            var d = new Date(last.usedAt);
+            lastEl.textContent = isNaN(d) ? last.usedAt : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+          } else {
+            lastEl.textContent = '—';
+          }
+        }
+        if (!list) return;
+        if (!total) {
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:0.85rem;">You haven\u2019t checked in any tickets yet.</div>';
+          return;
+        }
+        var html = '';
+        allCheckins.forEach(function(c) {
+          html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;border-bottom:1px dashed var(--border);">' +
+            '<div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;">' +
+              '<span>🎟️</span>' +
+              '<strong>' + esc(c.buyerName || '—') + '</strong>' +
+              '<code style="font-family:monospace;font-weight:700;color:var(--accent);">' + esc(c.ticketCode) + '</code>' +
+              '<span style="font-size:0.78rem;color:var(--text-3);">' + esc(c.eventName || '—') + '</span>' +
+              '<span style="font-size:0.78rem;color:var(--text-3);">' + esc(c.usedAt || '') + '</span>' +
+            '</div>' +
+            '<span style="font-size:0.72rem;font-weight:700;padding:2px 10px;border-radius:100px;background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;align-self:center;">✓</span>' +
+          '</div>';
+        });
+        list.innerHTML = html;
+      };
+
+      window.filterCheckins = function() {
+        var q = (document.getElementById('checkinSearch').value || '').toLowerCase().trim();
+        var list = document.getElementById('checkinList');
+        if (!list) return;
+        if (!q) { renderCheckins(); return; }
+        var rows = list.querySelectorAll('.admin-ticket-code');
+        rows.forEach(function(row) {
+          row.style.display = (row.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+        });
+      };
+
+      // ── Camera QR scanner ──
+      var qrStream = null;
+      var qrScanTimer = null;
+
+      window.toggleQRScanner = function() {
+        var wrap = document.getElementById('scanCameraWrap');
+        var btn = document.getElementById('qrScanBtn');
+        if (wrap.style.display !== 'none') {
+          stopQRScanner();
+          return;
+        }
+        wrap.style.display = 'block';
+        btn.textContent = '✕ Stop Camera';
+        startQRScanner();
+      };
+
+      function startQRScanner() {
+        var video = document.getElementById('qrVideo');
+        var canvas = document.getElementById('qrCanvas');
+        var overlay = document.getElementById('scanOverlay');
+        if (!video || !canvas) return;
+        if (typeof jsQR === 'undefined') {
+          if (overlay) overlay.textContent = '⚠️ QR scanner library not loaded.';
+          return;
+        }
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } })
+          .then(function(stream) {
+            qrStream = stream;
+            video.srcObject = stream;
+            video.play();
+            var ctx = canvas.getContext('2d');
+            function decodeFrame() {
+              if (!qrStream || video.readyState < 2) {
+                qrScanTimer = requestAnimationFrame(decodeFrame);
+                return;
+              }
+              canvas.width = video.videoWidth || 640;
+              canvas.height = video.videoHeight || 480;
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+              if (code && code.data) {
+                var decoded = code.data;
+                if (overlay) overlay.textContent = '✅ QR found! Processing...';
+                var orderId = '', ticketCode = '';
+                if (decoded.indexOf('orderId=') !== -1) {
+                  try {
+                    var u = new URL(decoded);
+                    orderId = u.searchParams.get('orderId') || '';
+                    ticketCode = u.searchParams.get('code') || '';
+                  } catch(e) {}
+                } else if (decoded.indexOf(':') !== -1) {
+                  var parts = decoded.split(':');
+                  orderId = parts[0] || '';
+                  ticketCode = parts.slice(1).join(':') || '';
+                } else {
+                  ticketCode = decoded;
+                }
+                if (orderId) document.getElementById('scanOrderId').value = orderId;
+                if (ticketCode) document.getElementById('scanCode').value = ticketCode;
+                stopQRScanner();
+                setTimeout(function() { window.scanTicket(); }, 300);
+              } else {
+                if (overlay) overlay.textContent = '🔍 Point camera at the ticket QR code';
+                qrScanTimer = requestAnimationFrame(decodeFrame);
+              }
+            }
+            decodeFrame();
+          })
+          .catch(function() {
+            if (overlay) overlay.textContent = '⚠️ Camera access denied or not available.';
+          });
+      }
+
+      window.stopQRScanner = function() {
+        if (qrScanTimer) { cancelAnimationFrame(qrScanTimer); qrScanTimer = null; }
+        if (qrStream) {
+          qrStream.getTracks().forEach(function(t) { t.stop(); });
+          qrStream = null;
+        }
+        var video = document.getElementById('qrVideo');
+        if (video) video.srcObject = null;
+        var wrap = document.getElementById('scanCameraWrap');
+        if (wrap) wrap.style.display = 'none';
+        var btn = document.getElementById('qrScanBtn');
+        if (btn) btn.textContent = '📷 Scan QR';
+        var overlay = document.getElementById('scanOverlay');
+        if (overlay) overlay.textContent = 'Point camera at the ticket QR code';
+      };
+
+      var selectedEventImage = '';
+
+      function setEventImagePreview(src) {
+        var preview = document.getElementById('evImagePreview');
+        if (!preview) return;
+        if (src) {
+          preview.src = src;
+          preview.style.display = 'block';
+        } else {
+          preview.removeAttribute('src');
+          preview.style.display = 'none';
+        }
+      }
+
+      function clearEventImage() {
+        selectedEventImage = '';
+        var input = document.getElementById('evImage');
+        if (input) input.value = '';
+        setEventImagePreview('');
+      }
+
+      function resizeImageFile(file, maxSize) {
+        maxSize = maxSize || 1280;
+        return new Promise(function(resolve, reject) {
+          var img = new Image();
+          var url = URL.createObjectURL(file);
+          img.onload = function() {
+            try {
+              var ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
+              var width = Math.max(1, Math.round(img.width * ratio));
+              var height = Math.max(1, Math.round(img.height * ratio));
+              var canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              URL.revokeObjectURL(url);
+              resolve(canvas.toDataURL('image/jpeg', 0.84));
+            } catch (err) {
+              URL.revokeObjectURL(url);
+              reject(err);
+            }
+          };
+          img.onerror = function() {
+            URL.revokeObjectURL(url);
+            reject(new Error('Could not read image'));
+          };
+          img.src = url;
+        });
+      }
+
+      window.handleEventImageUpload = function(input) {
+        var file = input && input.files && input.files[0];
+        if (!file) {
+          clearEventImage();
+          return;
+        }
+        if (!/^image\//.test(file.type || '')) {
+          showToast('Please choose an image file.', true);
+          input.value = '';
+          return;
+        }
+        resizeImageFile(file).then(function(dataUrl) {
+          selectedEventImage = dataUrl;
+          setEventImagePreview(dataUrl);
+        }).catch(function() {
+          selectedEventImage = '';
+          setEventImagePreview('');
+          showToast('Could not prepare that image. Try another file.', true);
+          input.value = '';
+        });
+      };
+
+      // ── Events Manager ──
+      function populateUniversitySelects() {
+        var uniSel = document.getElementById('evUniversity');
+        if (!uniSel) return;
+        var keep = uniSel.value;
+        var html = '<option value="">Select university...</option>';
+        allUniversities.forEach(function(u) {
+          html += '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>';
+        });
+        uniSel.innerHTML = html;
+        if (keep && allUniversities.some(function(u) { return u.id === keep; })) uniSel.value = keep;
+      }
+
+      window.updateUniCategories = function() {
+        var uniId = document.getElementById('evUniversity').value;
+        var catSel = document.getElementById('evCategory');
+        if (!uniId || !catSel) { if (catSel) catSel.innerHTML = '<option value="General">General</option>'; return; }
+        var uni = allUniversities.find(function(u) { return u.id === uniId; });
+        var cats = (uni && uni.categories && uni.categories.length) ? uni.categories : ['General'];
+        var html = '';
+        cats.forEach(function(c) { html += '<option value="' + esc(c) + '">' + esc(c) + '</option>'; });
+        catSel.innerHTML = html;
+      };
+
+      // ── Referral Link Management ──
+      // ── Tab switching ──
+      var tabButtons = document.querySelectorAll('.admin-tab');
+      var panels = document.querySelectorAll('.admin-panel');
+      function switchTab(name) {
+        tabButtons.forEach(function(btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === name);
+        });
+        panels.forEach(function(p) {
+          p.classList.toggle('active', p.id === 'panel-' + name);
+        });
+        if (name !== 'checkin' && typeof window.stopQRScanner === 'function') {
+          try { window.stopQRScanner(); } catch(e) {}
+        }
+      }
+      tabButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var tabName = btn.getAttribute('data-tab');
+          switchTab(tabName);
+        });
+      });
+
+      // Auto-refresh events + universities every 30s (does NOT touch order endpoints)
+      // Initial state — restore the dedicated check-in staff session from localStorage.
+      // Validate it against the database-backed session before showing the dashboard.
+      (async function restoreCheckinSession() {
+        var token = getSubToken();
+        if (!token) { showLoggedOut(); return; }
+        // Do not destroy a persistent login because one refresh request briefly
+        // fails. The server session is authoritative; we only clear it after
+        // several consecutive 401 responses.
+        var lastErr = null;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token }, cache: 'no-store' });
+            var d = await r.json();
+            if (r.ok && d.success && d.user && d.user.role === 'checkin_staff') {
+              setSubAuth(token, d.user);
+              showLoggedIn();
+              return;
+            }
+            if (r.status !== 401) { lastErr = new Error('session-check'); break; }
+            lastErr = new Error('unauthorized');
+          } catch (e) {
+            lastErr = e;
+          }
+          await new Promise(function(resolve){ setTimeout(resolve, 700 * (attempt + 1)); });
+        }
+        // A refresh must never silently log the staff member out. Keep the
+        // persistent credentials; protected API calls remain server-authorized.
+        showLoggedIn();
+      })();
+    })();
+  </script>
+</body>
+</html>

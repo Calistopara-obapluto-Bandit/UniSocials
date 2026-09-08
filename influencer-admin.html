@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="noindex, nofollow" name="robots"/>
+<title>Influencer Admin — Unisocials</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&amp;family=Playfair+Display:ital,wght@0,700;1,600&amp;display=swap" rel="stylesheet"/>
+<link href="templatemo-622-clearwave.css" rel="stylesheet"/>
+<style>
+    .admin-body { padding-top: 0; }
+    .admin-topbar {
+      background: var(--text-1);
+      color: #fff;
+      padding: 10px 0;
+    }
+    .admin-topbar-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
+    .admin-topbar .nav-logo span { color: var(--accent-light); }
+    .admin-topbar-actions { display: flex; align-items: center; gap: 12px; }
+    .admin-logout {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.8);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 7px 18px;
+      border-radius: 100px;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.3s, color 0.3s;
+    }
+    .admin-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .admin-topbar-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent-light);
+    }
+    .admin-topbar-status .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #66BB6A;
+      animation: whatsappPulse 2s infinite;
+    }
+    .admin-notif {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #B71C1C;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 100px;
+      animation: notifBounce 0.6s ease;
+      cursor: pointer;
+    }
+    .admin-notif:hover { background: #D32F2F; }
+    @keyframes notifBounce {
+      0% { transform: scale(0.6); }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    .admin-order.payment-notified { border-color: #E65100; box-shadow: 0 0 0 3px rgba(230,81,0,0.08); }
+    .admin-order.new-order { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ghost); }
+    .admin-paid-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #E65100;
+      background: #FFF3E0;
+      border: 1px solid #FFE0B2;
+      padding: 2px 10px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Gate scan / check-in panel ── */
+    .admin-scan-panel {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-scan-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .admin-scan-header h3 { font-size: 1rem; font-weight: 700; color: var(--text-1); }
+    .admin-scan-header p { font-size: 0.8rem; color: var(--text-3); margin-top: 4px; line-height: 1.5; }
+    .admin-scan-inputs { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .admin-scan-inputs .form-group { min-width: 260px; flex: 1; margin-bottom: 0; }
+    .admin-scan-result { margin-top: 14px; display: none; }
+    .admin-scan-result.show { display: block; }
+    .scan-result-box { border-radius: 10px; padding: 14px 16px; font-size: 0.85rem; line-height: 1.6; word-break: break-word; }
+    .scan-result-box.success { background: #E8F5E9; border: 1px solid #C8E6C9; color: #1B5E20; }
+    .scan-result-box.error { background: #FDECEA; border: 1px solid #F5C6CB; color: #B71C1C; }
+    .scan-result-box.warn { background: #FFF3E0; border: 1px solid #FFE0B2; color: #E65100; }
+
+    /* ── Per-ticket code list in admin order cards ── */
+    .admin-ticket-codes {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+    }
+    .admin-ticket-codes-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .admin-ticket-code {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 0.8rem;
+    }
+    .admin-ticket-code code { font-family: monospace; font-weight: 700; color: var(--accent); flex: 1; }
+    .admin-ticket-code.used code { color: var(--text-3); text-decoration: line-through; }
+    .admin-ticket-unused {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #1B5E20;
+      background: #E8F5E9;
+      border: 1px solid #C8E6C9;
+      padding: 1px 8px;
+      border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .admin-ticket-used {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #E65100;
+      background: #FFF3E0;
+      border: 1px solid #FFE0B2;
+      padding: 1px 8px;
+      border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .admin-ticket-open, .admin-ticket-copy {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--text-2);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .admin-ticket-open:hover, .admin-ticket-copy:hover {
+      border-color: var(--accent-border);
+      color: var(--accent);
+      background: var(--accent-ghost);
+    }
+
+/* ── Top tab bar ── */
+    .admin-tabs {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-tabs-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .admin-tabs-inner::-webkit-scrollbar { display: none; }
+    .admin-tab {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 14px 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.25s, border-color 0.25s, background 0.25s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .admin-tab:hover { color: var(--accent); background: var(--accent-ghost); }
+    .admin-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 700;
+    }
+    .admin-tab .tab-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: none;
+    }
+    .admin-tab .tab-dot.show { display: inline-block; }
+    .admin-panel { display: none; }
+    .admin-panel.active { display: block; }
+    .admin-panel-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .admin-panel-heading h1 { font-size: 1.35rem; font-weight: 700; color: var(--text-1); }
+    .admin-panel-heading p { font-size: 0.85rem; color: var(--text-3); margin-top: 3px; }
+    #panel-influencers > .admin-panel-heading { display:grid; grid-template-columns:minmax(0, 1fr) minmax(240px, 360px); align-items:start; }
+    #panel-influencers > .admin-panel-heading > div:first-child { min-width:0; }
+    @media (max-width: 768px) {
+      .admin-tabs-inner { padding: 0 16px; }
+      .admin-tab { padding: 12px 12px; font-size: 0.8rem; }
+    }
+
+    /* ── Login screen ── */
+    .admin-login-wrap {
+      min-height: calc(100vh - 90px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px;
+    }
+    .admin-login-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 32px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+    .admin-login-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 18px;
+    }
+    .admin-login-card h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 8px;
+    }
+    .admin-login-card p {
+      font-size: 0.86rem;
+      color: var(--text-3);
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .admin-login-error {
+      display: none;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      color: #B71C1C;
+      font-size: 0.82rem;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .admin-login-error.show { display: block; }
+
+    /* ── Dashboard ── */
+    .admin-dash { display: none; padding: 32px 0 64px; }
+    .admin-dash.visible { display: block; }
+    .admin-heading h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 4px;
+    }
+    .admin-heading p {
+      font-size: 0.88rem;
+      color: var(--text-3);
+    }
+    .admin-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .admin-stat {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-stat-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 8px;
+    }
+    .admin-stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .admin-stat-value small { font-size: 0.85rem; color: var(--text-3); font-weight: 500; }
+    .admin-stat.pending .admin-stat-value { color: #E65100; }
+    .admin-stat.verified .admin-stat-value { color: #1B5E20; }
+    .admin-stat.rejected .admin-stat-value { color: #B71C1C; }
+    .admin-stat.revenue .admin-stat-value { color: var(--unn-gold); }
+
+    .admin-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .admin-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .admin-filter-btn {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .admin-filter-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+    .admin-filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .admin-refresh-btn {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1.5px solid var(--accent-border);
+      border-radius: 100px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .admin-refresh-btn:hover { background: var(--accent); color: #fff; }
+    #managedEventsList [data-edit-event], #managedEventsList [data-archive-event] { display:inline-flex !important; visibility:visible !important; opacity:1 !important; align-items:center; justify-content:center; min-height:36px; }
+    .admin-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Event / Category filter selects */
+    .admin-cat-filters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      align-items: flex-end;
+    }
+    .admin-cat-filter {
+      flex: 1;
+      min-width: 210px;
+    }
+    .admin-cat-filter label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .admin-cat-filter select {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-1);
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .admin-cat-filter select:focus {
+      outline: none;
+      border-color: var(--accent-border);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .admin-cat-clear {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1.5px solid var(--accent-border);
+      border-radius: 100px;
+      padding: 8px 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.3s;
+    }
+    .admin-cat-clear:hover { background: var(--accent); color: #fff; }
+
+    /* Orders list */
+    .admin-orders { display: flex; flex-direction: column; gap: 12px; }
+    .admin-order {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .admin-order:hover { border-color: var(--accent-border); box-shadow: var(--shadow-md); }
+    .admin-order-main { min-width: 0; }
+    .admin-order-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .admin-order-id {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-family: monospace;
+      letter-spacing: 0.02em;
+    }
+    .admin-order-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 12px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .admin-order-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+    .admin-order-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
+    .admin-order-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
+    .admin-order-event {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 6px;
+    }
+    .admin-order-meta {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--text-3);
+      margin-bottom: 10px;
+    }
+    .admin-order-meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .admin-order-buyer {
+      font-size: 0.82rem;
+      color: var(--text-2);
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .admin-order-buyer strong { color: var(--text-1); }
+    .admin-order-amount {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .admin-order-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 140px;
+      align-items: stretch;
+    }
+    .admin-order-actions .action-btn {
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 100px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.3s;
+      border: 1.5px solid transparent;
+    }
+    .action-verify {
+      background: var(--accent);
+      color: #fff;
+    }
+    .action-verify:hover { background: var(--accent-mid); }
+    .action-verify:disabled { opacity: 0.4; cursor: not-allowed; }
+    .action-reject {
+      background: transparent;
+      color: #B71C1C;
+      border-color: #F5C6CB;
+    }
+    .action-reject:hover { background: #FDECEA; }
+    .action-reject:disabled { opacity: 0.4; cursor: not-allowed; }
+    .action-reopen {
+      background: transparent;
+      color: var(--accent);
+      border-color: var(--accent-border);
+    }
+    .action-reopen:hover { background: var(--accent-ghost); }
+
+    .admin-empty {
+      text-align: center;
+      padding: 60px 20px;
+      background: var(--surface-2);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+    .admin-empty span { font-size: 2.8rem; display: block; margin-bottom: 12px; }
+    .admin-empty p { font-size: 0.9rem; color: var(--text-3); }
+    .admin-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--text-1);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 12px 24px;
+      border-radius: 100px;
+      box-shadow: var(--shadow-lg);
+      opacity: 0;
+      transition: transform 0.4s var(--silk), opacity 0.4s var(--silk);
+      z-index: 99999;
+      pointer-events: none;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .admin-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .admin-toast.error { background: #B71C1C; }
+
+    .admin-print-btn {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .admin-print-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+
+    @media (max-width: 1024px) {
+      .admin-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .admin-topbar-inner { padding: 0 20px; }
+      .admin-order { grid-template-columns: 1fr; }
+      .admin-order-actions { flex-direction: row; min-width: 0; }
+      .admin-order-actions .action-btn { flex: 1; }
+    }
+    @media (max-width: 540px) {
+      .admin-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .admin-stat { padding: 14px; }
+      .admin-stat-value { font-size: 1.4rem; }
+      .admin-stat-label { font-size: 0.65rem; }
+      .admin-order { padding: 14px; }
+      .admin-order-meta { gap: 8px; font-size: 0.75rem; }
+    }
+    @media (max-width: 400px) {
+      .admin-stats { grid-template-columns: 1fr; }
+      .admin-topbar-inner { flex-direction: column; align-items: flex-start; }
+    }
+    @media print {
+      .admin-topbar, .admin-toolbar, .admin-order-actions { display: none !important; }
+      .admin-dash { display: block !important; padding: 0; }
+      .admin-order { break-inside: avoid; border: 1px solid #ddd; box-shadow: none; }
+    }
+
+    /* ── Camera QR scanner ── */
+    .admin-scan-camera {
+      margin-top: 14px;
+      border: 2px dashed var(--accent-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: var(--bg);
+      text-align: center;
+    }
+    .admin-scan-camera-inner {
+      position: relative;
+      max-width: 400px;
+      margin: 0 auto;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+    .admin-scan-camera-inner video {
+      width: 100%;
+      height: auto;
+      display: block;
+      transform: scaleX(-1);
+    }
+    .admin-scan-camera-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      text-align: center;
+    }
+  
+    /* Tight dashboard header spacing */
+    .admin-body { padding-top: 0 !important; }
+    .admin-topbar { padding: 10px 0; }
+    .admin-topbar-inner { gap: 10px; }
+    .admin-tabs-inner { gap: 2px; }
+    .admin-tab { padding-top: 11px; padding-bottom: 11px; }
+    @media (max-width: 600px) {
+      .admin-topbar { padding: 8px 0; }
+      .admin-topbar-inner { padding-left: 10px; padding-right: 10px; gap: 6px; }
+      .admin-tabs-inner { padding-left: 6px; padding-right: 6px; gap: 0; }
+      .admin-tab { padding: 9px 8px; min-height: 40px; }
+    }
+</style>
+<style id="influencer-admin-scope">
+  /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]) { display:none !important; }
+  .admin-panel[id="panel-checkin"], .admin-panel[id="panel-universities"], .admin-panel[id="panel-subscribers"], .admin-panel[id="panel-subadmins"] { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales):not(#panel-influencers) { display:none !important; }
+  #panel-events { display:none; }
+  #panel-event-sales { display:none; }
+  #panel-events.active, #panel-event-sales.active, #panel-overview.active, #panel-influencers.active { display:block; }
+  .influencer-section-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; }
+  .influencer-section-heading strong { color:var(--text-1); font-size:.92rem; }
+  .influencer-section-heading div div { color:var(--text-3); font-size:.76rem; margin-top:3px; }
+  .influencer-header-search { position:relative; flex:0 1 360px; min-width:220px; }
+  .influencer-header-search > button { width:100%; }
+  .influencer-header-search-panel { position:absolute; z-index:5; right:0; top:calc(100% + 8px); width:min(640px, calc(100vw - 48px)); padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:var(--shadow-md, 0 12px 30px rgba(0,0,0,.12)); }
+  .influencer-search-toolbar { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; gap:8px; align-items:center; }
+  .influencer-search-toolbar input { flex:1 1 auto; min-width:0; }
+  .influencer-search-toolbar button { flex:0 0 auto; white-space:nowrap; }
+  .influencer-search-results:empty { display:none; }
+  .influencer-search-result { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; padding:11px 0; border-bottom:1px solid var(--border); }
+  .influencer-search-result:last-child { border-bottom:0; }
+  .influencer-search-result-action { flex:0 0 auto; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+</style>
+
+<style id="influencer-admin-mobile-tight">
+  /* Tight mobile layout: preserve the existing dashboard flow, only improve fit. */
+  *, *::before, *::after { box-sizing: border-box; }
+  .admin-topbar-inner, .admin-tabs-inner, .admin-dash > .container { min-width: 0; }
+  .admin-panel, .admin-scan-panel, .admin-stat, .admin-order, .admin-panel-heading,
+  .admin-heading, .admin-toolbar, .admin-filters, .admin-cat-filters { min-width: 0; }
+
+  @media (max-width: 600px) {
+    .admin-body { padding-top: 74px; }
+    .admin-topbar { padding: 10px 0; }
+    .admin-topbar-inner { padding: 0 12px; gap: 8px; }
+    .admin-topbar .nav-logo { font-size: .95rem; min-width: 0; white-space: nowrap; }
+    .admin-topbar-actions { gap: 6px; min-width: 0; }
+    .admin-topbar-status { display: none !important; }
+    .admin-logout { padding: 6px 12px; font-size: .72rem; white-space: nowrap; }
+
+    .admin-tabs-inner { padding: 0 10px; gap: 0; }
+    .admin-tab { padding: 11px 11px; font-size: .76rem; flex: 0 0 auto; }
+
+    .admin-dash { padding: 16px 0 36px; }
+    .admin-dash > .container { width: 100%; max-width: 100%; padding-left: 12px; padding-right: 12px; }
+    .admin-panel-heading { align-items: flex-start; margin-bottom: 12px; }
+    .admin-panel-heading h1 { font-size: 1.08rem; line-height: 1.3; }
+    .admin-panel-heading p { font-size: .76rem; line-height: 1.45; }
+    .admin-panel-heading > div { min-width: 0; flex: 1 1 auto; }
+    .influencer-header-search { width:100%; min-width:0; flex:1 1 100%; }
+    .influencer-header-search-panel { position:static; width:100%; margin-top:8px; }
+    #panel-influencers > .admin-panel-heading { display:flex; }
+
+    .admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+    .admin-stat { padding: 12px; border-radius: 12px; }
+    .admin-stat-label { font-size: .61rem; letter-spacing: .05em; line-height: 1.3; }
+    .admin-stat-value { font-size: 1.25rem; overflow-wrap: anywhere; }
+
+    .admin-scan-panel { padding: 13px; border-radius: 12px; margin-bottom: 12px; }
+    .admin-scan-panel h3 { font-size: .9rem; line-height: 1.35; }
+    .admin-toolbar { gap: 8px; }
+    .admin-filters { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+    .admin-filter-btn { flex: 0 0 auto; padding: 7px 12px; font-size: .74rem; }
+
+    .admin-order { grid-template-columns: minmax(0, 1fr); padding: 13px; gap: 10px; }
+    .admin-order-right { width: 100%; text-align: left !important; min-width: 0; }
+    .admin-order-event, .admin-order-buyer, .admin-order-id { overflow-wrap: anywhere; word-break: break-word; }
+    .admin-order-meta { gap: 7px 10px; font-size: .72rem; }
+    .admin-order-actions { width: 100%; min-width: 0; flex-direction: row; flex-wrap: wrap; }
+    .admin-order-actions .action-btn { flex: 1 1 120px; min-width: 0; }
+
+    .admin-scan-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+    .admin-scan-inputs .form-group { min-width: 0; width: 100%; }
+    .admin-cat-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+    .admin-cat-filter { min-width: 0; width: 100%; }
+
+    #panel-events .admin-scan-panel > div[style*="grid-template-columns"] {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+    #panel-events .form-group { min-width: 0; width: 100%; }
+    #panel-events input, #panel-events select, #panel-events textarea,
+    #panel-event-sales select { max-width: 100%; width: 100%; min-width: 0; }
+    #panel-events .btn-submit, #panel-events .admin-refresh-btn { max-width: 100%; }
+    #evImagePreview { max-width: 100% !important; height: auto !important; max-height: 190px; }
+
+    #panel-event-sales .admin-scan-panel { overflow-x: hidden !important; }
+    #aesInfluencers { overflow-x: hidden; }
+    #aesInfluencers > div { min-width: 0 !important; grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 1fr)) !important; align-items: start !important; }
+    #aesInfluencers > div > div:first-child { grid-column: 1 / -1; }
+    #aesInfluencers small { font-size: .66rem; }
+    #overviewEvents > div { min-width: 0; overflow-wrap: anywhere; }
+    #overviewEvents > div > div { gap: 8px 12px !important; font-size: .74rem !important; }
+    #overviewEvents { min-width: 0; }
+    .admin-ticket-codes { overflow-x: auto; }
+
+    .admin-toast { max-width: calc(100vw - 24px); padding: 10px 14px; border-radius: 12px; font-size: .78rem; }
+    .influencer-search-toolbar { grid-template-columns:minmax(0, 1fr) 1fr; align-items:stretch; }
+    .influencer-search-toolbar input { grid-column:1 / -1; }
+    .influencer-search-toolbar button { min-width:0; }
+    .influencer-search-result-action { width:100%; }
+    .influencer-search-result-action .admin-refresh-btn { width:100%; }
+  }
+
+  @media (max-width: 380px) {
+    .admin-topbar-inner { padding: 0 10px; }
+    .admin-topbar .nav-logo { font-size: .86rem; }
+    .admin-logout { padding: 6px 9px; }
+    .admin-tabs-inner { padding: 0 6px; }
+    .admin-tab { padding: 10px 9px; font-size: .72rem; }
+    .admin-dash > .container { padding-left: 9px; padding-right: 9px; }
+    .admin-stats { grid-template-columns: minmax(0, 1fr); }
+    .admin-panel-heading > div + div { width: 100%; }
+    .admin-panel-heading > div + div button { flex: 1 1 auto; }
+    #aesInfluencers > div { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; padding-left: 0 !important; padding-right: 0 !important; }
+  }
+</style>
+</head>
+<body>
+<!-- ── ADMIN TOP BAR ── -->
+<div class="admin-topbar">
+<div class="admin-topbar-inner">
+<a class="nav-logo" href="index.html">Uni<span>socials</span> · Admin</a>
+<div class="admin-topbar-actions">
+<span class="admin-topbar-status" id="connStatus" style="display:none;">
+<span class="pulse"></span> <span id="connStatusText">Connected</span>
+</span>
+<span class="admin-notif" id="notifBadge" style="display:none;">
+          🔔 <span id="notifCount">0</span> new
+        </span>
+<a class="admin-logout" href="index.html" id="viewSiteBtn" style="display:none;">← View Site</a>
+<button class="admin-logout" id="logoutBtn" style="display:none;" type="button">Log Out</button>
+</div>
+</div>
+</div>
+<div class="admin-body">
+<!-- ── LOGIN SCREEN ── -->
+<div class="admin-login-wrap" id="loginScreen">
+<div class="admin-login-card reveal visible">
+<div class="admin-login-icon">🔐</div>
+<h2>Influencer Admin Access</h2>
+<p>Sign in with the account created for you by the main admin.</p>
+<div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
+<!-- Master admin login -->
+<form id="loginForm" onsubmit="adminLogin(event)">
+<div class="form-group"><label for="adminEmail">Login Email</label><input autocomplete="email" id="adminEmail" placeholder="admin@unisocials.com" type="email"/></div>
+<div class="form-group" id="adminPwdGroup"><label for="adminPassword">Password</label><input autocomplete="current-password" id="adminPassword" placeholder="Enter password" type="password"/></div>
+<button class="btn-submit" id="loginBtn" type="submit">Login to Dashboard</button>
+</form>
+
+</div>
+</div>
+<!-- ── DASHBOARD ── -->
+<div class="admin-dash" id="dashboard">
+<!-- ── TOP TAB BAR ── -->
+<div class="admin-tabs">
+<div class="admin-tabs-inner">
+<button class="admin-tab active" data-tab="overview">📊 Overview</button>
+<button class="admin-tab" data-tab="events">➕ Add Events</button>
+<button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
+<button class="admin-tab" data-tab="influencers">📣 My Influencers</button>
+
+
+
+
+
+</div>
+</div>
+<div class="container">
+<!-- ── OVERVIEW PANEL ── -->
+<div class="admin-panel active" id="panel-overview">
+<div class="admin-panel-heading">
+<div>
+<h1>📊 Sales Overview</h1>
+<p id="lastUpdated">Loading your authorized event sales…</p>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+<button class="admin-print-btn" onclick="window.print()">🖨 Print</button>
+<button class="admin-refresh-btn" id="refreshBtn" onclick="loadInfluencerOverview()">↻ Refresh</button>
+</div>
+</div>
+<div class="admin-stats">
+<div class="admin-stat">
+<div class="admin-stat-label">Total Orders</div>
+<div class="admin-stat-value" id="statTotal">0</div>
+</div>
+<div class="admin-stat pending">
+<div class="admin-stat-label">Pending</div>
+<div class="admin-stat-value" id="statPending">0</div>
+</div>
+<div class="admin-stat verified">
+<div class="admin-stat-label">Verified</div>
+<div class="admin-stat-value" id="statVerified">0</div>
+</div>
+<div class="admin-stat rejected">
+<div class="admin-stat-label">Rejected</div>
+<div class="admin-stat-value" id="statRejected">0</div>
+</div>
+<div class="admin-stat revenue">
+<div class="admin-stat-label">Revenue (Verified)</div>
+<div class="admin-stat-value" id="statRevenue">₦0</div>
+</div>
+</div>
+<div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
+<h3 style="margin-bottom:10px;">Authorized Event Performance</h3>
+<div id="overviewEvents" style="display:flex;flex-direction:column;gap:10px;"></div>
+</div>
+</div>
+        <!-- ── EVENTS PANEL ── -->
+        <div class="admin-panel" id="panel-events">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🎤 Manage Events</h1>
+              <p>Add or remove events. New events appear instantly on the Events page, Tickets page, and Home page for buyers.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="evName">Event Name</label><input type="text" id="evName" placeholder="e.g. Medical Dinner Night" /></div>
+              <div class="form-group"><label for="evUniversity">University</label><select id="evUniversity" onchange="updateUniCategories()">
+                <option value="">Select university...</option>
+              </select></div>
+              <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
+                <option value="General">General</option>
+              </select></div>
+              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦)</label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦)</label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦)</label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦)</label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
+              <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
+              <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
+              <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
+              <div class="form-group"><label for="evDesc">Description</label><input type="text" id="evDesc" placeholder="Short description of the event..." /></div>
+              <div class="form-group" style="grid-column:1/-1;">
+                <label for="evImage">Event Picture</label>
+                <input type="file" id="evImage" accept="image/*" onchange="handleEventImageUpload(this)" />
+                <div style="margin-top:10px;">
+                  <img id="evImagePreview" alt="Event image preview" style="display:none;width:100%;max-width:320px;height:160px;object-fit:cover;border-radius:14px;border:1px solid var(--border);background:var(--bg);" />
+                </div>
+              </div>
+              <div class="form-group"><label for="evTags">Tags (comma separated)</label><input type="text" id="evTags" placeholder="🎶 Live Music, 🎤 DJ" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedRegular">What's Included — Regular (comma separated)</label><input type="text" id="evIncludedRegular" placeholder="Standard entry, Welcome drink" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVip">What's Included — VIP (comma separated)</label><input type="text" id="evIncludedVip" placeholder="VIP lounge access, Meet &amp; greet, VIP parking" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedVVIP">What's Included — VVIP (comma separated)</label><input type="text" id="evIncludedVVIP" placeholder="VVIP lounge access, premium seating, concierge service" /></div>
+              <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
+              <button class="admin-refresh-btn" id="cancelEditEventBtn" style="display:none;" onclick="cancelEditManagedEvent()">Cancel Edit</button>
+              <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+
+        <!-- ── AUTHORIZED EVENT SALES PANEL ── -->
+<div class="admin-panel" id="panel-event-sales">
+<div class="admin-panel-heading">
+<div><h1>🎟 Authorized Event Sales</h1><p>Select an event that the Main Admin explicitly authorized to you. This shows the tickets sold by each influencer assigned to your account for that event.</p></div>
+<button class="admin-refresh-btn" onclick="loadAuthorizedEventSales()">↻ Refresh</button>
+</div>
+<div class="admin-scan-panel" style="margin-bottom:16px;">
+<div class="form-group"><label for="authorizedEventSelect">Authorized Event</label><select id="authorizedEventSelect"><option value="">Loading authorized events…</option></select></div>
+</div>
+<div class="admin-stats">
+<div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="aesOrders">0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
+<div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
+</div>
+<div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
+<h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
+<div id="aesInfluencers"></div>
+</div>
+</div>
+<!-- ── MY INFLUENCERS PANEL ── -->
+<div class="admin-panel" id="panel-influencers">
+  <div class="admin-panel-heading">
+    <div>
+      <h1>📣 My Influencers</h1>
+      <p>Create and manage the influencers you created. They receive their own login and referral link, and their sales remain associated with your Influencer Admin account.</p>
+    </div>
+    <div class="influencer-header-search">
+      <button class="admin-refresh-btn" type="button" id="toggleExistingInfluencerSearch" aria-expanded="false" aria-controls="existingInfluencerSearchPanel">🔎 Find influencer</button>
+      <div class="influencer-header-search-panel" id="existingInfluencerSearchPanel" hidden>
+        <label class="sr-only" for="existingInfluencerSearch">Search existing influencers</label>
+        <div class="influencer-search-toolbar">
+          <input id="existingInfluencerSearch" type="search" placeholder="Name or email" autocomplete="off" />
+          <button class="admin-refresh-btn" type="button" onclick="searchExistingInfluencers()">Search</button>
+          <button class="admin-refresh-btn influencer-search-clear" type="button" onclick="clearExistingInfluencerSearch()" aria-label="Clear influencer search">Clear</button>
+        </div>
+        <div id="existingInfluencerResults" class="influencer-search-results"></div>
+      </div>
+    </div>
+  </div>
+  <div class="admin-scan-panel">
+    <div class="influencer-section-heading">
+      <div><strong>Create an influencer</strong><div>Give them a login and a referral link for your events.</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" autocomplete="name" /></div>
+      <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" autocomplete="email" /></div>
+      <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="8+ chars, letter, number & symbol" autocomplete="new-password" /></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
+      <button class="admin-refresh-btn" onclick="loadInfluencers()">↻ Refresh</button>
+      <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
+    </div>
+    <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<!-- ── CHECK-IN PANEL ── -->
+
+<!-- ── EVENTS PANEL ── -->
+
+<!-- ── UNIVERSITIES PANEL ── -->
+
+<!-- ── SUBSCRIBERS PANEL ── -->
+
+<!-- ── SUB-ADMINS PANEL (master admin only) ── -->
+
+</div>
+</div>
+</div>
+<div class="admin-toast" id="adminToast"></div>
+<script src="config.js"></script>
+<script src="jsqr.min.js"></script>
+<script>
+    (function() {
+      var KEY = 'unn_admin_token';
+      var currentFilter = 'all';
+      var currentEventFilter = '';
+      var currentCategoryFilter = '';
+      var allOrders = [];
+      var toastTimer = null;
+      var lastUnseenCount = -1;
+      var notifPermission = false;
+
+var loginScreen = document.getElementById('loginScreen');
+      var dashboard = document.getElementById('dashboard');
+      var logoutBtn = document.getElementById('logoutBtn');
+      var viewSiteBtn = document.getElementById('viewSiteBtn');
+      var connStatus = document.getElementById('connStatus');
+      var ordersList = document.getElementById('ordersList');
+      var lastUpdated = document.getElementById('lastUpdated');
+      var notifBadge = document.getElementById('notifBadge');
+      var notifCount = document.getElementById('notifCount');
+
+function fmtN(n) {
+        return '\u20A6' + Number(n || 0).toLocaleString();
+      }
+      function fmtDate(iso) {
+        if (!iso) return '\u2014';
+        var d = new Date(iso);
+        if (isNaN(d)) return iso;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      function safeImg(value) {
+
+        var v = String(value == null ? '' : value).trim();
+
+        if (!v) return '';
+
+        if (/^https?:\/\//i.test(v)) return v;
+
+        if (/^\/[^\/]/.test(v)) return v;
+        if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(v)) return v;
+
+        return '';
+
+      }
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+        });
+      }
+      function showToast(msg, isError) {
+        var t = document.getElementById('adminToast');
+        t.textContent = msg;
+        t.className = 'admin-toast show' + (isError ? ' error' : '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { t.className = 'admin-toast'; }, 3000);
+      }
+      function playAlertSound() {
+        try {
+          var ctx = new (window.AudioContext || window.webkitAudioContext)();
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.6);
+        } catch(e) {}
+      }
+      function sendBrowserNotification(title, body) {
+        try {
+          if (!('Notification' in window)) return;
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body: body, icon: 'images/tm-622-screen-01.jpg' });
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(function(p) {
+              if (p === 'granted') new Notification(title, { body: body, icon: 'images/tm-622-screen-01.jpg' });
+            });
+          }
+        } catch(e) {}
+      }
+
+      function getToken() {
+        try { return localStorage.getItem(KEY) || ''; } catch(e) { return ''; }
+      }
+      function getCurrentUser() {
+        try { var raw = localStorage.getItem('unn_admin_user'); return raw ? JSON.parse(raw) : null; } catch(e) { return null; }
+      }
+      function getCurrentRole() { var u = getCurrentUser(); return u && u.role ? u.role : ''; }
+      function setToken(t) {
+        try { localStorage.setItem(KEY, t); } catch(e) {}
+      }
+      function clearToken() {
+        try { localStorage.removeItem(KEY); } catch(e) {}
+      }
+
+      function showLoggedIn() {
+        loginScreen.style.display = 'none';
+        dashboard.classList.add('visible');
+        logoutBtn.style.display = 'inline-block';
+        viewSiteBtn.style.display = 'inline-block';
+        connStatus.style.display = 'inline-flex';
+        if (notifBadge) notifBadge.style.display = 'inline-flex';
+        try {
+          var u = getCurrentUser();
+          var nameEl = document.getElementById('adminUserName');
+          if (nameEl && u) { nameEl.textContent = u.name || u.email || 'Influencer Admin'; nameEl.style.display = 'inline-flex'; }
+        } catch(e) {}
+      }
+      function showLoggedOut() {
+        loginScreen.style.display = 'flex';
+        dashboard.classList.remove('visible');
+        logoutBtn.style.display = 'none';
+        viewSiteBtn.style.display = 'none';
+        connStatus.style.display = 'none';
+        if (notifBadge) notifBadge.style.display = 'none';
+      }
+
+      // Explicit logout: revoke the server session, then clear the local token.
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getToken();
+        // Clear the browser session immediately; never wait for a network request.
+        clearToken();
+        try { localStorage.removeItem('unn_admin_user'); } catch (_) {}
+        showLoggedOut();
+        logoutBtn.disabled = false;
+        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
+        var email = document.getElementById('adminEmail');
+        if (email) email.value = '';
+        var password = document.getElementById('adminPassword');
+        if (password) password.value = '';
+      });
+
+      // Mark new orders as seen
+      function markOrdersSeen() {
+        var unseen = allOrders.filter(function(o) { return o.notifyAdmin && !o.seenByAdmin; });
+        if (unseen.length === 0) return;
+        var ids = unseen.map(function(o) { return o.orderId; });
+        fetch('/api/admin/orders/seen', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+          },
+          body: JSON.stringify({ orderIds: ids })
+        }).then(function(res) { return res.json(); }).catch(function() {});
+      }
+
+      // Poll for new unseen orders (real-time alert)
+      function pollUnseen() {
+        fetch('/api/admin/unseen-count', {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var count = (data && data.unseenCount) || 0;
+          if (lastUnseenCount >= 0 && count > lastUnseenCount) {
+            var delta = count - lastUnseenCount;
+            showToast(delta + ' new order' + (delta > 1 ? 's' : '') + ' received! 🔔');
+            playAlertSound();
+            sendBrowserNotification('New order on Unisocials', delta + ' new order' + (delta > 1 ? 's' : '') + ' awaiting confirmation.');
+            loadOrders();
+          }
+          lastUnseenCount = count;
+          if (notifBadge) {
+            if (count > 0) {
+              notifBadge.style.display = 'inline-flex';
+              notifCount.textContent = count;
+            } else {
+              notifBadge.style.display = 'none';
+            }
+          }
+        })
+        .catch(function() {});
+      }
+
+// Return auth headers for API calls (master admin only)
+      function authHeaders(extra) {
+        var h = extra || {};
+        var t = getToken();
+        if (t) h['Authorization'] = 'Bearer ' + t;
+        if (!h['Content-Type']) h['Content-Type'] = 'application/json';
+        return h;
+      }
+
+      // Login handler: master admin OR dedicated influencer-admin account.
+      window.adminLogin = function(e) {
+        e.preventDefault();
+        if (getToken()) { showLoggedIn(); return; }
+        var errBox=document.getElementById('loginError'), btn=document.getElementById('loginBtn');
+        var email=(document.getElementById('adminEmail')||{}).value||'';
+        var pwd=(document.getElementById('adminPassword')||{}).value||'';
+        email=email.trim(); pwd=pwd.trim();
+        if(!email||!pwd){errBox.textContent='Enter your email and password.';errBox.classList.add('show');return;}
+        btn.disabled=true; btn.textContent='Verifying…';
+        fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pwd})})
+          .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+          .then(function(x){
+            if(!x.ok || !x.data || !x.data.success){throw new Error((x.data&&x.data.error)||'unauthorized');}
+            var role=x.data.user&&x.data.user.role;
+            if(!['influencer_admin','influencer-admin','influencerAdmin'].includes(role)) throw new Error('This account is not authorized for the Influencer Admin dashboard.');
+            setToken(x.data.token); localStorage.setItem('unn_admin_user',JSON.stringify(x.data.user||{}));
+            errBox.classList.remove('show'); showLoggedIn();
+          })
+          .catch(function(err){errBox.textContent=err.message||'Cannot sign in.';errBox.classList.add('show');btn.disabled=false;btn.textContent='Login to Dashboard';});
+      };
+
+
+      // ── Influencer Admin Events Manager ──
+      // Keep event management available to Influencer Admin, but never expose
+      // event deletion here. The server remains the final permission check.
+      var selectedEventImage = '';
+      var editingEventId = '';
+      var editingEventOriginalImage = '';
+      var allUniversities = window.allUniversities || [];
+
+      function setEventImagePreview(src) {
+        var preview = document.getElementById('evImagePreview');
+        if (!preview) return;
+        if (src) { preview.src = src; preview.style.display = 'block'; }
+        else { preview.removeAttribute('src'); preview.style.display = 'none'; }
+      }
+      function clearEventImage() {
+        selectedEventImage = '';
+        var input = document.getElementById('evImage');
+        if (input) input.value = '';
+        setEventImagePreview('');
+      }
+      function resizeImageFile(file, maxSize) {
+        maxSize = maxSize || 1280;
+        return new Promise(function(resolve, reject) {
+          var img = new Image(), url = URL.createObjectURL(file);
+          img.onload = function() {
+            try {
+              var ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
+              var canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(img.width * ratio));
+              canvas.height = Math.max(1, Math.round(img.height * ratio));
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              URL.revokeObjectURL(url);
+              resolve(canvas.toDataURL('image/jpeg', 0.84));
+            } catch (e) { URL.revokeObjectURL(url); reject(e); }
+          };
+          img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
+          img.src = url;
+        });
+      }
+      window.handleEventImageUpload = function(input) {
+        var file = input && input.files && input.files[0];
+        if (!file) { clearEventImage(); return; }
+        if (!/^image\//.test(file.type || '')) {
+          showToast('Please choose an image file.', true); input.value = ''; return;
+        }
+        resizeImageFile(file).then(function(dataUrl) {
+          selectedEventImage = dataUrl; setEventImagePreview(dataUrl);
+        }).catch(function() {
+          selectedEventImage = ''; setEventImagePreview('');
+          showToast('Could not prepare that image. Try another file.', true);
+          input.value = '';
+        });
+      };
+
+      window.loadManagedEvents = function() {
+        var container = document.getElementById('managedEventsList');
+        var count = document.getElementById('eventsManageCount');
+        if (!container) return;
+        fetch('/api/influencer-admin/events', { headers: authHeaders() })
+          .then(function(r) {
+            if (r.status === 401 || r.status === 403) throw new Error('unauthorized');
+            return r.json();
+          })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            if (count) count.textContent = events.length + ' event' + (events.length !== 1 ? 's' : '');
+            if (!events.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No events added yet. Add your first event above.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">📋 Your Events (' + events.length + ')</div>';
+            events.forEach(function(ev) {
+              var vip = Number(ev.vipPrice || 0), vvip = Number(ev.vvipPrice || 0);
+              var owner = ev.createdBy || {};
+              var currentAdminId = String((window.currentUser && (window.currentUser.id || window.currentUser.userId)) || '').trim();
+              var currentAdminEmail = String((window.currentUser && window.currentUser.email) || '').trim().toLowerCase();
+              var mine = ev.createdByCurrentInfluencerAdmin === true ||
+                String(ev.influencerAdminId || ev.ownerInfluencerAdminId || ev.createdByInfluencerAdminId || '').trim() === currentAdminId ||
+                (owner && typeof owner === 'object' && (
+                  String(owner.id || owner.userId || owner.ownerId || owner.influencerAdminId || owner.assignedInfluencerAdminId || '').trim() === currentAdminId ||
+                  (currentAdminEmail && String(owner.email || '').trim().toLowerCase() === currentAdminEmail)
+                ));
+              var archived = ev.archived === true;
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr;gap:8px;padding:10px 0;' + (archived ? 'opacity:.68;' : '') + '">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center;">' +
+                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' +
+                (ev.image ? '<img src="' + esc(safeImg(ev.image)) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;">' : esc(ev.icon || '🎤')) +
+                '</span><strong>' + esc(ev.name || '') + '</strong>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.category || 'General') + '</span>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">₦' + Number(ev.price || 0).toLocaleString() + '</span>' +
+                (vip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VIP ₦' + vip.toLocaleString() + '</span>' : '') +
+                (vvip > 0 ? '<span style="font-size:.75rem;color:var(--text-3);">VVIP ₦' + vvip.toLocaleString() + '</span>' : '') +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
+                '<span style="font-size:.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
+                (archived ? '<span style="font-size:.72rem;color:var(--danger,#ef4444);font-weight:700;">Archived</span>' : '') +
+                '</div>' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+                (mine ? '<button type="button" class="admin-refresh-btn" data-edit-event="' + esc(ev.id) + '">✏️ Edit</button>' : '<span style="font-size:.72rem;color:var(--text-3);align-self:center;">Authorized event · view only</span>') +
+                (mine ? '<button type="button" class="admin-refresh-btn" data-event-id="' + esc(ev.id) + '" data-archive-event="1" data-archived="' + (archived ? '1' : '0') + '">' + (archived ? '📦 Unarchive' : '🗃️ Archive') + '</button>' : '') +
+                '</div></div>';
+            });
+            container.innerHTML = html;
+            container.querySelectorAll('[data-edit-event]').forEach(function(btn){
+              btn.addEventListener('click', function(){ editManagedEvent(btn.getAttribute('data-edit-event')); });
+            });
+            container.querySelectorAll('[data-archive-event]').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                var eventId=btn.getAttribute('data-event-id'), archived=btn.getAttribute('data-archived')==='1';
+                if(!eventId) return;
+                if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
+                btn.disabled = true;
+                fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived}),credentials:'same-origin'})
+                  .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
+                  .then(function(x){
+                    if(x.ok && x.data && x.data.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}
+                    else showToast((x.data&&x.data.error)||'Could not change event status',true);
+                  }).catch(function(){showToast('Network error changing event status',true);})
+                  .finally(function(){btn.disabled = false;});
+              });
+            });
+          })
+          .catch(function(err) {
+            if (err.message === 'unauthorized') {
+              container.innerHTML = '<div style="padding:14px;color:var(--text-3);">Session verification is temporarily unavailable. Please refresh this section.</div>';
+              return;
+            }
+            container.innerHTML = '<div style="padding:14px;color:var(--danger,#ef4444);">Unable to load events. Please try again.</div>';
+          });
+      };
+
+      window.editManagedEvent = function(eventId) {
+        fetch('/api/influencer-admin/events', { headers: authHeaders() })
+          .then(function(r){return r.json();}).then(function(data){
+            var ev=(data.events||[]).find(function(x){return String(x.id)===String(eventId);});
+            if(!ev) throw new Error('Event not found or not editable.');
+            if(ev.createdByCurrentInfluencerAdmin !== true) throw new Error('You can only edit events you created.');
+            editingEventId=String(ev.id); editingEventOriginalImage=ev.image||''; selectedEventImage=ev.image||'';
+            var vals={evName:ev.name||'',evUniversity:ev.universityId||'',evCategory:ev.category||'General',evPrice:ev.price||'',evBonusPrice:ev.bonusPrice||'',evVIPPrice:ev.vipPrice||'',evBonusVIPPrice:ev.bonusVipPrice||'',evVVIPPrice:ev.vvipPrice||'',evBonusVVIPPrice:ev.bonusVvipPrice||'',evTablePrice:ev.tablePrice||'',evBonusTablePrice:ev.bonusTablePrice||'',evDate:ev.date||'',evTime:ev.time||'',evVenue:ev.venue||'',evDesc:ev.description||'',evTags:Array.isArray(ev.tags)?ev.tags.join(', '):(ev.tags||''),evIncludedRegular:ev.includedRegular||'',evIncludedVip:ev.includedVip||'',evIncludedVVIP:ev.includedVVIP||'',evIncludedTable:ev.includedTable||''};
+            Object.keys(vals).forEach(function(id){var el=document.getElementById(id);if(el)el.value=vals[id];});
+            // Wait for the university list before selecting the event's university.
+            // This prevents a slow /api/universities response from leaving the select blank.
+            loadManagedUniversities().then(function(){
+              var u=document.getElementById('evUniversity');
+              if(u){ u.value=ev.universityId||''; }
+              updateUniCategories();
+              var c=document.getElementById('evCategory');
+              if(c)c.value=ev.category||'General';
+            });
+            setEventImagePreview(ev.image||'');
+            var btn=document.querySelector('#panel-events .btn-submit'); if(btn)btn.textContent='✏️ Update Event';
+            var cancel=document.getElementById('cancelEditEventBtn'); if(cancel)cancel.style.display='inline-flex';
+            var panel=document.getElementById('panel-events'); if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
+          }).catch(function(e){showToast(e.message||'Unable to edit event.',true);});
+      };
+
+      window.cancelEditManagedEvent = function(){
+        editingEventId=''; editingEventOriginalImage=''; selectedEventImage='';
+        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        var u=document.getElementById('evUniversity');if(u)u.value=''; updateUniCategories(); clearEventImage();
+        var btn=document.querySelector('#panel-events .btn-submit');if(btn)btn.textContent='➕ Add Event';
+        var cancel=document.getElementById('cancelEditEventBtn');if(cancel)cancel.style.display='none';
+      };
+
+      window.loadManagedUniversities = function() {
+        return fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            allUniversities = (data && data.success && data.universities) || [];
+            window.allUniversities = allUniversities;
+            var sel = document.getElementById('evUniversity');
+            if (!sel) return;
+            var keep = sel.value;
+            sel.innerHTML = '<option value="">Select university...</option>' +
+              allUniversities.map(function(u) { return '<option value="' + esc(u.id) + '">' + esc(u.name) + '</option>'; }).join('');
+            if (keep) sel.value = keep;
+          }).catch(function() {});
+      };
+
+      window.updateUniCategories = function() {
+        var uniId = (document.getElementById('evUniversity') || {}).value || '';
+        var catSel = document.getElementById('evCategory');
+        if (!catSel) return;
+        var uni = allUniversities.find(function(u) { return u.id === uniId; });
+        var cats = (uni && Array.isArray(uni.categories) && uni.categories.length) ? uni.categories : ['General'];
+        catSel.innerHTML = cats.map(function(c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+      };
+
+      window.addEventItem = function() {
+        var get = function(id) { var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+        var name=get('evName'), date=get('evDate'), venue=get('evVenue'), desc=get('evDesc');
+        var uniId=get('evUniversity'), cat=get('evCategory') || 'General';
+        if (!uniId) return showToast('Please select a university for this event.', true);
+        if (!name || !date || !venue) return showToast('Event Name, Date, and Venue are required.', true);
+        var uni=allUniversities.find(function(u){return u.id===uniId;});
+        var ev={
+          name:name, category:cat,
+          price:parseFloat(get('evPrice'))||0,
+          bonusPrice:parseFloat(get('evBonusPrice'))||0,
+          vipPrice:parseFloat(get('evVIPPrice'))||0,
+          bonusVipPrice:parseFloat(get('evBonusVIPPrice'))||0,
+          vvipPrice:parseFloat(get('evVVIPPrice'))||0,
+          bonusVvipPrice:parseFloat(get('evBonusVVIPPrice'))||0,
+          tablePrice:parseFloat(get('evTablePrice'))||0,
+          bonusTablePrice:parseFloat(get('evBonusTablePrice'))||0,
+          date:date, time:get('evTime'), venue:venue, description:desc,
+          image:selectedEventImage || editingEventOriginalImage,
+          tags:get('evTags') ? get('evTags').split(',').map(function(x){return x.trim();}).filter(Boolean) : [],
+          includedRegular:get('evIncludedRegular'), includedVip:get('evIncludedVip'),
+          includedVVIP:get('evIncludedVVIP'), includedTable:get('evIncludedTable'),
+          universityId:uniId, universityName:uni ? uni.name : '',
+          universitySlug:uni ? (uni.slug || uni.id) : ''
+        };
+        var btn=document.querySelector('#panel-events .btn-submit');
+        if (btn) btn.disabled=true;
+        ev.id = editingEventId || '';
+        fetch('/api/admin/events',{method:'POST',headers:authHeaders(),body:JSON.stringify(ev)})
+          .then(function(r){return r.json();})
+          .then(function(data){
+            if (!data || !data.success) throw new Error((data&&data.error)||'Failed to add event');
+            showToast(editingEventId ? 'Event updated successfully.' : 'Event "' + name + '" added successfully.');
+            ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+            clearEventImage(); cancelEditManagedEvent(); loadManagedEvents();
+          })
+          .catch(function(e){showToast(e.message || 'Failed to add event.',true);})
+          .finally(function(){if(btn)btn.disabled=false;});
+      };
+
+      // Load event data and universities whenever the Influencer Admin session is restored.
+      // Load events on login
+      var origShowLoggedIn = showLoggedIn;
+      showLoggedIn = function() {
+        origShowLoggedIn();
+        loadManagedUniversities();
+        loadManagedEvents();
+        loadAuthorizedEventSales();
+        loadInfluencerOverview();
+      };
+
+      var authorizedEventSales = [];
+      window.loadAuthorizedEventSales = function() {
+        fetch('/api/influencer-admin/event-overview',{headers:{'Authorization':'Bearer '+getToken()}})
+          .then(function(r){return r.json();}).then(function(d){
+            if(!d.success) throw new Error(d.error||'Unable to load authorized events');
+            authorizedEventSales=d.events||[];
+            var sel=document.getElementById('authorizedEventSelect');
+            if(sel){ var keep=sel.value; sel.innerHTML='<option value="">Select an authorized event…</option>'+authorizedEventSales.map(function(x){return '<option value="'+esc(x.event.id)+'">'+esc(x.event.name||x.event.id)+'</option>';}).join(''); if(keep)sel.value=keep; if(sel.value)renderAuthorizedEventSales(sel.value); else if(authorizedEventSales.length){sel.value=authorizedEventSales[0].event.id;renderAuthorizedEventSales(sel.value);} }
+          }).catch(function(e){var b=document.getElementById('aesInfluencers');if(b)b.innerHTML='<div style="color:#B71C1C;padding:12px;">'+esc(e.message||'Unable to load authorized event sales.')+'</div>';});
+      };
+      window.renderAuthorizedEventSales = function(eventId) {
+        var data=authorizedEventSales.find(function(x){return String(x.event.id)===String(eventId);});
+        if(!data)return;
+        document.getElementById('aesOrders').textContent=String(data.verifiedOrders||0);
+        document.getElementById('aesTickets').textContent=String(data.ticketsSold||0);
+        document.getElementById('aesRevenue').textContent='₦'+Number(data.revenue||0).toLocaleString();
+        var box=document.getElementById('aesInfluencers');
+        if(!box)return;
+        var rows=data.influencers||[];
+        if(!rows.length){box.innerHTML='<div style="color:var(--text-3);padding:14px;">No influencers are assigned to this Influencer Admin yet.</div>';return;}
+        box.innerHTML=rows.map(function(r){return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+Number(r.revenue||0).toLocaleString()+'</strong></div></div>';}).join('');
+      };
+      var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
+
+      // Influencer Admin overview: never call the Main Admin orders endpoint.
+      // Build the overview from events explicitly authorized to this account.
+      window.loadInfluencerOverview = function() {
+        var last = document.getElementById('lastUpdated');
+        var box = document.getElementById('overviewEvents');
+        if (last) last.textContent = 'Loading your authorized event sales…';
+        fetch('/api/influencer-admin/event-overview', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
+          .then(function(x) {
+            if (!x.ok || !x.data || !x.data.success) throw new Error((x.data && x.data.error) || 'Unable to load overview');
+            var rows = x.data.events || [];
+            var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.pendingOrders||0) + Number(ev.verifiedOrders||0); a.pending += Number(ev.pendingOrders||0); a.verified += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,pending:0,verified:0,tickets:0,revenue:0});
+            var st=document.getElementById('statTotal'); if(st) st.textContent=totals.orders;
+            var sv=document.getElementById('statVerified'); if(sv) sv.textContent=totals.verified;
+            var sp=document.getElementById('statPending'); if(sp) sp.textContent=totals.pending;
+            var srj=document.getElementById('statRejected'); if(srj) srj.textContent=totals.rejected;
+            var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
+            if (box) {
+              if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet.</div>'; }
+              else { box.innerHTML=rows.map(function(ev){ return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+Number(ev.revenue||0).toLocaleString()+'</span></div></div>'; }).join(''); }
+            }
+            if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
+          })
+          .catch(function(e){ if(last) last.textContent='Unable to load authorized event sales.'; if(box) box.innerHTML='<div style="padding:14px;color:#B71C1C;">'+esc(e.message||'Unable to load overview.')+'</div>'; });
+      };
+
+      // Load orders (exposed for refresh button)
+      window.loadOrders = function() {
+        var refreshBtn = document.getElementById('refreshBtn');
+        if (refreshBtn) refreshBtn.disabled = true;
+
+        fetch('/api/admin/orders', {
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(res) {
+          if (res.status === 401) {
+            // Order management is Main Admin-only. Influencer Admins must not be
+            // logged out just because this optional admin-only endpoint rejects them.
+            if (getCurrentRole() === 'admin') { clearToken(); showLoggedOut(); }
+            throw new Error('unauthorized');
+          }
+          if (res.ok) return res.json();
+          throw new Error('network');
+        })
+        .then(function(data) {
+          allOrders = (data && data.orders) || [];
+          lastUnseenCount = (data && data.unseenCount != null) ? data.unseenCount : lastUnseenCount;
+          if (notifBadge) {
+            if (lastUnseenCount > 0) {
+              notifBadge.style.display = 'inline-flex';
+              notifCount.textContent = lastUnseenCount;
+            } else {
+              notifBadge.style.display = 'none';
+            }
+          }
+          renderOrders();
+          populateFilterSelects();
+          var now = new Date();
+          if (lastUpdated) lastUpdated.textContent = 'Last updated: ' + now.toLocaleTimeString();
+        })
+        .catch(function(err) {
+          if (err.message !== 'unauthorized') {
+            showToast('Failed to load orders', true);
+          }
+        })
+        .finally(function() {
+          if (refreshBtn) refreshBtn.disabled = false;
+        });
+      };
+
+      function renderOrders() {
+        if (!ordersList) return;
+
+        // First apply Event + Category filters (these drive the stats too)
+        var catFiltered = allOrders.filter(function(o) {
+          var matchesEvent = !currentEventFilter || (o.eventName || '') === currentEventFilter;
+          var matchesCategory = !currentCategoryFilter || (o.eventCategory || '') === currentCategoryFilter;
+          return matchesEvent && matchesCategory;
+        });
+
+        var stats = { total: catFiltered.length, pending: 0, verified: 0, rejected: 0, revenue: 0 };
+        catFiltered.forEach(function(o) {
+          if (o.status === 'pending') stats.pending++;
+          else if (o.status === 'verified') { stats.verified++; stats.revenue += (parseFloat(o.amount) || 0); }
+          else if (o.status === 'rejected') stats.rejected++;
+        });
+
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statPending').textContent = stats.pending;
+        document.getElementById('statVerified').textContent = stats.verified;
+        document.getElementById('statRevenue').textContent = fmtN(stats.revenue);
+
+        // Then apply the status quick-filter for the visible list
+        var filtered = catFiltered.filter(function(o) {
+          return currentFilter === 'all' || o.status === currentFilter;
+        });
+
+        if (filtered.length === 0) {
+          ordersList.innerHTML = '<div class="admin-empty"><span>🗂️</span><p>No ' + (currentFilter === 'all' ? '' : currentFilter + ' ') + 'orders found' +
+            (currentEventFilter || currentCategoryFilter ? ' with the selected filters' : '') + '.</p></div>';
+          return;
+        }
+
+        var html = '';
+        filtered.forEach(function(o) {
+          var amount = fmtN(o.amount);
+          var qty = o.qty + ' ticket' + (o.qty > 1 ? 's' : '');
+          var pm = 'Flutterwave';
+          var actions = '';
+          var buyer = '<div class="admin-order-buyer"><strong>' + esc(o.buyerName || '—') + '</strong> &middot; ' +
+                      '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>' +
+                      (o.buyerPhone ? ' &middot; ' + esc(o.buyerPhone) : '') +
+                      (o.buyerFaculty ? ' &middot; ' + esc(o.buyerFaculty) : '') + '</div>';
+                    var paidFlag = (o.paymentNotified && o.status === 'pending') ?
+                      '<span class="admin-paid-flag">💸 Payment claimed</span>' : '';
+          var referralFlag = o.referralCode ? 
+                      '<span class="admin-paid-flag" style="color:var(--accent);background:var(--accent-ghost);border-color:var(--accent-border);">🏷 ' + esc(o.referralCode) + '</span>' : '';
+          var ticket = (o.status === 'verified' && o.ticketCode) ?
+                      '<span class="admin-order-badge" style="background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9;">🎟 ' + esc(o.ticketCode) + '</span>' : '';
+          var isNew = o.notifyAdmin && !o.seenByAdmin;
+
+          // Per-ticket code list (each ticket has its own QR code)
+          var ticketList = '';
+          if (o.status === 'verified' && Array.isArray(o.ticketCodes) && o.ticketCodes.length) {
+            ticketList = '<div class="admin-ticket-codes"><div class="admin-ticket-codes-label">🎟 Ticket Codes (' + o.ticketCodes.length + ')</div>';
+            o.ticketCodes.forEach(function(tc, i) {
+              var used = tc && tc.used;
+              var qrHref = 'ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(tc.code);
+              ticketList += '<div class="admin-ticket-code' + (used ? ' used' : '') + '">' +
+                '<span style="color:var(--text-3);font-size:0.72rem;">#' + (i + 1) + '</span>' +
+                '<code>' + esc(tc.code) + '</code>' +
+                (used ? '<span class="admin-ticket-used">Used</span>' : '<span class="admin-ticket-unused">OK</span>') +
+                '<a class="admin-ticket-open" href="' + qrHref + '" target="_blank" rel="noopener" title="Open ticket">↗</a>' +
+                '<button class="admin-ticket-copy" onclick="copyTicketCode(\'' + esc(tc.code) + '\', this)" title="Copy code">⧉</button>' +
+                '</div>';
+            });
+            ticketList += '</div>';
+          }
+
+          if (o.status === 'pending') {
+            actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
+                      '<button class="action-btn action-reject" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'rejected\')">✕ Reject</button>' +
+                      '<button class="action-btn action-reopen" onclick="resendOrderEmail(\'' + esc(o.orderId) + '\', this)" title="Send the admin new-order alert again">✉ Resend Email</button>';
+          } else if (o.status === 'verified') {
+            actions = '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>' +
+                      '<button class="action-btn action-reopen" onclick="resendOrderEmail(\'' + esc(o.orderId) + '\', this)" title="Resend the buyer ticket confirmation email">✉ Resend Email</button>';
+          } else if (o.status === 'rejected') {
+            actions = '<button class="action-btn action-verify" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'verified\')">✅ Verify</button>' +
+                      '<button class="action-btn action-reopen" onclick="updateOrderStatus(\'' + esc(o.orderId) + '\', \'pending\')">↩ Reopen</button>';
+          }
+
+          html += '<div class="admin-order' + (o.paymentNotified && o.status === 'pending' ? ' payment-notified' : '') + (isNew ? ' new-order' : '') + '">' +
+                    '<div class="admin-order-main">' +
+                      '<div class="admin-order-top">' +
+                        '<span class="admin-order-id">' + esc(o.orderId) + '</span>' +
+                                                '<span class="admin-order-badge ' + esc(o.status) + '">' + esc(o.status) + '</span>' +
+                        paidFlag + referralFlag + ticket +
+                      '</div>' +
+                      '<div class="admin-order-event">' + esc(o.eventName || '—') + '</div>' +
+                      '<div class="admin-order-meta">' +
+                        '<span>📅 ' + esc(o.eventDate || '—') + '</span>' +
+                        '<span>📍 ' + esc(o.eventVenue || '—') + '</span>' +
+                        (o.eventCategory ? '<span>🏷 ' + esc(o.eventCategory) + '</span>' : '') +
+                        '<span>🎟 ' + esc(qty) + '</span>' +
+                        '<span>💳 ' + esc(pm) + '</span>' +
+                        '<span>🕒 ' + fmtDate(o.createdAt) + '</span>' +
+                        (o.paymentNotifiedAt ? '<span>💸 Paid ' + fmtDate(o.paymentNotifiedAt) + '</span>' : '') +
+                        (o.verifiedAt ? '<span>✅ ' + fmtDate(o.verifiedAt) + '</span>' : '') +
+                      '</div>' +
+                      buyer +
+                      ticketList +
+                    '</div>' +
+                    '<div class="admin-order-right" style="text-align:right;">' +
+                      '<div class="admin-order-amount">' + amount + '</div>' +
+                      '<div class="admin-order-actions">' + actions + '</div>' +
+                    '</div>' +
+                  '</div>';
+        });
+
+        ordersList.innerHTML = html;
+      }
+
+      // Auto-refresh every 30s when logged in
+      setInterval(function() {
+        if (dashboard.classList.contains('visible') && getCurrentRole() === 'admin') loadOrders();
+      }, 30000);
+
+      // Poll unseen count every 8s for real-time alerts
+      setInterval(function() {
+        if (dashboard.classList.contains('visible') && getToken() && getCurrentRole() === 'admin') pollUnseen();
+      }, 8000);
+
+      // Clicking the notification badge marks unseen orders as seen
+      if (notifBadge) {
+        notifBadge.addEventListener('click', function() {
+          markOrdersSeen();
+          lastUnseenCount = 0;
+          notifBadge.style.display = 'none';
+          loadOrders();
+        });
+      }
+
+// ── Subscribers ──
+      window.loadSubscribers = function() {
+        var uniId = document.getElementById('subFilterUni') ? document.getElementById('subFilterUni').value : '';
+        var url = '/api/admin/subscribers' + (uniId ? '?universityId=' + encodeURIComponent(uniId) : '');
+        fetch(url, { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var subs = (data && data.success && data.subscribers) || [];
+            var container = document.getElementById('subscribersList');
+            if (!container) return;
+            if (!subs.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No subscribers yet.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">📧 Subscribers (' + subs.length + ')</div>';
+            subs.forEach(function(s) {
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<strong>' + esc(s.email) + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(s.universityName || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + (s.eventIds ? s.eventIds.length : 0) + ' event(s)</span>' +
+                '</div>' +
+                '<button class="admin-ticket-copy" onclick="removeSubscriber(\'' + esc(s.email) + '\')" title="Remove subscriber" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function() {});
+      };
+
+      window.removeSubscriber = function(email) {
+        if (!email) return;
+        if (!confirm('Remove ' + email + ' from all event notifications?')) return;
+        fetch('/api/admin/subscribers', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ email: email })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Subscriber removed');
+            loadSubscribers();
+          } else {
+            showToast((data && data.error) || 'Failed to remove subscriber', true);
+          }
+        })
+        .catch(function() { showToast('Network error removing subscriber', true); });
+      };
+
+window.notifySubscribers = function(eventId, btn) {
+        if (!eventId) return;
+        if (!confirm('Send an email notification about this event to all subscribers of its university?')) return;
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+fetch('/api/admin/events/notify', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ eventId: eventId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Notification sent to ' + (data.notified || 0) + ' subscriber(s)');
+          } else {
+            showToast((data && data.error) || 'Failed to send notification', true);
+          }
+        })
+        .catch(function() { showToast('Network error sending notification', true); })
+        .finally(function() { if (btn) { btn.disabled = false; btn.textContent = '📧 Notify'; } });
+      };
+
+      // ── Sub-Admins Manager (master admin only) ──
+      window.loadSubAdmins = function() {
+        fetch('/api/admin/subadmins', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var subs = (data && data.success && data.subadmins) || [];
+            var container = document.getElementById('subAdminsList');
+            var count = document.getElementById('subAdminCount');
+            if (count) count.textContent = subs.length + ' sub-admin' + (subs.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!subs.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No sub-admins yet. Create your first sub-admin above.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">🔑 Active Sub-Admins (' + subs.length + ')</div>';
+            subs.forEach(function(u) {
+              var id = (u.id || u._id || u.email || '').replace(/[^a-zA-Z0-9@.\-_]/g, '');
+              var referralCode = u.referralCode || 'No referral link yet';
+              var stats = u.referralStats || { totalOrders: 0, totalRevenue: 0, totalTickets: 0 };
+              var usageText = stats.totalOrders > 0
+                ? 'Used by ' + stats.totalOrders + ' people • Purchases ' + fmtN(stats.totalRevenue)
+                : 'No purchases through this referral yet';
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<span>👤</span>' +
+                '<strong>' + esc(u.name || '—') + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">Created ' + fmtDate(u.createdAt) + '</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(referralCode) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span>' +
+                 '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
+                '</div>' +
+                '<button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function() {});
+      };
+
+      window.addSubAdmin = function() {
+        var name = (document.getElementById('subName') ? document.getElementById('subName').value : '').trim();
+        var email = (document.getElementById('subEmail') ? document.getElementById('subEmail').value : '').trim();
+        var password = (document.getElementById('subPassword') ? document.getElementById('subPassword').value : '').trim();
+        if (!name || !email || !password) {
+          showToast('Name, Email, and Password are required.', true);
+          return;
+        }
+        if (password.length < 6) {
+          showToast('Password must be at least 6 characters.', true);
+          return;
+        }
+        var btn = event && event.target;
+        if (btn) btn.disabled = true;
+        fetch('/api/admin/subadmins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ name: name, email: email, password: password })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Sub-admin "' + esc(name) + '" created! Referral code: ' + ((data.subadmin && data.subadmin.referralCode) || '—'));
+            if (document.getElementById('subName')) document.getElementById('subName').value = '';
+            if (document.getElementById('subEmail')) document.getElementById('subEmail').value = '';
+            if (document.getElementById('subPassword')) document.getElementById('subPassword').value = '';
+            loadSubAdmins();
+          } else {
+            showToast((data && data.error) || 'Failed to create sub-admin', true);
+          }
+        })
+        .catch(function() { showToast('Network error creating sub-admin', true); })
+        .finally(function() { if (btn) btn.disabled = false; });
+      };
+
+      window.deleteSubAdmin = function(email) {
+        if (!email) return;
+        if (!confirm('Remove sub-admin ' + email + '? They will no longer be able to sign in.')) return;
+        fetch('/api/admin/subadmins', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ email: email })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Sub-admin removed');
+            loadSubAdmins();
+          } else {
+            showToast((data && data.error) || 'Failed to remove sub-admin', true);
+          }
+        })
+        .catch(function() { showToast('Network error removing sub-admin', true); });
+      };
+
+      // ── Influencer Manager (master admin only) ──
+      window.loadInfluencers = function() {
+        fetch('/api/influencer-admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.influencers) || [];
+            var container = document.getElementById('influencersList');
+            var count = document.getElementById('influencerCount');
+            if (count) count.textContent = list.length + ' influencer' + (list.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!list.length) { container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No influencers yet. Create your first influencer above.</div>'; return; }
+            var html = '<div class="admin-ticket-codes-label">📣 My Assigned Influencers (' + list.length + ')</div>';
+            list.forEach(function(u) {
+              var stats = u.referralStats || {};
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Relationship: <strong>Accepted</strong></span><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
+                '</div><div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || '') + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
+            });
+            container.innerHTML = html;
+          }).catch(function() {});
+      };
+
+      window.searchExistingInfluencers = function() {
+        var input = document.getElementById('existingInfluencerSearch');
+        var box = document.getElementById('existingInfluencerResults');
+        var q = input ? String(input.value || '').trim() : '';
+        if (!q || q.length < 2) { if (box) box.innerHTML = '<div style="color:#B71C1C;font-size:.82rem;padding:8px 0;">Enter at least 2 characters to search.</div>'; return; }
+        if (box) box.innerHTML = '<div style="color:var(--text-3);font-size:.82rem;padding:8px 0;">Searching…</div>';
+        fetch('/api/influencer-admin/influencers/search?q=' + encodeURIComponent(q), { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+          .then(function(x){
+            if (!x.ok || !x.d.success) throw new Error(x.d.error || 'Search failed');
+            var list = x.d.influencers || [];
+            if (!box) return;
+            if (!list.length) { box.innerHTML = '<div style="color:var(--text-3);font-size:.82rem;padding:8px 0;">No matching existing influencer found.</div>'; return; }
+            box.innerHTML = list.map(function(u){
+              var status = String(u.assignmentStatus || 'none');
+              var action = '';
+              if (status === 'accepted') action = '<span class="influencer-search-result-action" style="font-size:.75rem;font-weight:700;color:#2E7D32;">✓ Already working with you</span>';
+              else if (status === 'pending') action = '<span class="influencer-search-result-action" style="font-size:.75rem;font-weight:700;color:#B26A00;">⏳ Request pending</span>';
+              else action = '<span class="influencer-search-result-action"><button class="admin-refresh-btn" type="button" onclick="requestExistingInfluencer(\'' + esc(u.id) + '\')">Request influencer</button></span>';
+              return '<div class="influencer-search-result">' +
+                '<div><strong>' + esc(u.name || '—') + '</strong><div style="font-size:.75rem;color:var(--text-3);">' + esc(u.email || '') + '</div></div>' + action + '</div>';
+            }).join('');
+          }).catch(function(e){ if (box) box.innerHTML = '<div style="color:#B71C1C;font-size:.82rem;padding:8px 0;">' + esc(e.message || 'Search failed') + '</div>'; });
+      };
+
+      window.clearExistingInfluencerSearch = function() {
+        var input = document.getElementById('existingInfluencerSearch');
+        var box = document.getElementById('existingInfluencerResults');
+        if (input) input.value = '';
+        if (box) box.innerHTML = '';
+        if (input) input.focus();
+      };
+
+      var existingInfluencerSearchInput = document.getElementById('existingInfluencerSearch');
+      if (existingInfluencerSearchInput) existingInfluencerSearchInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') { event.preventDefault(); searchExistingInfluencers(); }
+      });
+      var toggleExistingInfluencerSearch = document.getElementById('toggleExistingInfluencerSearch');
+      var existingInfluencerSearchPanel = document.getElementById('existingInfluencerSearchPanel');
+      if (toggleExistingInfluencerSearch && existingInfluencerSearchPanel) toggleExistingInfluencerSearch.addEventListener('click', function() {
+        var isOpen = !existingInfluencerSearchPanel.hidden;
+        existingInfluencerSearchPanel.hidden = isOpen;
+        toggleExistingInfluencerSearch.setAttribute('aria-expanded', String(!isOpen));
+        if (!isOpen && existingInfluencerSearchInput) existingInfluencerSearchInput.focus();
+      });
+
+      window.requestExistingInfluencer = function(influencerId) {
+        if (!influencerId) return;
+        if (!confirm('Send a request to this existing influencer? No new account will be created.')) return;
+        fetch('/api/influencer-admin/influencer-requests', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({influencerId:influencerId}) })
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+          .then(function(x){
+            if (!x.ok || !x.d.success) throw new Error(x.d.error || 'Request failed');
+            showToast('Influencer request sent. Waiting for acceptance.');
+            searchExistingInfluencers();
+          }).catch(function(e){ showToast(e.message || 'Request failed', true); });
+      };
+
+      window.addInfluencer = function() {
+        var name = (document.getElementById('infName') || {}).value || '';
+        var email = (document.getElementById('infEmail') || {}).value || '';
+        var password = (document.getElementById('infPassword') || {}).value || '';
+        name = name.trim(); email = email.trim(); password = password.trim();
+        if (!name || !email || !password) return showToast('Name, Email, and Password are required.', true);
+        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
+        fetch('/api/admin/influencers', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({name:name,email:email,password:password}) })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) {
+              showToast('Influencer created! Referral code: ' + ((data.influencer && data.influencer.referralCode) || '—'));
+              ['infName','infEmail','infPassword'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+              loadInfluencers();
+            } else showToast((data && data.error) || 'Failed to create influencer', true);
+          }).catch(function(){ showToast('Network error creating influencer', true); });
+      };
+
+      window.deleteInfluencer = function(email) {
+        if (!email || !confirm('Remove influencer ' + email + '? They will no longer be able to sign in.')) return;
+        fetch('/api/admin/influencers?email=' + encodeURIComponent(email), { method:'DELETE', headers:{'Authorization':'Bearer '+getToken()} })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) { showToast('Influencer removed'); loadInfluencers(); }
+            else showToast((data && data.error) || 'Failed to remove influencer', true);
+          }).catch(function(){ showToast('Network error removing influencer', true); });
+      };
+
+      window.resetManagedPassword = function(email) {
+        if (!email) return;
+        var first = prompt('Enter a new password for ' + email + ' (8+ chars, letter, number & symbol):');
+        if (first === null) return;
+        var password = String(first).trim();
+        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
+        var second = prompt('Confirm the new password:');
+        if (second === null) return;
+        if (password !== String(second)) return showToast('Passwords do not match.', true);
+        fetch('/api/admin/account-password', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({email:email,password:password}) })
+          .then(function(r){return r.json();}).then(function(data){
+            if(data&&data.success) showToast('Password reset successfully. The account must log in again.');
+            else showToast((data&&data.error)||'Failed to reset password',true);
+          }).catch(function(){showToast('Network error resetting password',true);});
+      };
+
+// Load only the Influencer Admin oversight views on login
+      var origShowLoggedIn2 = showLoggedIn;
+      showLoggedIn = function() {
+        origShowLoggedIn2();
+        // Keep the existing event-creation flow: always populate the University
+        // selector from the same public universities endpoint after login.
+        if (typeof window.loadManagedUniversities === 'function') loadManagedUniversities();
+        loadAuthorizedEventSales();
+        if (typeof window.loadInfluencers === 'function') loadInfluencers();
+      };
+
+      // ── Tab switching ──
+      var tabButtons = document.querySelectorAll('.admin-tab');
+      var panels = document.querySelectorAll('.admin-panel');
+      function switchTab(name) {
+        tabButtons.forEach(function(btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === name);
+        });
+        panels.forEach(function(p) {
+          p.classList.toggle('active', p.id === 'panel-' + name);
+        });
+        // Stop the camera if leaving the check-in tab
+        if (name !== 'checkin' && typeof window.stopQRScanner === 'function') {
+          try { window.stopQRScanner(); } catch(e) {}
+        }
+      }
+      tabButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var name = btn.getAttribute('data-tab');
+          switchTab(name);
+          if (name === 'influencers' && typeof window.loadInfluencers === 'function') loadInfluencers();
+        });
+      });
+      window.switchTab = switchTab;
+
+// Initial state — restore the database-backed session from persistent localStorage.
+      (async function restoreInfluencerAdminSession() {
+        var token = getToken();
+        if (!token) { showLoggedOut(); return; }
+        try {
+          var r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+          var d = await r.json();
+          if (!r.ok || !d.success || !d.user || !['influencer_admin','influencer-admin','influencerAdmin','admin'].includes(d.user.role)) {
+            // Never silently log out on a refresh. Keep the persistent token and
+            // let protected API calls decide authorization server-side.
+            showLoggedIn();
+            return;
+          }
+          try { localStorage.setItem('unn_admin_user', JSON.stringify(d.user)); } catch(e) {}
+          showLoggedIn();
+          if (d.user.role === 'admin') { loadOrders(); pollUnseen(); }
+        } catch (e) {
+          // Keep a valid stored session during temporary network/server hiccups.
+          showLoggedIn();
+        }
+      })();
+    })();
+  </script>
+<script id="influencer-admin-init">
+</script>
+
+</body>
+</html>
