@@ -1072,11 +1072,12 @@ const tier = getSelectedTier();
   if (summaryBuyer) summaryBuyer.textContent = checkoutData.buyerName || '\u2014';
   if (summaryEmail) summaryEmail.textContent = checkoutData.buyerEmail || '\u2014';
 
-  // Pre-fill and automatically apply referral code from URL/session when present.
+  // Pre-fill the referral code from the referral link/session, but do NOT apply it automatically.
+  // The customer must explicitly click Apply before the referral price is activated.
   const refInput = document.getElementById('referralCodeInput');
   if (refInput) {
     const savedRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
-    if (savedRef) { refInput.value = savedRef.toUpperCase(); setTimeout(function(){ applyReferralCode(); }, 50); }
+    if (savedRef) { refInput.value = savedRef.toUpperCase(); }
   }
 
   if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
@@ -1176,7 +1177,8 @@ const tier = getSelectedTier();
     // Manual referral input takes priority; otherwise use the saved referral URL/session code.
     // Referral is optional. If a referral link/session code exists, attach it;
     // otherwise the order proceeds without a referral code.
-    const referralCode = getReferralCodeFromUrlOrSessionOrInput();
+    // Only an explicitly validated/applied referral code may affect or be attached to the order.
+    const referralCode = referralApplied ? appliedReferralCode : '';
 
     fetch('/api/orders', {
       method: 'POST',
