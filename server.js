@@ -2373,24 +2373,37 @@ const user = {
         const scopedAssignment = authCtx.role === 'influencer_admin'
           ? (acceptedAssignments.find(a => String(a.influencerAdminId) === String(authCtx.user.id)) || null)
           : null;
-        const link = scopedAssignment
-          ? (links.find(l => String(l.influencerId || l.ownerId || '') === String(u.id) && String(l.assignmentId || '') === String(scopedAssignment.id)) || null)
-          : (links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null);
-        const referredOrders = link
-          ? (authCtx.role === 'influencer_admin'
-            ? await getScopedReferralOrders(link, orders, events)
-            : orders.filter(o => isReferralOrderCounted(o, link.code)))
-          : [];
-        const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
-        const totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+        // An influencer can have more than one referral code when they have
+        // accepted multiple Influencer Admin relationships. The old code only
+        // inspected the first matching link, which caused the Main Admin
+        // dashboard to show zero (or incomplete) referral activity when the
+        // used code was a different relationship-scoped code.
+        const influencerLinks = scopedAssignment
+          ? links.filter(l => String(l.influencerId || l.ownerId || '') === String(u.id) && String(l.assignmentId || '') === String(scopedAssignment.id))
+          : links.filter(l => String(l.influencerId || l.ownerId || '') === String(u.id));
+        const referralCodes = new Set(influencerLinks.map(l => String(l.code || '').trim()).filter(Boolean));
+        const referredOrders = Array.from(new Map(
+          orders
+            .filter(o => referralCodes.has(String(o.referralCode || '').trim()))
+            .filter(o => isReferralOrderCounted(o, String(o.referralCode || '').trim()))
+            .map(o => [String(o.orderId || ''), o])
+        ).values());
+        const scopedOrders = authCtx.role === 'influencer_admin'
+          ? (await Promise.all(influencerLinks.map(link => getScopedReferralOrders(link, orders, events))))
+              .flat()
+          : referredOrders;
+        const uniqueOrders = Array.from(new Map(scopedOrders.map(o => [String(o.orderId || ''), o])).values());
+        const totalRevenue = uniqueOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+        const totalTickets = uniqueOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
         return {
           ...publicUser(u),
-          referralCode: link ? link.code : null,
+          referralCode: influencerLinks.length === 1 ? influencerLinks[0].code : (influencerLinks[0] ? influencerLinks[0].code : null),
+          referralCodes: influencerLinks.map(l => l.code).filter(Boolean),
           referralStats: {
-            totalOrders: referredOrders.length,
+            totalOrders: uniqueOrders.length,
             totalRevenue,
             totalTickets,
-            uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+            uniquePeople: new Set(uniqueOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
           }
         };
       }));
