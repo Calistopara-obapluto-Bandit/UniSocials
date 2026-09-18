@@ -580,9 +580,13 @@ function setSelectedTier(tier) {
         updateEventDetails();
 
         var url = '/api/events';
+        var eventParam = new URLSearchParams(window.location.search).get('event');
+        var query = [];
+        if (eventParam) query.push('event=' + encodeURIComponent(eventParam));
         if (uni && (uni.id || uni.slug)) {
-          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
+          query.push('university=' + encodeURIComponent(uni.slug || uni.id));
         }
+        if (query.length) url += '?' + query.join('&');
         fetch(url)
           .then(function(r) { return r.json(); })
           .then(function(data) {
