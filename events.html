@@ -367,7 +367,7 @@ function renderEvents(events) {
                   '<div class="event-card-capacity">\uD83C\uDF9F\uFE0F ' + esc(ev.seats || '—') + '</div>' +
                 '</div>' +
                 '<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;">' +
-                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + (referralCode ? '&ref=' + encodeURIComponent(referralCode) : '') + '" class="btn-buy">Get Tickets</a>' +
+                  '<a href="tickets.html?event=' + encodeURIComponent(ev.id || '') + (ev.universitySlug || ev.universityId ? '&university=' + encodeURIComponent(ev.universitySlug || ev.universityId) : '') + (referralCode ? '&ref=' + encodeURIComponent(referralCode) : '') + '" class="btn-buy">Get Tickets</a>' +
                   notifyBtn +
                 '</div>' +
               '</div>' +

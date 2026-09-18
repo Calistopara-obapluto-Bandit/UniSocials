@@ -580,9 +580,7 @@ function setSelectedTier(tier) {
         updateEventDetails();
 
         var url = '/api/events';
-        var eventParam = new URLSearchParams(window.location.search).get('event');
         var query = [];
-        if (eventParam) query.push('event=' + encodeURIComponent(eventParam));
         if (uni && (uni.id || uni.slug)) {
           query.push('university=' + encodeURIComponent(uni.slug || uni.id));
         }
@@ -671,7 +669,9 @@ function setSelectedTier(tier) {
               html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
             });
             uniSel.innerHTML = html;
-            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            var params = new URLSearchParams(window.location.search);
+            var requestedUni = (params.get('university') || '').trim();
+            var cur = requestedUni ? { slug: requestedUni } : (window.UNUniversity ? window.UNUniversity.getUniversity() : null);
             if (cur && (cur.slug || cur.id)) uniSel.value = cur.slug || cur.id;
             uniSel.addEventListener('change', function() {
               var val = uniSel.value;
@@ -691,8 +691,13 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
         baseUpdateEventDetails();
       };
 
-      // Initial load — use the selected university if any.
-      var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+      // Initial load — when Buy Now supplied a university, scope the event list to
+      // that campus; otherwise use the user's existing selected university.
+      var initialParams = new URLSearchParams(window.location.search);
+      var requestedUniversity = (initialParams.get('university') || '').trim();
+      var initialUni = requestedUniversity
+        ? { slug: requestedUniversity }
+        : (window.UNUniversity ? window.UNUniversity.getUniversity() : null);
       loadEventsForUni(initialUni);
     })();
   </script>

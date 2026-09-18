@@ -3802,14 +3802,6 @@ codes[idx] = entry;
         }
       }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
-      const eventParam = String(url.searchParams.get('event') || '').trim();
-      // When a specific event was requested (for example from the Buy Now button),
-      // narrow the catalog before loading orders and calculating inventory. The
-      // tickets page only needs that one event, so there is no reason to enrich
-      // every event in the catalog first.
-      if (eventParam) {
-        events = events.filter(function(e) { return eventIdentifierMatches(e, eventParam); });
-      }
       const orders = await readOrders();
       function enrich(ev) {
         return Object.assign({}, ev, { inventory: {
