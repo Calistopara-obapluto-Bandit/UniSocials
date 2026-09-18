@@ -1234,7 +1234,7 @@ function securityHeaders(req) {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()',
     'Content-Security-Policy': [
       "default-src 'self'",
       "base-uri 'self'",
