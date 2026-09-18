@@ -928,41 +928,13 @@ const tier = getSelectedTier();
   }
   if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
 
-  // Always refresh checkout pricing from the server so the checkout page uses
-  // the event's current original + bonus price, even if the ticket page was
-  // opened from an older browser tab/session.
-  (async function refreshAuthoritativePricing() {
-    try {
-      const eventId = checkoutData.eventId || checkoutData.eventValue || '';
-      if (!eventId) return;
-      const r = await fetch('/api/events');
-      const payload = await r.json();
-      const events = (payload && payload.success && payload.events) || [];
-      const ev = events.find(function(item) { return String(item.id || '') === String(eventId); });
-      if (!ev) return;
-      const tier = String(checkoutData.ticketTier || 'regular').toLowerCase();
-      const originals = { regular:Number(ev.price||0), vip:Number(ev.vipPrice||0), vvip:Number(ev.vvipPrice||0), table:Number(ev.tablePrice||0) };
-      const bonuses = { regular:Number(ev.bonusPrice||0), vip:Number(ev.bonusVipPrice||0), vvip:Number(ev.bonusVvipPrice||0), table:Number(ev.bonusTablePrice||0) };
-      const original = originals[tier] > 0 ? originals[tier] : originals.regular;
-      const bonus = bonuses[tier] || 0;
-      const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
-      checkoutData.originalEventPrice = original;
-      checkoutData.bonusEventPrice = bonus;
-      checkoutData.eventPrice = payable;
-      try { sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData)); } catch(e) {}
-      baseUnitPrice = payable;
-      total = payable * Number(checkoutData.qty || 1);
-      baseTotal = total;
-      if (summaryUnitPrice) {
-        summaryUnitPrice.innerHTML = (!referralApplied && original > payable && payable > 0)
-          ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
-          : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
-      }
-      renderCouponTotal();
-    } catch (e) {
-      // Keep the already stored checkout price if the refresh request fails.
-    }
-  })();
+  // Render the checkout immediately from the ticket data already stored in
+  // sessionStorage. Do not make a second /api/events request on page entry:
+  // the ticket page already supplied the selected event details and prices,
+  // while /api/orders performs the authoritative server-side price validation
+  // before payment. This removes the extra network wait on the Buy Now -> Checkout
+  // transition without changing payment or pricing rules.
+  renderCouponTotal();
 
   function renderCheckoutPrice(original, bonus) {
     const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
