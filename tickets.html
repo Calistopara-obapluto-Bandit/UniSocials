@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Get Tickets — Unisocials</title>
@@ -77,8 +82,167 @@
     .pricing-table tbody tr:last-child td { border-bottom: none; }
     .pricing-table td.price { font-weight: 700; color: var(--accent); white-space: nowrap; }
     .pricing-table .tier-name { font-weight: 700; color: var(--text-1); }
-    .pricing-table .tier-note { font-size: 0.78rem; color: var(--text-3); }
+    .pricing-table .tier-note { font-size: 0.78rem; color: var(--text-3); line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
+    .pricing-table .tier-note ul { margin: 0; padding-left: 1.1rem; }
+    .pricing-table .tier-note li { margin: 2px 0; }
+
+    /* Selected-tier "What's Included" panel — styled to match the Unisocials cards. */
+    .tier-included-panel {
+      position: relative;
+      margin-top: 14px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 2px);
+      background: linear-gradient(135deg, var(--surface-2), var(--surface));
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      animation: tierPanelIn .22s ease-out;
+    }
+    .tier-included-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: var(--accent);
+      border-radius: 4px 0 0 4px;
+    }
+    .tier-included-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .tier-included-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: var(--accent);
+    }
+    .tier-included-kicker::before { content: '✓'; font-size: .78rem; }
+    .tier-included-title {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.3;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+    .tier-included-content { color: var(--text-2); }
+    .tier-included-content ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+    }
+    .tier-included-content li {
+      position: relative;
+      margin: 0;
+      padding-left: 22px;
+      line-height: 1.5;
+      font-size: .84rem;
+      overflow-wrap: anywhere;
+    }
+    .tier-included-content li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      top: .05em;
+      width: 16px;
+      height: 16px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      color: var(--accent);
+      font-size: .66rem;
+      font-weight: 800;
+    }
+    .tier-included-empty {
+      margin: 0;
+      font-size: .82rem;
+      color: var(--text-3);
+    }
+    @keyframes tierPanelIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Small-screen ticket pricing: keep the tier selector compact and the inclusion card readable. */
+    @media (max-width: 640px) {
+      .ticket-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .ticket-type-option { min-width: 0; padding: 12px 8px; }
+      .ticket-type-name, .ticket-type-price { overflow-wrap: anywhere; }
+
+      .tier-included-panel { padding: 15px 16px; }
+      .tier-included-header { align-items: flex-start; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+      .tier-included-content ul { grid-template-columns: 1fr; gap: 8px; }
+      .pricing-table-wrap { margin-top: 12px; overflow: visible; }
+      .pricing-table { display: block; width: 100%; border: 0; background: transparent; }
+      .pricing-table thead { display: none; }
+      .pricing-table tbody { display: grid; gap: 10px; }
+      .pricing-table tr {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+        gap: 0;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+      }
+      .pricing-table td {
+        min-width: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+      }
+      .pricing-table td:nth-child(1) {
+        grid-column: 1 / -1;
+        border-bottom: 0;
+        padding-bottom: 4px;
+        font-size: 0.88rem;
+      }
+      .pricing-table td:nth-child(2) {
+        border-bottom: 0;
+        padding-top: 4px;
+      }
+      .pricing-table td:nth-child(3) {
+        grid-column: 1 / -1;
+        border-bottom: 0;
+        padding-top: 6px;
+        padding-bottom: 12px;
+        font-size: 0.8rem;
+      }
+      .pricing-table td:nth-child(3)::before {
+        content: 'What's included';
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text-1);
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .pricing-table td.price { white-space: normal; line-height: 1.45; }
+    }
+
+    @media (max-width: 380px) {
+      .ticket-type-grid { grid-template-columns: 1fr; }
+      .pricing-table td { padding-left: 10px; padding-right: 10px; }
+    }
   </style>
+
+<style id="ticket-availability-style">.ticket-availability{display:inline-flex;margin-top:6px;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);font-size:.72rem;font-weight:700}.ticket-availability.sold-out{color:#ff7d88;background:rgba(220,53,69,.10);border-color:rgba(220,53,69,.3)}.ticket-type-option.sold-out{opacity:.55}</style>
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "y4hhcy2o3a");
+  </script>
 </head>
 <body>
 
@@ -189,19 +353,18 @@
             </div>
           </div>
 
-          <!-- Pricing table -->
-          <div class="pricing-table-wrap" id="pricingTableWrap" style="display:none;">
-            <table class="pricing-table">
-              <thead>
-                <tr><th>Tier</th><th>Price per ticket</th><th>Included</th></tr>
-              </thead>
-              <tbody id="pricingTableBody"></tbody>
-            </table>
+          <!-- Selected tier details: click a ticket type above to reveal its inclusions. -->
+          <div id="tierIncludedPanel" class="tier-included-panel" style="display:none;">
+            <div class="tier-included-header">
+              <div class="tier-included-kicker">What's included</div>
+              <div id="tierIncludedTitle" class="tier-included-title">🎟 Regular</div>
+            </div>
+            <div id="tierIncludedContent" class="tier-included-content"></div>
           </div>
 
           <div class="form-group" style="margin-top:16px;">
             <label for="qtySelect">Quantity (1 – 100 tickets)</label>
-            <input type="number" id="qtySelect" min="1" max="100" step="1" value="1" inputmode="numeric" />
+            <input type="number" id="qtySelect" min="1" max="100" step="1" value="1" inputmode="numeric" pattern="[0-9]{1,3}" />
             <p class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;">Enter how many tickets you want — up to 100 per order.</p>
           </div>
         </div>
@@ -210,16 +373,16 @@
           <h3 class="checkout-card-title">👤 Buyer Information</h3>
           <div class="form-group">
             <label for="buyerName">Full Name</label>
-            <input type="text" id="buyerName" placeholder="e.g. Chidi Okonkwo" required />
+            <input type="text" id="buyerName" placeholder="e.g. Chidi Okonkwo" required autocomplete="name" pattern="[A-Za-z][A-Za-z .'-]{1,79}" maxlength="80" />
           </div>
           <div class="form-row">
             <div class="form-group">
               <label for="buyerEmail">Email Address</label>
-<input type="email" id="buyerEmail" placeholder="you@university.edu.ng" required />
+<input type="email" id="buyerEmail" placeholder="you@university.edu.ng" required autocomplete="email" maxlength="254" />
             </div>
             <div class="form-group">
               <label for="buyerPhone">Phone Number</label>
-              <input type="tel" id="buyerPhone" placeholder="0812 345 6789" required />
+              <input type="tel" id="buyerPhone" placeholder="0812 345 6789" required autocomplete="tel" inputmode="tel" pattern="[+0-9 ()-]{7,20}" maxlength="20" />
             </div>
           </div>
           <div class="form-group">
@@ -268,10 +431,10 @@
         <div>
           <div class="footer-col-label">Follow Us</div>
           <div class="footer-links">
-            <a href="#">Instagram</a>
-            <a href="#">Twitter / X</a>
-            <a href="#">TikTok</a>
-            <a href="#">WhatsApp Channel</a>
+            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
+            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
+            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
           </div>
         </div>
       </div>
@@ -314,12 +477,12 @@ function setSelectedTier(tier) {
 
       // Convert a comma/pipe-separated "What's Included" string into a small bullet list.
       function includedNote(raw) {
-        if (!raw) return '\u2014';
+        if (!raw) return '<p class="tier-included-empty">No additional inclusions listed for this ticket.</p>';
         var items = String(raw).split(',');
         if (items.length === 1) items = String(raw).split('|');
         items = items.map(function(s) { return s.trim(); }).filter(Boolean);
-        if (!items.length) return '\u2014';
-        return '<ul style="margin:0;padding-left:16px;list-style:disc;">' +
+        if (!items.length) return '<p class="tier-included-empty">No additional inclusions listed for this ticket.</p>';
+        return '<ul>' +
           items.map(function(it) { return '<li>' + esc(it) + '</li>'; }).join('') +
           '</ul>';
       }
@@ -328,19 +491,40 @@ function setSelectedTier(tier) {
       function updateTierPicker() {
         var opt = eventSelect.options[eventSelect.selectedIndex];
         var reg = parseFloat(opt.dataset.price || 0);
+        var bonusReg = parseFloat(opt.dataset.bonusPrice || 0);
         var vip = parseFloat(opt.dataset.vipPrice || 0);
+        var bonusVip = parseFloat(opt.dataset.bonusVipPrice || 0);
         var vvip = parseFloat(opt.dataset.vvipPrice || 0);
+        var bonusVvip = parseFloat(opt.dataset.bonusVvipPrice || 0);
         var table = parseFloat(opt.dataset.tablePrice || 0);
+        var bonusTable = parseFloat(opt.dataset.bonusTablePrice || 0);
         var priceEls = document.querySelectorAll('[data-tier-price]');
         priceEls.forEach(function(el) {
           var t = el.getAttribute('data-tier-price');
           var p = t === 'vip' ? vip : (t === 'vvip' ? vvip : (t === 'table' ? table : reg));
-          el.textContent = p > 0 ? fmtN(p) : '—';
+          var bp = t === 'vip' ? bonusVip : (t === 'vvip' ? bonusVvip : (t === 'table' ? bonusTable : bonusReg));
+          if (p > 0 && bp > 0) {
+            el.innerHTML = '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(p) + '</span><strong>' + fmtN(bp) + '</strong><small style="display:block;font-size:.68em;opacity:.72;">Bonus price</small>';
+          } else { el.textContent = p > 0 ? fmtN(p) : '—'; }
         });
 
         var vipEl = document.getElementById('vipOption');
         var vvipEl = document.getElementById('vvipOption');
         var tableEl = document.getElementById('tableOption');
+        var invMap = {regular:'regular',vip:'vip',vvip:'vvip',table:'table'};
+        Object.keys(invMap).forEach(function(t){
+          var i = opt.getAttribute('data-'+t+'-limit');
+          var sold = opt.getAttribute('data-'+t+'-sold');
+          var out = opt.getAttribute('data-'+t+'-soldout') === 'true';
+          var el = document.getElementById(t+'Option');
+          if (t === 'regular' && !el) { var rr = document.querySelector('input[name=\"ticketTier\"][value=\"regular\"]'); el = rr && rr.closest ? rr.closest('.ticket-type-option') : null; }
+          if (!el) return;
+          var badge = el.querySelector('.ticket-availability');
+          if (!badge) { badge=document.createElement('div'); badge.className='ticket-availability'; el.appendChild(badge); }
+          if (Number(i)>0) { badge.textContent = out ? 'SOLD OUT' : Number(sold).toLocaleString()+'/'+Number(i).toLocaleString()+' sold'; badge.classList.toggle('sold-out',out); } else { badge.textContent=''; badge.classList.remove('sold-out'); }
+          el.classList.toggle('sold-out',out);
+          var radio=el.querySelector('input[name=\"ticketTier\"]'); if(radio) radio.disabled=out;
+        });
         if (vipEl) vipEl.style.display = vip > 0 ? '' : 'none';
         if (vvipEl) vvipEl.style.display = vvip > 0 ? '' : 'none';
         if (tableEl) tableEl.style.display = table > 0 ? '' : 'none';
@@ -351,26 +535,23 @@ function setSelectedTier(tier) {
           else { card.classList.remove('visible'); setSelectedTier('regular'); }
         }
 
-// Pricing table — show the real "What's Included" for each tier.
-        var wrap = document.getElementById('pricingTableWrap');
-        var body = document.getElementById('pricingTableBody');
-        if (wrap && body) {
-          if (opt.value) {
-            var incReg = opt.dataset.includedRegular || '';
-            var incVip = opt.dataset.includedVip || '';
-            var incVvip = opt.dataset.includedVvip || '';
-            var incTable = opt.dataset.includedTable || '';
-            var rows = '';
-            rows += '<tr><td class="tier-name">🎟 Regular</td><td class="price">' + fmtN(reg) + '</td><td class="tier-note">' + includedNote(incReg) + '</td></tr>';
-            if (vip > 0) rows += '<tr><td class="tier-name">⭐ VIP</td><td class="price">' + fmtN(vip) + '</td><td class="tier-note">' + includedNote(incVip) + '</td></tr>';
-            if (vvip > 0) rows += '<tr><td class="tier-name">👑 VVIP</td><td class="price">' + fmtN(vvip) + '</td><td class="tier-note">' + includedNote(incVvip) + '</td></tr>';
-            if (table > 0) rows += '<tr><td class="tier-name">🪑 Table</td><td class="price">' + fmtN(table) + '</td><td class="tier-note">' + includedNote(incTable) + '</td></tr>';
-            body.innerHTML = rows;
-            wrap.style.display = 'block';
-          } else {
-            body.innerHTML = '';
-            wrap.style.display = 'none';
-          }
+// Show only the selected ticket tier's inclusions. No scrolling price list.
+        var includedPanel = document.getElementById('tierIncludedPanel');
+        var includedTitle = document.getElementById('tierIncludedTitle');
+        var includedContent = document.getElementById('tierIncludedContent');
+        if (includedPanel && includedTitle && includedContent) {
+          var selected = document.querySelector('input[name="ticketTier"]:checked');
+          var selectedTier = selected ? selected.value : 'regular';
+          var includedMap = {
+            regular: opt.dataset.includedRegular || '',
+            vip: opt.dataset.includedVip || '',
+            vvip: opt.dataset.includedVvip || '',
+            table: opt.dataset.includedTable || ''
+          };
+          var titleMap = {regular:'🎟 Regular', vip:'⭐ VIP', vvip:'👑 VVIP', table:'🪑 Table'};
+          includedTitle.textContent = titleMap[selectedTier] || '🎟 Regular';
+          includedContent.innerHTML = includedNote(includedMap[selectedTier] || '');
+          includedPanel.style.display = opt.value ? 'block' : 'none';
         }
 
         // Ensure a valid tier is selected (if VIP/VVIP/Table hidden, fall back to Regular).
@@ -387,11 +568,88 @@ function setSelectedTier(tier) {
       window.selectTicketTier = function(tier) {
         setSelectedTier(tier);
         if (window.updateEventDetails) window.updateEventDetails();
+        var opt = eventSelect.options[eventSelect.selectedIndex];
+        var panel = document.getElementById('tierIncludedPanel');
+        var title = document.getElementById('tierIncludedTitle');
+        var content = document.getElementById('tierIncludedContent');
+        if (opt && opt.value && panel && title && content) {
+          var map = {regular:opt.dataset.includedRegular||'', vip:opt.dataset.includedVip||'', vvip:opt.dataset.includedVvip||'', table:opt.dataset.includedTable||''};
+          var titles = {regular:'🎟 Regular', vip:'⭐ VIP', vvip:'👑 VVIP', table:'🪑 Table'};
+          title.textContent = titles[tier] || '🎟 Regular';
+          content.innerHTML = includedNote(map[tier] || '');
+          panel.style.display = 'block';
+        }
       };
 
+      function addEventOption(ev, selectNow) {
+        if (!ev || !ev.id) return null;
+        var existing = null;
+        for (var j = 0; j < eventSelect.options.length; j++) {
+          if (eventSelect.options[j].value === String(ev.id)) { existing = eventSelect.options[j]; break; }
+        }
+        var opt = existing || document.createElement('option');
+        opt.value = ev.id || '';
+        opt.setAttribute('data-category', ev.category || '');
+        opt.setAttribute('data-price', String(ev.price || 0));
+        opt.setAttribute('data-bonus-price', String(ev.bonusPrice || 0));
+        opt.setAttribute('data-vip-price', String(ev.vipPrice || 0));
+        opt.setAttribute('data-bonus-vip-price', String(ev.bonusVipPrice || 0));
+        opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
+        opt.setAttribute('data-bonus-vvip-price', String(ev.bonusVvipPrice || 0));
+        opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
+        opt.setAttribute('data-bonus-table-price', String(ev.bonusTablePrice || 0));
+        var inv = ev.inventory || {};
+        ['regular','vip','vvip','table'].forEach(function(t){ var i=inv[t]||{}; opt.setAttribute('data-'+t+'-limit',String(i.total||0)); opt.setAttribute('data-'+t+'-sold',String(i.sold||0)); opt.setAttribute('data-'+t+'-remaining',String(i.remaining||0)); opt.setAttribute('data-'+t+'-soldout',String(!!i.soldOut)); });
+        opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
+        opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
+        opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
+        opt.setAttribute('data-included-table', String(ev.includedTable || ''));
+        opt.setAttribute('data-name', ev.name || '');
+        opt.setAttribute('data-date', ev.date || '');
+        opt.setAttribute('data-time', ev.time || '');
+        opt.setAttribute('data-venue', ev.venue || '');
+        opt.setAttribute('data-university-id', ev.universityId || '');
+        opt.setAttribute('data-university-name', ev.universityName || '');
+        var dropBonus = Number(ev.bonusPrice || 0);
+        opt.textContent = ev.name + ' — ' + ((dropBonus > 0) ? fmtN(ev.price) + ' → ' + fmtN(dropBonus) : fmtN(ev.price));
+        if (!existing) eventSelect.appendChild(opt);
+        if (selectNow) eventSelect.value = String(ev.id);
+        return opt;
+      }
+
+      function highlightSelectedEvent() {
+        var card = eventSelect.closest('.checkout-card');
+        if (card) {
+          setTimeout(function() {
+            card.classList.add('checkout-card-highlight');
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(function() { card.classList.remove('checkout-card-highlight'); }, 2600);
+          }, 100);
+        }
+      }
+
+      function loadSelectedEvent(eventId) {
+        if (!eventId) return Promise.resolve(false);
+        return fetch('/api/event?id=' + encodeURIComponent(eventId))
+          .then(function(r) { if (!r.ok) throw new Error('selected event request failed'); return r.json(); })
+          .then(function(data) {
+            if (!(data && data.success && data.event)) return false;
+            addEventOption(data.event, true);
+            if (window.updateEventDetails) window.updateEventDetails();
+            highlightSelectedEvent();
+            return true;
+          })
+          .catch(function() { return false; });
+      }
+
       function loadEventsForUni(uni) {
-        // Clear static options (keep placeholder)
-        while (eventSelect.options.length > 1) eventSelect.remove(1);
+        // When Buy Now supplied an event, keep that event visible while the
+        // remaining university catalog loads in the background.
+        var params = new URLSearchParams(window.location.search);
+        var eventParam = (params.get('event') || '').trim();
+        for (var keepIndex = eventSelect.options.length - 1; keepIndex >= 1; keepIndex--) {
+          if (!eventParam || eventSelect.options[keepIndex].value !== eventParam) eventSelect.remove(keepIndex);
+        }
         updateEventDetails();
 
         var url = '/api/events';
@@ -402,44 +660,19 @@ function setSelectedTier(tier) {
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
-            events.forEach(function(ev) {
-              var opt = document.createElement('option');
-              opt.value = ev.id || '';
-              opt.setAttribute('data-category', ev.category || '');
-              opt.setAttribute('data-price', String(ev.price || 0));
-              opt.setAttribute('data-vip-price', String(ev.vipPrice || 0));
-              opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
-              opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
-              opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
-              opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
-              opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
-              opt.setAttribute('data-included-table', String(ev.includedTable || ''));
-              opt.setAttribute('data-name', ev.name || '');
-              opt.setAttribute('data-date', ev.date || '');
-              opt.setAttribute('data-time', ev.time || '');
-              opt.setAttribute('data-venue', ev.venue || '');
-              opt.setAttribute('data-university-id', ev.universityId || '');
-              opt.setAttribute('data-university-name', ev.universityName || '');
-              opt.textContent = ev.name + ' \u2014 ' + fmtN(ev.price);
-              eventSelect.appendChild(opt);
+            events = events.slice().sort(function(a, b) {
+              var universityOrder = String(a.universityName || a.university || '').trim().localeCompare(String(b.universityName || b.university || '').trim(), undefined, { sensitivity: 'base' });
+              if (universityOrder) return universityOrder;
+              return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
             });
-            // Handle ?event= URL param now that dynamic options exist
-            var params = new URLSearchParams(window.location.search);
-            var eventParam = params.get('event');
+            events.forEach(function(ev) { addEventOption(ev, false); });
+
             if (eventParam) {
               for (var i = 0; i < eventSelect.options.length; i++) {
                 if (eventSelect.options[i].value === eventParam) {
                   eventSelect.selectedIndex = i;
                   break;
                 }
-              }
-              var card = eventSelect.closest('.checkout-card');
-              if (card) {
-                setTimeout(function() {
-                  card.classList.add('checkout-card-highlight');
-                  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  setTimeout(function() { card.classList.remove('checkout-card-highlight'); }, 2600);
-                }, 300);
               }
             }
             if (window.updateEventDetails) window.updateEventDetails();
@@ -463,13 +696,14 @@ function setSelectedTier(tier) {
               html += '<option value="' + esc(u.slug || u.id) + '">' + esc(u.name) + '</option>';
             });
             uniSel.innerHTML = html;
-            var cur = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
+            var params = new URLSearchParams(window.location.search);
+            var requestedUni = (params.get('university') || '').trim();
+            var cur = requestedUni ? { slug: requestedUni } : (window.UNUniversity ? window.UNUniversity.getUniversity() : null);
             if (cur && (cur.slug || cur.id)) uniSel.value = cur.slug || cur.id;
             uniSel.addEventListener('change', function() {
               var val = uniSel.value;
               var found = list.find(function(u) { return (u.slug || u.id) === val; });
 if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
-              if (window.onUniversityChange) window.onUniversityChange(found || null);
             });
             // Enable the searchable university selector (search box + button).
             if (window.UNUniversitySearch) window.UNUniversitySearch(uniSel);
@@ -484,9 +718,23 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
         baseUpdateEventDetails();
       };
 
-      // Initial load — use the selected university if any.
-      var initialUni = window.UNUniversity ? window.UNUniversity.getUniversity() : null;
-      loadEventsForUni(initialUni);
+      // Initial load — when Buy Now supplied a university, scope the event list to
+      // that campus; otherwise use the user's existing selected university.
+      var initialParams = new URLSearchParams(window.location.search);
+      var requestedUniversity = (initialParams.get('university') || '').trim();
+      var initialUni = requestedUniversity
+        ? { slug: requestedUniversity }
+        : (window.UNUniversity ? window.UNUniversity.getUniversity() : null);
+      var initialEvent = (initialParams.get('event') || '').trim();
+      if (initialEvent) {
+        // Render the exact Buy Now event first. Do not wait for the full
+        // university catalog before showing the selected event.
+        loadSelectedEvent(initialEvent).then(function() {
+          loadEventsForUni(initialUni);
+        });
+      } else {
+        loadEventsForUni(initialUni);
+      }
     })();
   </script>
 </body>

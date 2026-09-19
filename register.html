@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Create Account — Unisocials</title>
@@ -100,15 +105,15 @@
           </div>
           <div class="form-group">
             <label for="regEmail">Email Address</label>
-<input type="email" id="regEmail" placeholder="you@university.edu.ng" autocomplete="email" required />
+<input type="email" id="regEmail" placeholder="you@university.edu.ng" autocomplete="email" maxlength="254" required />
           </div>
           <div class="form-group">
             <label for="regPhone">Phone Number</label>
-            <input type="tel" id="regPhone" placeholder="0812 345 6789" autocomplete="tel" required />
+            <input type="tel" id="regPhone" placeholder="0812 345 6789" autocomplete="tel" maxlength="25" pattern="(?:0[789][01][0-9]{8}|\+234[789][01][0-9]{8})" required />
           </div>
           <div class="form-group">
             <label for="regPassword">Password</label>
-            <input type="password" id="regPassword" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required />
+            <input type="password" id="regPassword" placeholder="8+ chars, letter, number & symbol" autocomplete="new-password" minlength="8" required />
           </div>
           <button type="submit" class="btn-submit" id="regBtn">Create Account</button>
         </form>
@@ -146,10 +151,10 @@
         <div>
           <div class="footer-col-label">Follow Us</div>
           <div class="footer-links">
-            <a href="#">Instagram</a>
-            <a href="#">Twitter / X</a>
-            <a href="#">TikTok</a>
-            <a href="#">WhatsApp Channel</a>
+            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
+            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
+            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
           </div>
         </div>
       </div>
@@ -183,8 +188,9 @@
         errBox.classList.add('show');
         return;
       }
-      if (password.length < 6) {
-        errBox.textContent = 'Password must be at least 6 characters.';
+      var emailOk = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(email);
+      if (!emailOk || email.length > 254) {
+        errBox.textContent = 'Please enter a valid email address.';
         errBox.classList.add('show');
         return;
       }
