@@ -2817,10 +2817,58 @@ function getTierInventory(event, tier, orders) {
   const n = names[t] || 'Regular';
   const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
   const list = Array.isArray(orders) ? orders : [];
-  const relevant = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && ['pending','verified'].includes(String(o.status || '').toLowerCase()));
-  const reserved = relevant.reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
-  const sold = list.filter(o => String(o.eventId || '') === String(event.id || '') && String(o.ticketTier || 'regular').toLowerCase() === t && String(o.status || '').toLowerCase() === 'verified').reduce((s,o) => s + Math.max(0, parseInt(o.qty) || 0), 0);
+  let reserved = 0;
+  let sold = 0;
+  const eventId = String(event.id || '');
+  for (const o of list) {
+    if (String(o.eventId || '') !== eventId) continue;
+    if (String(o.ticketTier || 'regular').toLowerCase() !== t) continue;
+    const status = String(o.status || '').toLowerCase();
+    const qty = Math.max(0, parseInt(o.qty) || 0);
+    if (status === 'pending' || status === 'verified') reserved += qty;
+    if (status === 'verified') sold += qty;
+  }
   return {total, sold, reserved, remaining: total > 0 ? Math.max(0,total-reserved) : 0, soldOut: total > 0 && reserved >= total};
+}
+
+// Build all event/tier inventory in one pass through the orders. The previous
+// public event endpoint scanned the full orders list separately for every
+// event/tier pair, which made event loading grow roughly with events * tiers * orders.
+// This map keeps the exact same pending/verified rules while reducing that work
+// to one order pass plus constant-time lookups while enriching events.
+function buildEventInventoryMap(orders) {
+  const map = new Map();
+  const list = Array.isArray(orders) ? orders : [];
+  for (const o of list) {
+    const eventId = String(o.eventId || '');
+    if (!eventId) continue;
+    const tier = String(o.ticketTier || 'regular').toLowerCase();
+    if (!['regular','vip','vvip','table'].includes(tier)) continue;
+    const status = String(o.status || '').toLowerCase();
+    if (status !== 'pending' && status !== 'verified') continue;
+    const qty = Math.max(0, parseInt(o.qty) || 0);
+    const key = eventId + '|' + tier;
+    let entry = map.get(key);
+    if (!entry) { entry = {sold: 0, reserved: 0}; map.set(key, entry); }
+    entry.reserved += qty;
+    if (status === 'verified') entry.sold += qty;
+  }
+  return map;
+}
+
+function getTierInventoryFromMap(event, tier, inventoryMap) {
+  const t = String(tier || 'regular').toLowerCase();
+  const names = {regular:'Regular', vip:'Vip', vvip:'Vvip', table:'Table'};
+  const n = names[t] || 'Regular';
+  const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
+  const entry = inventoryMap.get(String(event.id || '') + '|' + t) || {sold: 0, reserved: 0};
+  return {
+    total,
+    sold: entry.sold,
+    reserved: entry.reserved,
+    remaining: total > 0 ? Math.max(0, total - entry.reserved) : 0,
+    soldOut: total > 0 && entry.reserved >= total
+  };
 }
 
 // ── Create order (PENDING until payment is server-verified) ──
@@ -3782,6 +3830,28 @@ codes[idx] = entry;
       return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });
     }
 
+    // ── Public selected-event lookup (used by Buy Now -> tickets.html) ──
+    // Returns only the requested event and its inventory so the checkout UI can
+    // render the clicked event without waiting for the full university catalog.
+    if (pathname === '/api/event' && req.method === 'GET') {
+      const eventId = String(url.searchParams.get('id') || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Event ID is required.' });
+      const allEvents = await readEvents();
+      const event = allEvents.find(function(e) { return String(e && e.id || '') === eventId; });
+      if (!event || event.archived === true) {
+        return sendJson(res, 404, { success: false, error: 'Event not found.' });
+      }
+      const orders = await readOrders();
+      const inventoryMap = buildEventInventoryMap(orders);
+      const enriched = Object.assign({}, event, { inventory: {
+        regular: getTierInventoryFromMap(event, 'regular', inventoryMap),
+        vip: getTierInventoryFromMap(event, 'vip', inventoryMap),
+        vvip: getTierInventoryFromMap(event, 'vvip', inventoryMap),
+        table: getTierInventoryFromMap(event, 'table', inventoryMap)
+      }});
+      return sendJson(res, 200, { success: true, event: enriched });
+    }
+
     // ── Public events list (used by events.html, tickets.html, index.html) ──
     if (pathname === '/api/events' && req.method === 'GET') {
       const allEvents = await readEvents();
@@ -3803,12 +3873,13 @@ codes[idx] = entry;
       }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
       const orders = await readOrders();
+      const inventoryMap = buildEventInventoryMap(orders);
       function enrich(ev) {
         return Object.assign({}, ev, { inventory: {
-          regular: getTierInventory(ev,'regular',orders),
-          vip: getTierInventory(ev,'vip',orders),
-          vvip: getTierInventory(ev,'vvip',orders),
-          table: getTierInventory(ev,'table',orders)
+          regular: getTierInventoryFromMap(ev,'regular',inventoryMap),
+          vip: getTierInventoryFromMap(ev,'vip',inventoryMap),
+          vvip: getTierInventoryFromMap(ev,'vvip',inventoryMap),
+          table: getTierInventoryFromMap(ev,'table',inventoryMap)
         }});
       }
       if (uniSlug) {

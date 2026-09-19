@@ -581,17 +581,81 @@ function setSelectedTier(tier) {
         }
       };
 
+      function addEventOption(ev, selectNow) {
+        if (!ev || !ev.id) return null;
+        var existing = null;
+        for (var j = 0; j < eventSelect.options.length; j++) {
+          if (eventSelect.options[j].value === String(ev.id)) { existing = eventSelect.options[j]; break; }
+        }
+        var opt = existing || document.createElement('option');
+        opt.value = ev.id || '';
+        opt.setAttribute('data-category', ev.category || '');
+        opt.setAttribute('data-price', String(ev.price || 0));
+        opt.setAttribute('data-bonus-price', String(ev.bonusPrice || 0));
+        opt.setAttribute('data-vip-price', String(ev.vipPrice || 0));
+        opt.setAttribute('data-bonus-vip-price', String(ev.bonusVipPrice || 0));
+        opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
+        opt.setAttribute('data-bonus-vvip-price', String(ev.bonusVvipPrice || 0));
+        opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
+        opt.setAttribute('data-bonus-table-price', String(ev.bonusTablePrice || 0));
+        var inv = ev.inventory || {};
+        ['regular','vip','vvip','table'].forEach(function(t){ var i=inv[t]||{}; opt.setAttribute('data-'+t+'-limit',String(i.total||0)); opt.setAttribute('data-'+t+'-sold',String(i.sold||0)); opt.setAttribute('data-'+t+'-remaining',String(i.remaining||0)); opt.setAttribute('data-'+t+'-soldout',String(!!i.soldOut)); });
+        opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
+        opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
+        opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
+        opt.setAttribute('data-included-table', String(ev.includedTable || ''));
+        opt.setAttribute('data-name', ev.name || '');
+        opt.setAttribute('data-date', ev.date || '');
+        opt.setAttribute('data-time', ev.time || '');
+        opt.setAttribute('data-venue', ev.venue || '');
+        opt.setAttribute('data-university-id', ev.universityId || '');
+        opt.setAttribute('data-university-name', ev.universityName || '');
+        var dropBonus = Number(ev.bonusPrice || 0);
+        opt.textContent = ev.name + ' — ' + ((dropBonus > 0) ? fmtN(ev.price) + ' → ' + fmtN(dropBonus) : fmtN(ev.price));
+        if (!existing) eventSelect.appendChild(opt);
+        if (selectNow) eventSelect.value = String(ev.id);
+        return opt;
+      }
+
+      function highlightSelectedEvent() {
+        var card = eventSelect.closest('.checkout-card');
+        if (card) {
+          setTimeout(function() {
+            card.classList.add('checkout-card-highlight');
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(function() { card.classList.remove('checkout-card-highlight'); }, 2600);
+          }, 100);
+        }
+      }
+
+      function loadSelectedEvent(eventId) {
+        if (!eventId) return Promise.resolve(false);
+        return fetch('/api/event?id=' + encodeURIComponent(eventId))
+          .then(function(r) { if (!r.ok) throw new Error('selected event request failed'); return r.json(); })
+          .then(function(data) {
+            if (!(data && data.success && data.event)) return false;
+            addEventOption(data.event, true);
+            if (window.updateEventDetails) window.updateEventDetails();
+            highlightSelectedEvent();
+            return true;
+          })
+          .catch(function() { return false; });
+      }
+
       function loadEventsForUni(uni) {
-        // Clear static options (keep placeholder)
-        while (eventSelect.options.length > 1) eventSelect.remove(1);
+        // When Buy Now supplied an event, keep that event visible while the
+        // remaining university catalog loads in the background.
+        var params = new URLSearchParams(window.location.search);
+        var eventParam = (params.get('event') || '').trim();
+        for (var keepIndex = eventSelect.options.length - 1; keepIndex >= 1; keepIndex--) {
+          if (!eventParam || eventSelect.options[keepIndex].value !== eventParam) eventSelect.remove(keepIndex);
+        }
         updateEventDetails();
 
         var url = '/api/events';
-        var query = [];
         if (uni && (uni.id || uni.slug)) {
-          query.push('university=' + encodeURIComponent(uni.slug || uni.id));
+          url += '?university=' + encodeURIComponent(uni.slug || uni.id);
         }
-        if (query.length) url += '?' + query.join('&');
         fetch(url)
           .then(function(r) { return r.json(); })
           .then(function(data) {
@@ -601,58 +665,14 @@ function setSelectedTier(tier) {
               if (universityOrder) return universityOrder;
               return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
             });
-            events.forEach(function(ev) {
-              var opt = document.createElement('option');
-              opt.value = ev.id || '';
-              opt.setAttribute('data-category', ev.category || '');
-              opt.setAttribute('data-price', String(ev.price || 0));
-              opt.setAttribute('data-bonus-price', String(ev.bonusPrice || 0));
-              opt.setAttribute('data-vip-price', String(ev.vipPrice || 0));
-              opt.setAttribute('data-bonus-vip-price', String(ev.bonusVipPrice || 0));
-              opt.setAttribute('data-vvip-price', String(ev.vvipPrice || 0));
-              opt.setAttribute('data-bonus-vvip-price', String(ev.bonusVvipPrice || 0));
-              opt.setAttribute('data-table-price', String(ev.tablePrice || 0));
-              opt.setAttribute('data-bonus-table-price', String(ev.bonusTablePrice || 0));
-              var inv = ev.inventory || {};
-              ['regular','vip','vvip','table'].forEach(function(t){ var i=inv[t]||{}; opt.setAttribute('data-'+t+'-limit',String(i.total||0)); opt.setAttribute('data-'+t+'-sold',String(i.sold||0)); opt.setAttribute('data-'+t+'-remaining',String(i.remaining||0)); opt.setAttribute('data-'+t+'-soldout',String(!!i.soldOut)); });
-              opt.setAttribute('data-included-regular', String(ev.includedRegular || ''));
-              opt.setAttribute('data-included-vip', String(ev.includedVip || ''));
-              opt.setAttribute('data-included-vvip', String(ev.includedVVIP || ''));
-              opt.setAttribute('data-included-table', String(ev.includedTable || ''));
-              opt.setAttribute('data-name', ev.name || '');
-              opt.setAttribute('data-date', ev.date || '');
-              opt.setAttribute('data-time', ev.time || '');
-              opt.setAttribute('data-venue', ev.venue || '');
-              opt.setAttribute('data-university-id', ev.universityId || '');
-              opt.setAttribute('data-university-name', ev.universityName || '');
-              var dropBonus = Number(ev.bonusPrice || 0);
-              opt.textContent = ev.name + ' — ' + ((dropBonus > 0) ? fmtN(ev.price) + ' → ' + fmtN(dropBonus) : fmtN(ev.price));
-              eventSelect.appendChild(opt);
-            });
-            // Handle ?event= URL param now that dynamic options exist
-            var params = new URLSearchParams(window.location.search);
-            var referralParam = (params.get('ref') || '').trim().toUpperCase();
-            try {
-              if (referralParam) {
-                sessionStorage.setItem('referralCode', referralParam);
-                localStorage.setItem('unn_referral_code', referralParam);
-              }
-            } catch (e) {}
-            var eventParam = params.get('event');
+            events.forEach(function(ev) { addEventOption(ev, false); });
+
             if (eventParam) {
               for (var i = 0; i < eventSelect.options.length; i++) {
                 if (eventSelect.options[i].value === eventParam) {
                   eventSelect.selectedIndex = i;
                   break;
                 }
-              }
-              var card = eventSelect.closest('.checkout-card');
-              if (card) {
-                setTimeout(function() {
-                  card.classList.add('checkout-card-highlight');
-                  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  setTimeout(function() { card.classList.remove('checkout-card-highlight'); }, 2600);
-                }, 300);
               }
             }
             if (window.updateEventDetails) window.updateEventDetails();
@@ -705,7 +725,16 @@ if (window.UNUniversity) window.UNUniversity.setUniversity(found || null);
       var initialUni = requestedUniversity
         ? { slug: requestedUniversity }
         : (window.UNUniversity ? window.UNUniversity.getUniversity() : null);
-      loadEventsForUni(initialUni);
+      var initialEvent = (initialParams.get('event') || '').trim();
+      if (initialEvent) {
+        // Render the exact Buy Now event first. Do not wait for the full
+        // university catalog before showing the selected event.
+        loadSelectedEvent(initialEvent).then(function() {
+          loadEventsForUni(initialUni);
+        });
+      } else {
+        loadEventsForUni(initialUni);
+      }
     })();
   </script>
 </body>
