@@ -736,7 +736,6 @@
           showLoggedIn();
           loadManagedEvents();
           loadManagedUniversities();
-          loadCoupons();
           return;
         }
 
@@ -770,7 +769,6 @@
           showLoggedIn();
           loadManagedEvents();
           loadManagedUniversities();
-          loadCoupons();
         })
         .catch(function(err) {
           if (err.message === 'not-subadmin') {
@@ -1146,7 +1144,7 @@ resultBox.className = 'admin-scan-result show';
         if (!token) return;
         
         // Fetch all events from the server
-        fetch('/api/events?includeArchived=1', {
+        fetch('/api/subadmin/events', {
           headers: authHeaders()
         })
           .then(function(r) { return r.json(); })
@@ -1217,7 +1215,7 @@ resultBox.className = 'admin-scan-result show';
 
       window.editManagedEvent = function(eventId) {
         if(!eventId)return;
-        fetch('/api/events?includeArchived=1',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
+        fetch('/api/subadmin/events',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
           var events=(data&&data.success&&data.events)||[];
           var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
           if(!ev)throw new Error('Event not found');

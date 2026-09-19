@@ -3919,6 +3919,17 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, events: await readEvents() });
     }
 
+    // ── Sub-admin: list events for management/editing ──
+    // The public /api/events endpoint calculates inventory for every event.
+    // Private event management does not need that calculation.
+    if (pathname === '/api/subadmin/events' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') return sendJson(res, 401, { success: false, error: 'Sub-admin access only' });
+      return sendJson(res, 200, { success: true, events: await readEvents() });
+    }
+
     // ── Main Admin: explicitly authorize an existing event to an Influencer Admin ──
     if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'POST') {
       if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can authorize events.' });

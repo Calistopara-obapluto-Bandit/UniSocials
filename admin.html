@@ -1782,7 +1782,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events?includeArchived=1',{headers:authHeaders(),credentials:'same-origin'})
+        fetch('/api/admin/events',{headers:authHeaders(),credentials:'same-origin'})
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
@@ -1859,7 +1859,7 @@ fetch('/api/ticket/scan', {
 
       window.editManagedEvent = function(eventId) {
         if(!eventId)return;
-        fetch('/api/events?includeArchived=1',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
+        fetch('/api/admin/events',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
           var events=(data&&data.success&&data.events)||[];
           var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
           if(!ev)throw new Error('Event not found');
@@ -2007,13 +2007,6 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
           }
         })
         .catch(function() { showToast('Network error deleting event', true); });
-      };
-
-      // Load events on login
-      var origShowLoggedIn = showLoggedIn;
-      showLoggedIn = function() {
-        origShowLoggedIn();
-        loadManagedEvents();
       };
 
       // Load orders (exposed for refresh button)
