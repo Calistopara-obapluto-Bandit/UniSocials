@@ -1171,28 +1171,28 @@ async function isAdminOrCheckinStaff(req) {
 const defaults = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
   WHATSAPP_ORDER_NUMBER: '2348122104576',
-  ADMIN_PASSWORD: 'CHANGE_ME_STRONG_PASSWORD',
+  ADMIN_PASSWORD: '',
   FLUTTERWAVE_SECRET_KEY: '',
-  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
-  FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
-  FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
+  FLUTTERWAVE_PUBLIC_KEY: '',
+  FLUTTERWAVE_BANK_NAME: '',
+  FLUTTERWAVE_ACCOUNT_NUMBER: '',
   FLUTTERWAVE_WEBHOOK_HASH: '',
   SITE_URL: 'https://unisocials.onrender.com',
-  CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
-  FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
+  CONTACT_EMAIL: '',
+  FORMSUBMIT_KEY: '',
   REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html',
   // Email notifications — admin gets an alert the moment a payment is confirmed,
   // and the buyer gets a confirmation email with their ticket QR links.
-  ADMIN_EMAIL: 'soludobenedict5@gmail.com',
+  ADMIN_EMAIL: '',
 // "From" address for Resend. In Resend test mode you must use onboarding@resend.dev
   // and only the account owner's email can receive. After verifying a domain
   // (e.g. your university's domain or your own domain), set EMAIL_FROM="Unisocials <no-reply@yourdomain>"
-  EMAIL_FROM: 'Unisocials <onboarding@resend.dev>',
+  EMAIL_FROM: '',
   // Brevo API key — sends buyer ticket confirmation emails (no domain required;
   // just verify a sender email at https://app.brevo.com). Never exposed to browser.
   BREVO_API_KEY: '',
-  BREVO_SENDER_EMAIL: 'support.sbiamautos@gmail.com',
-  BREVO_SENDER_NAME: 'Unisocials',
+  BREVO_SENDER_EMAIL: '',
+  BREVO_SENDER_NAME: '',
   // NOTE: RESEND_API_KEY is intentionally NOT hardcoded here. Set it in the
   // Render dashboard (Environment → Env Vars) so it's never committed to the
   // repo — GitHub secret scanning rejects live Resend keys in commits.
@@ -2902,6 +2902,10 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
+      const paymentMethod = String(data.paymentMethod || '').trim().toLowerCase();
+      if (!['card', 'banktransfer'].includes(paymentMethod)) {
+        return sendJson(res, 400, { success: false, error: 'Please select debit card or bank transfer.' });
+      }
       // Reject malformed/oversized order input before touching storage or payment state.
       if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || couponCode.length > 100) {
         return sendJson(res, 400, { success: false, error: 'One or more order fields are too long.' });
@@ -2998,7 +3002,7 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
         qty: qty,
         amount: amount,
         currency: currency,
-        paymentMethod: 'flutterwave',      // Flutterwave is the only method
+        paymentMethod: paymentMethod,      // Exact Flutterwave method selected by the buyer
 buyerName: buyerName,
         buyerEmail: buyerEmail,
         buyerPhone: buyerPhone,
@@ -3027,6 +3031,115 @@ buyerFaculty: buyerFaculty,
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
       return sendJson(res, 200, { success: true, order: order });
+    }
+
+    // ── Create a Flutterwave Standard hosted checkout for one selected method ──
+    // The secret key stays on the server. The browser receives only Flutterwave's
+    // hosted payment link, so card/bank-transfer selection cannot be tampered with
+    // after the order has been created.
+    if (pathname === '/api/flutterwave/checkout' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const orderId = String(data.orderId || '').trim();
+      const requestedMethod = String(data.paymentMethod || '').trim().toLowerCase();
+      if (!orderId) return sendJson(res, 400, { success: false, error: 'Missing orderId' });
+      if (!['card', 'banktransfer'].includes(requestedMethod)) {
+        return sendJson(res, 400, { success: false, error: 'Invalid Flutterwave payment method' });
+      }
+
+      const order = await getOrder(orderId);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
+      if (String(order.paymentMethod || '').toLowerCase() !== requestedMethod) {
+        return sendJson(res, 409, { success: false, error: 'Payment method does not match this order.' });
+      }
+      if (String(order.status || '').toLowerCase() === 'verified') {
+        return sendJson(res, 409, { success: false, error: 'This order has already been paid.' });
+      }
+
+      const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
+        ? String(process.env.FLUTTERWAVE_SECRET_KEY).trim()
+        : String(defaults.FLUTTERWAVE_SECRET_KEY || '').trim();
+      if (!secretKey) {
+        return sendJson(res, 503, { success: false, error: 'Flutterwave is not configured on the server.' });
+      }
+
+      const siteUrl = String(process.env.SITE_URL || defaults.SITE_URL || '').replace(/\/$/, '');
+      if (!siteUrl) return sendJson(res, 503, { success: false, error: 'Site URL is not configured.' });
+
+      const payload = JSON.stringify({
+        tx_ref: order.orderId,
+        amount: Number(order.amount),
+        currency: order.currency,
+        redirect_url: siteUrl + '/thank-you.html',
+        customer: {
+          email: order.buyerEmail,
+          name: order.buyerName,
+          phone_number: order.buyerPhone || ''
+        },
+        customizations: {
+          title: 'Unisocials',
+          description: String(order.eventName || 'Event ticket') + (Number(order.qty) > 1 ? ' (' + Number(order.qty) + ' tickets)' : '')
+        },
+        payment_options: requestedMethod
+      });
+
+      await new Promise((resolve) => {
+        let finished = false;
+        const finish = () => {
+          if (finished) return false;
+          finished = true;
+          resolve();
+          return true;
+        };
+        const apiReq = https.request({
+          hostname: 'api.flutterwave.com',
+          port: 443,
+          path: '/v3/payments',
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + secretKey,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+            'Accept': 'application/json'
+          }
+        }, (apiRes) => {
+          let responseBody = '';
+          apiRes.on('data', chunk => { responseBody += chunk; });
+          apiRes.on('end', () => {
+            try {
+              const json = JSON.parse(responseBody || '{}');
+              const link = json && json.data && json.data.link ? String(json.data.link) : '';
+              const ok = apiRes.statusCode >= 200 && apiRes.statusCode < 300 && json.status === 'success' && /^https:\/\/checkout\.flutterwave\.com\//i.test(link);
+              if (!ok) {
+                console.error('Flutterwave checkout creation failed:', apiRes.statusCode, responseBody);
+                if (finish()) sendJson(res, 502, { success: false, error: 'Flutterwave could not create the payment checkout.' });
+                return;
+              }
+              patchOrder(order.orderId, {
+                flutterwaveCheckoutCreatedAt: new Date().toISOString(),
+                flutterwaveCheckoutMethod: requestedMethod,
+                flutterwaveCheckoutLinkIssued: true
+              }).catch(() => {});
+              if (finish()) sendJson(res, 200, { success: true, paymentMethod: requestedMethod, link: link });
+            } catch (e) {
+              console.error('Flutterwave checkout response parse failed:', e.message);
+              if (finish()) sendJson(res, 502, { success: false, error: 'Invalid response from Flutterwave.' });
+            }
+          });
+        });
+        apiReq.setTimeout(15000, () => {
+          apiReq.destroy();
+          if (finish()) sendJson(res, 504, { success: false, error: 'Flutterwave checkout request timed out.' });
+        });
+        apiReq.on('error', (err) => {
+          console.error('Flutterwave checkout request failed:', err.message);
+          if (finish()) sendJson(res, 502, { success: false, error: 'Could not connect to Flutterwave.' });
+        });
+        apiReq.write(payload);
+        apiReq.end();
+      });
+      return;
     }
 
     // ── Buyer payment-received acknowledgement (SERVER-VERIFIED) ──

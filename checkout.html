@@ -13,12 +13,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
-  <!-- Flutterwave Inline Checkout -->
-  <script src="https://checkout.flutterwave.com/v3.js"></script>
 
 <style>
 .referral-input-row{display:flex;gap:10px;align-items:stretch;flex-wrap:nowrap}.referral-input-row input{flex:1;min-width:0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-1);font-size:.92rem;outline:none;transition:border-color .2s,box-shadow .2s}.referral-input-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}.referral-input-row button{min-width:92px}.referral-message{margin-top:8px}.referral-message.success{color:var(--accent)!important}.referral-message.error{color:#b71c1c!important}.referral-price-note{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:.72em;color:var(--text-3)}@media(max-width:520px){.referral-input-row{flex-wrap:wrap}.referral-input-row input{flex:1 1 100%}.referral-input-row button{flex:1 1 calc(50% - 5px);width:auto;min-width:0}}
 @media(max-width:520px){.checkout-event-picker{padding-bottom:20px}.checkout-event-picker h2{font-size:1.5rem;line-height:1.2}.checkout-event-picker article{padding:16px}.checkout-event-picker .btn-primary{min-height:44px}}
+@media(max-width:700px){.payment-methods{grid-template-columns:1fr!important}}
 </style>
   <script type="text/javascript">
     (function(c,l,a,r,i,t,y){
@@ -129,22 +128,29 @@
 
         <!-- PAYMENT METHOD (below summary) -->
         <div class="checkout-card reveal reveal-delay-1">
-          <h3 class="checkout-card-title">💳 Payment Method</h3>
-          <div class="payment-methods">
-            <div class="payment-option selected">
-              <div class="payment-option-content">
-                <span class="payment-option-icon">
-                  <svg class="flw-logo" viewBox="0 0 64 64" aria-hidden="true"><path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z"/><path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z"/><path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z"/><path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z"/></svg>
+          <h3 class="checkout-card-title">💳 Choose how you want to pay</h3>
+          <div class="payment-methods" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+            <button type="button" class="payment-option selected" id="cardPaymentBtn" onclick="placeOrder('card')" style="width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);background:var(--surface-2);color:inherit;padding:16px;border-radius:12px;">
+              <span class="payment-option-content">
+                <span class="payment-option-icon" aria-hidden="true">💳</span>
+                <span>
+                  <strong>Checkout with Debit Card</strong>
+                  <small>Continue securely to Flutterwave card checkout.</small>
                 </span>
-                <div>
-                  <strong>Flutterwave</strong>
-                  <small>Pay securely with card, bank transfer, USSD &amp; mobile money</small>
-                </div>
-              </div>
-            </div>
+              </span>
+            </button>
+            <button type="button" class="payment-option" id="bankTransferPaymentBtn" onclick="placeOrder('banktransfer')" style="width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);background:var(--surface-2);color:inherit;padding:16px;border-radius:12px;">
+              <span class="payment-option-content">
+                <span class="payment-option-icon" aria-hidden="true">🏦</span>
+                <span>
+                  <strong>Checkout with Bank Transfer</strong>
+                  <small>Continue to Flutterwave to receive a generated transfer account.</small>
+                </span>
+              </span>
+            </button>
           </div>
           <div id="paymentNote" class="payment-note">
-            🔒 You'll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.
+            🔒 Your selected payment method opens on <strong>Flutterwave</strong>. For bank transfer, Flutterwave generates the transfer account for this payment. Your ticket(s) are issued only after the payment is server-verified.
           </div>
         </div>
 
@@ -180,12 +186,10 @@
           </div>
         </div>
 
-        <!-- PLACE ORDER -->
+        <!-- PAYMENT ACTION NOTE -->
         <div class="checkout-card reveal reveal-delay-3">
-          <button class="btn-submit btn-submit-lg" onclick="placeOrder()" id="placeOrderBtn">
-            🛒 Place Order — <span id="placeOrderTotal">₦0</span>
-          </button>
-          <p class="summary-note">By placing this order, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</p>
+          <p class="summary-note" style="margin:0;text-align:center;">Select <strong>Checkout with Debit Card</strong> or <strong>Checkout with Bank Transfer</strong> above. You will then be taken directly to the corresponding Flutterwave payment flow.</p>
+          <p class="summary-note" style="margin:10px 0 0;text-align:center;">By continuing to payment, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</p>
         </div>
       </div>
     </div>
@@ -197,8 +201,8 @@
       <small>Total</small>
       <strong id="mobileBarTotal">—</strong>
     </div>
-    <button class="btn-submit mobile-checkout-btn" onclick="placeOrder()" id="mobilePlaceOrderBtn">
-      🛒 Place Order
+    <button class="btn-submit mobile-checkout-btn" onclick="document.getElementById('cardPaymentBtn')?.scrollIntoView({behavior:'smooth',block:'center'})" id="mobilePlaceOrderBtn">
+      Choose Payment Method
     </button>
   </div>
 
