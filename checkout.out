@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+
+<style>
+.referral-input-row{display:flex;gap:10px;align-items:stretch;flex-wrap:nowrap}.referral-input-row input{flex:1;min-width:0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-1);font-size:.92rem;outline:none;transition:border-color .2s,box-shadow .2s}.referral-input-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}.referral-input-row button{min-width:92px}.referral-message{margin-top:8px}.referral-message.success{color:var(--accent)!important}.referral-message.error{color:#b71c1c!important}.referral-price-note{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:.72em;color:var(--text-3)}@media(max-width:520px){.referral-input-row{flex-wrap:wrap}.referral-input-row input{flex:1 1 100%}.referral-input-row button{flex:1 1 calc(50% - 5px);width:auto;min-width:0}}
+@media(max-width:520px){.checkout-event-picker{padding-bottom:20px}.checkout-event-picker h2{font-size:1.5rem;line-height:1.2}.checkout-event-picker article{padding:16px}.checkout-event-picker .btn-primary{min-height:44px}}
+@media(max-width:700px){.payment-methods{grid-template-columns:1fr!important}}
+</style>
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "y4hhcy2o3a");
+  </script>
+</head>
+<body>
+
+  <!-- ── WHATSAPP FLOAT ── -->
+  <a href="https://wa.me/2348122104576" target="_blank" rel="noopener" class="whatsapp-float" aria-label="Chat on WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    <span class="wa-tooltip">Chat with us</span>
+  </a>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+<a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+<li><a href="tickets.html" class="active">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">Checkout</div>
+      <h1 class="section-title reveal reveal-delay-1">Review &amp; <em>pay</em></h1>
+      <p class="section-sub reveal reveal-delay-2">Confirm your order details and choose a payment method to secure your ticket.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <div class="step-indicator reveal">
+      <div class="step"><span>1</span> Select Event</div>
+      <div class="step-line"></div>
+      <div class="step active"><span>2</span> Checkout &amp; Pay</div>
+    </div>
+  </div>
+
+  <section class="checkout-section">
+    <div class="container">
+      <div class="checkout-stacked">
+        <!-- ORDER SUMMARY (top) -->
+        <div class="checkout-summary-card reveal">
+          <h3>📋 Order Summary</h3>
+          <div class="summary-row">
+            <span>Event</span>
+            <span id="summaryEventName" style="color:var(--text-3);text-align:right;">Not selected</span>
+          </div>
+          <div class="summary-row">
+            <span>Date</span>
+            <span id="summaryDate">—</span>
+          </div>
+          <div class="summary-row">
+            <span>Venue</span>
+            <span id="summaryVenue" style="text-align:right;">—</span>
+          </div>
+          <div class="summary-row">
+            <span>Quantity</span>
+            <span id="summaryQty">—</span>
+          </div>
+          <div class="summary-row">
+            <span>Ticket Type</span>
+            <span id="summaryTier">🎟 Regular</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row">
+            <span>Unit Price</span>
+            <span id="summaryUnitPrice">—</span>
+          </div>
+          <div class="summary-row summary-total">
+            <span>Total</span>
+            <span id="summaryTotal">—</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row">
+            <span>Buyer</span>
+            <span id="summaryBuyer" style="text-align:right;">—</span>
+          </div>
+          <div class="summary-row">
+            <span>Email</span>
+            <span id="summaryEmail" style="text-align:right;">—</span>
+          </div>
+        </div>
+
+        <!-- REFERRAL CODE INPUT -->
+        <div class="checkout-card reveal reveal-delay-2 referral-checkout-card">
+          <h3 class="checkout-card-title">🎁 Referral Code</h3>
+          <div class="form-group">
+            <label for="referralCodeInput">Have a referral code?</label>
+            <div class="referral-input-row">
+              <input type="text" id="referralCodeInput" placeholder="Enter referral code" autocomplete="off" maxlength="64" />
+              <button type="button" id="applyReferralBtn" class="admin-refresh-btn">Apply</button>
+              <button type="button" id="removeReferralBtn" class="admin-refresh-btn referral-remove-btn" aria-label="Remove referral code">Remove</button>
+            </div>
+            <p id="referralMessage" class="form-hint referral-message">Apply a valid referral code to use the original ticket price. Without one, your bonus price remains active.</p>
+          </div>
+        </div>
+
+        <!-- COUPON CODE INPUT -->
+        <div class="checkout-card reveal reveal-delay-2">
+          <h3 class="checkout-card-title">🏷️ Coupon Code (Optional)</h3>
+          <div class="form-group">
+            <label for="couponCodeInput">Have a coupon?</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input type="text" id="couponCodeInput" placeholder="Enter coupon code" style="flex:1;min-width:180px;width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface-2);color:var(--text-1);" />
+              <button type="button" id="applyCouponBtn" class="admin-refresh-btn" style="white-space:nowrap;">Apply Coupon</button>
+            </div>
+            <p id="couponMessage" class="form-hint" style="font-size:0.82rem;color:var(--text-3);margin-top:6px;"></p>
+          </div>
+          <div id="couponSummary" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);">
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span>Before coupon</span><strong id="couponBaseTotal">₦0</strong></div>
+            <div style="display:flex;justify-content:space-between;gap:12px;color:var(--accent);"><span>Coupon discount</span><strong id="couponDiscountTotal">−₦0</strong></div>
+            <div style="display:flex;justify-content:space-between;gap:12px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><span>To pay</span><strong id="couponFinalTotal">₦0</strong></div>
+          </div>
+        </div>
+
+        <!-- PAYMENT METHOD (below summary) -->
+        <div class="checkout-card reveal reveal-delay-1">
+          <h3 class="checkout-card-title">💳 Choose how you want to pay</h3>
+          <div class="payment-methods payment-methods-cta">
+            <button type="button" class="payment-option payment-option-cta" id="cardPaymentBtn" onclick="placeOrder('card')">
+              <span class="payment-option-content">
+                <span class="payment-option-icon" aria-hidden="true">💳</span>
+                <span>
+                  <strong>Click to proceed to checkout</strong>
+                  <small>Pay securely with your debit card through Flutterwave.</small>
+                </span>
+                <span class="payment-option-arrow" aria-hidden="true">→</span>
+              </span>
+            </button>
+            <button type="button" class="payment-option payment-option-cta" id="bankTransferPaymentBtn" onclick="placeOrder('banktransfer')">
+              <span class="payment-option-content">
+                <span class="payment-option-icon" aria-hidden="true">🏦</span>
+                <span>
+                  <strong>Click to proceed via bank transfer</strong>
+                  <small>Flutterwave will generate the account for this payment.</small>
+                </span>
+                <span class="payment-option-arrow" aria-hidden="true">→</span>
+              </span>
+            </button>
+          </div>
+          <div id="paymentNote" class="payment-note">
+            🔒 Choose one of the green buttons above. You will be sent to Flutterwave with only that payment method enabled for this order.
+          </div>
+        </div>
+
+
+        <!-- PAYMENT ACTION NOTE -->
+        <div class="checkout-card reveal reveal-delay-3">
+          <p class="summary-note" style="margin:0;text-align:center;">Choose <strong>Checkout with Debit Card</strong> or <strong>Checkout with Bank Transfer</strong> below. You will then be taken directly to the corresponding Flutterwave payment flow.</p>
+          <p class="summary-note" style="margin:10px 0 0;text-align:center;">By continuing to payment, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MOBILE STICKY CHECKOUT BAR ── -->
+  <div class="mobile-checkout-bar" id="mobileCheckoutBar">
+    <div class="mobile-checkout-total">
+      <small>Total</small>
+      <strong id="mobileBarTotal">—</strong>
+    </div>
+    <button class="btn-submit mobile-checkout-btn" onclick="document.getElementById('cardPaymentBtn')?.scrollIntoView({behavior:'smooth',block:'center'})" id="mobilePlaceOrderBtn">
+      Choose Payment Method
+    </button>
+  </div>
+
+  <!-- ── BANK TRANSFER MODAL ── -->
+  <div class="modal-overlay" id="bankTransferModal" style="display:none;">
+    <div class="modal-content bank-transfer-modal">
+      <button class="modal-close" id="bankTransferClose" aria-label="Close">✕</button>
+      <div class="modal-icon">🏦</div>
+      <h2>Pay with Bank Transfer</h2>
+      <p>Flutterwave has generated a unique account for this order. Transfer the exact amount shown below to the account.</p>
+      <div class="modal-details bank-transfer-details">
+        <div><strong>Bank:</strong> <span id="bankTransferBank">—</span></div>
+        <div><strong>Account Number:</strong> <span id="bankTransferAccount">—</span></div>
+        <div><strong>Amount:</strong> <span id="bankTransferAmount">—</span></div>
+        <div><strong>Order ID:</strong> <span id="bankTransferOrder">—</span></div>
+        <div id="bankTransferExpiryRow" style="display:none;"><strong>Expires:</strong> <span id="bankTransferExpiry">—</span></div>
+      </div>
+      <p class="modal-note">Your payment is confirmed automatically by Flutterwave. Do not close this page until your transfer has been completed. We will issue your ticket only after the payment is verified.</p>
+      <div id="bankTransferStatus" class="payment-note" style="margin-top:12px;">Waiting for your bank transfer…</div>
+      <button type="button" id="bankTransferCheckBtn" class="btn-primary" style="width:100%;justify-content:center;margin-top:14px;">I Have Paid — Check Payment</button>
+      <a href="events.html" class="btn-cta-ghost" style="display:inline-flex;margin-top:10px;width:100%;justify-content:center;">Back to Events</a>
+    </div>
+  </div>
+
+  <!-- ── SUCCESS MODAL ── -->
+  <div class="modal-overlay" id="successModal" style="display:none;">
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      <div class="modal-icon">✅</div>
+      <h2>Payment Successful! 🎉</h2>
+      <p>Your ticket(s) will be sent to your email shortly, and will also appear in your <strong>My Tickets</strong> dashboard.</p>
+      <div class="modal-details">
+        <div><strong>Order ID:</strong> <span id="orderId">UNI-2025-0001</span></div>
+        <div><strong>Event:</strong> <span id="orderEvent">—</span></div>
+        <div><strong>Email:</strong> <span id="orderEmail">—</span></div>
+        <div><strong>Total Paid:</strong> <span id="orderTotal">—</span></div>
+      </div>
+      <div id="successTicketList"></div>
+      <p class="modal-note">💡 Check your email inbox (and spam folder) for your ticket confirmation. You can also view all your tickets in your dashboard.</p>
+      <a href="my-tickets.html" id="viewTicketLink" class="btn-primary" style="display:inline-flex;margin-top:4px;">🎟 View My Tickets (Dashboard)</a>
+      <a href="events.html" class="btn-cta-ghost" style="display:inline-flex;margin-top:10px;width:100%;justify-content:center;">Browse More Events</a>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
+            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
+            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2026 Unisocials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="templatemo-622-clearwave.js?v=payment-method-cta-20260927"></script>
+</body>
+</html>
+

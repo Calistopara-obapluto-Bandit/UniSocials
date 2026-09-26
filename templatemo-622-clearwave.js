@@ -1283,7 +1283,7 @@ const tier = getSelectedTier();
     })
     .then(function(result) {
       if (!result.ok || !result.data || !result.data.success) {
-        throw new Error(result.data && result.data.error ? result.data.error : 'Could not start Flutterwave checkout.');
+        throw new Error(result.data && result.data.error ? result.data.error : ('Could not start ' + paymentLabel + ' checkout.'));
       }
       if (paymentMethod === 'banktransfer') {
         showBankTransferDetails(orderId, result.data);
