@@ -129,28 +129,30 @@
         <!-- PAYMENT METHOD (below summary) -->
         <div class="checkout-card reveal reveal-delay-1">
           <h3 class="checkout-card-title">💳 Choose how you want to pay</h3>
-          <div class="payment-methods" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
-            <button type="button" class="payment-option selected" id="cardPaymentBtn" onclick="placeOrder('card')" style="width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);background:var(--surface-2);color:inherit;padding:16px;border-radius:12px;">
+          <div class="payment-methods payment-methods-cta">
+            <button type="button" class="payment-option payment-option-cta" id="cardPaymentBtn" onclick="placeOrder('card')">
               <span class="payment-option-content">
                 <span class="payment-option-icon" aria-hidden="true">💳</span>
                 <span>
-                  <strong>Checkout with Debit Card</strong>
-                  <small>Continue securely to Flutterwave card checkout.</small>
+                  <strong>Click to proceed to checkout</strong>
+                  <small>Pay securely with your debit card through Flutterwave.</small>
                 </span>
+                <span class="payment-option-arrow" aria-hidden="true">→</span>
               </span>
             </button>
-            <button type="button" class="payment-option" id="bankTransferPaymentBtn" onclick="placeOrder('banktransfer')" style="width:100%;text-align:left;cursor:pointer;border:1px solid var(--border);background:var(--surface-2);color:inherit;padding:16px;border-radius:12px;">
+            <button type="button" class="payment-option payment-option-cta" id="bankTransferPaymentBtn" onclick="placeOrder('banktransfer')">
               <span class="payment-option-content">
                 <span class="payment-option-icon" aria-hidden="true">🏦</span>
                 <span>
-                  <strong>Checkout with Bank Transfer</strong>
-                  <small>Continue to Flutterwave to receive a generated transfer account.</small>
+                  <strong>Click to proceed via bank transfer</strong>
+                  <small>Flutterwave will generate the account for this payment.</small>
                 </span>
+                <span class="payment-option-arrow" aria-hidden="true">→</span>
               </span>
             </button>
           </div>
           <div id="paymentNote" class="payment-note">
-            🔒 Your selected payment method opens on <strong>Flutterwave</strong>. For bank transfer, Flutterwave generates the transfer account for this payment. Your ticket(s) are issued only after the payment is server-verified.
+            🔒 Choose one of the green buttons above. You will be sent to Flutterwave with only that payment method enabled for this order.
           </div>
         </div>
 
@@ -275,7 +277,7 @@
   </footer>
 
   <script src="config.js"></script>
-  <script src="templatemo-622-clearwave.js?v=checkout-event-value-fix-20260904"></script>
+  <script src="templatemo-622-clearwave.js?v=payment-method-cta-20260927"></script>
 </body>
 </html>
 

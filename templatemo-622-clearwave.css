@@ -1842,7 +1842,44 @@ Free for personal and commercial use
     }
     .event-preview-row:last-child { margin-bottom: 0; }
 
-    /* ══════════════════════════════════════════
+    
+/* Checkout payment CTAs — each button directly starts its selected Flutterwave method. */
+.payment-methods-cta {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.payment-option-cta {
+  width: 100%;
+  min-height: 78px;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+  padding: 17px 18px !important;
+  box-shadow: 0 5px 18px rgba(27,94,32,0.22);
+  text-align: left;
+  transition: background .2s, transform .2s, box-shadow .2s, opacity .2s;
+}
+.payment-option-cta:hover {
+  background: var(--accent-mid) !important;
+  border-color: transparent !important;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(27,94,32,0.30);
+}
+.payment-option-cta .payment-option-content {
+  width: 100%;
+  color: #fff;
+}
+.payment-option-cta .payment-option-content strong,
+.payment-option-cta .payment-option-content small { color: #fff !important; }
+.payment-option-cta .payment-option-content strong { font-size: .94rem; }
+.payment-option-cta .payment-option-content small { opacity: .88; display: block; margin-top: 3px; }
+.payment-option-arrow { margin-left: auto; font-size: 1.35rem; font-weight: 700; flex-shrink: 0; }
+.payment-option-cta:disabled { cursor: wait; opacity: .65; transform: none; }
+@media(max-width:700px){ .payment-methods-cta { grid-template-columns: 1fr !important; } }
+
+/* ══════════════════════════════════════════
        PAYMENT OPTIONS
     ══════════════════════════════════════════ */
     .payment-methods { display: flex; flex-direction: column; gap: 10px; }
