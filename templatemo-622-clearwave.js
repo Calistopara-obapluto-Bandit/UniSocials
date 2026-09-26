@@ -1227,6 +1227,10 @@ const tier = getSelectedTier();
     document.getElementById('bankTransferAccount').textContent = bank.accountNumber || '—';
     document.getElementById('bankTransferAmount').textContent = '₦' + Number(data.amount || 0).toLocaleString();
     document.getElementById('bankTransferOrder').textContent = orderId;
+    const expiryRow = document.getElementById('bankTransferExpiryRow');
+    const expiryEl = document.getElementById('bankTransferExpiry');
+    if (expiryRow && expiryEl && data.expiresAt) { expiryEl.textContent = data.expiresAt; expiryRow.style.display = 'block'; }
+    else if (expiryRow) { expiryRow.style.display = 'none'; }
     document.getElementById('bankTransferStatus').textContent = 'Waiting for your bank transfer…';
     bankTransferTxRef = String(data.tx_ref || orderId || '');
     modal.style.display = 'flex';

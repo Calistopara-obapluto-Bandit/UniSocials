@@ -3094,12 +3094,19 @@ buyerFaculty: buyerFaculty,
               try {
                 const json = JSON.parse(responseBody || '{}');
                 const d = json && json.data ? json.data : {};
-                const accountNumber = String(d.account_number || d.accountNumber || '').trim();
-                const bankName = String(d.bank_name || d.bankName || '').trim();
+                // Flutterwave's current bank-transfer charge response places the
+                // generated account details in meta.authorization (the older
+                // data.account_number/data.bank_name shape is kept as a fallback).
+                const authorization = json && json.meta && json.meta.authorization ? json.meta.authorization : {};
+                const accountNumber = String(authorization.transfer_account || d.account_number || d.accountNumber || '').trim();
+                const bankName = String(authorization.transfer_bank || d.bank_name || d.bankName || '').trim();
                 const bankCode = String(d.bank_code || d.bankCode || '').trim();
-                const flwRef = String(d.flw_ref || d.flwRef || '').trim();
+                const flwRef = String(authorization.transfer_reference || d.flw_ref || d.flwRef || '').trim();
                 const returnedTxRef = String(d.tx_ref || d.txRef || order.orderId).trim();
-                const status = String(d.status || '').trim();
+                const status = String(d.status || (json.status === 'success' ? 'pending' : '')).trim();
+                const transferAmount = Number(authorization.transfer_amount || d.amount || order.amount);
+                const accountExpiration = String(authorization.account_expiration || '').trim();
+                const transferNote = String(authorization.transfer_note || '').trim();
                 const ok = apiRes.statusCode >= 200 && apiRes.statusCode < 300 && json.status === 'success' && !!accountNumber && !!bankName;
                 if (!ok) {
                   console.error('Flutterwave bank-transfer charge failed:', apiRes.statusCode, responseBody);
@@ -3123,9 +3130,11 @@ buyerFaculty: buyerFaculty,
                   tx_ref: returnedTxRef,
                   flw_ref: flwRef,
                   bank: { name: bankName, accountNumber: accountNumber, code: bankCode || null },
-                  amount: Number(order.amount),
+                  amount: Number.isFinite(transferAmount) && transferAmount > 0 ? transferAmount : Number(order.amount),
                   currency: order.currency,
-                  status: status || 'pending'
+                  status: status || 'pending',
+                  expiresAt: accountExpiration || null,
+                  transferNote: transferNote || null
                 });
               } catch (e) {
                 console.error('Flutterwave bank-transfer response parse failed:', e.message);
