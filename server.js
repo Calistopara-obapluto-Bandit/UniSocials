@@ -3033,10 +3033,10 @@ buyerFaculty: buyerFaculty,
       return sendJson(res, 200, { success: true, order: order });
     }
 
-    // ── Create a Flutterwave Standard hosted checkout for one selected method ──
-    // The secret key stays on the server. The browser receives only Flutterwave's
-    // hosted payment link, so card/bank-transfer selection cannot be tampered with
-    // after the order has been created.
+    // ── Start the exact Flutterwave payment method selected by the buyer ──
+    // Card: Flutterwave Standard hosted checkout restricted to card.
+    // Bank transfer: Flutterwave Direct Charge, which generates a dynamic
+    // virtual account specifically for this transaction.
     if (pathname === '/api/flutterwave/checkout' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
@@ -3060,84 +3060,132 @@ buyerFaculty: buyerFaculty,
       const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
         ? String(process.env.FLUTTERWAVE_SECRET_KEY).trim()
         : String(defaults.FLUTTERWAVE_SECRET_KEY || '').trim();
-      if (!secretKey) {
-        return sendJson(res, 503, { success: false, error: 'Flutterwave is not configured on the server.' });
+      if (!secretKey) return sendJson(res, 503, { success: false, error: 'Flutterwave is not configured on the server.' });
+
+      if (requestedMethod === 'banktransfer') {
+        const payload = JSON.stringify({
+          amount: Number(order.amount),
+          email: order.buyerEmail,
+          currency: order.currency,
+          tx_ref: order.orderId,
+          fullname: order.buyerName,
+          phone_number: order.buyerPhone || '',
+          narration: String(order.eventName || 'Unisocials ticket')
+        });
+
+        await new Promise((resolve) => {
+          let finished = false;
+          const finish = () => { if (finished) return false; finished = true; resolve(); return true; };
+          const apiReq = https.request({
+            hostname: 'api.flutterwave.com',
+            port: 443,
+            path: '/v3/charges?type=bank_transfer',
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + secretKey,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(payload),
+              'Accept': 'application/json'
+            }
+          }, (apiRes) => {
+            let responseBody = '';
+            apiRes.on('data', chunk => { responseBody += chunk; });
+            apiRes.on('end', async () => {
+              try {
+                const json = JSON.parse(responseBody || '{}');
+                const d = json && json.data ? json.data : {};
+                const accountNumber = String(d.account_number || d.accountNumber || '').trim();
+                const bankName = String(d.bank_name || d.bankName || '').trim();
+                const bankCode = String(d.bank_code || d.bankCode || '').trim();
+                const flwRef = String(d.flw_ref || d.flwRef || '').trim();
+                const returnedTxRef = String(d.tx_ref || d.txRef || order.orderId).trim();
+                const status = String(d.status || '').trim();
+                const ok = apiRes.statusCode >= 200 && apiRes.statusCode < 300 && json.status === 'success' && !!accountNumber && !!bankName;
+                if (!ok) {
+                  console.error('Flutterwave bank-transfer charge failed:', apiRes.statusCode, responseBody);
+                  if (finish()) sendJson(res, 502, { success: false, error: 'Flutterwave could not generate the bank-transfer account.' });
+                  return;
+                }
+                await patchOrder(order.orderId, {
+                  flutterwaveCheckoutCreatedAt: new Date().toISOString(),
+                  flutterwaveCheckoutMethod: 'banktransfer',
+                  flutterwaveBankTransfer: true,
+                  flutterwaveBankAccountNumber: accountNumber,
+                  flutterwaveBankName: bankName,
+                  flutterwaveBankCode: bankCode || null,
+                  flutterwaveReference: flwRef || null,
+                  flutterwaveChargeStatus: status || null,
+                  flutterwaveCheckoutLinkIssued: false
+                });
+                if (finish()) sendJson(res, 200, {
+                  success: true,
+                  paymentMethod: 'banktransfer',
+                  tx_ref: returnedTxRef,
+                  flw_ref: flwRef,
+                  bank: { name: bankName, accountNumber: accountNumber, code: bankCode || null },
+                  amount: Number(order.amount),
+                  currency: order.currency,
+                  status: status || 'pending'
+                });
+              } catch (e) {
+                console.error('Flutterwave bank-transfer response parse failed:', e.message);
+                if (finish()) sendJson(res, 502, { success: false, error: 'Invalid response from Flutterwave.' });
+              }
+            });
+          });
+          apiReq.setTimeout(15000, () => { apiReq.destroy(); if (finish()) sendJson(res, 504, { success: false, error: 'Flutterwave bank-transfer request timed out.' }); });
+          apiReq.on('error', (err) => { console.error('Flutterwave bank-transfer request error:', err.message); if (finish()) sendJson(res, 502, { success: false, error: 'Could not connect to Flutterwave.' }); });
+          apiReq.end(payload);
+        });
+        return;
       }
 
+      // Card path: hosted Flutterwave checkout restricted to card only.
       const siteUrl = String(process.env.SITE_URL || defaults.SITE_URL || '').replace(/\/$/, '');
       if (!siteUrl) return sendJson(res, 503, { success: false, error: 'Site URL is not configured.' });
-
       const payload = JSON.stringify({
         tx_ref: order.orderId,
         amount: Number(order.amount),
         currency: order.currency,
         redirect_url: siteUrl + '/thank-you.html',
-        customer: {
-          email: order.buyerEmail,
-          name: order.buyerName,
-          phone_number: order.buyerPhone || ''
-        },
+        customer: { email: order.buyerEmail, name: order.buyerName, phone_number: order.buyerPhone || '' },
         customizations: {
           title: 'Unisocials',
           description: String(order.eventName || 'Event ticket') + (Number(order.qty) > 1 ? ' (' + Number(order.qty) + ' tickets)' : '')
         },
-        payment_options: requestedMethod
+        payment_options: 'card'
       });
 
       await new Promise((resolve) => {
         let finished = false;
-        const finish = () => {
-          if (finished) return false;
-          finished = true;
-          resolve();
-          return true;
-        };
+        const finish = () => { if (finished) return false; finished = true; resolve(); return true; };
         const apiReq = https.request({
-          hostname: 'api.flutterwave.com',
-          port: 443,
-          path: '/v3/payments',
-          method: 'POST',
-          headers: {
-            'Authorization': 'Bearer ' + secretKey,
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload),
-            'Accept': 'application/json'
-          }
+          hostname: 'api.flutterwave.com', port: 443, path: '/v3/payments', method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), 'Accept': 'application/json' }
         }, (apiRes) => {
           let responseBody = '';
           apiRes.on('data', chunk => { responseBody += chunk; });
-          apiRes.on('end', () => {
+          apiRes.on('end', async () => {
             try {
               const json = JSON.parse(responseBody || '{}');
               const link = json && json.data && json.data.link ? String(json.data.link) : '';
               const ok = apiRes.statusCode >= 200 && apiRes.statusCode < 300 && json.status === 'success' && /^https:\/\/checkout\.flutterwave\.com\//i.test(link);
               if (!ok) {
-                console.error('Flutterwave checkout creation failed:', apiRes.statusCode, responseBody);
-                if (finish()) sendJson(res, 502, { success: false, error: 'Flutterwave could not create the payment checkout.' });
+                console.error('Flutterwave card checkout creation failed:', apiRes.statusCode, responseBody);
+                if (finish()) sendJson(res, 502, { success: false, error: 'Flutterwave could not create the debit-card checkout.' });
                 return;
               }
-              patchOrder(order.orderId, {
-                flutterwaveCheckoutCreatedAt: new Date().toISOString(),
-                flutterwaveCheckoutMethod: requestedMethod,
-                flutterwaveCheckoutLinkIssued: true
-              }).catch(() => {});
-              if (finish()) sendJson(res, 200, { success: true, paymentMethod: requestedMethod, link: link });
+              await patchOrder(order.orderId, { flutterwaveCheckoutCreatedAt: new Date().toISOString(), flutterwaveCheckoutMethod: 'card', flutterwaveCheckoutLinkIssued: true });
+              if (finish()) sendJson(res, 200, { success: true, paymentMethod: 'card', link: link });
             } catch (e) {
-              console.error('Flutterwave checkout response parse failed:', e.message);
+              console.error('Flutterwave card checkout response parse failed:', e.message);
               if (finish()) sendJson(res, 502, { success: false, error: 'Invalid response from Flutterwave.' });
             }
           });
         });
-        apiReq.setTimeout(15000, () => {
-          apiReq.destroy();
-          if (finish()) sendJson(res, 504, { success: false, error: 'Flutterwave checkout request timed out.' });
-        });
-        apiReq.on('error', (err) => {
-          console.error('Flutterwave checkout request failed:', err.message);
-          if (finish()) sendJson(res, 502, { success: false, error: 'Could not connect to Flutterwave.' });
-        });
-        apiReq.write(payload);
-        apiReq.end();
+        apiReq.setTimeout(15000, () => { apiReq.destroy(); if (finish()) sendJson(res, 504, { success: false, error: 'Flutterwave card checkout request timed out.' }); });
+        apiReq.on('error', (err) => { console.error('Flutterwave card checkout request error:', err.message); if (finish()) sendJson(res, 502, { success: false, error: 'Could not connect to Flutterwave.' }); });
+        apiReq.end(payload);
       });
       return;
     }

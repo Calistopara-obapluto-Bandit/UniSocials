@@ -126,36 +126,6 @@
           </div>
         </div>
 
-        <!-- PAYMENT METHOD (below summary) -->
-        <div class="checkout-card reveal reveal-delay-1">
-          <h3 class="checkout-card-title">💳 Choose how you want to pay</h3>
-          <div class="payment-methods payment-methods-cta">
-            <button type="button" class="payment-option payment-option-cta" id="cardPaymentBtn" onclick="placeOrder('card')">
-              <span class="payment-option-content">
-                <span class="payment-option-icon" aria-hidden="true">💳</span>
-                <span>
-                  <strong>Click to proceed to checkout</strong>
-                  <small>Pay securely with your debit card through Flutterwave.</small>
-                </span>
-                <span class="payment-option-arrow" aria-hidden="true">→</span>
-              </span>
-            </button>
-            <button type="button" class="payment-option payment-option-cta" id="bankTransferPaymentBtn" onclick="placeOrder('banktransfer')">
-              <span class="payment-option-content">
-                <span class="payment-option-icon" aria-hidden="true">🏦</span>
-                <span>
-                  <strong>Click to proceed via bank transfer</strong>
-                  <small>Flutterwave will generate the account for this payment.</small>
-                </span>
-                <span class="payment-option-arrow" aria-hidden="true">→</span>
-              </span>
-            </button>
-          </div>
-          <div id="paymentNote" class="payment-note">
-            🔒 Choose one of the green buttons above. You will be sent to Flutterwave with only that payment method enabled for this order.
-          </div>
-        </div>
-
         <!-- REFERRAL CODE INPUT -->
         <div class="checkout-card reveal reveal-delay-2 referral-checkout-card">
           <h3 class="checkout-card-title">🎁 Referral Code</h3>
@@ -188,9 +158,40 @@
           </div>
         </div>
 
+        <!-- PAYMENT METHOD (below summary) -->
+        <div class="checkout-card reveal reveal-delay-1">
+          <h3 class="checkout-card-title">💳 Choose how you want to pay</h3>
+          <div class="payment-methods payment-methods-cta">
+            <button type="button" class="payment-option payment-option-cta" id="cardPaymentBtn" onclick="placeOrder('card')">
+              <span class="payment-option-content">
+                <span class="payment-option-icon" aria-hidden="true">💳</span>
+                <span>
+                  <strong>Click to proceed to checkout</strong>
+                  <small>Pay securely with your debit card through Flutterwave.</small>
+                </span>
+                <span class="payment-option-arrow" aria-hidden="true">→</span>
+              </span>
+            </button>
+            <button type="button" class="payment-option payment-option-cta" id="bankTransferPaymentBtn" onclick="placeOrder('banktransfer')">
+              <span class="payment-option-content">
+                <span class="payment-option-icon" aria-hidden="true">🏦</span>
+                <span>
+                  <strong>Click to proceed via bank transfer</strong>
+                  <small>Flutterwave will generate the account for this payment.</small>
+                </span>
+                <span class="payment-option-arrow" aria-hidden="true">→</span>
+              </span>
+            </button>
+          </div>
+          <div id="paymentNote" class="payment-note">
+            🔒 Choose one of the green buttons above. You will be sent to Flutterwave with only that payment method enabled for this order.
+          </div>
+        </div>
+
+
         <!-- PAYMENT ACTION NOTE -->
         <div class="checkout-card reveal reveal-delay-3">
-          <p class="summary-note" style="margin:0;text-align:center;">Select <strong>Checkout with Debit Card</strong> or <strong>Checkout with Bank Transfer</strong> above. You will then be taken directly to the corresponding Flutterwave payment flow.</p>
+          <p class="summary-note" style="margin:0;text-align:center;">Choose <strong>Checkout with Debit Card</strong> or <strong>Checkout with Bank Transfer</strong> below. You will then be taken directly to the corresponding Flutterwave payment flow.</p>
           <p class="summary-note" style="margin:10px 0 0;text-align:center;">By continuing to payment, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</p>
         </div>
       </div>
@@ -206,6 +207,26 @@
     <button class="btn-submit mobile-checkout-btn" onclick="document.getElementById('cardPaymentBtn')?.scrollIntoView({behavior:'smooth',block:'center'})" id="mobilePlaceOrderBtn">
       Choose Payment Method
     </button>
+  </div>
+
+  <!-- ── BANK TRANSFER MODAL ── -->
+  <div class="modal-overlay" id="bankTransferModal" style="display:none;">
+    <div class="modal-content bank-transfer-modal">
+      <button class="modal-close" id="bankTransferClose" aria-label="Close">✕</button>
+      <div class="modal-icon">🏦</div>
+      <h2>Pay with Bank Transfer</h2>
+      <p>Flutterwave has generated a unique account for this order. Transfer the exact amount shown below to the account.</p>
+      <div class="modal-details bank-transfer-details">
+        <div><strong>Bank:</strong> <span id="bankTransferBank">—</span></div>
+        <div><strong>Account Number:</strong> <span id="bankTransferAccount">—</span></div>
+        <div><strong>Amount:</strong> <span id="bankTransferAmount">—</span></div>
+        <div><strong>Order ID:</strong> <span id="bankTransferOrder">—</span></div>
+      </div>
+      <p class="modal-note">Your payment is confirmed automatically by Flutterwave. Do not close this page until your transfer has been completed. We will issue your ticket only after the payment is verified.</p>
+      <div id="bankTransferStatus" class="payment-note" style="margin-top:12px;">Waiting for your bank transfer…</div>
+      <button type="button" id="bankTransferCheckBtn" class="btn-primary" style="width:100%;justify-content:center;margin-top:14px;">I Have Paid — Check Payment</button>
+      <a href="events.html" class="btn-cta-ghost" style="display:inline-flex;margin-top:10px;width:100%;justify-content:center;">Back to Events</a>
+    </div>
   </div>
 
   <!-- ── SUCCESS MODAL ── -->

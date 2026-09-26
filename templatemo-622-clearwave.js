@@ -1216,27 +1216,80 @@ const tier = getSelectedTier();
     });
   }
 
+  let bankTransferPollTimer = null;
+  let bankTransferTxRef = '';
+
+  function showBankTransferDetails(orderId, data) {
+    const modal = document.getElementById('bankTransferModal');
+    if (!modal) return;
+    const bank = data && data.bank ? data.bank : {};
+    document.getElementById('bankTransferBank').textContent = bank.name || '—';
+    document.getElementById('bankTransferAccount').textContent = bank.accountNumber || '—';
+    document.getElementById('bankTransferAmount').textContent = '₦' + Number(data.amount || 0).toLocaleString();
+    document.getElementById('bankTransferOrder').textContent = orderId;
+    document.getElementById('bankTransferStatus').textContent = 'Waiting for your bank transfer…';
+    bankTransferTxRef = String(data.tx_ref || orderId || '');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeBankTransferModal() {
+    const modal = document.getElementById('bankTransferModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+    if (bankTransferPollTimer) { clearInterval(bankTransferPollTimer); bankTransferPollTimer = null; }
+  }
+
+  function checkBankTransferPayment() {
+    if (!bankTransferTxRef) return;
+    const statusEl = document.getElementById('bankTransferStatus');
+    const btn = document.getElementById('bankTransferCheckBtn');
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Checking Flutterwave for your payment…';
+    fetch('/api/payment-received', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tx_ref: bankTransferTxRef })
+    }).then(function(res) {
+      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+    }).then(function(result) {
+      if (result.ok && result.data && result.data.success) {
+        if (statusEl) statusEl.textContent = 'Payment confirmed. Your ticket is being issued…';
+        if (bankTransferPollTimer) { clearInterval(bankTransferPollTimer); bankTransferPollTimer = null; }
+        setTimeout(function() { window.location.href = 'thank-you.html?tx_ref=' + encodeURIComponent(bankTransferTxRef); }, 700);
+        return;
+      }
+      if (statusEl) statusEl.textContent = 'Payment has not been confirmed yet. Complete the transfer and check again.';
+      if (btn) btn.disabled = false;
+    }).catch(function() {
+      if (statusEl) statusEl.textContent = 'Could not check payment right now. Please try again.';
+      if (btn) btn.disabled = false;
+    });
+  }
+
   function startFlutterwavePayment(orderId, paymentMethod) {
     const paymentLabel = paymentMethod === 'banktransfer' ? 'bank transfer' : 'debit card';
     fetch('/api/flutterwave/checkout', {
       method: 'POST',
       headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderId: orderId,
-        paymentMethod: paymentMethod
-      })
+      body: JSON.stringify({ orderId: orderId, paymentMethod: paymentMethod })
     })
     .then(function(res) {
-      return res.json().then(function(data) {
-        return { ok: res.ok, data: data };
-      });
+      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
     })
     .then(function(result) {
-      if (!result.ok || !result.data || !result.data.success || !result.data.link) {
+      if (!result.ok || !result.data || !result.data.success) {
         throw new Error(result.data && result.data.error ? result.data.error : 'Could not start Flutterwave checkout.');
       }
-      // The server created this hosted link with exactly one allowed Flutterwave
-      // method. Redirect instead of opening a mixed-method client-side checkout.
+      if (paymentMethod === 'banktransfer') {
+        showBankTransferDetails(orderId, result.data);
+        const checkBtn = document.getElementById('bankTransferCheckBtn');
+        if (checkBtn) checkBtn.onclick = checkBankTransferPayment;
+        bankTransferPollTimer = setInterval(checkBankTransferPayment, 10000);
+        setPaymentButtonsBusy(false);
+        return;
+      }
+      if (!result.data.link) throw new Error('Flutterwave did not return a card checkout link.');
       window.location.assign(result.data.link);
     })
     .catch(function(err) {
@@ -1298,6 +1351,11 @@ const tier = getSelectedTier();
   };
 
   // Bind events
+  const bankTransferClose = document.getElementById('bankTransferClose');
+  const bankTransferModal = document.getElementById('bankTransferModal');
+  if (bankTransferClose) bankTransferClose.addEventListener('click', closeBankTransferModal);
+  if (bankTransferModal) bankTransferModal.addEventListener('click', function(e) { if (e.target === bankTransferModal) closeBankTransferModal(); });
+
   if (successModal) {
     successModal.addEventListener('click', function(e) {
       if (e.target === successModal) closeSuccessModal();
