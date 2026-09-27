@@ -26,10 +26,6 @@ window.SITE_CONFIG = {
   // ⚠️ SECURITY: This must NOT contain a real key. It is provided via env vars only.
   FLUTTERWAVE_SECRET_KEY: '',
 
-  // Flutterwave bank account details (Bank Transfer payment)
-  FLUTTERWAVE_BANK_NAME: '',
-  FLUTTERWAVE_ACCOUNT_NUMBER: '',
-
   // Contact / support email shown in FAQ
   CONTACT_EMAIL: '',
 
