@@ -133,12 +133,11 @@ async function getOrder(orderId) {
 }
 async function addOrder(order) {
   if (usePg) {
-    // Do not rebuild the entire orders table for one new order. The previous
-    // implementation used DELETE + INSERT for every write, which is fragile
-    // on production Postgres and can make checkout fail before Flutterwave
-    // ever opens. Insert only this order atomically.
+    // Insert only this order. Keep the SQL compatible with existing Render/Postgres
+    // databases that may have an older `orders` schema without `updated_at`.
+    // The JSONB `data` field is the source of truth for order state.
     await db.query(
-      'INSERT INTO orders (id, data, updated_at) VALUES ($1, $2, NOW())',
+      'INSERT INTO orders (id, data) VALUES ($1, $2)',
       [order.orderId, JSON.stringify(order)]
     );
     return order;
@@ -153,8 +152,10 @@ async function patchOrder(orderId, patch) {
     const current = await getOrder(orderId);
     if (!current) return null;
     const updated = Object.assign({}, current, patch);
+    // Keep updates compatible with older production schemas that may not have
+    // the optional `updated_at` column.
     await db.query(
-      'UPDATE orders SET data = $2, updated_at = NOW() WHERE id = $1',
+      'UPDATE orders SET data = $2 WHERE id = $1',
       [orderId, JSON.stringify(updated)]
     );
     return updated;
