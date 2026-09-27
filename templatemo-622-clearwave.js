@@ -1236,7 +1236,10 @@ const tier = getSelectedTier();
       currency: 'NGN',
       // Each UniSocials payment button opens Flutterwave with ONLY the method
       // the buyer selected. Flutterwave handles the actual payment UI.
-      payment_options: paymentMethod === 'card' ? 'card' : 'banktransfer',
+      // Explicitly lock the Flutterwave Inline checkout to the method
+      // selected by this button. Do not use a fallback that could turn a
+      // card request into bank transfer.
+      payment_options: paymentMethod === 'banktransfer' ? 'banktransfer' : 'card',
       redirect_url: cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html',
       customer: {
 email: email || 'customer@example.com',
