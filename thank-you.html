@@ -149,8 +149,8 @@
     <div class="container">
       <div class="success-card reveal">
         <div class="success-icon">✅</div>
-        <h2 id="paymentResultTitle">Checking your payment…</h2>
-        <p id="paymentResultText">We are confirming your Flutterwave payment securely. Your ticket(s) are issued only after the payment is verified by our server.</p>
+        <h2>Your tickets will be sent shortly</h2>
+        <p>We have received your payment. You will receive a confirmation email now, and your actual ticket(s) will be sent to your email after your payment is verified. Please check your inbox and spam or junk folder.</p>
         <div class="success-actions">
           <a href="events.html" class="btn-cta-primary">
             Browse Events
@@ -230,50 +230,6 @@
     </div>
   </footer>
 
-
-  <script>
-    (function () {
-      const params = new URLSearchParams(window.location.search);
-      const status = String(params.get('status') || '').toLowerCase();
-      const txRef = String(params.get('tx_ref') || '').trim();
-      const title = document.getElementById('paymentResultTitle');
-      const text = document.getElementById('paymentResultText');
-
-      function setResult(ok, message) {
-        if (title) title.textContent = ok ? 'Payment confirmed! 🎉' : 'Payment status received';
-        if (text) text.textContent = message;
-      }
-
-      if (!txRef) {
-        setResult(false, 'No Flutterwave transaction reference was returned. If you completed a payment, please contact support with your order reference.');
-        return;
-      }
-
-      if (status !== 'successful' && status !== 'completed') {
-        setResult(false, 'Flutterwave did not report a completed payment. If you used bank transfer and the transfer is still processing, the order will be confirmed automatically when Flutterwave confirms the payment.');
-        return;
-      }
-
-      fetch('/api/payment-received', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tx_ref: txRef })
-      })
-      .then(function (res) {
-        return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-      })
-      .then(function (result) {
-        if (result.ok && result.data && result.data.success) {
-          setResult(true, 'Your payment has been verified by Flutterwave and your order has been confirmed. Your ticket(s) will be sent to your email and will appear in your account.');
-        } else {
-          setResult(false, 'Flutterwave returned a completed payment status, but our server could not verify it yet. Please do not pay again. If this was a bank transfer, the order can still be confirmed automatically when Flutterwave sends its confirmation.');
-        }
-      })
-      .catch(function () {
-        setResult(false, 'We could not check the payment status right now. Please do not pay again; Flutterwave webhook confirmation will continue to process the order.');
-      });
-    })();
-  </script>
   <script src="config.js"></script>
   <script src="assets/min/templatemo-622-clearwave.min.js"></script>
 </body>

@@ -133,14 +133,15 @@ async function getOrder(orderId) {
 }
 async function addOrder(order) {
   if (usePg) {
-    // Insert only this order. Keep the SQL compatible with existing Render/Postgres
-    // databases that may have an older `orders` schema without `updated_at`.
-    // The JSONB `data` field is the source of truth for order state.
+    // Create only this order. Do NOT rewrite/delete the entire orders table.
+    // This avoids a checkout failure caused by unrelated existing orders.
     await db.query(
-      'INSERT INTO orders (id, data) VALUES ($1, $2)',
+      'INSERT INTO orders (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
       [order.orderId, JSON.stringify(order)]
     );
-    return order;
+    const saved = await getOrder(order.orderId);
+    if (!saved) throw new Error('Order could not be saved to PostgreSQL.');
+    return saved;
   }
   const orders = await readOrders();
   orders.unshift(order);
@@ -148,18 +149,6 @@ async function addOrder(order) {
   return order;
 }
 async function patchOrder(orderId, patch) {
-  if (usePg) {
-    const current = await getOrder(orderId);
-    if (!current) return null;
-    const updated = Object.assign({}, current, patch);
-    // Keep updates compatible with older production schemas that may not have
-    // the optional `updated_at` column.
-    await db.query(
-      'UPDATE orders SET data = $2 WHERE id = $1',
-      [orderId, JSON.stringify(updated)]
-    );
-    return updated;
-  }
   const orders = await readOrders();
   const idx = orders.findIndex(o => o.orderId === orderId);
   if (idx === -1) return null;
@@ -1194,26 +1183,28 @@ async function isAdminOrCheckinStaff(req) {
 const defaults = {
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
   WHATSAPP_ORDER_NUMBER: '2348122104576',
-  ADMIN_PASSWORD: '',
+  ADMIN_PASSWORD: 'CHANGE_ME_STRONG_PASSWORD',
   FLUTTERWAVE_SECRET_KEY: '',
-  FLUTTERWAVE_PUBLIC_KEY: '',
+  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
+  FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
+  FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
   FLUTTERWAVE_WEBHOOK_HASH: '',
   SITE_URL: 'https://unisocials.onrender.com',
-  CONTACT_EMAIL: '',
-  FORMSUBMIT_KEY: '',
+  CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
+  FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
   REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html',
   // Email notifications — admin gets an alert the moment a payment is confirmed,
   // and the buyer gets a confirmation email with their ticket QR links.
-  ADMIN_EMAIL: '',
+  ADMIN_EMAIL: 'soludobenedict5@gmail.com',
 // "From" address for Resend. In Resend test mode you must use onboarding@resend.dev
   // and only the account owner's email can receive. After verifying a domain
   // (e.g. your university's domain or your own domain), set EMAIL_FROM="Unisocials <no-reply@yourdomain>"
-  EMAIL_FROM: '',
+  EMAIL_FROM: 'Unisocials <onboarding@resend.dev>',
   // Brevo API key — sends buyer ticket confirmation emails (no domain required;
   // just verify a sender email at https://app.brevo.com). Never exposed to browser.
   BREVO_API_KEY: '',
-  BREVO_SENDER_EMAIL: '',
-  BREVO_SENDER_NAME: '',
+  BREVO_SENDER_EMAIL: 'support.sbiamautos@gmail.com',
+  BREVO_SENDER_NAME: 'Unisocials',
   // NOTE: RESEND_API_KEY is intentionally NOT hardcoded here. Set it in the
   // Render dashboard (Environment → Env Vars) so it's never committed to the
   // repo — GitHub secret scanning rejects live Resend keys in commits.
@@ -2925,7 +2916,7 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
       const paymentMethod = String(data.paymentMethod || '').trim().toLowerCase();
       if (!['card', 'banktransfer'].includes(paymentMethod)) {
-        return sendJson(res, 400, { success: false, error: 'Please select debit card or bank transfer.' });
+        return sendJson(res, 400, { success: false, error: 'Please select Credit/Debit Card or Bank Transfer.' });
       }
       // Reject malformed/oversized order input before touching storage or payment state.
       if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || couponCode.length > 100) {
@@ -2949,20 +2940,10 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
       // Resolve the event before applying referral pricing so an Influencer
       // Admin's code cannot be used on an event that admin is not authorized
       // to manage.
-      if (eventId || eventName) {
+      if (eventId) {
         const eventCatalog = await readEvents();
-        // The checkout normally sends the event's canonical id. For older/stale
-        // checkout sessions, however, an event id may have changed while the
-        // event name is still correct. Resolve by id first, then by an exact
-        // event-name match only when that name is unique. Never guess between
-        // multiple events with the same name.
         eventRecord = eventCatalog.find(e => eventIdentifierMatches(e, eventId));
-        if (!eventRecord && eventName) {
-          const requestedName = eventName.trim().toLowerCase();
-          const nameMatches = eventCatalog.filter(e => String(e && (e.name || e.eventName) || '').trim().toLowerCase() === requestedName);
-          if (nameMatches.length === 1) eventRecord = nameMatches[0];
-        }
-        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found. Please refresh the event page and try again.' });
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
       }
 
       if (referralCode) {
@@ -3033,7 +3014,7 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
         qty: qty,
         amount: amount,
         currency: currency,
-        paymentMethod: paymentMethod,      // Exact Flutterwave method selected by the buyer
+        paymentMethod: paymentMethod,      // card or banktransfer; actual payment is handled by Flutterwave
 buyerName: buyerName,
         buyerEmail: buyerEmail,
         buyerPhone: buyerPhone,
@@ -3057,99 +3038,11 @@ buyerFaculty: buyerFaculty,
       };
       // Do not create or access a ticket code while the order is pending.
       // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
-      try {
-        await addOrder(order);
-      } catch (e) {
-        console.error('✗ Error creating order:', e);
-        return sendJson(res, 500, { success: false, error: 'The order could not be saved. Please try again.' });
-      }
+      await addOrder(order);
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
       return sendJson(res, 200, { success: true, order: order });
-    }
-
-    // ── Start the exact Flutterwave Inline payment method selected by the buyer ──
-    // The browser opens Flutterwave's official Inline SDK. The server only supplies
-    // the authoritative order amount/reference and the public key. The secret key
-    // never leaves this server.
-    if (pathname === '/api/flutterwave/checkout' && req.method === 'POST') {
-      const body = await readBody(req);
-      let data = {};
-      try { data = JSON.parse(body || '{}'); } catch (e) {}
-      const orderId = String(data.orderId || '').trim();
-      const requestedMethod = String(data.paymentMethod || '').trim().toLowerCase();
-      if (!orderId) return sendJson(res, 400, { success: false, error: 'Missing orderId' });
-      if (!['card', 'banktransfer'].includes(requestedMethod)) {
-        return sendJson(res, 400, { success: false, error: 'Invalid Flutterwave payment method' });
-      }
-
-      const order = await getOrder(orderId);
-      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
-      if (String(order.paymentMethod || '').toLowerCase() !== requestedMethod) {
-        return sendJson(res, 409, { success: false, error: 'Payment method does not match this order.' });
-      }
-      if (String(order.status || '').toLowerCase() === 'verified') {
-        return sendJson(res, 409, { success: false, error: 'This order has already been paid.' });
-      }
-
-      const publicKey = process.env.FLUTTERWAVE_PUBLIC_KEY !== undefined
-        ? String(process.env.FLUTTERWAVE_PUBLIC_KEY).trim()
-        : String(defaults.FLUTTERWAVE_PUBLIC_KEY || '').trim();
-      const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
-        ? String(process.env.FLUTTERWAVE_SECRET_KEY).trim()
-        : String(defaults.FLUTTERWAVE_SECRET_KEY || '').trim();
-      if (!publicKey || !secretKey) {
-        return sendJson(res, 503, { success: false, error: 'Flutterwave is not configured on the server.' });
-      }
-
-      // Mark the exact method used for this order. The actual payment UI is opened
-      // by Flutterwave Inline in the browser using this server-authoritative config.
-      await patchOrder(order.orderId, {
-        flutterwaveCheckoutCreatedAt: new Date().toISOString(),
-        flutterwaveCheckoutMethod: requestedMethod,
-        flutterwaveCheckoutLinkIssued: false
-      });
-
-      const siteUrlRaw = String(process.env.SITE_URL || defaults.SITE_URL || '').trim().replace(/\/$/, '');
-      let redirectUrl = siteUrlRaw + '/thank-you.html';
-      try {
-        const parsedSiteUrl = new URL(siteUrlRaw);
-        if (!/^https?:$/.test(parsedSiteUrl.protocol)) throw new Error('Unsupported SITE_URL protocol');
-      } catch (e) {
-        const host = String(req.headers.host || '').trim();
-        if (!host) return sendJson(res, 503, { success: false, error: 'SITE_URL is not configured with a valid http(s) URL.' });
-        redirectUrl = 'https://' + host + '/thank-you.html';
-      }
-
-      return sendJson(res, 200, {
-        success: true,
-        paymentMethod: requestedMethod,
-        publicKey: publicKey,
-        tx_ref: order.orderId,
-        amount: Number(order.amount),
-        currency: order.currency,
-        redirect_url: redirectUrl,
-        customer: {
-          email: order.buyerEmail,
-          name: order.buyerName,
-          phone_number: order.buyerPhone || ''
-        },
-        customizations: {
-          title: 'Unisocials',
-          description: String(order.eventName || 'Event ticket') + (Number(order.qty) > 1 ? ' (' + Number(order.qty) + ' tickets)' : '')
-        }
-      });
-    }
-
-    // ── Public Flutterwave SDK configuration ──
-    // Public key only. The secret key is intentionally never returned here.
-    if (pathname === '/api/flutterwave/public-config' && req.method === 'GET') {
-      const publicKey = process.env.FLUTTERWAVE_PUBLIC_KEY !== undefined
-        ? String(process.env.FLUTTERWAVE_PUBLIC_KEY).trim()
-        : String(defaults.FLUTTERWAVE_PUBLIC_KEY || '').trim();
-      if (!publicKey) return sendJson(res, 503, { success: false, error: 'Flutterwave public key is not configured on the server.' });
-      return sendJson(res, 200, { success: true, publicKey: publicKey });
     }
 
     // ── Buyer payment-received acknowledgement (SERVER-VERIFIED) ──

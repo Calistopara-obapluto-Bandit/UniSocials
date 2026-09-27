@@ -1173,7 +1173,7 @@ const tier = getSelectedTier();
     }
   }
 
-  function createOrderViaApi(orderId, orderTotal, successCallback, paymentMethod) {
+  function createOrderViaApi(orderId, orderTotal, paymentMethod, successCallback) {
     // Manual referral input takes priority; otherwise use the saved referral URL/session code.
     // Referral is optional. If a referral link/session code exists, attach it;
     // otherwise the order proceeds without a referral code.
@@ -1208,116 +1208,92 @@ const tier = getSelectedTier();
       })
     })
     .then(function(res) {
-      return res.text().then(function(raw) {
-        let data = {};
-        try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = {}; }
-        return { ok: res.ok, data: data };
-      });
+      return res.json().catch(function() { return { success:false, error:'Server returned an invalid response.' }; });
     })
-    .then(function(result) {
-      const data = result.data || {};
-      if (successCallback) {
-        successCallback(
-          !!(result.ok && data.success),
-          data.order ? data.order.ticketCodes : null,
-          data.order ? Number(data.order.amount || 0) : 0,
-          data.error || ''
-        );
-      }
+    .then(function(data) {
+      if (successCallback) successCallback(!!(data && data.success), data && data.order ? data.order.ticketCodes : null, data && data.order ? Number(data.order.amount || 0) : 0, data && data.error ? String(data.error) : '');
     })
     .catch(function(err) {
-      if (successCallback) successCallback(false, null, 0, err && err.message ? err.message : 'Unable to reach the order server.');
+      if (successCallback) successCallback(false, null, 0, err && err.message ? err.message : 'Unable to reach the server.');
     });
   }
 
-  function startFlutterwavePayment(orderId, paymentMethod) {
-    const paymentLabel = paymentMethod === 'banktransfer' ? 'bank transfer' : 'debit card';
-    fetch('/api/flutterwave/checkout', {
-      method: 'POST',
-      headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId: orderId, paymentMethod: paymentMethod })
-    })
-    .then(function(res) {
-      return res.json().then(function(data) { return { ok: res.ok, data: data }; });
-    })
-    .then(function(result) {
-      if (!result.ok || !result.data || !result.data.success) {
-        throw new Error(result.data && result.data.error ? result.data.error : ('Could not start ' + paymentLabel + ' checkout.'));
-      }
-      if (typeof window.FlutterwaveCheckout !== 'function') {
-        throw new Error('Flutterwave checkout could not be loaded. Please refresh and try again.');
-      }
+  function startFlutterwavePayment(orderId, eventName, qty, orderTotal, name, email, phone, paymentMethod) {
+    const cfg = window.SITE_CONFIG || {};
+    const publicKey = cfg.FLUTTERWAVE_PUBLIC_KEY || '';
 
-      const sdkConfig = result.data;
-      const modal = window.FlutterwaveCheckout({
-        public_key: sdkConfig.publicKey,
-        tx_ref: sdkConfig.tx_ref,
-        amount: Number(sdkConfig.amount),
-        currency: sdkConfig.currency || 'NGN',
-        payment_options: paymentMethod === 'card' ? 'card' : 'banktransfer',
-        redirect_url: sdkConfig.redirect_url,
-        customer: sdkConfig.customer,
-        customizations: sdkConfig.customizations,
-        callback: function(payment) {
-          const txRef = String((payment && (payment.tx_ref || payment.txRef)) || sdkConfig.tx_ref || orderId);
+    if (!publicKey) {
+      alert('Flutterwave is not configured. Please contact support.');
+      return;
+    }
+
+    const customerName = name || 'Unisocial Customer';
+
+    const payload = {
+      public_key: publicKey,
+      tx_ref: orderId,
+      amount: orderTotal,
+      currency: 'NGN',
+      // Each UniSocials payment button opens Flutterwave with ONLY the method
+      // the buyer selected. Flutterwave handles the actual payment UI.
+      payment_options: paymentMethod === 'card' ? 'card' : 'banktransfer',
+      redirect_url: cfg.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html',
+      customer: {
+email: email || 'customer@example.com',
+        name: customerName,
+        phone_number: phone || ''
+      },
+      customizations: {
+        title: 'Unisocials',
+        description: eventName + (qty > 1 ? ' (' + qty + ' tickets)' : ''),
+        logo: 'https://unisocials.onrender.com/images/tm-622-screen-01.jpg'
+      },
+      callback: function(response) {
+        if (response && (response.status === 'successful' || response.status === 'completed')) {
+          // IMPORTANT: this callback must NOT verify the payment. It only records
+          // that Flutterwave reported a successful checkout and triggers the
+          // pre-verification acknowledgement email. Manual admin verification
+          // is the only path that issues tickets.
           fetch('/api/payment-received', {
             method: 'POST',
-            headers: window.UNNAuth ? window.UNNAuth.authHeaders() : { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tx_ref: txRef, id: payment && payment.transaction_id ? payment.transaction_id : null })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_ref: response.tx_ref || orderId })
           })
-          .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
-          .then(function(result) {
-            if (result.ok && result.data && result.data.success) {
-              window.location.href = 'thank-you.html?tx_ref=' + encodeURIComponent(txRef);
-              return;
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            var paidTotal = orderTotal;
+            if (data && data.success) {
+              sendOrderToWhatsApp(orderId, eventName, qty, paidTotal, 'Flutterwave — awaiting verification', name, email, phone, []);
             }
-            throw new Error(result.data && result.data.error ? result.data.error : 'Payment could not be verified yet.');
+            window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
           })
-          .catch(function(err) {
-            alert(err && err.message ? err.message : 'Payment could not be verified yet. Please wait for confirmation.');
-            setPaymentButtonsBusy(false);
+          .catch(function() {
+            // Even if the acknowledgement request fails, never verify or issue
+            // tickets from the browser. Send the buyer to the thank-you page.
+            window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
           });
-        },
-        onclose: function() {
-          setPaymentButtonsBusy(false);
+        } else {
+          alert('Payment was not completed. You can try again.');
         }
-      });
-      // Flutterwave returns a modal controller. Keep a reference only for SDK lifecycle;
-      // no custom payment UI is created here.
-      window.__unisocialsFlutterwaveModal = modal;
-      setPaymentButtonsBusy(false);
-    })
-    .catch(function(err) {
-      alert(err && err.message ? err.message : ('Could not start ' + paymentLabel + ' checkout. Please try again.'));
-      setPaymentButtonsBusy(false);
-    });
-  }
+      },
+      onclose: function() {}
+    };
 
-  function setPaymentButtonsBusy(busy) {
-    ['cardPaymentBtn', 'bankTransferPaymentBtn'].forEach(function(id) {
-      const btn = document.getElementById(id);
-      if (btn) {
-        btn.disabled = !!busy;
-        btn.style.opacity = busy ? '0.65' : '';
-        btn.style.pointerEvents = busy ? 'none' : '';
-      }
-    });
+    if (typeof window.FlutterwaveCheckout === 'function') {
+      window.FlutterwaveCheckout(payload);
+    } else {
+      alert('Flutterwave checkout could not be loaded. Please check your internet connection.');
+    }
   }
 
   window.placeOrder = function(paymentMethod) {
+    paymentMethod = paymentMethod === 'banktransfer' ? 'banktransfer' : 'card';
     const selectedEventId = checkoutData && (checkoutData.eventId || checkoutData.eventValue);
     if (!checkoutData || !selectedEventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
       alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
       window.location.href = 'tickets.html' + (selectedEventId ? '?event=' + encodeURIComponent(selectedEventId) : '');
       return;
     }
-
-    paymentMethod = String(paymentMethod || '').toLowerCase();
-    if (paymentMethod !== 'card' && paymentMethod !== 'banktransfer') {
-      alert('Please choose Debit Card or Bank Transfer.');
-      return;
-    }
-
     const orderId = generateOrderId();
     const eventName = checkoutData.eventName;
     const qty = checkoutData.qty;
@@ -1325,24 +1301,28 @@ const tier = getSelectedTier();
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
 
-    setPaymentButtonsBusy(true);
+    const placeBtn = document.getElementById('placeOrderBtn');
+    const selectedLabel = paymentMethod === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card';
+    const selectedBtn = paymentMethod === 'banktransfer' ? document.getElementById('bankTransferBtn') : document.getElementById('cardPaymentBtn');
+    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = 'Opening Flutterwave…'; }
 
-    // 1) Create the pending order server-side first. The server recalculates the
-    // authoritative amount and records the exact payment method selected here.
-    createOrderViaApi(orderId, total, function(success, ticketCodes, serverAmount, errorMessage) {
+    // 1) Create the pending order server-side FIRST. This is silent to the buyer.
+    createOrderViaApi(orderId, total, paymentMethod, function(success, ticketCodes, serverAmount, errorMessage) {
       if (!success) {
-        alert(errorMessage || 'Could not create your order. Please try again.');
-        setPaymentButtonsBusy(false);
+        alert((errorMessage || 'Could not create your order. Please try again.') + '\n\nPayment method: ' + selectedLabel);
+        if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = paymentMethod === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'; }
         return;
       }
-
-      // 2) Ask the server for Flutterwave Inline SDK configuration restricted
-      // to ONLY the selected method, then open Flutterwave's official payment UI.
+      // 2) Open Flutterwave immediately with ONLY the selected payment method.
       const paymentAmount = serverAmount > 0 ? serverAmount : total;
       total = paymentAmount;
       renderCouponTotal();
-      startFlutterwavePayment(orderId, paymentMethod);
-    }, paymentMethod);
+      startFlutterwavePayment(orderId, eventName, qty, paymentAmount, name, email, phone, paymentMethod);
+      // Re-enable if the buyer closes the Flutterwave modal.
+      setTimeout(function() {
+        if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = paymentMethod === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'; }
+      }, 15000);
+    });
   };
 
   // Bind events

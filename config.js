@@ -18,7 +18,7 @@ window.SITE_CONFIG = {
 // Flutterwave public key — used for the inline payment checkout.
   // NOTE: This is served dynamically by server.js from the FLUTTERWAVE_PUBLIC_KEY
   // environment variable for production. The placeholder below is only a local fallback.
-  FLUTTERWAVE_PUBLIC_KEY: '',
+  FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
 
   // Flutterwave secret key — NEVER exposed to the browser. Used ONLY server-side
   // (server.js) to verify transactions so payments can't be faked/tampered with.
@@ -26,11 +26,13 @@ window.SITE_CONFIG = {
   // ⚠️ SECURITY: This must NOT contain a real key. It is provided via env vars only.
   FLUTTERWAVE_SECRET_KEY: '',
 
+  // Flutterwave bank account details (Bank Transfer payment)
+
   // Contact / support email shown in FAQ
-  CONTACT_EMAIL: '',
+  CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
 
   // FormSubmit.co email endpoint for the contact form (messages land in the contact inbox)
-  FORMSUBMIT_KEY: '',
+  FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
 
   // Redirect URL after contact form submission
   REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'
