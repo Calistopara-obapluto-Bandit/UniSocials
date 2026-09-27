@@ -132,11 +132,33 @@ async function getOrder(orderId) {
   return orders.find(o => o.orderId === orderId) || null;
 }
 async function addOrder(order) {
+  if (usePg) {
+    // Do not rebuild the entire orders table for one new order. The previous
+    // implementation used DELETE + INSERT for every write, which is fragile
+    // on production Postgres and can make checkout fail before Flutterwave
+    // ever opens. Insert only this order atomically.
+    await db.query(
+      'INSERT INTO orders (id, data, updated_at) VALUES ($1, $2, NOW())',
+      [order.orderId, JSON.stringify(order)]
+    );
+    return order;
+  }
   const orders = await readOrders();
   orders.unshift(order);
   await writeOrders(orders);
+  return order;
 }
 async function patchOrder(orderId, patch) {
+  if (usePg) {
+    const current = await getOrder(orderId);
+    if (!current) return null;
+    const updated = Object.assign({}, current, patch);
+    await db.query(
+      'UPDATE orders SET data = $2, updated_at = NOW() WHERE id = $1',
+      [orderId, JSON.stringify(updated)]
+    );
+    return updated;
+  }
   const orders = await readOrders();
   const idx = orders.findIndex(o => o.orderId === orderId);
   if (idx === -1) return null;
