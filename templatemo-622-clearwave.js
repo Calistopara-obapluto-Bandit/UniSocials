@@ -1207,12 +1207,26 @@ const tier = getSelectedTier();
         couponCode: appliedCoupon ? appliedCoupon.code : ''
       })
     })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (successCallback) successCallback(data && data.success, data && data.order ? data.order.ticketCodes : null, data && data.order ? Number(data.order.amount || 0) : 0);
+    .then(function(res) {
+      return res.text().then(function(raw) {
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = {}; }
+        return { ok: res.ok, data: data };
+      });
     })
-    .catch(function() {
-      if (successCallback) successCallback(false, null);
+    .then(function(result) {
+      const data = result.data || {};
+      if (successCallback) {
+        successCallback(
+          !!(result.ok && data.success),
+          data.order ? data.order.ticketCodes : null,
+          data.order ? Number(data.order.amount || 0) : 0,
+          data.error || ''
+        );
+      }
+    })
+    .catch(function(err) {
+      if (successCallback) successCallback(false, null, 0, err && err.message ? err.message : 'Unable to reach the order server.');
     });
   }
 
@@ -1315,15 +1329,15 @@ const tier = getSelectedTier();
 
     // 1) Create the pending order server-side first. The server recalculates the
     // authoritative amount and records the exact payment method selected here.
-    createOrderViaApi(orderId, total, function(success, ticketCodes, serverAmount) {
+    createOrderViaApi(orderId, total, function(success, ticketCodes, serverAmount, errorMessage) {
       if (!success) {
-        alert('Could not create your order. Please try again.');
+        alert(errorMessage || 'Could not create your order. Please try again.');
         setPaymentButtonsBusy(false);
         return;
       }
 
-      // 2) Ask the server for a Flutterwave Standard hosted checkout configured
-      // for ONLY the selected method, then redirect to Flutterwave.
+      // 2) Ask the server for Flutterwave Inline SDK configuration restricted
+      // to ONLY the selected method, then open Flutterwave's official payment UI.
       const paymentAmount = serverAmount > 0 ? serverAmount : total;
       total = paymentAmount;
       renderCouponTotal();

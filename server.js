@@ -2926,10 +2926,20 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
       // Resolve the event before applying referral pricing so an Influencer
       // Admin's code cannot be used on an event that admin is not authorized
       // to manage.
-      if (eventId) {
+      if (eventId || eventName) {
         const eventCatalog = await readEvents();
+        // The checkout normally sends the event's canonical id. For older/stale
+        // checkout sessions, however, an event id may have changed while the
+        // event name is still correct. Resolve by id first, then by an exact
+        // event-name match only when that name is unique. Never guess between
+        // multiple events with the same name.
         eventRecord = eventCatalog.find(e => eventIdentifierMatches(e, eventId));
-        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+        if (!eventRecord && eventName) {
+          const requestedName = eventName.trim().toLowerCase();
+          const nameMatches = eventCatalog.filter(e => String(e && (e.name || e.eventName) || '').trim().toLowerCase() === requestedName);
+          if (nameMatches.length === 1) eventRecord = nameMatches[0];
+        }
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found. Please refresh the event page and try again.' });
       }
 
       if (referralCode) {
@@ -3024,7 +3034,12 @@ buyerFaculty: buyerFaculty,
       };
       // Do not create or access a ticket code while the order is pending.
       // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
-      await addOrder(order);
+      try {
+        await addOrder(order);
+      } catch (e) {
+        console.error('✗ Error creating order:', e);
+        return sendJson(res, 500, { success: false, error: 'The order could not be saved. Please try again.' });
+      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
