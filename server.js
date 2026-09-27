@@ -3307,22 +3307,17 @@ buyerFaculty: buyerFaculty,
       return sendJson(res, 200, { success: true, order: payload });
     }
 
-    // ── Get ticket by orderId + code (protected, per-ticket) ──
-    // Requires login AND ownership of the order.
+    // ── Get ticket by orderId + code ──
+    // A QR ticket is a bearer credential: the orderId + unique ticket code
+    // embedded in the QR are sufficient to display that specific verified ticket.
+    // Gate check-in remains separately protected by /api/ticket/scan.
     if (pathname === '/api/ticket' && req.method === 'GET') {
       const orderId = String(url.searchParams.get('orderId') || '').trim();
       const code = String(url.searchParams.get('code') || '').trim();
       if (!orderId || !code) return sendJson(res, 400, { success: false, error: 'Missing orderId or code' });
 
-      const auth = req.headers['authorization'] || '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      const user = await getSessionUser(token);
-      if (!user) return sendJson(res, 401, { success: false, error: 'Please sign in to view this ticket.' });
-
       const order = await getOrder(orderId);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
-      const ownsOrder = order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email;
-      if (!ownsOrder) return sendJson(res, 403, { success: false, error: 'You do not have access to this ticket.' });
       if (order.status !== 'verified') {
         return sendJson(res, 403, { success: false, error: 'Order not yet verified', status: order.status });
       }

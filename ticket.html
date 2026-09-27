@@ -382,15 +382,6 @@ var ticketUniversity = document.getElementById('ticketUniversity');
       var ticketUsedBanner = document.getElementById('ticketUsedBanner');
       var ticketUsedAt = document.getElementById('ticketUsedAt');
 
-      // Require sign-in to view a ticket. If not logged in, send them to the
-      // login page and return them here with the same link after signing in.
-      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
-      if (!token) {
-        var next = window.location.pathname + window.location.search;
-        window.location.href = 'login.html?next=' + encodeURIComponent(next);
-        return;
-      }
-
       function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
@@ -490,9 +481,7 @@ if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014
         return;
       }
 
-      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code), {
-          headers: window.UNNAuth.authHeaders()
-        })
+      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code))
         .then(function(res) { return res.json(); })
         .then(function(data) {
           if (data && data.success && data.ticket) {
