@@ -80,6 +80,7 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS payouts (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
@@ -102,6 +103,43 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
 }
 
 /* ── Orders ── */
+// Run a set of statements as one atomic transaction. All-or-nothing writes keep
+// concurrent requests (gate scans, registrations, logins) from seeing half-
+// finished table rewrites or wiping each other's data.
+// Serialize JSON-storage read-modify-write cycles. In JSON-file mode every
+// "read list → modify → write list" done concurrently can silently drop other
+// requests' changes (last writer wins). The mutex guarantees one full cycle
+// completes before the next starts. PG mode does not need this (row-level ops).
+const jsonWriteLocks = new Map();
+async function withJsonWriteLock(key, work) {
+  const prev = jsonWriteLocks.get(key) || Promise.resolve();
+  let release;
+  const gate = new Promise(r => { release = r; });
+  jsonWriteLocks.set(key, gate);
+  await prev.catch(() => {});
+  try {
+    return await work();
+  } finally {
+    release();
+    if (jsonWriteLocks.get(key) === gate) jsonWriteLocks.delete(key);
+  }
+}
+
+async function withDbTransaction(work) {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (e2) { /* already aborted */ }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 async function readOrders() {
   if (usePg) {
     const r = await db.query('SELECT data FROM orders ORDER BY data->>\'createdAt\' DESC');
@@ -115,10 +153,32 @@ async function readOrders() {
 }
 async function writeOrders(orders) {
   if (usePg) {
-    await db.query('DELETE FROM orders');
-    for (const o of orders) {
-      await db.query('INSERT INTO orders (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [o.orderId, JSON.stringify(o)]);
-    }
+    // Upsert the full list and delete only rows that disappeared, in ONE
+    // transaction. The old DELETE-all + re-insert left the table empty for the
+    // duration of the rewrite: concurrent scans/orders hit timeouts and a race
+    // could permanently drop rows.
+    const rows = orders
+      .filter(o => o && o.orderId)
+      .map(o => [String(o.orderId), JSON.stringify(o)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO orders (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM orders WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM orders');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'orders.json'), JSON.stringify(orders, null, 2), 'utf8');
@@ -149,15 +209,136 @@ async function addOrder(order) {
   return order;
 }
 async function patchOrder(orderId, patch) {
-  const orders = await readOrders();
-  const idx = orders.findIndex(o => o.orderId === orderId);
-  if (idx === -1) return null;
-  orders[idx] = Object.assign({}, orders[idx], patch);
-  await writeOrders(orders);
-  return orders[idx];
+  if (usePg) {
+    // Update ONLY this order's row, locked so concurrent gate scans cannot
+    // overwrite each other. The old path rewrote the whole orders table on
+    // every scan, which held locks, queued every other request behind it, and
+    // made check-in time out during busy periods.
+    return withDbTransaction(async (client) => {
+      const cur = await client.query('SELECT data FROM orders WHERE id = $1 FOR UPDATE', [orderId]);
+      if (!cur.rows.length) return null;
+      const updated = Object.assign({}, cur.rows[0].data, patch);
+      await client.query('UPDATE orders SET data = $2::jsonb, updated_at = NOW() WHERE id = $1', [orderId, JSON.stringify(updated)]);
+      return updated;
+    });
+  }
+  const orders = await withJsonWriteLock('orders', async () => {
+    const orders = await readOrders();
+    const idx = orders.findIndex(o => o.orderId === orderId);
+    if (idx === -1) return null;
+    orders[idx] = Object.assign({}, orders[idx], patch);
+    await writeOrders(orders);
+    return orders[idx];
+  });
+  return orders;
 }
 
 /* ── Coupons ── */
+/* ── Payout requests (Influencer Admin commissions) ── */
+const PAYOUT_METHODS = {
+  '7_days': { label: 'Every 7 days', description: 'Payout cycle: every 7 days' },
+  '14_days': { label: 'Every 14 days', description: 'Payout cycle: every 14 days' },
+  'after_event': { label: 'After event day', description: 'Payout after the event day' }
+};
+const PAYOUT_STATUSES = ['pending', 'approved', 'paid', 'rejected'];
+
+function payoutPublic(p) {
+  if (!p) return null;
+  return {
+    id: p.id,
+    requestedBy: p.requestedBy,
+    requesterName: p.requesterName || '',
+    requesterEmail: p.requesterEmail || '',
+    amount: Number(p.amount) || 0,
+    payoutMethod: p.payoutMethod,
+    payoutMethodLabel: (PAYOUT_METHODS[p.payoutMethod] || {}).label || p.payoutMethod,
+    bankName: p.bank ? p.bank.bankName : '',
+    accountNumber: p.bank ? p.bank.accountNumber : '',
+    accountName: p.bank ? p.bank.accountName : '',
+    status: p.status,
+    note: p.note || '',
+    adminNote: p.adminNote || '',
+    createdAt: p.createdAt,
+    reviewedAt: p.reviewedAt || null,
+    paidAt: p.paidAt || null,
+    paymentDueBy: p.paymentDueBy || null,
+    reviewedBy: p.reviewedBy || ''
+  };
+}
+
+async function readPayouts() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM payouts ORDER BY created_at DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'payouts.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writePayouts(payouts) {
+  if (usePg) {
+    const rows = payouts
+      .filter(p => p && p.id)
+      .map(p => [String(p.id), JSON.stringify(p)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO payouts (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM payouts WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM payouts');
+    });
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'payouts.json'), JSON.stringify(payouts, null, 2), 'utf8');
+}
+async function addPayoutRequest(payout) {
+  if (usePg) {
+    await db.query(
+      'INSERT INTO payouts (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [payout.id, JSON.stringify(payout)]
+    );
+    return;
+  }
+  await withJsonWriteLock('payouts', async () => {
+    const payouts = await readPayouts();
+    payouts.unshift(payout);
+    await writePayouts(payouts);
+  });
+}
+async function updatePayoutRequest(id, patch) {
+  if (usePg) {
+    return withDbTransaction(async (client) => {
+      const cur = await client.query('SELECT data FROM payouts WHERE id = $1 FOR UPDATE', [id]);
+      if (!cur.rows.length) return null;
+      const updated = Object.assign({}, cur.rows[0].data, patch);
+      await client.query('UPDATE payouts SET data = $2::jsonb WHERE id = $1', [id, JSON.stringify(updated)]);
+      return updated;
+    });
+  }
+  return withJsonWriteLock('payouts', async () => {
+    const payouts = await readPayouts();
+    const idx = payouts.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    payouts[idx] = Object.assign({}, payouts[idx], patch);
+    await writePayouts(payouts);
+    return payouts[idx];
+  });
+}
+
 async function readCoupons() {
   if (usePg) {
     const r = await db.query('SELECT data FROM coupons ORDER BY created_at DESC');
@@ -171,12 +352,28 @@ async function readCoupons() {
 }
 async function writeCoupons(coupons) {
   if (usePg) {
-    for (const c of coupons) {
-      await db.query('INSERT INTO coupons (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data', [c.id, JSON.stringify(c)]);
-    }
-    const ids = coupons.map(c => c.id);
-    if (ids.length) await db.query('DELETE FROM coupons WHERE NOT (id = ANY($1::text[]))', [ids]);
-    else await db.query('DELETE FROM coupons');
+    const rows = coupons
+      .filter(c => c && c.id)
+      .map(c => [String(c.id), JSON.stringify(c)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO coupons (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM coupons WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM coupons');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'coupons.json'), JSON.stringify(coupons, null, 2), 'utf8');
@@ -206,10 +403,33 @@ async function readUsers() {
 }
 async function writeUsers(users) {
   if (usePg) {
-    await db.query('DELETE FROM users');
-    for (const u of users) {
-      await db.query('INSERT INTO users (id, email, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET data = $3', [u.id, u.email, JSON.stringify(u)]);
-    }
+    // Upsert all + delete only rows that disappeared, in ONE transaction.
+    // The old DELETE FROM users wiped every account for the whole rewrite:
+    // a login landing in that window failed, and a racing read-modify-write
+    // could permanently drop newly created staff/influencer accounts, which
+    // made their logins report "Invalid email or password" forever.
+    const rows = users
+      .filter(u => u && u.id && u.email)
+      .map(u => [String(u.id), String(u.email), JSON.stringify(u)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 3;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + ', $' + (b + 3) + '::jsonb)');
+          params.push(r[0], r[1], r[2]);
+        });
+        await client.query(
+          'INSERT INTO users (id, email, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM users WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM users');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
@@ -223,9 +443,53 @@ async function findUserById(id) {
   return users.find(u => u.id === id) || null;
 }
 async function addUser(user) {
-  const users = await readUsers();
-  users.push(user);
-  await writeUsers(users);
+  if (usePg) {
+    // Insert only this user's row. The old read-all → rewrite-all path raced
+    // with concurrent logins/registrations and silently dropped the new
+    // account, so freshly created check-in staff and influencers could never
+    // sign in even though creation reported success.
+    await db.query(
+      'INSERT INTO users (id, email, data) VALUES ($1, $2, $3::jsonb) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data',
+      [user.id, user.email, JSON.stringify(user)]
+    );
+    return;
+  }
+  await withJsonWriteLock('users', async () => {
+    const users = await readUsers();
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) users.push(user);
+    else users[idx] = user;
+    await writeUsers(users);
+  });
+}
+// Update one account in place (single-row upsert in PG mode). Never rewrites
+// unrelated accounts, so concurrent logins/registrations cannot be lost.
+async function replaceUser(user) {
+  if (usePg) {
+    await db.query(
+      'INSERT INTO users (id, email, data) VALUES ($1, $2, $3::jsonb) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data',
+      [user.id, user.email, JSON.stringify(user)]
+    );
+    return;
+  }
+  await withJsonWriteLock('users', async () => {
+    const users = await readUsers();
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) users.push(user);
+    else users[idx] = user;
+    await writeUsers(users);
+  });
+}
+// Remove one account by id (single-row delete in PG mode).
+async function deleteUserById(id) {
+  if (usePg) {
+    await db.query('DELETE FROM users WHERE id = $1', [id]);
+    return;
+  }
+  await withJsonWriteLock('users', async () => {
+    const users = await readUsers();
+    await writeUsers(users.filter(u => u.id !== id));
+  });
 }
 
 /* ── Influencer ↔ Influencer Admin relationships ── */
@@ -346,10 +610,28 @@ async function readSessions() {
 }
 async function writeSessions(sessions) {
   if (usePg) {
-    await db.query('DELETE FROM sessions');
-    for (const [token, userId] of Object.entries(sessions)) {
-      await db.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2)', [token, userId]);
-    }
+    // Same atomic upsert + delete-missing pattern so a rewrite can never
+    // briefly erase live sessions and log everyone out.
+    const entries = Object.entries(sessions);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < entries.length; i += 250) {
+        const chunk = entries.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach(([token, userId], j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + ')');
+          params.push(token, userId);
+        });
+        await client.query(
+          'INSERT INTO sessions (token, user_id) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id',
+          params
+        );
+      }
+      if (entries.length) await client.query('DELETE FROM sessions WHERE NOT (token = ANY($1::text[]))', [entries.map(([t]) => t)]);
+      else await client.query('DELETE FROM sessions');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify(sessions, null, 2), 'utf8');
@@ -711,10 +993,28 @@ async function getOrdersForCurrentSiteEvents() {
 
 async function writeEvents(events) {
   if (usePg) {
-    await db.query('DELETE FROM events');
-    for (const ev of events) {
-      await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [ev.id, JSON.stringify(ev)]);
-    }
+    const rows = events
+      .filter(ev => ev && ev.id)
+      .map(ev => [String(ev.id), JSON.stringify(ev)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO events (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM events WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM events');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(events, null, 2), 'utf8');
@@ -957,10 +1257,28 @@ async function readSubscribers() {
 }
 async function writeSubscribers(list) {
   if (usePg) {
-    await db.query('DELETE FROM subscribers');
-    for (const s of list) {
-      await db.query('INSERT INTO subscribers (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [s.id, JSON.stringify(s)]);
-    }
+    const rows = list
+      .filter(s => s && s.id)
+      .map(s => [String(s.id), JSON.stringify(s)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO subscribers (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM subscribers WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM subscribers');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'subscribers.json'), JSON.stringify(list, null, 2), 'utf8');
@@ -1591,6 +1909,108 @@ async function sendContactEmail(data) {
   return { sent: false, configured: false, provider: '' };
 }
 
+function payoutEmailRow(label, value) {
+  return '<tr><td style="padding:6px 0;color:#64748b;font-size:13px;width:40%">' + escapeHtml(label) + '</td><td style="padding:6px 0;color:#0f172a;font-size:13px;font-weight:600">' + escapeHtml(String(value == null ? '—' : value)) + '</td></tr>';
+}
+
+// Email the Main Admin whenever an Influencer Admin requests a payout.
+async function sendPayoutRequestEmailToAdmin(payout) {
+  try {
+    const to = adminEmail();
+    if (!to) return false;
+    const m = PAYOUT_METHODS[payout.payoutMethod] || {};
+    const amount = '₦' + Number(payout.amount || 0).toLocaleString();
+    const subject = '💰 Payout Request — ' + amount + ' to ' + (payout.requesterName || payout.requesterEmail);
+    const text =
+      'New payout request on Unisocials.\n\n' +
+      'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
+      'Amount: ' + amount + '\n' +
+      'Payment schedule: ' + (m.label || payout.payoutMethod) + '\n' +
+      'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
+      'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
+      'Account name: ' + (payout.bank ? payout.bank.accountName : '') + '\n\n' +
+      'Please review and pay this request within 24 hours in the Admin Dashboard → Payout Requests.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Payout Request 💰</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 14px;color:#475569">An Influencer Admin has requested a commission payout. Please pay within <strong>24 hours</strong>.</p>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
+      payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
+      payoutEmailRow('Amount', amount) +
+      payoutEmailRow('Payment schedule', m.label || payout.payoutMethod) +
+      payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
+      payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
+      payoutEmailRow('Account name', payout.bank ? payout.bank.accountName : '') +
+      '</table>' +
+      '<p style="font-size:13px;color:#475569">Review it in the Admin Dashboard → Payout Requests.</p>' +
+      '</div></div>';
+    let sent = false;
+    if (brevoApiKey()) sent = !!(await sendBrevoEmail(to, subject, text, html));
+    if (!sent && resendKey()) {
+      const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + resendKey() }, { from: process.env.EMAIL_FROM || defaults.EMAIL_FROM, to: [to], subject: subject, text: text, html: html });
+      sent = r.status >= 200 && r.status < 300;
+    }
+    return sent;
+  } catch (e) {
+    console.warn('Payout request email error:', e.message);
+    return false;
+  }
+}
+
+// Notify the Influencer Admin of a decision on their payout request.
+async function sendPayoutStatusEmailToRequester(payout) {
+  try {
+    const to = String(payout.requesterEmail || '').trim();
+    if (!to) return false;
+    const amount = '₦' + Number(payout.amount || 0).toLocaleString();
+    const statusText = String(payout.status || '').toLowerCase();
+    const subject = statusText === 'paid'
+      ? '✅ Payout sent — ' + amount + ' (' + payout.id + ')'
+      : statusText === 'approved'
+        ? '✅ Payout approved — ' + amount + ' will be paid within 24 hours'
+        : '❌ Payout request ' + (payout.id) + ' was rejected';
+    const bankLine = payout.bank ? payout.bank.bankName + ' ••••' + String(payout.bank.accountNumber || '').slice(-4) : '';
+    const text =
+      'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
+      (statusText === 'paid'
+        ? 'Your payout of ' + amount + ' has been sent to your bank account (' + bankLine + ').\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        : statusText === 'approved'
+          ? 'Your payout request of ' + amount + ' has been approved. Payment will be completed within 24 hours.'
+          : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
+      '\n\nThank you for growing Unisocials.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:' + (statusText === 'rejected' ? '#B71C1C' : '#1B5E20') + ';color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Payout Update</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
+      '<p style="margin:0 0 14px;color:#475569">' +
+      (statusText === 'paid'
+        ? 'Your payout of <strong>' + amount + '</strong> has been sent to your bank account (' + escapeHtml(bankLine) + '). Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        : statusText === 'approved'
+          ? 'Your payout request of <strong>' + amount + '</strong> has been approved. <strong>Payment will be completed within 24 hours.</strong>'
+          : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
+      '</p>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
+      payoutEmailRow('Request ID', payout.id) +
+      payoutEmailRow('Amount', amount) +
+      payoutEmailRow('Bank', bankLine) +
+      '</table>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Thank you for growing Unisocials.</p>' +
+      '</div></div>';
+    let sent = false;
+    if (brevoApiKey()) sent = !!(await sendBrevoEmail(to, subject, text, html, payout.requesterName));
+    if (!sent && resendKey()) {
+      const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + resendKey() }, { from: process.env.EMAIL_FROM || defaults.EMAIL_FROM, to: [to], subject: subject, text: text, html: html });
+      sent = r.status >= 200 && r.status < 300;
+    }
+    return sent;
+  } catch (e) {
+    console.warn('Payout status email error:', e.message);
+    return false;
+  }
+}
+
 // Plain-text digest of the order for the email body
 function orderEmailLines(order) {
   const site = siteUrl();
@@ -2142,7 +2562,9 @@ const user = {
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const email = String(data.email || '').trim().toLowerCase();
-      const password = String(data.password || '');
+      // Trim here too: account creation trims the password, so a password
+      // entered/pasted with a leading/trailing space must still match.
+      const password = String(data.password || '').trim();
       if (!email || !password) {
         return sendJson(res, 400, { success: false, error: 'Please enter your email and password.' });
       }
@@ -2222,8 +2644,7 @@ const user = {
         legacy: false
       });
       influencer.influencerAssignments = nextAssignments;
-      users[index] = influencer;
-      await writeUsers(users);
+      await replaceUser(influencer);
       return sendJson(res, 200, { success: true, status: 'pending', influencer: { id: influencer.id, name: influencer.name || '', email: influencer.email || '' } });
     }
 
@@ -2290,8 +2711,7 @@ const user = {
         legacy: false
       });
       influencer.influencerAssignments = assignments;
-      users[influencerIndex] = influencer;
-      await writeUsers(users);
+      await replaceUser(influencer);
 
       // Acceptance creates the referral portal for this relationship. The
       // influencer keeps the same account/login; only the referral relationship
@@ -2474,8 +2894,7 @@ const user = {
       if (!canManageInfluencer(authCtx, user)) {
         return sendJson(res, 403, { success: false, error: 'You can only manage influencers you created.' });
       }
-      const users = await readUsers();
-      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserById(user.id);
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
     }
@@ -2558,8 +2977,7 @@ const user = {
       if (!user || user.role !== 'subadmin') {
         return sendJson(res, 404, { success: false, error: 'Sub-admin not found' });
       }
-      const users = await readUsers();
-      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserById(user.id);
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
     }
@@ -2586,13 +3004,10 @@ const user = {
       if (authCtx.role === 'subadmin' && target.role !== 'influencer') {
         return sendJson(res,403,{success:false,error:'Sub-admins can only archive influencer accounts.'});
       }
-      const users = await readUsers();
-      const idx = users.findIndex(u => u.id === target.id);
-      if (idx < 0) return sendJson(res,404,{success:false,error:'Account not found'});
-      users[idx] = Object.assign({}, users[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
-      await writeUsers(users);
+      const updatedUser = Object.assign({}, target, { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await replaceUser(updatedUser);
       if (archived) await deleteUserSessions(target.id);
-      return sendJson(res,200,{success:true,user:publicUser(users[idx])});
+      return sendJson(res,200,{success:true,user:publicUser(updatedUser)});
     }
 
     // ── Admin: dedicated staff accounts (check-in staff / influencer admin) ──
@@ -2623,7 +3038,7 @@ const user = {
       if (!email) return sendJson(res, 400, { success:false, error:'Missing email' });
       const user = await findUserByEmail(email);
       if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) return sendJson(res,404,{success:false,error:'Staff account not found'});
-      const users = await readUsers(); await writeUsers(users.filter(u => u.id !== user.id)); await deleteUserSessions(user.id);
+      await deleteUserById(user.id); await deleteUserSessions(user.id);
       return sendJson(res,200,{success:true});
     }
 
@@ -2653,8 +3068,7 @@ const user = {
       target.otpExpires = null;
       target.resetToken = null;
       target.resetTokenExpires = null;
-      const users = await readUsers();
-      await writeUsers(users.map(u => u.id === target.id ? target : u));
+      await replaceUser(target);
       await deleteUserSessions(target.id);
       return sendJson(res, 200, { success: true, message: 'Password reset successfully. The account must sign in again.' });
     }
@@ -2689,7 +3103,7 @@ const user = {
       const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
       user.otp = hashResetSecret(otp);
       user.otpExpires = otpExpires;
-      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      await replaceUser(user);
 
       // Send OTP via Brevo (fallback: log to console for local testing)
       const subject = 'Your Unisocials password reset OTP';
@@ -2749,7 +3163,7 @@ const user = {
       user.resetTokenExpires = Date.now() + 15 * 60 * 1000;
       user.otp = null;
       user.otpExpires = null;
-      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      await replaceUser(user);
 
       return sendJson(res, 200, { success: true, resetToken: resetToken });
     }
@@ -2793,7 +3207,7 @@ const user = {
       user.resetTokenExpires = null;
       user.otp = null;
       user.otpExpires = null;
-      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      await replaceUser(user);
       // Invalidate all existing sessions so the user must log in again
       await deleteUserSessions(user.id);
 
@@ -4092,6 +4506,158 @@ codes[idx] = entry;
         return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
       });
       return sendJson(res, 200, { success:true, events:result });
+    }
+
+    // ── Influencer Admin: payouts ──
+    // Verified commission earnings across the events this Influencer Admin is
+    // authorized for, minus every payout already requested/approved/paid.
+    // Rejected requests never reduce the available balance.
+    async function influencerAdminPayoutSummary(authCtx) {
+      const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
+      const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
+      let totalVerifiedRevenue = 0;
+      authorizedEvents.forEach(ev => {
+        orders.forEach(o => {
+          if (eventMatchesOrder(o, ev) && String(o.status || '').toLowerCase() === 'verified') {
+            totalVerifiedRevenue += Number(o.amount) || 0;
+          }
+        });
+      });
+      const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
+      const committed = mine
+        .filter(p => ['pending','approved','paid'].includes(String(p.status || '').toLowerCase()))
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      return {
+        payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        totalVerifiedRevenue,
+        totalRequested: committed,
+        availableBalance: Math.max(0, totalVerifiedRevenue - committed),
+        hasOpenRequest: mine.some(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()))
+      };
+    }
+
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const summary = await influencerAdminPayoutSummary(authCtx);
+      return sendJson(res, 200, {
+        success: true,
+        payouts: summary.payouts.map(payoutPublic),
+        totalVerifiedRevenue: summary.totalVerifiedRevenue,
+        totalRequested: summary.totalRequested,
+        availableBalance: summary.availableBalance,
+        hasOpenRequest: summary.hasOpenRequest,
+        payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
+        savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null
+      });
+    }
+
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const amount = Math.round(Number(data.amount) * 100) / 100;
+      const payoutMethod = String(data.payoutMethod || '').trim();
+      const note = String(data.note || '').trim().slice(0, 500);
+      const bank = data.bank || {};
+      const bankName = String(bank.bankName || '').trim();
+      const accountNumber = String(bank.accountNumber || '').replace(/[\s-]/g, '');
+      const accountName = String(bank.accountName || '').trim().toUpperCase();
+
+      if (!Number.isFinite(amount) || amount <= 0) return sendJson(res, 400, { success:false, error:'Enter the payout amount you are requesting.' });
+      if (!PAYOUT_METHODS[payoutMethod]) return sendJson(res, 400, { success:false, error:'Choose a payment schedule: every 7 days, every 14 days, or after event day.' });
+      if (!bankName) return sendJson(res, 400, { success:false, error:'Bank name is required.' });
+      if (!/^\d{10}$/.test(accountNumber)) return sendJson(res, 400, { success:false, error:'Enter a valid 10-digit Nigerian bank account number.' });
+      if (!accountName) return sendJson(res, 400, { success:false, error:'Bank account name is required.' });
+
+      const summary = await influencerAdminPayoutSummary(authCtx);
+      if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
+      if (amount > summary.availableBalance) {
+        return sendJson(res, 400, { success:false, error:'Requested amount exceeds your available balance of ₦' + summary.availableBalance.toLocaleString() + '.' });
+      }
+
+      const payout = {
+        id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+        requestedBy: authCtx.user.id,
+        requesterName: authCtx.user.name || '',
+        requesterEmail: authCtx.user.email || '',
+        amount,
+        payoutMethod,
+        bank: { bankName, accountNumber, accountName },
+        note,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        reviewedAt: null,
+        paidAt: null,
+        reviewedBy: null,
+        adminNote: ''
+      };
+      await addPayoutRequest(payout);
+
+      // Remember the bank account so the next request prefills it.
+      try {
+        const fresh = await findUserById(authCtx.user.id);
+        if (fresh) {
+          fresh.payoutBankAccount = { bankName, accountNumber, accountName };
+          await replaceUser(fresh);
+        }
+      } catch (e) { /* non-fatal */ }
+
+      // Notify the Main Admin by email so they can verify and pay within 24 hours.
+      const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      return sendJson(res, 200, {
+        success: true,
+        payout: payoutPublic(payout),
+        availableBalance: Math.max(0, summary.availableBalance - amount),
+        adminEmailSent: !!emailSent,
+        message: 'Payout request submitted. The admin has been notified and will pay within 24 hours of approval.'
+      });
+    }
+
+    // ── Admin: manage payout requests (verify, pay, reject) ──
+    if (pathname === '/api/admin/payouts' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Admin access only' });
+      const payouts = await readPayouts();
+      return sendJson(res, 200, { success: true, payouts: payouts.map(payoutPublic) });
+    }
+
+    if (pathname === '/api/admin/payouts' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Admin access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const payoutId = String(data.payoutId || '').trim();
+      const action = String(data.action || '').trim().toLowerCase();
+      const adminNote = String(data.adminNote || '').trim().slice(0, 500);
+      if (!payoutId) return sendJson(res, 400, { success:false, error:'Missing payoutId.' });
+      if (!['approve','mark_paid','reject'].includes(action)) return sendJson(res, 400, { success:false, error:'Action must be approve, mark_paid, or reject.' });
+      if (action === 'reject' && !adminNote) return sendJson(res, 400, { success:false, error:'Add a short reason when rejecting a payout request.' });
+
+      const payouts = await readPayouts();
+      const existing = payouts.find(p => p.id === payoutId);
+      if (!existing) return sendJson(res, 404, { success:false, error:'Payout request not found.' });
+      const currentStatus = String(existing.status || '').toLowerCase();
+      if (currentStatus === 'paid') return sendJson(res, 409, { success:false, error:'This payout has already been paid.' });
+
+      const nowIso = new Date().toISOString();
+      const patch = { reviewedAt: nowIso, reviewedBy: 'Admin', adminNote: adminNote || existing.adminNote || '' };
+      if (action === 'approve') {
+        if (currentStatus === 'approved') return sendJson(res, 409, { success:false, error:'This payout is already approved.' });
+        patch.status = 'approved';
+        // The payment promise: approved payouts are paid within 24 hours.
+        patch.paymentDueBy = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      } else if (action === 'mark_paid') {
+        patch.status = 'paid';
+        patch.paidAt = nowIso;
+        if (!patch.paymentDueBy && currentStatus !== 'approved') patch.paymentDueBy = nowIso;
+      } else {
+        patch.status = 'rejected';
+      }
+
+      const updated = await updatePayoutRequest(payoutId, patch);
+      // Email the Influencer Admin the outcome (best-effort, never blocks).
+      const emailSent = updated ? await sendPayoutStatusEmailToRequester(Object.assign({}, existing, patch)) : false;
+      return sendJson(res, 200, { success: true, payout: payoutPublic(Object.assign({}, existing, patch)), emailSent: !!emailSent });
     }
 
     // ── Influencer Admin: Add Events list ──

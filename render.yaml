@@ -30,7 +30,9 @@ services:
       # Non-secret public values (safe to commit)
       - key: FLUTTERWAVE_PUBLIC_KEY
         sync: false
+      - key: FLUTTERWAVE_BANK_NAME
         value: Flutterwave MfB (formerly ok mfb)
+      - key: FLUTTERWAVE_ACCOUNT_NUMBER
         value: "9707788756"
       - key: SITE_URL
         value: https://unisocials.onrender.com

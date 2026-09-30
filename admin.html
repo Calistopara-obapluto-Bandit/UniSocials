@@ -809,6 +809,7 @@
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
           <button class="admin-tab" data-tab="event-authorizations">🔐 Authorize Events</button>
           <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
+          <button class="admin-tab" data-tab="payouts">💰 Payout Requests</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
       </div>
@@ -1108,6 +1109,26 @@
             </div>
             <div id="eventAuthorizationsList"></div>
           </div>
+        </div>
+
+        <!-- ── PAYOUT REQUESTS PANEL ── -->
+        <div class="admin-panel" id="panel-payouts">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>💰 Payout Requests</h1>
+              <p>Influencer Admin commission payout requests. Verify the details, send the bank transfer, then mark it paid. Approved payouts are promised within 24 hours.</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="admin-refresh-btn" type="button" onclick="loadPayoutRequests()">↻ Refresh</button>
+              <button class="admin-print-btn" type="button" onclick="window.print()">🖨 Print</button>
+            </div>
+          </div>
+          <div class="admin-stats">
+            <div class="admin-stat pending"><div class="admin-stat-label">Pending Review</div><div class="admin-stat-value" id="payoutAdminPending">0</div></div>
+            <div class="admin-stat"><div class="admin-stat-label">Approved (pay within 24h)</div><div class="admin-stat-value" id="payoutAdminApproved">0</div></div>
+            <div class="admin-stat verified"><div class="admin-stat-label">Paid Total</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
+          </div>
+          <div id="payoutAdminList"></div>
         </div>
 
         <!-- ── DEDICATED STAFF ACCOUNTS ── -->
@@ -2598,6 +2619,102 @@ fetch('/api/admin/events/notify', {
             else showToast((data&&data.error)||'Failed to create account',true);
           }).catch(function(){showToast('Network error creating account',true);});
       };
+
+      // ── Payout Requests (verify and pay Influencer Admin commissions) ──
+      function payoutBadgeHtml(status) {
+        var s = String(status || 'pending').toLowerCase();
+        return '<span class="lookup-badge ' + esc(s) + '">' + esc(s) + '</span>';
+      }
+
+      window.loadPayoutRequests = function() {
+        fetch('/api/admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (!data || !data.success) { showToast((data && data.error) || 'Could not load payout requests', true); return; }
+            var payouts = data.payouts || [];
+            var pendingEl = document.getElementById('payoutAdminPending');
+            var approvedEl = document.getElementById('payoutAdminApproved');
+            var paidEl = document.getElementById('payoutAdminPaid');
+            var pending = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'pending'; });
+            var approved = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'approved'; });
+            var paid = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'paid'; });
+            if (pendingEl) pendingEl.textContent = pending.length;
+            if (approvedEl) approvedEl.textContent = approved.length;
+            if (paidEl) paidEl.textContent = fmtN(paid.reduce(function(s,p){ return s + (Number(p.amount)||0); }, 0));
+
+            var list = document.getElementById('payoutAdminList');
+            if (!list) return;
+            if (!payouts.length) {
+              list.innerHTML = '<div class="admin-scan-panel" style="text-align:center;padding:24px;color:var(--text-3);font-size:.85rem;">No payout requests yet. Influencer Admins\u2019 requests will appear here.</div>';
+              return;
+            }
+            // Open requests first, then newest first.
+            var sorted = payouts.slice().sort(function(a, b) {
+              var rank = function(p){ return String(p.status).toLowerCase() === 'pending' ? 0 : (String(p.status).toLowerCase() === 'approved' ? 1 : 2); };
+              if (rank(a) !== rank(b)) return rank(a) - rank(b);
+              return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+            var html = '';
+            sorted.forEach(function(p) {
+              var st = String(p.status).toLowerCase();
+              var dueLine = p.paymentDueBy ? '⏰ Pay by ' + esc(new Date(p.paymentDueBy).toLocaleString()) : '';
+              var actions = '';
+              if (st === 'pending') {
+                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'approve\')">✅ Verify & Approve</button>' +
+                  '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
+              } else if (st === 'approved') {
+                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'mark_paid\')">💸 Mark as Paid</button>' +
+                  '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
+              } else if (st === 'paid') {
+                actions = '<span style="font-size:.78rem;color:#1B5E20;font-weight:700;">✅ Paid ' + esc(p.paidAt ? new Date(p.paidAt).toLocaleString() : '') + '</span>';
+              } else {
+                actions = '<span style="font-size:.78rem;color:var(--text-3);">Rejected' + (p.adminNote ? ' — ' + esc(p.adminNote) : '') + '</span>';
+              }
+              html += '<div class="admin-scan-panel" style="margin-bottom:12px;' + (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
+                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Influencer Admin') + '</strong>' +
+                payoutBadgeHtml(p.status) +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
+                '<span>📧 ' + esc(p.requesterEmail || '—') + '</span>' +
+                '<span>📅 ' + esc(p.payoutMethodLabel || p.payoutMethod || '') + '</span>' +
+                '<span>🕒 ' + esc(p.createdAt ? new Date(p.createdAt).toLocaleString() : '—') + '</span>' +
+                '<span><code style="font-size:.72rem;">' + esc(p.id) + '</code></span>' +
+                '</div>' +
+                '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
+                '<strong>🏦 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +
+                (dueLine ? '<div style="margin-top:6px;color:#0D47A1;font-weight:600;font-size:.8rem;">' + dueLine + '</div>' : '') +
+                (p.note ? '<div style="margin-top:6px;color:var(--text-3);font-size:.8rem;">Note: ' + esc(p.note) + '</div>' : '') +
+                '</div>' +
+                (st === 'pending' || st === 'approved' ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">' + actions + '</div>' : '<div style="margin-top:10px;">' + actions + '</div>') +
+                '</div>';
+            });
+            list.innerHTML = html;
+          })
+          .catch(function(){ showToast('Network error loading payout requests', true); });
+      };
+
+      window.payoutAction = function(payoutId, action) {
+        var adminNote = '';
+        if (action === 'reject') {
+          adminNote = prompt('Reason for rejecting this payout request (sent to the requester by email):');
+          if (adminNote === null) return;
+          adminNote = String(adminNote).trim();
+          if (!adminNote) return showToast('A rejection reason is required.', true);
+        }
+        if (action === 'mark_paid' && !confirm('Confirm you have sent this bank transfer. The requester will be emailed that the payout is complete.')) return;
+        if (action === 'approve' && !confirm('Verify the bank details and approve? The requester will be emailed that payment will be made within 24 hours.')) return;
+        fetch('/api/admin/payouts', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ payoutId: payoutId, action: action, adminNote: adminNote }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              showToast(action === 'mark_paid' ? 'Marked as paid. Requester notified by email.' : (action === 'approve' ? 'Approved. Pay within 24 hours — requester notified.' : 'Request rejected. Requester notified.'));
+              loadPayoutRequests();
+            } else showToast((data && data.error) || 'Failed to update payout', true);
+          })
+          .catch(function(){ showToast('Network error updating payout', true); });
+      };
       window.deleteStaffAccount = function(email){
         if(!email||!confirm('Remove staff account '+email+'?')) return;
         fetch('/api/admin/staff?email='+encodeURIComponent(email),{method:'DELETE',headers:{'Authorization':'Bearer '+getToken()}})
@@ -2680,6 +2797,8 @@ fetch('/api/admin/events/notify', {
       tabButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
           switchTab(btn.getAttribute('data-tab'));
+          var name = btn.getAttribute('data-tab');
+          if (name === 'payouts' && typeof window.loadPayoutRequests === 'function') loadPayoutRequests();
         });
       });
       window.switchTab = switchTab;
@@ -2689,6 +2808,7 @@ fetch('/api/admin/events/notify', {
         showLoggedIn();
         loadOrders();
         pollUnseen();
+        loadPayoutRequests();
       } else {
         showLoggedOut();
       }

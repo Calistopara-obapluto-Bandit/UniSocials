@@ -677,9 +677,18 @@
 </style>
 <style id="influencer-admin-scope">
   /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
-  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]) { display:none !important; }
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]):not([data-tab="payouts"]) { display:none !important; }
   .admin-panel[id="panel-checkin"], .admin-panel[id="panel-universities"], .admin-panel[id="panel-subscribers"], .admin-panel[id="panel-subadmins"] { display:none !important; }
-  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales):not(#panel-influencers) { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales):not(#panel-influencers):not(#panel-payouts) { display:none !important; }
+  #panel-payouts.active { display:block; }
+  .payout-badge { display:inline-flex; align-items:center; padding:3px 12px; border-radius:100px; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .payout-badge.pending { background:#FFF3E0; color:#E65100; border:1px solid #FFE0B2; }
+  .payout-badge.approved { background:#E3F2FD; color:#0D47A1; border:1px solid #BBDEFB; }
+  .payout-badge.paid { background:#E8F5E9; color:#1B5E20; border:1px solid #C8E6C9; }
+  .payout-badge.rejected { background:#FDECEA; color:#B71C1C; border:1px solid #F5C6CB; }
+  .payout-card { border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; background:var(--bg); }
+  .payout-meta { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.78rem; color:var(--text-3); margin-top:6px; }
+  .payout-balance-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:16px; }
   #panel-events { display:none; }
   #panel-event-sales { display:none; }
   #panel-events.active, #panel-event-sales.active, #panel-overview.active, #panel-influencers.active { display:block; }
@@ -835,6 +844,7 @@
 <button class="admin-tab" data-tab="events">➕ Add Events</button>
 <button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
 <button class="admin-tab" data-tab="influencers">📣 My Influencers</button>
+<button class="admin-tab" data-tab="payouts">💰 Payouts</button>
 
 
 
@@ -985,6 +995,59 @@
       <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
     </div>
     <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<!-- ── PAYOUTS PANEL ── -->
+<div class="admin-panel" id="panel-payouts">
+  <div class="admin-panel-heading">
+    <div>
+      <h1>💰 Payouts</h1>
+      <p>Request your commission payout to your bank account. The Main Admin verifies and pays approved requests within 24 hours.</p>
+    </div>
+    <button class="admin-refresh-btn" type="button" onclick="loadPayouts()">↻ Refresh</button>
+  </div>
+
+  <div class="admin-scan-panel">
+    <div class="payout-balance-grid">
+      <div class="admin-stat revenue"><div class="admin-stat-label">Verified Commission Revenue</div><div class="admin-stat-value" id="payoutTotalRevenue">₦0</div></div>
+      <div class="admin-stat pending"><div class="admin-stat-label">Requested / In Progress</div><div class="admin-stat-value" id="payoutTotalRequested">₦0</div></div>
+      <div class="admin-stat verified"><div class="admin-stat-label">Available Balance</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
+    </div>
+
+    <div id="payoutOpenNotice" style="display:none;margin-bottom:14px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
+
+    <div class="influencer-section-heading"><div><strong>1. Your bank account</strong><div>Saved and reused for every payout request. Double-check it before requesting.</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="payoutBankName">Bank Name</label><input type="text" id="payoutBankName" placeholder="e.g. GTBank, Opay, Palmpay" autocomplete="off" /></div>
+      <div class="form-group"><label for="payoutAccountNumber">Account Number</label><input type="text" id="payoutAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off" /></div>
+      <div class="form-group"><label for="payoutAccountName">Account Name</label><input type="text" id="payoutAccountName" placeholder="As it appears on your bank record" autocomplete="off" /></div>
+    </div>
+
+    <div class="influencer-section-heading"><div><strong>2. Payment schedule</strong><div>How you want to receive your commission.</div></div></div>
+    <div class="form-group" style="max-width:420px;">
+      <label for="payoutMethod">Payout Method</label>
+      <select id="payoutMethod">
+        <option value="7_days">Every 7 days</option>
+        <option value="14_days">Every 14 days</option>
+        <option value="after_event">After event day</option>
+      </select>
+    </div>
+
+    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div>Available balance is your verified commission minus anything already requested.</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" /></div>
+      <div class="form-group"><label for="payoutNote">Note to admin <span style="opacity:.6;">— optional</span></label><input type="text" id="payoutNote" placeholder="Anything the admin should know" maxlength="500" /></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="btn-submit" id="requestPayoutBtn" onclick="requestPayout()">💰 Request Payout</button>
+      <span style="font-size:.78rem;color:var(--text-3);">Approved payouts are paid within <strong>24 hours</strong>.</span>
+    </div>
+  </div>
+
+  <div class="admin-scan-panel" style="margin-top:16px;">
+    <div class="influencer-section-heading"><div><strong>Payout history</strong><div>All your requests and their current status.</div></div></div>
+    <div id="payoutHistory"></div>
   </div>
 </div>
 
@@ -1975,6 +2038,116 @@ fetch('/api/admin/events/notify', {
           }).catch(function(){showToast('Network error resetting password',true);});
       };
 
+      // ── Payouts: request commission payouts to a bank account ──
+      var savedPayoutBank = null;
+
+      function payoutStatusBadge(status) {
+        var s = String(status || 'pending').toLowerCase();
+        return '<span class="payout-badge ' + esc(s) + '">' + esc(s) + '</span>';
+      }
+
+      function fmtPayoutDate(iso) {
+        if (!iso) return '—';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      window.loadPayouts = function() {
+        fetch('/api/influencer-admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (!data || !data.success) { showToast((data && data.error) || 'Could not load payouts', true); return; }
+            var totalEl = document.getElementById('payoutTotalRevenue');
+            var reqEl = document.getElementById('payoutTotalRequested');
+            var availEl = document.getElementById('payoutAvailable');
+            if (totalEl) totalEl.textContent = fmtN(data.totalVerifiedRevenue || 0);
+            if (reqEl) reqEl.textContent = fmtN(data.totalRequested || 0);
+            if (availEl) availEl.textContent = fmtN(data.availableBalance || 0);
+
+            savedPayoutBank = data.savedBankAccount || null;
+            if (savedPayoutBank) {
+              var bn = document.getElementById('payoutBankName');
+              var an = document.getElementById('payoutAccountNumber');
+              var nm = document.getElementById('payoutAccountName');
+              if (bn && !bn.value) bn.value = savedPayoutBank.bankName || '';
+              if (an && !an.value) an.value = savedPayoutBank.accountNumber || '';
+              if (nm && !nm.value) nm.value = savedPayoutBank.accountName || '';
+            }
+
+            var notice = document.getElementById('payoutOpenNotice');
+            if (notice) {
+              var open = (data.payouts || []).find(function(p){ return ['pending','approved'].indexOf(String(p.status||'').toLowerCase()) !== -1; });
+              if (open) {
+                var dueLine = open.paymentDueBy ? ' Payment due by ' + fmtPayoutDate(open.paymentDueBy) + '.' : '';
+                notice.innerHTML = '⏳ Your request <strong>' + esc(open.id) + '</strong> for <strong>' + fmtN(open.amount) + '</strong> is <strong>' + esc(open.status) + '</strong>.' +
+                  (open.status === 'approved' ? ' The admin will pay within 24 hours.' + dueLine : ' The admin has been notified by email.') +
+                  ' You can submit a new request once it is completed.';
+                notice.style.display = 'block';
+              } else {
+                notice.style.display = 'none';
+              }
+            }
+
+            var list = document.getElementById('payoutHistory');
+            if (!list) return;
+            var payouts = data.payouts || [];
+            if (!payouts.length) {
+              list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">No payout requests yet. Your first request can be made once you have verified commission revenue.</div>';
+              return;
+            }
+            var html = '';
+            payouts.forEach(function(p) {
+              html += '<div class="payout-card">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">' +
+                '<strong style="color:var(--text-1);">' + fmtN(p.amount) + '</strong>' +
+                '<span style="display:flex;gap:8px;align-items:center;">' + payoutStatusBadge(p.status) + '<code style="font-size:.72rem;color:var(--text-3);">' + esc(p.id) + '</code></span>' +
+                '</div>' +
+                '<div class="payout-meta">' +
+                '<span>📅 ' + esc(p.payoutMethodLabel || '') + '</span>' +
+                '<span>🏦 ' + esc(p.bankName || '—') + ' ••••' + esc(String(p.accountNumber || '').slice(-4)) + ' (' + esc(p.accountName || '—') + ')</span>' +
+                '<span>🕒 ' + esc(fmtPayoutDate(p.createdAt)) + '</span>' +
+                (p.paidAt ? '<span>✅ Paid ' + esc(fmtPayoutDate(p.paidAt)) + '</span>' : '') +
+                (p.paymentDueBy && p.status === 'approved' ? '<span>⏰ Due ' + esc(fmtPayoutDate(p.paymentDueBy)) + '</span>' : '') +
+                '</div>' +
+                (p.adminNote ? '<div style="margin-top:8px;font-size:.78rem;color:var(--text-3);">Admin note: ' + esc(p.adminNote) + '</div>' : '') +
+                '</div>';
+            });
+            list.innerHTML = html;
+          })
+          .catch(function(){ showToast('Network error loading payouts', true); });
+      };
+
+      window.requestPayout = function() {
+        var bankName = (document.getElementById('payoutBankName')||{}).value || '';
+        var accountNumber = (document.getElementById('payoutAccountNumber')||{}).value || '';
+        var accountName = (document.getElementById('payoutAccountName')||{}).value || '';
+        var amount = Number((document.getElementById('payoutAmount')||{}).value || 0);
+        var method = (document.getElementById('payoutMethod')||{}).value || '';
+        var note = (document.getElementById('payoutNote')||{}).value || '';
+
+        if (!bankName.trim()) return showToast('Enter your bank name.', true);
+        if (!/^\d{10}$/.test(accountNumber.replace(/[\s-]/g, ''))) return showToast('Enter a valid 10-digit account number.', true);
+        if (!accountName.trim()) return showToast('Enter the bank account name.', true);
+        if (!(amount > 0)) return showToast('Enter the amount you want to withdraw.', true);
+
+        var btn = document.getElementById('requestPayoutBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+        fetch('/api/influencer-admin/payouts', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ amount: amount, payoutMethod: method, note: note, bank: { bankName: bankName, accountNumber: accountNumber, accountName: accountName } }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              showToast(data.message || 'Payout request submitted. The admin will pay within 24 hours of approval.');
+              var amt = document.getElementById('payoutAmount'); if (amt) amt.value = '';
+              var nt = document.getElementById('payoutNote'); if (nt) nt.value = '';
+              loadPayouts();
+            } else showToast((data && data.error) || 'Failed to submit payout request', true);
+          })
+          .catch(function(){ showToast('Network error submitting request', true); })
+          .finally(function(){ if (btn) { btn.disabled = false; btn.textContent = '💰 Request Payout'; } });
+      };
+
 // Load only the Influencer Admin oversight views on login
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
@@ -1984,6 +2157,7 @@ fetch('/api/admin/events/notify', {
         if (typeof window.loadManagedUniversities === 'function') loadManagedUniversities();
         loadAuthorizedEventSales();
         if (typeof window.loadInfluencers === 'function') loadInfluencers();
+        if (typeof window.loadPayouts === 'function') loadPayouts();
       };
 
       // ── Tab switching ──
@@ -2000,14 +2174,14 @@ fetch('/api/admin/events/notify', {
         if (name !== 'checkin' && typeof window.stopQRScanner === 'function') {
           try { window.stopQRScanner(); } catch(e) {}
         }
-      }
-      tabButtons.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var name = btn.getAttribute('data-tab');
-          switchTab(name);
-          if (name === 'influencers' && typeof window.loadInfluencers === 'function') loadInfluencers();
+      }        tabButtons.forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var name = btn.getAttribute('data-tab');
+            switchTab(name);
+            if (name === 'influencers' && typeof window.loadInfluencers === 'function') loadInfluencers();
+            if (name === 'payouts' && typeof window.loadPayouts === 'function') loadPayouts();
+          });
         });
-      });
       window.switchTab = switchTab;
 
 // Initial state — restore the database-backed session from persistent localStorage.
