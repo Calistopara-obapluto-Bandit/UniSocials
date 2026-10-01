@@ -1209,7 +1209,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>💰 Payout Requests</h1>
-              <p>Influencer Admin commission payout requests. Every payment is split <strong>80/18/2</strong>: <strong>80%</strong> to the event owner, <strong>18%</strong> commission to the influencer, <strong>2%</strong> to Unisocials. A request is for that 18% commission, and the only deduction is the <strong>2% platform fee</strong> — send the rest to the Influencer Admin's bank account. Verify the details, send the transfer, then mark it paid. Approved payouts are promised within 24 hours.</p>
+              <p>Influencer commission payout requests. Every payment is split <strong>80/18/2</strong>: <strong>80%</strong> to the event owner, <strong>18%</strong> commission to the influencer whose link brought the buyer, <strong>2%</strong> to Unisocials. A request is for that 18%, and the only deduction is the <strong>2% platform fee</strong> — send the rest to the influencer's bank account. Verify the details, send the transfer, then mark it paid. Approved payouts are promised within 24 hours.</p>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="admin-refresh-btn" type="button" onclick="loadPayoutRequests()">↻ Refresh</button>
@@ -2916,7 +2916,7 @@ fetch('/api/admin/events/notify', {
               }
               html += '<div class="admin-scan-panel" style="margin-bottom:12px;' + (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
                 '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Influencer Admin') + '</strong>' +
+                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (18%)</span>' : '') + '</strong>' +
                 payoutBadgeHtml(p.status) +
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +

@@ -47,6 +47,34 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .admin-entry-bar strong{display:block;font-size:.9rem;color:var(--text-1)}
 .admin-entry-bar span{font-size:.78rem;color:var(--text-3);line-height:1.55}
 @media(max-width:600px){.admin-entry-bar{flex-direction:column;align-items:flex-start}}
+
+/* ── Payouts: the 18% commission the referrer withdraws ── */
+.payout-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}
+.payout-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px}
+.payout-stat-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:800}
+.payout-stat-value{font-size:1.3rem;font-weight:800;margin-top:6px;letter-spacing:-.02em}
+.payout-stat-value.mine{color:var(--accent)}
+.payout-field{margin-bottom:12px}
+.payout-field label{display:block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:6px}
+.payout-field input,.payout-field select{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-1);font:inherit;outline:0}
+.payout-field input:focus,.payout-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+.payout-btn{width:100%;border:0;border-radius:100px;padding:12px 20px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}
+.payout-btn:hover{background:var(--accent-mid)}
+.payout-btn:disabled{opacity:.6;cursor:wait}
+.payout-btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent-border)}
+.payout-note{font-size:.78rem;line-height:1.65;color:var(--text-2);background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.payout-msg{font-size:.8rem;margin-top:10px;min-height:18px}
+.payout-msg.ok{color:var(--accent)}
+.payout-msg.bad{color:#b71c1c}
+.payout-row{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg);margin-bottom:10px}
+.payout-row-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.payout-status{display:inline-flex;border-radius:100px;padding:4px 10px;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.payout-status.pending{background:#FFF8E1;color:#8D6E00;border:1px solid #FFE082}
+.payout-status.approved{background:#E3F2FD;color:#0D47A1;border:1px solid #BBDEFB}
+.payout-status.paid{background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9}
+.payout-status.rejected{background:#FDECEA;color:#B71C1C;border:1px solid #F5C6CB}
+.payout-row-meta{font-size:.73rem;color:var(--text-3);margin-top:7px;line-height:1.7}
+@media(max-width:600px){.payout-grid{grid-template-columns:1fr 1fr}.payout-stat-value{font-size:1.1rem}}
 @media(max-width:900px){.influencer-stats{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.influencer-login{padding:42px 0 60px}.influencer-dashboard-head{align-items:flex-start;flex-direction:column}.influencer-stats{grid-template-columns:1fr 1fr}.influencer-login-card{padding:30px 24px}.influencer-dashboard{padding-top:30px}}
 @media(max-width:480px){.influencer-login{padding:28px 0 44px}.influencer-login-card{padding:30px 20px}.influencer-stats{gap:10px}.influencer-stat{padding:16px}.influencer-stat-value{font-size:1.45rem}.influencer-hero{padding:22px}.ref-link-row{flex-direction:column}.ref-link{width:100%;box-sizing:border-box}.ref-link-row .copy-icon{width:100%;height:44px}}
@@ -69,6 +97,28 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 <section class="influencer-stats"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (18%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
 <section class="portal-events" id="portalEvents"><div class="portal-events-head"><div><div class="influencer-overline">Selected portal</div><h2>Events &amp; performance</h2><p id="eventsSubtitle">Events authorised to the selected Influencer Admin.</p></div></div><div class="portal-events-list" id="portalEventsList"><div class="portal-empty">Loading events…</div></div></section>
 <section class="all-overview hidden" id="allOverview"><div class="all-overview-head"><div class="influencer-overline">All relationships</div><h2>Performance by Influencer Admin</h2><p>Each accepted relationship remains separate. The totals above are the combined overview of these individual portals.</p></div><div class="all-overview-list" id="allOverviewList"><div class="portal-empty">Loading relationship totals…</div></div></section>
+<section class="portal-events" id="payoutSection"><div class="portal-events-head"><div><div class="influencer-overline">Your earnings</div><h2>Commission payouts</h2><p>Every sale made through your referral link is split <strong>80% to the event owner, 18% commission to you, 2% to Unisocials</strong>. The 18% is yours to withdraw, once it clears the 7-day countdown.</p></div></div>
+<div class="payout-note" id="payoutSplitNote">Loading your commission…</div>
+<div class="payout-grid">
+<div class="payout-stat"><div class="payout-stat-label">Sales through your link</div><div class="payout-stat-value" id="poRevenue">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">Your commission (18%)</div><div class="payout-stat-value mine" id="poCommission">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">On hold — 7 days</div><div class="payout-stat-value" id="poHeld">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">Available to withdraw</div><div class="payout-stat-value mine" id="poAvailable">₦0</div></div>
+</div>
+<div id="payoutOpenNotice" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:12px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;font-size:.82rem;line-height:1.6"></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+<div><div class="payout-field"><label for="poNotifyEmail">Payout notification email</label><input type="email" id="poNotifyEmail" placeholder="you@gmail.com" autocomplete="email"></div><button class="payout-btn ghost" type="button" id="poSaveEmailBtn">Save email</button><div class="payout-msg" id="poEmailMsg"></div></div>
+<div>
+<div class="payout-field"><label for="poBankName">Bank name</label><input type="text" id="poBankName" placeholder="e.g. GTBank" autocomplete="off"></div>
+<div class="payout-field"><label for="poAccountNumber">Account number</label><input type="text" id="poAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off"></div>
+<div class="payout-field"><label for="poAccountName">Account name</label><input type="text" id="poAccountName" placeholder="As on your bank record" autocomplete="off"></div>
+<div class="payout-field"><label for="poMethod">Payment schedule</label><select id="poMethod"><option value="7_days">Every 7 days</option><option value="14_days">Every 14 days</option><option value="after_event">After event day</option></select></div>
+<div class="payout-field"><label for="poAmount">Amount to withdraw (₦)</label><input type="number" id="poAmount" placeholder="e.g. 15000" min="1"></div>
+<button class="payout-btn" type="button" id="poRequestBtn">Request payout</button><div class="payout-msg" id="poMsg"></div>
+</div>
+</div>
+<div style="margin-top:20px"><div class="influencer-overline">History</div><div id="poHistory"><div class="portal-empty">Loading payout history…</div></div></div>
+</section>
 <div class="influencer-notice">Your account is limited to referral performance. You cannot access orders, events, check-in, universities, subscribers, or admin settings.</div></div></main>
 <script src="templatemo-622-clearwave.js"></script>
 <script>
@@ -177,6 +227,108 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   async function loadPortals(){
     var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
   }
+  // ── Payouts: request the 18% commission earned through the referral link ──
+  var payoutFeeRate=0.02, payoutHeld=[], payoutTimer=null;
+  function poMsg(id,text,good){var el=document.getElementById(id);if(!el)return;el.textContent=text;el.className='payout-msg '+(good?'ok':'bad');}
+  function fmtWhen(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d.getTime()))return String(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+  function renderPayoutHold(){
+    var el=document.getElementById('poHeld');if(!el)return;
+    var now=Date.now();
+    var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
+    if(payoutTimer){clearInterval(payoutTimer);payoutTimer=null;}
+    if(!left.length){el.textContent=fmt(0);return;}
+    var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+    var ms=new Date(next.unlocksAt).getTime()-now;
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000);
+    el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m';
+    payoutTimer=setInterval(renderPayoutHold,60000);
+  }
+  function renderPayoutHistory(rows){
+    var box=document.getElementById('poHistory');if(!box)return;
+    box.textContent='';
+    if(!rows||!rows.length){var e=document.createElement('div');e.className='portal-empty';e.textContent='No payout requests yet. Request one once your commission clears the 7-day countdown.';box.appendChild(e);return;}
+    rows.forEach(function(p){
+      var rate=isFinite(Number(p.feeRate))?Number(p.feeRate):payoutFeeRate;
+      var row=document.createElement('div');row.className='payout-row';
+      var head=document.createElement('div');head.className='payout-row-head';
+      var amt=document.createElement('strong');amt.textContent=fmt(p.netAmount!=null?p.netAmount:p.amount)+' to you';
+      var badge=document.createElement('span');badge.className='payout-status '+String(p.status||'pending').toLowerCase();badge.textContent=p.status||'pending';
+      head.appendChild(amt);head.appendChild(badge);row.appendChild(head);
+      var meta=document.createElement('div');meta.className='payout-row-meta';
+      meta.textContent='Requested '+fmt(p.amount)+' · Unisocials fee '+Math.round(rate*100)+'% ('+fmt(p.feeAmount||0)+') · '+(p.bankName||'')+' ••••'+String(p.accountNumber||'').slice(-4)+' · '+fmtWhen(p.createdAt);
+      row.appendChild(meta);
+      if(p.paidAt){var done=document.createElement('div');done.className='payout-row-meta';done.style.color='#1B5E20';done.textContent='✅ Paid '+fmtWhen(p.paidAt)+(p.notifiedEmail?' · completion email sent to '+p.notifiedEmail:'');row.appendChild(done);}
+      if(p.adminNote){var n=document.createElement('div');n.className='payout-row-meta';n.textContent='Admin note: '+p.adminNote;row.appendChild(n);}
+      box.appendChild(row);
+    });
+  }
+  function setPayoutBusy(on){
+    ['poRequestBtn','poSaveEmailBtn'].forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=on;});
+  }
+  async function loadPayouts(){
+    try{
+      var r=await fetch('/api/influencer/payouts',{headers:headers()});
+      var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Unable to load payouts');
+      if(isFinite(Number(d.feeRate)))payoutFeeRate=Number(d.feeRate);
+      document.getElementById('poRevenue').textContent=fmt(d.referredRevenue||0);
+      document.getElementById('poCommission').textContent=fmt(d.totalCommission||0);
+      document.getElementById('poAvailable').textContent=fmt(d.availableBalance||0);
+      var rates=d.commissionRates||{eventOwner:.8,influencer:.18,platform:.02};
+      document.getElementById('payoutSplitNote').textContent='On the ₦'+Number(d.referredRevenue||0).toLocaleString()+' your link brought in: ₦'+Number(d.eventOwnerShare||0).toLocaleString()+' ('+Math.round(rates.eventOwner*100)+'%) went to the event owner, ₦'+Number(d.totalCommission||0).toLocaleString()+' ('+Math.round(rates.influencer*100)+'%) is your commission, and ₦'+Number(d.platformShare||0).toLocaleString()+' ('+Math.round(rates.platform*100)+'%) to Unisocials.';
+      var bank=d.savedBankAccount||{};
+      if(bank.bankName)document.getElementById('poBankName').value=bank.bankName;
+      if(bank.accountNumber)document.getElementById('poAccountNumber').value=bank.accountNumber;
+      if(bank.accountName)document.getElementById('poAccountName').value=bank.accountName;
+      var nf=document.getElementById('poNotifyEmail');
+      if(nf&&!nf.value)nf.value=d.notificationEmail||'';
+      var notice=document.getElementById('payoutOpenNotice');
+      var open=(d.payouts||[]).filter(function(p){return ['pending','approved'].indexOf(String(p.status||'').toLowerCase())!==-1;})[0];
+      if(open){notice.style.display='block';notice.innerHTML='⏳ Your request <strong>'+open.id+'</strong> for <strong>'+fmt(open.netAmount!=null?open.netAmount:open.amount)+'</strong> is <strong>'+open.status+'</strong>. '+(open.status==='approved'?'The admin will pay within 24 hours.':'The admin has been notified by email.');}else{notice.style.display='none';}
+      payoutHeld=Array.isArray(d.heldPayments)?d.heldPayments:[];
+      renderPayoutHold();
+      renderPayoutHistory(d.payouts||[]);
+    }catch(e){poMsg('poMsg',e.message||'Unable to load payouts',false);}
+  }
+  document.getElementById('poRequestBtn').onclick=async function(){
+    var btn=this;
+    var email=document.getElementById('poNotifyEmail').value.trim();
+    var bankName=document.getElementById('poBankName').value.trim();
+    var accountNumber=document.getElementById('poAccountNumber').value.replace(/[\s-]/g,'');
+    var accountName=document.getElementById('poAccountName').value.trim();
+    var amount=Number(document.getElementById('poAmount').value||0);
+    var payoutMethod=document.getElementById('poMethod').value;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return poMsg('poMsg','Enter a valid notification email so we can tell you when a payout is complete.',false);
+    if(!bankName)return poMsg('poMsg','Enter your bank name.',false);
+    if(!/^\d{10}$/.test(accountNumber))return poMsg('poMsg','Enter a valid 10-digit account number.',false);
+    if(!accountName)return poMsg('poMsg','Enter the bank account name.',false);
+    if(!(amount>0))return poMsg('poMsg','Enter the amount you want to withdraw.',false);
+    setPayoutBusy(true);btn.textContent='Submitting…';
+    try{
+      var r=await fetch('/api/influencer/payouts',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},headers()),body:JSON.stringify({amount:amount,payoutMethod:payoutMethod,bank:{bankName:bankName,accountNumber:accountNumber,accountName:accountName}})});
+      var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Could not submit your request');
+      poMsg('poMsg',d.message||'Payout request submitted.',true);
+      document.getElementById('poAmount').value='';
+      await loadPayouts();
+    }catch(e){poMsg('poMsg',e.message||'Network error',false);}
+    finally{setPayoutBusy(false);btn.textContent='Request payout';}
+  };
+  document.getElementById('poSaveEmailBtn').onclick=async function(){
+    var email=document.getElementById('poNotifyEmail').value.trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return poMsg('poEmailMsg','Enter a valid email address.',false);
+    setPayoutBusy(true);
+    try{
+      var r=await fetch('/api/influencer/payouts',{method:'PATCH',headers:Object.assign({'Content-Type':'application/json'},headers()),body:JSON.stringify({notificationEmail:email})});
+      var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Could not save that email');
+      poMsg('poEmailMsg',d.message||'Saved.',true);
+      await loadPayouts();
+    }catch(e){poMsg('poEmailMsg',e.message||'Network error',false);}
+    finally{setPayoutBusy(false);}
+  };
+
   async function load(){
     var token=localStorage.getItem(KEY);if(!token)return false;
     try{
@@ -185,6 +337,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       document.getElementById('userName').textContent=md.user.name||md.user.fullName||md.user.email||'Influencer';
       await loadPortals();
       await loadRelationships();
+      await loadPayouts();
       loginView.classList.add('hidden');dash.classList.remove('hidden');return true;
     }catch(e){localStorage.removeItem(KEY);return false;}
   }

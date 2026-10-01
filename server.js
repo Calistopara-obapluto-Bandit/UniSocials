@@ -275,6 +275,116 @@ function commissionSplit(amount) {
   };
 }
 
+// ── Payout requests: who may withdraw what ──
+// A payment is split 80% to the event owner (the Influencer Admin who ran the
+// event), 18% commission to the influencer whose link brought the buyer, and 2%
+// to Unisocials. Only the 18% is withdrawable by a person, and it belongs to the
+// INFLUENCER who owns the referral code — never to the event owner.
+
+// Validate a payout request body. Shared by the referrer and the legacy
+// Influencer Admin flow so both enforce exactly the same rules.
+function parsePayoutRequestBody(body) {
+  let data = {};
+  try { data = JSON.parse(body || '{}'); } catch (e) {}
+  const amount = Math.round(Number(data.amount) * 100) / 100;
+  const payoutMethod = String(data.payoutMethod || '').trim();
+  const note = String(data.note || '').trim().slice(0, 500);
+  const bank = data.bank || {};
+  const bankName = String(bank.bankName || '').trim();
+  const accountNumber = String(bank.accountNumber || '').replace(/[\s-]/g, '');
+  const accountName = String(bank.accountName || '').trim().toUpperCase();
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter the payout amount you are requesting.' };
+  if (!PAYOUT_METHODS[payoutMethod]) return { error: 'Choose a payment schedule: every 7 days, every 14 days, or after event day.' };
+  if (!bankName) return { error: 'Bank name is required.' };
+  if (!/^\d{10}$/.test(accountNumber)) return { error: 'Enter a valid 10-digit Nigerian bank account number.' };
+  if (!accountName) return { error: 'Bank account name is required.' };
+  return { amount, payoutMethod, note, bank: { bankName, accountNumber, accountName } };
+}
+
+// Build and store a payout request for a session user. The same records, the
+// same admin approve/pay endpoints and the same emails are used for every role;
+// only who may request, and against which balance, differs.
+async function storePayoutRequest(user, parsed) {
+  const { amount, payoutMethod, note, bank } = parsed;
+  // The 2% platform fee is taken out of every payment before it is paid out.
+  const fee = payoutFeeSplit({ amount });
+  const payout = {
+    id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+    requestedBy: user.id,
+    requesterRole: user.role || '',
+    requesterName: user.name || '',
+    requesterEmail: user.email || '',
+    // Snapshot the real inbox so a completion email reaches them even if
+    // their profile is edited later. The login is @unisocials.com and
+    // cannot receive mail, so this is the only usable address.
+    requesterContactEmail: isInternalLoginEmail(user.contactEmail) ? '' : String(user.contactEmail || '').trim().toLowerCase(),
+    amount,
+    feeRate: fee.feeRate,
+    feeAmount: fee.feeAmount,
+    netAmount: fee.netAmount,
+    payoutMethod,
+    bank,
+    note,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+    paidAt: null,
+    reviewedBy: null,
+    adminNote: ''
+  };
+  await addPayoutRequest(payout);
+
+  // Remember the bank account so the next request prefills it.
+  try {
+    const fresh = await findUserById(user.id);
+    if (fresh) {
+      fresh.payoutBankAccount = bank;
+      await replaceUser(fresh);
+    }
+  } catch (e) { /* non-fatal */ }
+  return payout;
+}
+
+// Turn a verified-payment total into the balance a request may draw from:
+// only the matured share, less everything already requested.
+function payoutBalance(revenue, heldRevenue, payouts) {
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const maturedRevenue = round2(Math.max(0, revenue - heldRevenue));
+  const maturedCommission = round2(maturedRevenue * INFLUENCER_COMMISSION_RATE);
+  const committed = round2(payouts
+    .filter(p => ['pending', 'approved', 'paid'].includes(String(p.status || '').toLowerCase()))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
+  return {
+    maturedRevenue,
+    maturedCommission,
+    committed,
+    availableBalance: round2(Math.max(0, maturedCommission - committed)),
+    totalCommission: round2(revenue * INFLUENCER_COMMISSION_RATE)
+  };
+}
+
+// Save the real inbox payout notifications go to, and re-send the completion
+// notice for anything already paid before that address was on file.
+async function savePayoutNotificationEmail(userId, notificationEmail) {
+  const fresh = await findUserById(userId);
+  if (!fresh) return { status: 404, error: 'Account not found' };
+  fresh.contactEmail = notificationEmail;
+  await replaceUser(fresh);
+
+  const mine = (await readPayouts())
+    .filter(p => String(p.requestedBy) === String(userId) && String(p.status || '').toLowerCase() === 'paid')
+    .sort((a, b) => new Date(b.paidAt || b.createdAt) - new Date(a.paidAt || a.createdAt));
+  let resent = 0;
+  for (const p of mine) {
+    if (p.notifiedEmail) break;
+    const sent = await sendPayoutStatusEmailToRequester(p);
+    if (!sent) break;
+    await updatePayoutRequest(p.id, { notifiedEmail: notificationEmail, notifiedAt: new Date().toISOString() });
+    resent++;
+  }
+  return { user: fresh, resent };
+}
+
 // Gross → fee → net split for a payout request. The rate is stored on each
 // request, so payouts made under the old 20% fee keep showing 20% while new
 // ones retain only the 2% platform fee.
@@ -297,6 +407,9 @@ function payoutPublic(p) {
     requestedBy: p.requestedBy,
     requesterName: p.requesterName || '',
     requesterEmail: p.requesterEmail || '',
+    // 'influencer' = the referrer withdrawing their 18% commission. Older
+    // records have no role stored, so fall back to the requester itself.
+    requesterRole: p.requesterRole || '',
     // The real, receivable inbox the requester gave on their account form.
     requesterContactEmail: p.requesterContactEmail || '',
     // False means no completion email can be delivered for this payout: neither
@@ -5102,12 +5215,12 @@ codes[idx] = entry;
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
     }
 
-    // ── Influencer Admin: payouts ──
-    // The 18% commission earned on verified payments across the events this
-    // Influencer Admin is authorized for, minus every payout already
-    // requested/approved/paid. Rejected requests never reduce the balance.
-    // The gross revenue is reported alongside it so the 80/18/2 split is
-    // visible to the requester, the admin and the sub-admin alike.
+    // ── Influencer Admin: event earnings + referrer payouts (read-only) ──
+    // The Influencer Admin is the EVENT OWNER: they keep the 80% of every
+    // verified payment on their events. The withdrawable 18% belongs to the
+    // influencer whose referral link brought the buyer, so this account never
+    // requests a payout — it only sees what its referrers have asked for and
+    // what the Main Admin still owes them.
     async function influencerAdminPayoutSummary(authCtx) {
       const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
       const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
@@ -5178,167 +5291,234 @@ codes[idx] = entry;
       };
     }
 
+    // Payouts requested by the INFLUENCERS working on this account's events.
+    // Scoped to influencers holding an accepted relationship with this admin, so
+    // an owner only ever sees commission owed on their own events.
+    async function referrerPayoutsForInfluencerAdmin(authCtx) {
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const myId = String(authCtx.user.id || '');
+      const myReferrerIds = new Set();
+      links.forEach(l => {
+        if (String(l.influencerAdminId || '') !== myId) return;
+        const infId = String(l.influencerId || l.ownerId || '').trim();
+        if (infId) myReferrerIds.add(infId);
+      });
+      users.forEach(u => {
+        if (u.role !== 'influencer') return;
+        if (getAcceptedInfluencerAssignments(u).some(a => String(a.influencerAdminId || '') === myId)) {
+          myReferrerIds.add(String(u.id));
+        }
+      });
+      if (!myReferrerIds.size) return [];
+      const payouts = await readPayouts();
+      return payouts
+        .filter(p => myReferrerIds.has(String(p.requestedBy)))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
     if (pathname === '/api/influencer-admin/payouts' && req.method === 'GET') {
       const authCtx = await isAdminOrInfluencerAdmin(req);
       if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
       const summary = await influencerAdminPayoutSummary(authCtx);
+      const referrerPayouts = await referrerPayoutsForInfluencerAdmin(authCtx);
+      const openReferrerPayouts = referrerPayouts.filter(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()));
+      return sendJson(res, 200, {
+        success: true,
+        // This account's own 80% of verified event revenue, and the share of
+        // that revenue owed to its referrers as commission.
+        totalVerifiedRevenue: summary.totalVerifiedRevenue,
+        maturedRevenue: summary.maturedRevenue,
+        heldAmount: summary.heldAmount,
+        heldPayments: summary.heldPayments,
+        eventOwnerShare: summary.eventOwnerShare,
+        ownerMaturedShare: Math.round(summary.maturedRevenue * EVENT_OWNER_RATE * 100) / 100,
+        // Commission earned by this account's referrers, which the Main Admin
+        // pays out on the owner's behalf.
+        referrerCommission: summary.totalCommission,
+        referrerCommissionHeld: summary.heldCommission,
+        referrerCommissionMatured: summary.maturedCommission,
+        platformShare: summary.platformShare,
+        commissionRates: summary.commissionRates,
+        feeRate: summary.feeRate,
+        holdDays: summary.holdDays,
+        referrerPayouts: referrerPayouts.map(payoutPublic),
+        openReferrerPayoutCount: openReferrerPayouts.length,
+        openReferrerPayoutAmount: Math.round(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100,
+        // The owner has nothing to withdraw and nothing to be paid: the 18%
+        // commission is the referrer's, and the 80% arrives with the ticket
+        // money itself rather than through a payout request.
+        readOnly: true,
+        withdrawableByEventOwner: false
+      });
+    }
+
+    // The withdrawable 18% belongs to the influencer, not the event owner.
+    // Close the old write routes explicitly so a stale dashboard can never
+    // move the referrer's commission to the wrong bank account.
+    if (pathname === '/api/influencer-admin/payouts' && (req.method === 'POST' || req.method === 'PATCH')) {
+      return sendJson(res, 403, {
+        success: false,
+        error: 'Event owners keep their 80% directly and do not request payouts. The 18% commission is withdrawn by the influencer who brought the sale — they do it from their Influencer Portal → Payouts.'
+      });
+    }
+
+    // ── Influencer (referrer): withdraw the 18% commission ──
+    // The 18% is earned only on sales that came through this influencer's own
+    // referral link, and it is this account — not the event owner — that asks
+    // for it to be paid. Same request/approve/pay flow, same emails and the
+    // same admin oversight as every other payout.
+    async function influencerPayoutSummary(user) {
+      const links = await getReferralLinksByInfluencerId(user.id);
+      const codes = new Set(links.map(l => String(l.code || '').trim()).filter(Boolean));
+      const orders = await getOrdersForCurrentSiteEvents();
+      const payouts = await readPayouts();
+      const nowMs = Date.now();
+      const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+      let referredRevenue = 0;
+      let heldRevenue = 0;
+      const heldPayments = [];
+      orders.forEach(o => {
+        // Only a sale that actually carried this influencer's code counts.
+        if (!codes.has(String(o.referralCode || '').trim())) return;
+        if (String(o.status || '').toLowerCase() !== 'verified') return;
+        const amount = Number(o.amount) || 0;
+        referredRevenue += amount;
+        const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+        const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+        if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
+          heldRevenue += amount;
+          heldPayments.push({
+            orderId: o.orderId || '',
+            eventName: o.eventName || '',
+            amount,
+            commissionAmount: round2(amount * INFLUENCER_COMMISSION_RATE),
+            paidAt: new Date(paidMs).toISOString(),
+            unlocksAt: new Date(unlocksMs).toISOString()
+          });
+        }
+      });
+      referredRevenue = round2(referredRevenue);
+      heldRevenue = round2(heldRevenue);
+      const balance = payoutBalance(referredRevenue, heldRevenue, payouts.filter(p => String(p.requestedBy) === String(user.id)));
+      const split = commissionSplit(referredRevenue);
+      heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
+      const mine = payouts.filter(p => String(p.requestedBy) === String(user.id));
+      return {
+        payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        // What the referral link brought in, and the 18% cut of it.
+        referredRevenue,
+        heldRevenue,
+        heldPayments,
+        totalCommission: balance.totalCommission,
+        maturedRevenue: balance.maturedRevenue,
+        maturedCommission: balance.maturedCommission,
+        heldCommission: round2(heldRevenue * INFLUENCER_COMMISSION_RATE),
+        availableBalance: balance.availableBalance,
+        totalRequested: balance.committed,
+        // For context: of the money their link brought in, 80% went to the
+        // event owner and 2% to Unisocials.
+        eventOwnerShare: split.eventOwnerAmount,
+        platformShare: split.platformAmount,
+        commissionRates: COMMISSION_SPLIT,
+        feeRate: PAYOUT_FEE_RATE,
+        holdDays: PAYOUT_HOLD_DAYS,
+        referralCodes: [...codes],
+        hasOpenRequest: mine.some(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()))
+      };
+    }
+
+    if (pathname === '/api/influencer/payouts' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success:false, error:'Influencer access only' });
+      const summary = await influencerPayoutSummary(user);
+      const contactEmail = isInternalLoginEmail(user.contactEmail) ? '' : String(user.contactEmail || '').trim().toLowerCase();
       return sendJson(res, 200, {
         success: true,
         payouts: summary.payouts.map(payoutPublic),
-        totalVerifiedRevenue: summary.totalVerifiedRevenue,
-        totalRequested: summary.totalRequested,
-        availableBalance: summary.availableBalance,
-        maturedRevenue: summary.maturedRevenue,
-        heldAmount: summary.heldAmount,
+        referredRevenue: summary.referredRevenue,
+        heldRevenue: summary.heldRevenue,
         heldPayments: summary.heldPayments,
         totalCommission: summary.totalCommission,
         maturedCommission: summary.maturedCommission,
         heldCommission: summary.heldCommission,
-        commissionRates: summary.commissionRates,
+        availableBalance: summary.availableBalance,
+        totalRequested: summary.totalRequested,
         eventOwnerShare: summary.eventOwnerShare,
         platformShare: summary.platformShare,
+        commissionRates: summary.commissionRates,
         feeRate: summary.feeRate,
         holdDays: summary.holdDays,
         hasOpenRequest: summary.hasOpenRequest,
         payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
-        savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null,
-        // Where the "payout complete" notice will be sent. Empty means the
-        // account predates the real-email field and has to add one.
-        notificationEmail: isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail) ? '' : String((authCtx.user && authCtx.user.contactEmail) || '').trim().toLowerCase(),
-        notificationEmailOnFile: !isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail)
+        savedBankAccount: user.payoutBankAccount || null,
+        // Where the "payout complete" notice goes. Influencers sign in with
+        // their own email, so this is usually already on file.
+        notificationEmail: contactEmail,
+        notificationEmailOnFile: !!contactEmail
       });
     }
 
-    // Save the real inbox that payout notifications go to. Influencer Admins
-    // created by the Main Admin have no contactEmail, so without this their
-    // "payout complete" email would have nowhere to go. Saving it here also
-    // re-sends the completion notice for any already-paid payout that never
-    // reached them.
-    if (pathname === '/api/influencer-admin/payouts' && req.method === 'PATCH') {
-      const authCtx = await isAdminOrInfluencerAdmin(req);
-      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
-      const body = await readBody(req);
-      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
-      const notificationEmail = String(data.notificationEmail || '').trim().toLowerCase();
-      const emailError = validateEmail(notificationEmail);
-      if (emailError) return sendJson(res, 400, { success:false, error: emailError });
-      // The site mints <name>@unisocials.com logins that cannot receive mail.
-      if (isInternalLoginEmail(notificationEmail)) {
-        return sendJson(res, 400, { success:false, error:'Use a real email address you check (Gmail, Yahoo, Outlook). Your @unisocials.com login cannot receive mail.' });
-      }
-      const users = await readUsers();
-      const taken = users.find(u => String(u.id) !== String(authCtx.user.id) && String(u.contactEmail || '').trim().toLowerCase() === notificationEmail);
-      if (taken) return sendJson(res, 409, { success:false, error:'That email is already used by another Unisocials account.' });
+    if (pathname === '/api/influencer/payouts' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success:false, error:'Influencer access only' });
+      const parsed = parsePayoutRequestBody(await readBody(req));
+      if (parsed.error) return sendJson(res, 400, { success:false, error: parsed.error });
 
-      const fresh = await findUserById(authCtx.user.id);
-      if (!fresh) return sendJson(res, 404, { success:false, error:'Account not found' });
-      fresh.contactEmail = notificationEmail;
-      await replaceUser(fresh);
-      authCtx.user.contactEmail = notificationEmail;
-
-      // An earlier paid payout may have been marked complete before this
-      // address existed, so its notice never went out. Deliver it now.
-      const mine = (await readPayouts())
-        .filter(p => String(p.requestedBy) === String(authCtx.user.id) && String(p.status || '').toLowerCase() === 'paid')
-        .sort((a, b) => new Date(b.paidAt || b.createdAt) - new Date(a.paidAt || a.createdAt));
-      let resent = 0;
-      for (const p of mine) {
-        if (p.notifiedEmail) break;
-        const sent = await sendPayoutStatusEmailToRequester(p);
-        if (!sent) break;
-        await updatePayoutRequest(p.id, { notifiedEmail: notificationEmail, notifiedAt: new Date().toISOString() });
-        resent++;
-      }
-      return sendJson(res, 200, {
-        success: true,
-        notificationEmail: notificationEmail,
-        resentPayoutNotifications: resent,
-        message: 'Payout notifications will be sent to ' + notificationEmail + '.'
-      });
-    }
-
-    if (pathname === '/api/influencer-admin/payouts' && req.method === 'POST') {
-      const authCtx = await isAdminOrInfluencerAdmin(req);
-      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
-      const body = await readBody(req);
-      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
-      const amount = Math.round(Number(data.amount) * 100) / 100;
-      const payoutMethod = String(data.payoutMethod || '').trim();
-      const note = String(data.note || '').trim().slice(0, 500);
-      const bank = data.bank || {};
-      const bankName = String(bank.bankName || '').trim();
-      const accountNumber = String(bank.accountNumber || '').replace(/[\s-]/g, '');
-      const accountName = String(bank.accountName || '').trim().toUpperCase();
-
-      if (!Number.isFinite(amount) || amount <= 0) return sendJson(res, 400, { success:false, error:'Enter the payout amount you are requesting.' });
-      if (!PAYOUT_METHODS[payoutMethod]) return sendJson(res, 400, { success:false, error:'Choose a payment schedule: every 7 days, every 14 days, or after event day.' });
-      if (!bankName) return sendJson(res, 400, { success:false, error:'Bank name is required.' });
-      if (!/^\d{10}$/.test(accountNumber)) return sendJson(res, 400, { success:false, error:'Enter a valid 10-digit Nigerian bank account number.' });
-      if (!accountName) return sendJson(res, 400, { success:false, error:'Bank account name is required.' });
-
-      const summary = await influencerAdminPayoutSummary(authCtx);
+      const summary = await influencerPayoutSummary(sessionUser);
       if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
-      if (amount > summary.availableBalance) {
-        const isValid = amount > 0;
-        const friendly = 'payout amount not valid';
-        let error = friendly + ': ';
-        if (isValid) {
-          error += 'the payout amount you requested exceeds your available commission of ₦' + summary.availableBalance.toLocaleString() + ' (' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of ₦' + summary.maturedRevenue.toLocaleString() + ' in verified payments).';
-        } else {
-          error += 'the payout amount must be greater than zero.';
-        }
+      if (parsed.amount > summary.availableBalance) {
+        let error = 'payout amount not valid: the amount you requested exceeds your available commission of ₦' +
+          summary.availableBalance.toLocaleString() + ' (' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of the ₦' +
+          summary.maturedRevenue.toLocaleString() + ' your referral link brought in).';
         if (summary.heldCommission > 0) {
           error += ' You also have ₦' + summary.heldCommission.toLocaleString() + ' of commission inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
         }
         return sendJson(res, 400, { success:false, error });
       }
 
-      // The 2% platform fee is taken out of every payment before it is paid out.
-      const fee = payoutFeeSplit({ amount });
-      const payout = {
-        id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
-        requestedBy: authCtx.user.id,
-        requesterName: authCtx.user.name || '',
-        requesterEmail: authCtx.user.email || '',
-        // Snapshot the real inbox so a completion email reaches them even if
-        // their profile is edited later. The login is @unisocials.com and
-        // cannot receive mail, so this is the only usable address.
-        requesterContactEmail: isInternalLoginEmail(authCtx.user.contactEmail) ? '' : String(authCtx.user.contactEmail || '').trim().toLowerCase(),
-        amount,
-        feeRate: fee.feeRate,
-        feeAmount: fee.feeAmount,
-        netAmount: fee.netAmount,
-        payoutMethod,
-        bank: { bankName, accountNumber, accountName },
-        note,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        reviewedAt: null,
-        paidAt: null,
-        reviewedBy: null,
-        adminNote: ''
-      };
-      await addPayoutRequest(payout);
-
-      // Remember the bank account so the next request prefills it.
-      try {
-        const fresh = await findUserById(authCtx.user.id);
-        if (fresh) {
-          fresh.payoutBankAccount = { bankName, accountNumber, accountName };
-          await replaceUser(fresh);
-        }
-      } catch (e) { /* non-fatal */ }
-
+      const freshUser = (await findUserById(sessionUser.id)) || sessionUser;
+      const payout = await storePayoutRequest(freshUser, parsed);
+      const fee = payoutFeeSplit(payout);
       // Notify the Main Admin by email so they can verify and pay within 24 hours.
       const emailSent = await sendPayoutRequestEmailToAdmin(payout);
       return sendJson(res, 200, {
         success: true,
         payout: payoutPublic(payout),
-        availableBalance: Math.max(0, summary.availableBalance - amount),
+        availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted: of your ₦' + amount.toLocaleString() + ' commission, ₦' + fee.netAmount.toLocaleString() + ' (' + Math.round((1 - fee.feeRate) * 100) + '%) will be sent to you and ₦' + fee.feeAmount.toLocaleString() + ' (' + Math.round(fee.feeRate * 100) + '%) is the Unisocials platform fee. The admin has been notified and will pay within 24 hours of approval.'
+        message: 'Payout request submitted: of your ₦' + parsed.amount.toLocaleString() + ' commission, ₦' + fee.netAmount.toLocaleString() + ' (' + Math.round((1 - fee.feeRate) * 100) + '%) will be sent to you and ₦' + fee.feeAmount.toLocaleString() + ' (' + Math.round(fee.feeRate * 100) + '%) is the Unisocials platform fee. The admin has been notified and will pay within 24 hours of approval.'
       });
     }
+
+    if (pathname === '/api/influencer/payouts' && req.method === 'PATCH') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success:false, error:'Influencer access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const notificationEmail = String(data.notificationEmail || '').trim().toLowerCase();
+      const emailError = validateEmail(notificationEmail);
+      if (emailError) return sendJson(res, 400, { success:false, error: emailError });
+      const users = await readUsers();
+      const taken = users.find(u => String(u.id) !== String(sessionUser.id) && String(u.contactEmail || '').trim().toLowerCase() === notificationEmail);
+      if (taken) return sendJson(res, 409, { success:false, error:'That email is already used by another Unisocials account.' });
+      const saved = await savePayoutNotificationEmail(sessionUser.id, notificationEmail);
+      if (saved.error) return sendJson(res, saved.status, { success:false, error: saved.error });
+      sessionUser.contactEmail = notificationEmail;
+      return sendJson(res, 200, {
+        success: true,
+        notificationEmail: notificationEmail,
+        resentPayoutNotifications: saved.resent,
+        message: 'Payout notifications will be sent to ' + notificationEmail + '.'
+      });
+    }
+
 
     // ── Admin: manage payout requests (verify, pay, reject) ──
     if (pathname === '/api/admin/payouts' && req.method === 'GET') {

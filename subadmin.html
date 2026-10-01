@@ -768,7 +768,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>🏦 Payouts</h1>
-              <p>Every payout the main admin makes to Influencer Admins, exactly as they see it — including the <strong>80/18/2</strong> split and bank details. This view is <strong>read-only</strong> — approving, paying and rejecting a payout is done by the main admin only.</p>
+              <p>Every payout the main admin makes to influencers, exactly as they see it — including the <strong>80/18/2</strong> split and bank details. This view is <strong>read-only</strong> — approving, paying and rejecting a payout is done by the main admin only.</p>
             </div>
             <button class="admin-refresh-btn" onclick="loadPayoutList()">↻ Refresh</button>
           </div>
@@ -2146,7 +2146,7 @@ resultBox.className = 'admin-scan-result show';
           html += '<div class="admin-scan-panel" style="margin-bottom:12px;' +
             (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
             '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-            '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Influencer Admin') + '</strong>' +
+            '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (18%)</span>' : '') + '</strong>' +
             '<span class="admin-order-badge ' + esc(st) + '">' + esc(st) + '</span>' +
             '</div>' +
             '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
