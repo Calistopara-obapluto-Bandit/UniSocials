@@ -2086,7 +2086,7 @@ resultBox.className = 'admin-scan-result show';
         var list = document.getElementById('payoutList');
         if (!list) return;
 
-        var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0.02; };
+        var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0; };
         var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * (1 - rateOf(p))) * 100) / 100; };
         var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * rateOf(p)) * 100) / 100; };
         var statusOf = function(p) { return String(p.status || 'pending').toLowerCase(); };

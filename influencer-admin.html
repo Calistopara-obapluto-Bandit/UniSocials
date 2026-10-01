@@ -2361,8 +2361,8 @@ fetch('/api/admin/events/notify', {
       // This account keeps the 80% of every verified payment on its events.
       // The event owner's own 80% is withdrawable; the referrers' 17.5% is tracked
       // here too, because this account is the one who approves and pays it.
-      var payoutFeeRate = 0.02;
-      var commissionRates = { eventOwner: 0.80, influencer: 0.18, platform: 0.02 };
+      var payoutFeeRate = 0;
+      var commissionRates = { eventOwner: 0.80, influencer: 0.175, platform: 0.025 };
       var payoutHoldDays = 7;
       var payoutHeldData = [];
       var payoutHoldTimer = null;

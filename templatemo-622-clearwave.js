@@ -325,6 +325,10 @@ window.UNUniversity = {
     // Shows Sign In when logged out, or the account link + a logout button when
     // logged in. Injected here so it stays in sync with login/logout state on every page.
     document.querySelectorAll('.nav-inner').forEach(function(inner) {
+      // A page that runs its own account controls (the Influencer Portal has its
+      // own Sign In and Log out) opts out, otherwise these would render a second
+      // Sign In and a second logout next to them.
+      if (inner.getAttribute('data-account-controls') === 'own') return;
       var existing = inner.querySelector('.nav-mobile-auth');
       if (existing) existing.remove();
       var user = getCachedUser();
@@ -385,6 +389,10 @@ window.UNNAuth.renderNavAccount = renderNavAccount;
   function syncMobileMenuLogout() {
     var menu = document.getElementById('mobileMenu');
     if (!menu) return;
+    // Same opt-out as the top-bar cluster: a page with its own account
+    // controls must not get a second, site-wide Log out in the mobile menu.
+    var inner = document.querySelector('.nav-inner');
+    if (inner && inner.getAttribute('data-account-controls') === 'own') return;
     var existing = menu.querySelector('.mobile-menu-logout');
     if (!existing) {
       var link = document.createElement('a');

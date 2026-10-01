@@ -2915,7 +2915,7 @@ fetch('/api/admin/events/notify', {
             // Paid totals are what actually reaches the bank: the commission
             // minus any platform fee. Older payouts keep their own stored
             // rate, so each one is split by the fee it was actually made with.
-            var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0.02; };
+            var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0; };
             var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * (1 - rateOf(p))) * 100) / 100; };
             var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * rateOf(p)) * 100) / 100; };
             if (paidEl) paidEl.textContent = fmtN(paid.reduce(function(s,p){ return s + netOf(p); }, 0));
