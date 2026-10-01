@@ -1116,7 +1116,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>💰 Payout Requests</h1>
-              <p>Influencer Admin commission payout requests. Verify the details, send the bank transfer, then mark it paid. Approved payouts are promised within 24 hours.</p>
+              <p>Influencer Admin commission payout requests. Each request is split <strong>80/20</strong> — send <strong>80%</strong> to the Influencer Admin's bank account and keep <strong>20%</strong>. Verify the details, send the transfer, then mark it paid. Approved payouts are promised within 24 hours.</p>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="admin-refresh-btn" type="button" onclick="loadPayoutRequests()">↻ Refresh</button>
@@ -1126,8 +1126,8 @@
           <div class="admin-stats">
             <div class="admin-stat pending"><div class="admin-stat-label">Pending Review</div><div class="admin-stat-value" id="payoutAdminPending">0</div></div>
             <div class="admin-stat"><div class="admin-stat-label">Approved (pay within 24h)</div><div class="admin-stat-value" id="payoutAdminApproved">0</div></div>
-            <div class="admin-stat verified"><div class="admin-stat-label">Paid Total (after 20% fee)</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
-            <div class="admin-stat revenue"><div class="admin-stat-label">20% Fees Retained</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
+            <div class="admin-stat verified"><div class="admin-stat-label">Paid Total (80% sent)</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
+            <div class="admin-stat revenue"><div class="admin-stat-label">You Retain (20%)</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
           </div>
           <div id="payoutAdminList"></div>
         </div>
@@ -2669,7 +2669,7 @@ fetch('/api/admin/events/notify', {
                 actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'approve\')">✅ Verify & Approve</button>' +
                   '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
               } else if (st === 'approved') {
-                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'mark_paid\')">💸 Mark ₦' + fmtN(netOf(p)) + ' as Paid</button>' +
+                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'mark_paid\')">💸 Send ₦' + fmtN(netOf(p)) + ' (80%) as Paid</button>' +
                   '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
               } else if (st === 'paid') {
                 actions = '<span style="font-size:.78rem;color:#1B5E20;font-weight:700;">✅ Paid ' + esc(p.paidAt ? new Date(p.paidAt).toLocaleString() : '') + '</span>';
@@ -2690,8 +2690,8 @@ fetch('/api/admin/events/notify', {
                 '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;">' +
                 '<span>Requested <strong>' + fmtN(p.amount) + '</strong></span>' +
-                '<span>20% platform fee <strong style="color:#B71C1C;">−' + fmtN(feeOf(p)) + '</strong></span>' +
-                '<span>Send <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
+                '<span>Send 80% <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
+                '<span>You retain 20% <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' +
                 '</div>' +
                 '<div style="margin-top:8px;">' +
                 '<strong>🏦 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +

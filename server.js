@@ -1948,13 +1948,13 @@ async function sendPayoutRequestEmailToAdmin(payout) {
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
     const feeAmount = '₦' + fee.feeAmount.toLocaleString();
     const netAmount = '₦' + fee.netAmount.toLocaleString();
-    const subject = '💰 Payout Request — ' + netAmount + ' net to ' + (payout.requesterName || payout.requesterEmail);
+    const subject = '💰 Payout Request — send ' + netAmount + ', retain ' + feeAmount + ' (' + (payout.requesterName || payout.requesterEmail) + ')';
     const text =
       'New payout request on Unisocials.\n\n' +
       'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
       'Amount requested: ' + amount + '\n' +
-      'Platform fee (' + feePct + '%): ' + feeAmount + '\n' +
-      'Net payout to send: ' + netAmount + '\n' +
+      'Send to them (' + (100 - feePct) + '%): ' + netAmount + '\n' +
+      'You retain (' + feePct + '%): ' + feeAmount + '\n' +
       'Payment schedule: ' + (m.label || payout.payoutMethod) + '\n' +
       'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
       'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
@@ -1968,8 +1968,8 @@ async function sendPayoutRequestEmailToAdmin(payout) {
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
       payoutEmailRow('Amount requested', amount) +
-      payoutEmailRow('Platform fee (' + feePct + '%)', '-' + feeAmount) +
-      payoutEmailRow('Net payout to send', netAmount) +
+      payoutEmailRow('Send to them (' + (100 - feePct) + '%)', netAmount) +
+      payoutEmailRow('You retain (' + feePct + '%)', feeAmount) +
       payoutEmailRow('Payment schedule', m.label || payout.payoutMethod) +
       payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
       payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
@@ -2002,17 +2002,17 @@ async function sendPayoutStatusEmailToRequester(payout) {
     const netAmount = '₦' + fee.netAmount.toLocaleString();
     const statusText = String(payout.status || '').toLowerCase();
     const subject = statusText === 'paid'
-      ? '✅ Payout sent — ' + netAmount + ' (' + payout.id + ')'
+      ? '✅ Payout sent to you — ' + netAmount + ' (' + payout.id + ')'
       : statusText === 'approved'
-        ? '✅ Payout approved — ' + netAmount + ' net payout will be paid within 24 hours'
+        ? '✅ Payout approved — ' + netAmount + ' (80%) will be sent to you within 24 hours'
         : '❌ Payout request ' + (payout.id) + ' was rejected';
     const bankLine = payout.bank ? payout.bank.bankName + ' ••••' + String(payout.bank.accountNumber || '').slice(-4) : '';
     const text =
       'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
       (statusText === 'paid'
-        ? 'Your payout of ' + netAmount + ' has been sent to your bank account (' + bankLine + '). A ' + feePct + '% platform fee of ' + feeAmount + ' was deducted from the ' + amount + ' requested.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? netAmount + ' (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + bankLine + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of ' + amount + ' has been approved. After the ' + feePct + '% platform fee of ' + feeAmount + ', ' + netAmount + ' will be paid within 24 hours.'
+          ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' (' + (100 - feePct) + '%) will be sent to you within 24 hours, and ' + feePct + '% (' + feeAmount + ') is retained by the admin.'
           : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
       '\n\nThank you for growing Unisocials.\n\nUnisocials Team';
     const html =
@@ -2022,16 +2022,16 @@ async function sendPayoutStatusEmailToRequester(payout) {
       '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
       '<p style="margin:0 0 14px;color:#475569">' +
       (statusText === 'paid'
-        ? 'Your payout of <strong>' + netAmount + '</strong> has been sent to your bank account (' + escapeHtml(bankLine) + '). A ' + feePct + '% platform fee of ' + feeAmount + ' was deducted from the ' + amount + ' requested. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? '<strong>' + netAmount + '</strong> (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + escapeHtml(bankLine) + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of <strong>' + amount + '</strong> has been approved. After the ' + feePct + '% platform fee of ' + feeAmount + ', <strong>' + netAmount + '</strong> will be paid within 24 hours.'
+          ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '%) will be sent to you within 24 hours, and ' + feePct + '% (' + feeAmount + ') is retained by the admin.'
           : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
       '</p>' +
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Request ID', payout.id) +
       payoutEmailRow('Amount requested', amount) +
-      payoutEmailRow('Platform fee (' + feePct + '%)', '-' + feeAmount) +
-      payoutEmailRow('Net payout', netAmount) +
+      payoutEmailRow('Sent to you (' + (100 - feePct) + '%)', netAmount) +
+      payoutEmailRow('Retained by admin (' + feePct + '%)', feeAmount) +
       payoutEmailRow('Bank', bankLine) +
       '</table>' +
       '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Thank you for growing Unisocials.</p>' +
@@ -4543,7 +4543,8 @@ codes[idx] = entry;
         const pending = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
         return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
       });
-      return sendJson(res, 200, { success:true, events:result });
+      // feeRate lets the dashboard show the 80/20 split on ticket revenue.
+      return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, events:result });
     }
 
     // ── Influencer Admin: payouts ──
@@ -4689,7 +4690,7 @@ codes[idx] = entry;
         payout: payoutPublic(payout),
         availableBalance: Math.max(0, summary.availableBalance - amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted: ₦' + amount.toLocaleString() + ' requested, ' + Math.round(fee.feeRate * 100) + '% platform fee ₦' + fee.feeAmount.toLocaleString() + ', net payout ₦' + fee.netAmount.toLocaleString() + '. The admin has been notified and will pay within 24 hours of approval.'
+        message: 'Payout request submitted: of ₦' + amount.toLocaleString() + ', ₦' + fee.netAmount.toLocaleString() + ' (' + Math.round((1 - fee.feeRate) * 100) + '%) will be sent to you and ₦' + fee.feeAmount.toLocaleString() + ' (' + Math.round(fee.feeRate * 100) + '%) is retained by the admin. The admin has been notified and will pay within 24 hours of approval.'
       });
     }
 
