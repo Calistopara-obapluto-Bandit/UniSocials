@@ -239,18 +239,45 @@ const PAYOUT_METHODS = {
   '7_days': { label: 'Every 7 days', description: 'Payout cycle: every 7 days' },
   '14_days': { label: 'Every 14 days', description: 'Payout cycle: every 14 days' },
   'after_event': { label: 'After event day', description: 'Payout after the event day' }
-};
-const PAYOUT_STATUSES = ['pending', 'approved', 'paid', 'rejected'];
-// Platform fee: 20% of every payout is taken out before it is paid out.
-const PAYOUT_FEE_RATE = 0.20;
+};const PAYOUT_STATUSES = ['pending','approved','paid','rejected'];
+
+// How every verified ticket payment is split, and it adds up to 100%:
+//   80% → the event owner who ran the event
+//   18% → the influencer's commission, which they request as a payout
+//    2% → Unisocials' platform fee, retained when that payout is paid
+// The 2% is the whole company cut: the old 20% platform fee is gone, so an
+// Influencer Admin is no longer charged a fifth of their commission.
+const COMMISSION_SPLIT = { eventOwner: 0.80, influencer: 0.18, platform: 0.02 };
+const EVENT_OWNER_RATE = COMMISSION_SPLIT.eventOwner;
+const INFLUENCER_COMMISSION_RATE = COMMISSION_SPLIT.influencer;
+// Platform fee: 2% of every payout is retained by Unisocials before it is paid out.
+const PAYOUT_FEE_RATE = COMMISSION_SPLIT.platform;
 // Payments made through the site mature for 7 days before they can be
 // requested as a withdrawal.
 const PAYOUT_HOLD_DAYS = 7;
 const PAYOUT_HOLD_MS = PAYOUT_HOLD_DAYS * 24 * 60 * 60 * 1000;
 
-// Gross → fee → net split for a payout request. Stored on new requests and
-// derived retroactively for requests already made, so every payment —
-// including ones already requested — shows the 20% deduction.
+// Split a gross payment into the three shares. Rounded to kobo at the end so
+// the three parts always add back up to the gross amount.
+function commissionSplit(amount) {
+  const gross = Math.max(0, Number(amount) || 0);
+  const round2 = n => Math.round(n * 100) / 100;
+  const eventOwnerAmount = round2(gross * COMMISSION_SPLIT.eventOwner);
+  const influencerAmount = round2(gross * COMMISSION_SPLIT.influencer);
+  // The platform fee takes whatever is left, so rounding can never make the
+  // three shares exceed the payment they came from.
+  const platformAmount = round2(gross - eventOwnerAmount - influencerAmount);
+  return {
+    rates: COMMISSION_SPLIT,
+    eventOwnerAmount,
+    influencerAmount,
+    platformAmount
+  };
+}
+
+// Gross → fee → net split for a payout request. The rate is stored on each
+// request, so payouts made under the old 20% fee keep showing 20% while new
+// ones retain only the 2% platform fee.
 function payoutFeeSplit(p) {
   const gross = Math.max(0, Number(p && p.amount) || 0);
   const rateNum = Number(p && p.feeRate);
@@ -282,6 +309,11 @@ function payoutPublic(p) {
     feeRate: fee.feeRate,
     feeAmount: fee.feeAmount,
     netAmount: fee.netAmount,
+    // The 80/18/2 split this request sits in, so the admin and sub-admin
+    // dashboards can show the whole picture next to the payout itself.
+    commissionRates: COMMISSION_SPLIT,
+    influencerRate: COMMISSION_SPLIT.influencer,
+    eventOwnerRate: COMMISSION_SPLIT.eventOwner,
     payoutMethod: p.payoutMethod,
     payoutMethodLabel: (PAYOUT_METHODS[p.payoutMethod] || {}).label || p.payoutMethod,
     bankName: p.bank ? p.bank.bankName : '',
@@ -2123,7 +2155,7 @@ async function sendPayoutRequestEmailToAdmin(payout) {
       'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
       'Amount requested: ' + amount + '\n' +
       'Send to them (' + (100 - feePct) + '%): ' + netAmount + '\n' +
-      'You retain (' + feePct + '%): ' + feeAmount + '\n' +
+      'Unisocials platform fee (' + feePct + '%): ' + feeAmount + '\n' +
       'Payment schedule: ' + (m.label || payout.payoutMethod) + '\n' +
       'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
       'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
@@ -2138,7 +2170,7 @@ async function sendPayoutRequestEmailToAdmin(payout) {
       payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
       payoutEmailRow('Amount requested', amount) +
       payoutEmailRow('Send to them (' + (100 - feePct) + '%)', netAmount) +
-      payoutEmailRow('You retain (' + feePct + '%)', feeAmount) +
+      payoutEmailRow('Platform fee — Unisocials (' + feePct + '%)', feeAmount) +
       payoutEmailRow('Payment schedule', m.label || payout.payoutMethod) +
       payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
       payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
@@ -2196,15 +2228,15 @@ async function sendPayoutStatusEmailToRequester(payout) {
     const subject = statusText === 'paid'
       ? '✅ Payout complete — ' + netAmount + ' has been sent to you (' + payout.id + ')'
       : statusText === 'approved'
-        ? '✅ Payout approved — ' + netAmount + ' (80%) will be sent to you within 24 hours'
+        ? '✅ Payout approved — ' + netAmount + ' will be sent to you within 24 hours'
         : '❌ Payout request ' + (payout.id) + ' was rejected';
     const bankLine = payout.bank ? payout.bank.bankName + ' ••••' + String(payout.bank.accountNumber || '').slice(-4) : '';
     const text =
       'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
       (statusText === 'paid'
-        ? 'Your payout is complete. ' + netAmount + ' (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + bankLine + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout is complete. ' + netAmount + ' (' + (100 - feePct) + '% of the ' + amount + ' commission you requested) has been sent to your bank account (' + bankLine + '). The ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' (' + (100 - feePct) + '%) will be sent to you within 24 hours, and ' + feePct + '% (' + feeAmount + ') is retained by the admin.'
+          ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' (' + (100 - feePct) + '%) will be sent to you within 24 hours, and the ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials.'
           : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
       '\n\nThank you for growing Unisocials.\n\nUnisocials Team';
     const html =
@@ -2214,16 +2246,16 @@ async function sendPayoutStatusEmailToRequester(payout) {
       '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
       '<p style="margin:0 0 14px;color:#475569">' +
       (statusText === 'paid'
-        ? 'Your payout is complete: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + escapeHtml(bankLine) + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout is complete: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '% of the ' + amount + ' commission you requested) has been sent to your bank account (' + escapeHtml(bankLine) + '). The ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '%) will be sent to you within 24 hours, and ' + feePct + '% (' + feeAmount + ') is retained by the admin.'
+          ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '%) will be sent to you within 24 hours, and the ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials.'
           : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
       '</p>' +
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Request ID', payout.id) +
       payoutEmailRow('Amount requested', amount) +
       payoutEmailRow('Sent to you (' + (100 - feePct) + '%)', netAmount) +
-      payoutEmailRow('Retained by admin (' + feePct + '%)', feeAmount) +
+      payoutEmailRow('Platform fee — Unisocials (' + feePct + '%)', feeAmount) +
       payoutEmailRow('Bank', bankLine) +
       (payout.paidAt ? payoutEmailRow('Paid on', fmtEmailDate(payout.paidAt)) : '') +
       '</table>' +
@@ -4385,12 +4417,13 @@ codes[idx] = entry;
       // has its own independent code/link.
       function commissionForOrder(order) {
         // Respect an explicitly stored commission amount/rate when the order has one.
-        // Step 7 only displays commission; it must not invent a new rate or alter payout logic.
+        // Orders without one fall back to the site-wide 18% influencer commission,
+        // so the referral portal never reports a flat zero for real sales.
         const explicit = Number(order && (order.commissionAmount ?? order.influencerCommission ?? order.referralCommission));
         if (Number.isFinite(explicit)) return explicit;
         const rate = Number(order && (order.commissionRate ?? order.influencerCommissionRate));
         if (Number.isFinite(rate) && rate >= 0) return (Number(order.amount) || 0) * rate;
-        return 0;
+        return (Number(order && order.amount) || 0) * INFLUENCER_COMMISSION_RATE;
       }
       function buildEventBreakdown(referredOrders, assignmentAdminId) {
         const allowed = events.filter(ev => {
@@ -4589,7 +4622,7 @@ codes[idx] = entry;
 
     // ── Sub-admin: list payout requests (READ-ONLY) ──
     // Mirrors the main admin's Payout Requests panel so a sub-admin can see every
-    // payout the admin pays out — amounts, the 80/20 split, bank details and status.
+    // payout the admin pays out — amounts, the 80/18/2 split, bank details and status.
     // It deliberately exposes NO payout capability: approving, marking paid and
     // rejecting all live on /api/admin/payouts (POST), which requires the master
     // admin password and is unreachable with a sub-admin session token.
@@ -4601,10 +4634,25 @@ codes[idx] = entry;
         return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
       }
       const payouts = await readPayouts();
+      // The sub-admin sees the same totals the main admin does — the 80/18/2
+      // split included — so nothing about a payout is hidden from oversight.
+      const all = payouts.map(payoutPublic);
+      const sum = (rows, key) => Math.round(rows.reduce((n, p) => n + (Number(p[key]) || 0), 0) * 100) / 100;
+      const open = all.filter(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()));
       return sendJson(res, 200, {
         success: true,
-        payouts: payouts.map(payoutPublic),
+        payouts: all,
         feeRate: PAYOUT_FEE_RATE,
+        commissionRates: COMMISSION_SPLIT,
+        totals: {
+          count: all.length,
+          requested: sum(all, 'amount'),
+          netToInfluencers: sum(all, 'netAmount'),
+          platformFee: sum(all, 'feeAmount'),
+          openCount: open.length,
+          openAmount: sum(open, 'amount'),
+          paidCount: all.filter(p => String(p.status || '').toLowerCase() === 'paid').length
+        },
         readOnly: true
       });
     }
@@ -5044,20 +5092,27 @@ codes[idx] = entry;
         // rejectedOrders is deliberately NOT returned: rejected payments are the
         // Main Admin's decision and must not be surfaced in the Influencer Admin
         // dashboard.
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
+        const revenue = verified.reduce((n,o)=>n+(Number(o.amount)||0),0);
+        // Per-event 80/18/2 breakdown so the requester sees where their 18%
+        // commission comes from, alongside what the owner and Unisocials keep.
+        const split = commissionSplit(revenue);
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, influencerCommission:split.influencerAmount, eventOwnerShare:split.eventOwnerAmount, platformShare:split.platformAmount, influencers:influencerRows };
       });
-      // feeRate lets the dashboard show the 80/20 split on ticket revenue.
-      return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, events:result });
+      // commissionRates lets the dashboard show the 80/18/2 split on ticket revenue.
+      return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
     }
 
     // ── Influencer Admin: payouts ──
-    // Verified commission earnings across the events this Influencer Admin is
-    // authorized for, minus every payout already requested/approved/paid.
-    // Rejected requests never reduce the available balance.
+    // The 18% commission earned on verified payments across the events this
+    // Influencer Admin is authorized for, minus every payout already
+    // requested/approved/paid. Rejected requests never reduce the balance.
+    // The gross revenue is reported alongside it so the 80/18/2 split is
+    // visible to the requester, the admin and the sub-admin alike.
     async function influencerAdminPayoutSummary(authCtx) {
       const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
       const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
       const nowMs = Date.now();
+      const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
       let totalVerifiedRevenue = 0;
       let heldAmount = 0;
       const heldPayments = [];
@@ -5076,6 +5131,9 @@ codes[idx] = entry;
                 orderId: o.orderId || '',
                 eventName: o.eventName || '',
                 amount,
+                // What this payment has actually earned, so the countdown is
+                // read in commission rather than in gross ticket revenue.
+                commissionAmount: round2(amount * INFLUENCER_COMMISSION_RATE),
                 paidAt: new Date(paidMs).toISOString(),
                 unlocksAt: new Date(unlocksMs).toISOString()
               });
@@ -5083,7 +5141,15 @@ codes[idx] = entry;
           }
         });
       });
-      const maturedRevenue = Math.max(0, totalVerifiedRevenue - heldAmount);
+      totalVerifiedRevenue = round2(totalVerifiedRevenue);
+      heldAmount = round2(heldAmount);
+      const maturedRevenue = round2(Math.max(0, totalVerifiedRevenue - heldAmount));
+      // The influencer only ever earns their 18% of the payment — the 80% is
+      // the event owner's and the 2% is Unisocials'.
+      const totalCommission = round2(totalVerifiedRevenue * INFLUENCER_COMMISSION_RATE);
+      const maturedCommission = round2(maturedRevenue * INFLUENCER_COMMISSION_RATE);
+      const heldCommission = round2(heldAmount * INFLUENCER_COMMISSION_RATE);
+      const split = commissionSplit(totalVerifiedRevenue);
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
       const committed = mine
         .filter(p => ['pending','approved','paid'].includes(String(p.status || '').toLowerCase()))
@@ -5092,12 +5158,20 @@ codes[idx] = entry;
       return {
         payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
         totalVerifiedRevenue,
-        totalRequested: committed,
-        // Only payments past the 7-day countdown can be requested for withdrawal.
-        availableBalance: Math.max(0, maturedRevenue - committed),
+        totalRequested: round2(committed),
+        // Only commission from payments past the 7-day countdown, and only what
+        // is left after earlier requests, can be withdrawn.
+        availableBalance: round2(Math.max(0, maturedCommission - committed)),
         maturedRevenue,
         heldAmount,
         heldPayments,
+        // The 18/2/80 breakdown of everything verified on these events.
+        totalCommission,
+        maturedCommission,
+        heldCommission,
+        commissionRates: COMMISSION_SPLIT,
+        eventOwnerShare: split.eventOwnerAmount,
+        platformShare: split.platformAmount,
         feeRate: PAYOUT_FEE_RATE,
         holdDays: PAYOUT_HOLD_DAYS,
         hasOpenRequest: mine.some(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()))
@@ -5117,6 +5191,12 @@ codes[idx] = entry;
         maturedRevenue: summary.maturedRevenue,
         heldAmount: summary.heldAmount,
         heldPayments: summary.heldPayments,
+        totalCommission: summary.totalCommission,
+        maturedCommission: summary.maturedCommission,
+        heldCommission: summary.heldCommission,
+        commissionRates: summary.commissionRates,
+        eventOwnerShare: summary.eventOwnerShare,
+        platformShare: summary.platformShare,
         feeRate: summary.feeRate,
         holdDays: summary.holdDays,
         hasOpenRequest: summary.hasOpenRequest,
@@ -5203,17 +5283,17 @@ codes[idx] = entry;
         const friendly = 'payout amount not valid';
         let error = friendly + ': ';
         if (isValid) {
-          error += 'the payout amount you requested exceeds your available balance of ₦' + summary.availableBalance.toLocaleString() + '.';
+          error += 'the payout amount you requested exceeds your available commission of ₦' + summary.availableBalance.toLocaleString() + ' (' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of ₦' + summary.maturedRevenue.toLocaleString() + ' in verified payments).';
         } else {
           error += 'the payout amount must be greater than zero.';
         }
-        if (summary.heldAmount > 0) {
-          error += ' You also have ₦' + summary.heldAmount.toLocaleString() + ' inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
+        if (summary.heldCommission > 0) {
+          error += ' You also have ₦' + summary.heldCommission.toLocaleString() + ' of commission inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
         }
         return sendJson(res, 400, { success:false, error });
       }
 
-      // 20% platform fee is taken out of every payment before it is paid out.
+      // The 2% platform fee is taken out of every payment before it is paid out.
       const fee = payoutFeeSplit({ amount });
       const payout = {
         id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
@@ -5256,7 +5336,7 @@ codes[idx] = entry;
         payout: payoutPublic(payout),
         availableBalance: Math.max(0, summary.availableBalance - amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted: of ₦' + amount.toLocaleString() + ', ₦' + fee.netAmount.toLocaleString() + ' (' + Math.round((1 - fee.feeRate) * 100) + '%) will be sent to you and ₦' + fee.feeAmount.toLocaleString() + ' (' + Math.round(fee.feeRate * 100) + '%) is retained by the admin. The admin has been notified and will pay within 24 hours of approval.'
+        message: 'Payout request submitted: of your ₦' + amount.toLocaleString() + ' commission, ₦' + fee.netAmount.toLocaleString() + ' (' + Math.round((1 - fee.feeRate) * 100) + '%) will be sent to you and ₦' + fee.feeAmount.toLocaleString() + ' (' + Math.round(fee.feeRate * 100) + '%) is the Unisocials platform fee. The admin has been notified and will pay within 24 hours of approval.'
       });
     }
 
@@ -5264,7 +5344,7 @@ codes[idx] = entry;
     if (pathname === '/api/admin/payouts' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Admin access only' });
       const payouts = await readPayouts();
-      return sendJson(res, 200, { success: true, payouts: payouts.map(payoutPublic) });
+      return sendJson(res, 200, { success: true, payouts: payouts.map(payoutPublic), commissionRates: COMMISSION_SPLIT, feeRate: PAYOUT_FEE_RATE });
     }
 
     if (pathname === '/api/admin/payouts' && req.method === 'POST') {

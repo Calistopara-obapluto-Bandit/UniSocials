@@ -995,12 +995,16 @@
 <div class="admin-stat-value" id="statRevenue">₦0</div>
 </div>
 <div class="admin-stat verified">
-<div class="admin-stat-label">Your Share (80%)</div>
-<div class="admin-stat-value" id="statShare80">₦0</div>
+<div class="admin-stat-label">Event Owner (80%)</div>
+<div class="admin-stat-value" id="statOwner80">₦0</div>
+</div>
+<div class="admin-stat verified">
+<div class="admin-stat-label">Your Commission (18%)</div>
+<div class="admin-stat-value" id="statInfl18">₦0</div>
 </div>
 <div class="admin-stat pending">
-<div class="admin-stat-label">Retained by Admin (20%)</div>
-<div class="admin-stat-value" id="statRetain20">₦0</div>
+<div class="admin-stat-label">Unisocials (2%)</div>
+<div class="admin-stat-value" id="statPlatform2">₦0</div>
 </div>
 </div>
 <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
@@ -1070,8 +1074,9 @@
 <div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="aesOrders">0</div></div>
 <div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
 <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
-<div class="admin-stat verified"><div class="admin-stat-label">Your Share (80%)</div><div class="admin-stat-value" id="aesShare80">₦0</div></div>
-<div class="admin-stat pending"><div class="admin-stat-label">Retained by Admin (20%)</div><div class="admin-stat-value" id="aesRetain20">₦0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label">Event Owner (80%)</div><div class="admin-stat-value" id="aesOwner80">₦0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label">Your Commission (18%)</div><div class="admin-stat-value" id="aesInfl18">₦0</div></div>
+<div class="admin-stat pending"><div class="admin-stat-label">Unisocials (2%)</div><div class="admin-stat-value" id="aesPlatform2">₦0</div></div>
 </div>
 <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
 <h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
@@ -1155,10 +1160,10 @@
 
   <div class="admin-scan-panel">
     <div class="payout-balance-grid">
-      <div class="admin-stat revenue"><div class="admin-stat-label">Verified Commission Revenue</div><div class="admin-stat-value" id="payoutTotalRevenue">₦0</div></div>
+      <div class="admin-stat revenue"><div class="admin-stat-label">Your Commission Earned (18%)</div><div class="admin-stat-value" id="payoutTotalRevenue">₦0</div></div>
       <div class="admin-stat pending"><div class="admin-stat-label">Requested / In Progress</div><div class="admin-stat-value" id="payoutTotalRequested">₦0</div></div>
       <div class="admin-stat"><div class="admin-stat-label">On Hold — 7-day countdown</div><div class="admin-stat-value" id="payoutHeld">₦0</div></div>
-      <div class="admin-stat verified"><div class="admin-stat-label">Available Balance</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
+      <div class="admin-stat verified"><div class="admin-stat-label">Available to Withdraw</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
     </div>
 
     <div id="payoutOpenNotice" style="display:none;margin-bottom:14px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
@@ -1189,7 +1194,7 @@
       </select>
     </div>
 
-    <div class="influencer-section-heading"><div><strong>4. Amount &amp; request</strong><div>Available balance is your verified commission from payments past the 7-day countdown, minus anything already requested. Every payout is split <strong>80/20</strong> — <strong>80% is sent to you</strong>, <strong>20% is retained by the admin</strong>.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>4. Amount &amp; request</strong><div>Every verified payment is split <strong>80/18/2</strong> — <strong>80% to the event owner</strong>, <strong>18% commission to you</strong>, <strong>2% to Unisocials</strong>. You can request your 18% once it clears the 7-day countdown, minus anything already requested. Only the <strong>2% platform fee</strong> is deducted when you are paid.</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
       <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" oninput="updatePayoutFeePreview()" /></div>
       <div class="form-group"><label for="payoutNote">Note to admin <span style="opacity:.6;">— optional</span></label><input type="text" id="payoutNote" placeholder="Anything the admin should know" maxlength="500" /></div>
@@ -1677,13 +1682,24 @@ function fmtN(n) {
       };
 
       var authorizedEventSales = [];
-      // 80/20 split rate served by the event-overview API (fallback: 20% retained).
-      var overviewFeeRate = 0.2;
+      // 80/18/2 split served by the event-overview API (fallbacks match the
+      // site-wide rates: 80% owner, 18% influencer commission, 2% Unisocials).
+      var overviewFeeRate = 0.02;
+      var overviewOwnerRate = 0.80;
+      var overviewInflRate = 0.18;
+      function applyOverviewRates(d) {
+        if (isFinite(Number(d.feeRate))) overviewFeeRate = Number(d.feeRate);
+        if (d.commissionRates) {
+          if (isFinite(Number(d.commissionRates.eventOwner))) overviewOwnerRate = Number(d.commissionRates.eventOwner);
+          if (isFinite(Number(d.commissionRates.influencer))) overviewInflRate = Number(d.commissionRates.influencer);
+          if (isFinite(Number(d.commissionRates.platform))) overviewFeeRate = Number(d.commissionRates.platform);
+        }
+      }
       window.loadAuthorizedEventSales = function() {
         fetch('/api/influencer-admin/event-overview',{headers:{'Authorization':'Bearer '+getToken()}})
           .then(function(r){return r.json();}).then(function(d){
             if(!d.success) throw new Error(d.error||'Unable to load authorized events');
-            if (isFinite(Number(d.feeRate))) overviewFeeRate = Number(d.feeRate);
+            applyOverviewRates(d);
             authorizedEventSales=d.events||[];
             var sel=document.getElementById('authorizedEventSelect');
             if(sel){ var keep=sel.value; sel.innerHTML='<option value="">Select an authorized event…</option>'+authorizedEventSales.map(function(x){return '<option value="'+esc(x.event.id)+'">'+esc(x.event.name||x.event.id)+'</option>';}).join(''); if(keep)sel.value=keep; if(sel.value)renderAuthorizedEventSales(sel.value); else if(authorizedEventSales.length){sel.value=authorizedEventSales[0].event.id;renderAuthorizedEventSales(sel.value);} }
@@ -1696,13 +1712,14 @@ function fmtN(n) {
         document.getElementById('aesTickets').textContent=String(data.ticketsSold||0);
         var rev = Number(data.revenue||0);
         document.getElementById('aesRevenue').textContent='₦'+rev.toLocaleString();
-        var aes80=document.getElementById('aesShare80'); if(aes80) aes80.textContent='₦'+Math.round(rev*(1-overviewFeeRate)).toLocaleString();
-        var aes20=document.getElementById('aesRetain20'); if(aes20) aes20.textContent='₦'+Math.round(rev*overviewFeeRate).toLocaleString();
+        var aes80=document.getElementById('aesOwner80'); if(aes80) aes80.textContent='₦'+Math.round(rev*overviewOwnerRate).toLocaleString();
+        var aes18=document.getElementById('aesInfl18'); if(aes18) aes18.textContent='₦'+Math.round(rev*overviewInflRate).toLocaleString();
+        var aes2=document.getElementById('aesPlatform2'); if(aes2) aes2.textContent='₦'+Math.round(rev*overviewFeeRate).toLocaleString();
         var box=document.getElementById('aesInfluencers');
         if(!box)return;
         var rows=data.influencers||[];
         if(!rows.length){box.innerHTML='<div style="color:var(--text-3);padding:14px;">No influencers are assigned to this Influencer Admin yet.</div>';return;}
-        box.innerHTML=rows.map(function(r){var rv=Number(r.revenue||0);return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+rv.toLocaleString()+'</strong><br><small style="color:#1B5E20;">80% to you ₦'+Math.round(rv*(1-overviewFeeRate)).toLocaleString()+'</small><small style="color:#E65100;"> · 20% admin ₦'+Math.round(rv*overviewFeeRate).toLocaleString()+'</small></div></div>';}).join('');
+        box.innerHTML=rows.map(function(r){var rv=Number(r.revenue||0);return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+rv.toLocaleString()+'</strong><br><small style="color:#1B5E20;">18% commission ₦'+Math.round(rv*overviewInflRate).toLocaleString()+'</small><small style="color:#E65100;"> · 2% Unisocials ₦'+Math.round(rv*overviewFeeRate).toLocaleString()+'</small></div></div>';}).join('');
       };
       var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
 
@@ -1716,7 +1733,7 @@ function fmtN(n) {
           .then(function(r) { return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
           .then(function(x) {
             if (!x.ok || !x.data || !x.data.success) throw new Error((x.data && x.data.error) || 'Unable to load overview');
-            if (isFinite(Number(x.data.feeRate))) overviewFeeRate = Number(x.data.feeRate);
+            applyOverviewRates(x.data);
             var rows = x.data.events || [];
             var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.pendingOrders||0) + Number(ev.verifiedOrders||0); a.pending += Number(ev.pendingOrders||0); a.verified += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,pending:0,verified:0,tickets:0,revenue:0});
             var st=document.getElementById('statTotal'); if(st) st.textContent=totals.orders;
@@ -1724,12 +1741,14 @@ function fmtN(n) {
             var sp=document.getElementById('statPending'); if(sp) sp.textContent=totals.pending;
             
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
-            // 80/20 split of ticket revenue: 80% sent to this admin, 20% retained by the Main Admin.
-            var s80=document.getElementById('statShare80'); if(s80) s80.textContent='₦'+Math.round(totals.revenue*(1-overviewFeeRate)).toLocaleString();
-            var s20=document.getElementById('statRetain20'); if(s20) s20.textContent='₦'+Math.round(totals.revenue*overviewFeeRate).toLocaleString();
+            // 80/18/2 split of verified ticket revenue: the event owner keeps 80%,
+            // this account earns 18% commission, Unisocials retains 2%.
+            var s80=document.getElementById('statOwner80'); if(s80) s80.textContent='₦'+Math.round(totals.revenue*overviewOwnerRate).toLocaleString();
+            var s18=document.getElementById('statInfl18'); if(s18) s18.textContent='₦'+Math.round(totals.revenue*overviewInflRate).toLocaleString();
+            var s2=document.getElementById('statPlatform2'); if(s2) s2.textContent='₦'+Math.round(totals.revenue*overviewFeeRate).toLocaleString();
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet. Events you create are added automatically.</div>'; }
-              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">💰 Your 80%: <strong style="color:#1B5E20;">₦'+Math.round(er*(1-overviewFeeRate)).toLocaleString()+'</strong> · 🛡 Admin retains 20%: <strong style="color:#E65100;">₦'+Math.round(er*overviewFeeRate).toLocaleString()+'</strong></div></div>'; }).join(''); }
+              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner 80%: <strong>₦'+Math.round(er*overviewOwnerRate).toLocaleString()+'</strong> · 💰 Your commission 18%: <strong style="color:#1B5E20;">₦'+Math.round(er*overviewInflRate).toLocaleString()+'</strong> · 🛡 Unisocials 2%: <strong style="color:#E65100;">₦'+Math.round(er*overviewFeeRate).toLocaleString()+'</strong></div></div>'; }).join(''); }
             }
             if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
           })
@@ -2342,8 +2361,9 @@ fetch('/api/admin/events/notify', {
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
 
-      // ── 20% platform fee + 7-day hold countdown state ──
-      var payoutFeeRate = 0.20;
+      // ── 80/18/2 commission split + 7-day hold countdown state ──
+      var payoutFeeRate = 0.02;
+      var commissionRates = { eventOwner: 0.80, influencer: 0.18, platform: 0.02 };
       // The real inbox completion emails are delivered to (blank if unset).
       var payoutNotifyEmail = '';
       var payoutHoldDays = 7;
@@ -2378,19 +2398,19 @@ fetch('/api/admin/events/notify', {
           if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
           return;
         }
-        var totalHeld = remaining.reduce(function(s, h) { return s + (Number(h.amount) || 0); }, 0);
+        var totalHeld = remaining.reduce(function(s, h) { return s + (Number(h.commissionAmount != null ? h.commissionAmount : h.amount) || 0); }, 0);
         var next = remaining.slice().sort(function(a, b) {
           return new Date(a.unlocksAt) - new Date(b.unlocksAt);
         })[0];
         var until = new Date(next.unlocksAt).getTime() - now;
-        el.innerHTML = '⏳ <strong>' + fmtN(totalHeld) + '</strong> from payments made on the site is on hold for <strong>' + payoutHoldDays + ' days</strong>. ' +
+        el.innerHTML = '⏳ <strong>' + fmtN(totalHeld) + '</strong> of commission (' + Math.round(commissionRates.influencer * 100) + '% of payments made on the site) is on hold for <strong>' + payoutHoldDays + ' days</strong>. ' +
           (remaining.length === 1 ? 'It unlocks' : 'Next payment unlocks') + ' in <strong>' + fmtCountdown(until) + '</strong>' +
           (remaining.length > 1 ? ' &middot; ' + remaining.length + ' payments on hold.' : '.');
         el.style.display = 'block';
       }
 
-      // Live fee breakdown under the amount field: shows the 20% that is
-      // taken out and what will actually be paid to the bank.
+      // Live breakdown under the amount field: the 2% platform fee taken out
+      // of the commission, and what actually reaches the bank.
       window.updatePayoutFeePreview = function() {
         var box = document.getElementById('payoutFeePreview');
         if (!box) return;
@@ -2402,9 +2422,9 @@ fetch('/api/admin/events/notify', {
         var pct = Math.round(payoutFeeRate * 100);
         var sharePct = 100 - pct;
         box.innerHTML = '💸 Split of this request:<br>' +
-          'You request: <strong>' + fmtN(amount) + '</strong><br>' +
+          'Your commission requested: <strong>' + fmtN(amount) + '</strong><br>' +
           'Sent to you (' + sharePct + '%): <strong style="color:#1B5E20;">' + fmtN(net) + '</strong><br>' +
-          'Retained by the admin (' + pct + '%): <strong style="color:#B71C1C;">' + fmtN(fee) + '</strong>';
+          'Unisocials platform fee (' + pct + '%): <strong style="color:#B71C1C;">' + fmtN(fee) + '</strong>';
         box.style.display = 'block';
       };
 
@@ -2417,23 +2437,37 @@ fetch('/api/admin/events/notify', {
             var reqEl = document.getElementById('payoutTotalRequested');
             var availEl = document.getElementById('payoutAvailable');
             var heldEl = document.getElementById('payoutHeld');
-            if (totalEl) totalEl.textContent = fmtN(data.totalVerifiedRevenue || 0);
+            if (totalEl) totalEl.textContent = fmtN(data.totalCommission != null ? data.totalCommission : data.totalVerifiedRevenue || 0);
             if (reqEl) reqEl.textContent = fmtN(data.totalRequested || 0);
             if (availEl) availEl.textContent = fmtN(data.availableBalance || 0);
-            if (heldEl) heldEl.textContent = fmtN(data.heldAmount || 0);
+            if (heldEl) heldEl.textContent = fmtN(data.heldCommission != null ? data.heldCommission : data.heldAmount || 0);
 
             payoutFeeRate = Number(data.feeRate);
-            if (!isFinite(payoutFeeRate)) payoutFeeRate = 0.20;
+            if (!isFinite(payoutFeeRate)) payoutFeeRate = 0.02;
+            if (data.commissionRates) {
+              commissionRates = {
+                eventOwner: Number(data.commissionRates.eventOwner) || 0.80,
+                influencer: Number(data.commissionRates.influencer) || 0.18,
+                platform: Number(data.commissionRates.platform) || 0.02
+              };
+            }
             payoutHoldDays = Number(data.holdDays) || 7;
             var feeNotice = document.getElementById('payoutFeeNotice');
             if (feeNotice) {
               var pct = Math.round(payoutFeeRate * 100);
               var sharePct = 100 - pct;
               var avail = Number(data.availableBalance || 0);
-              feeNotice.innerHTML = '💸 Every payout is split <strong>' + sharePct + '/' + pct + '</strong>: <strong style="color:#1B5E20;">' + sharePct + '% is sent to you</strong> and <strong style="color:#E65100;">' + pct + '% is retained by the admin</strong>.' +
+              var ownPct = Math.round(commissionRates.eventOwner * 100);
+              var inflPct = Math.round(commissionRates.influencer * 100);
+              var gross = Number(data.totalVerifiedRevenue || 0);
+              feeNotice.innerHTML = '💸 Every payment is split <strong>' + ownPct + '/' + inflPct + '/' + pct + '</strong>: ' +
+                '<strong>' + ownPct + '% to the event owner</strong>, <strong style="color:#1B5E20;">' + inflPct + '% commission to you</strong>, <strong style="color:#E65100;">' + pct + '% to Unisocials</strong>.' +
+                (gross > 0
+                  ? ' On <strong>' + fmtN(gross) + '</strong> of verified payments that is <strong>' + fmtN(Number(data.eventOwnerShare) || 0) + '</strong> to the owner, <strong style="color:#1B5E20;">' + fmtN(Number(data.totalCommission) || 0) + '</strong> to you and <strong style="color:#E65100;">' + fmtN(Number(data.platformShare) || 0) + '</strong> to Unisocials.'
+                  : '') +
                 (avail > 0
-                  ? ' Withdrawing your full available balance of <strong>' + fmtN(avail) + '</strong> sends <strong style="color:#1B5E20;">' + fmtN(fmtN2(avail * (1 - payoutFeeRate))) + ' to you</strong> and retains <strong style="color:#E65100;">' + fmtN(fmtN2(avail * payoutFeeRate)) + ' for the admin</strong>.'
-                  : ' E.g. on a ' + fmtN(10000) + ' request, ' + fmtN(fmtN2(10000 * (1 - payoutFeeRate))) + ' is sent to you and ' + fmtN(fmtN2(10000 * payoutFeeRate)) + ' is retained by the admin.');
+                  ? ' Requesting your full balance of <strong>' + fmtN(avail) + '</strong> sends <strong style="color:#1B5E20;">' + fmtN(fmtN2(avail * (1 - payoutFeeRate))) + ' to you</strong> with only the ' + pct + '% platform fee (' + fmtN(fmtN2(avail * payoutFeeRate)) + ') retained.'
+                  : '');
               feeNotice.style.display = 'block';
             }
 
@@ -2497,7 +2531,7 @@ fetch('/api/admin/events/notify', {
                 '<strong style="color:var(--text-1);">' + fmtN(p.amount) + '</strong>' +
                 '<span style="display:flex;gap:8px;align-items:center;">' + payoutStatusBadge(p.status) + '<code style="font-size:.72rem;color:var(--text-3);">' + esc(p.id) + '</code></span>' +
                 '</div>' +
-                '<div style="margin-top:6px;font-size:.8rem;color:var(--text-3);">Sent to you (80%): <strong style="color:#1B5E20;">' + fmtN(p.netAmount != null ? p.netAmount : p.amount) + '</strong> &middot; Retained by the admin (20%): <strong style="color:#B71C1C;">' + fmtN(p.feeAmount || 0) + '</strong></div>' +
+                '<div style="margin-top:6px;font-size:.8rem;color:var(--text-3);">Sent to you (' + (100 - Math.round((p.feeRate != null ? p.feeRate : 0.02) * 100)) + '%): <strong style="color:#1B5E20;">' + fmtN(p.netAmount != null ? p.netAmount : p.amount) + '</strong> &middot; Unisocials platform fee (' + Math.round((p.feeRate != null ? p.feeRate : 0.02) * 100) + '%): <strong style="color:#B71C1C;">' + fmtN(p.feeAmount || 0) + '</strong></div>' +
                 '<div class="payout-meta">' +
                 '<span>📅 ' + esc(p.payoutMethodLabel || '') + '</span>' +
                 '<span>🏦 ' + esc(p.bankName || '—') + ' ••••' + esc(String(p.accountNumber || '').slice(-4)) + ' (' + esc(p.accountName || '—') + ')</span>' +

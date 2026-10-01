@@ -768,7 +768,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>🏦 Payouts</h1>
-              <p>Every payout the main admin makes to Influencer Admins, exactly as they see it — including the <strong>80/20</strong> split and bank details. This view is <strong>read-only</strong> — approving, paying and rejecting a payout is done by the main admin only.</p>
+              <p>Every payout the main admin makes to Influencer Admins, exactly as they see it — including the <strong>80/18/2</strong> split and bank details. This view is <strong>read-only</strong> — approving, paying and rejecting a payout is done by the main admin only.</p>
             </div>
             <button class="admin-refresh-btn" onclick="loadPayoutList()">↻ Refresh</button>
           </div>
@@ -783,11 +783,11 @@
               <div class="admin-stat-value" id="payoutStatPending">0</div>
             </div>
             <div class="admin-stat verified">
-              <div class="admin-stat-label">Paid Out (80% sent)</div>
+              <div class="admin-stat-label">Paid to Influencers (98%)</div>
               <div class="admin-stat-value" id="payoutStatPaid">₦0</div>
             </div>
             <div class="admin-stat revenue">
-              <div class="admin-stat-label">Admin Retains (20%)</div>
+              <div class="admin-stat-label">Unisocials Fee (2%)</div>
               <div class="admin-stat-value" id="payoutStatFees">₦0</div>
             </div>
           </div>
@@ -2086,8 +2086,9 @@ resultBox.className = 'admin-scan-result show';
         var list = document.getElementById('payoutList');
         if (!list) return;
 
-        var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * 0.8) * 100) / 100; };
-        var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * 0.2) * 100) / 100; };
+        var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0.02; };
+        var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * (1 - rateOf(p))) * 100) / 100; };
+        var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * rateOf(p)) * 100) / 100; };
         var statusOf = function(p) { return String(p.status || 'pending').toLowerCase(); };
 
         // Requester + Schedule filters drive the stat cards, then the status
@@ -2157,8 +2158,8 @@ resultBox.className = 'admin-scan-result show';
             '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
             '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;">' +
             '<span>Requested <strong>' + fmtN(p.amount) + '</strong></span>' +
-            '<span>Send 80% <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
-            '<span>Admin retains 20% <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' +
+            '<span>Send ' + (100 - Math.round(rateOf(p) * 100)) + '% <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
+            '<span>Unisocials fee ' + Math.round(rateOf(p) * 100) + '% <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' +
             '</div>' +
             '<div style="margin-top:8px;">' +
             '<strong>\uD83C\uDDE6 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +
