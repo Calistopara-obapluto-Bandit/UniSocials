@@ -241,15 +241,39 @@ const PAYOUT_METHODS = {
   'after_event': { label: 'After event day', description: 'Payout after the event day' }
 };
 const PAYOUT_STATUSES = ['pending', 'approved', 'paid', 'rejected'];
+// Platform fee: 20% of every payout is taken out before it is paid out.
+const PAYOUT_FEE_RATE = 0.20;
+// Payments made through the site mature for 7 days before they can be
+// requested as a withdrawal.
+const PAYOUT_HOLD_DAYS = 7;
+const PAYOUT_HOLD_MS = PAYOUT_HOLD_DAYS * 24 * 60 * 60 * 1000;
+
+// Gross → fee → net split for a payout request. Stored on new requests and
+// derived retroactively for requests already made, so every payment —
+// including ones already requested — shows the 20% deduction.
+function payoutFeeSplit(p) {
+  const gross = Math.max(0, Number(p && p.amount) || 0);
+  const rateNum = Number(p && p.feeRate);
+  const rate = Number.isFinite(rateNum) ? rateNum : PAYOUT_FEE_RATE;
+  let fee = Number(p && p.feeAmount);
+  if (!Number.isFinite(fee)) fee = Math.round(gross * rate * 100) / 100;
+  let net = Number(p && p.netAmount);
+  if (!Number.isFinite(net)) net = Math.round((gross - fee) * 100) / 100;
+  return { feeRate: rate, feeAmount: fee, netAmount: net };
+}
 
 function payoutPublic(p) {
   if (!p) return null;
+  const fee = payoutFeeSplit(p);
   return {
     id: p.id,
     requestedBy: p.requestedBy,
     requesterName: p.requesterName || '',
     requesterEmail: p.requesterEmail || '',
     amount: Number(p.amount) || 0,
+    feeRate: fee.feeRate,
+    feeAmount: fee.feeAmount,
+    netAmount: fee.netAmount,
     payoutMethod: p.payoutMethod,
     payoutMethodLabel: (PAYOUT_METHODS[p.payoutMethod] || {}).label || p.payoutMethod,
     bankName: p.bank ? p.bank.bankName : '',
@@ -1919,12 +1943,18 @@ async function sendPayoutRequestEmailToAdmin(payout) {
     const to = adminEmail();
     if (!to) return false;
     const m = PAYOUT_METHODS[payout.payoutMethod] || {};
+    const fee = payoutFeeSplit(payout);
+    const feePct = Math.round(fee.feeRate * 100);
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
-    const subject = '💰 Payout Request — ' + amount + ' to ' + (payout.requesterName || payout.requesterEmail);
+    const feeAmount = '₦' + fee.feeAmount.toLocaleString();
+    const netAmount = '₦' + fee.netAmount.toLocaleString();
+    const subject = '💰 Payout Request — ' + netAmount + ' net to ' + (payout.requesterName || payout.requesterEmail);
     const text =
       'New payout request on Unisocials.\n\n' +
       'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
-      'Amount: ' + amount + '\n' +
+      'Amount requested: ' + amount + '\n' +
+      'Platform fee (' + feePct + '%): ' + feeAmount + '\n' +
+      'Net payout to send: ' + netAmount + '\n' +
       'Payment schedule: ' + (m.label || payout.payoutMethod) + '\n' +
       'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
       'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
@@ -1937,7 +1967,9 @@ async function sendPayoutRequestEmailToAdmin(payout) {
       '<p style="margin:0 0 14px;color:#475569">An Influencer Admin has requested a commission payout. Please pay within <strong>24 hours</strong>.</p>' +
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
-      payoutEmailRow('Amount', amount) +
+      payoutEmailRow('Amount requested', amount) +
+      payoutEmailRow('Platform fee (' + feePct + '%)', '-' + feeAmount) +
+      payoutEmailRow('Net payout to send', netAmount) +
       payoutEmailRow('Payment schedule', m.label || payout.payoutMethod) +
       payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
       payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
@@ -1963,20 +1995,24 @@ async function sendPayoutStatusEmailToRequester(payout) {
   try {
     const to = String(payout.requesterEmail || '').trim();
     if (!to) return false;
+    const fee = payoutFeeSplit(payout);
+    const feePct = Math.round(fee.feeRate * 100);
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
+    const feeAmount = '₦' + fee.feeAmount.toLocaleString();
+    const netAmount = '₦' + fee.netAmount.toLocaleString();
     const statusText = String(payout.status || '').toLowerCase();
     const subject = statusText === 'paid'
-      ? '✅ Payout sent — ' + amount + ' (' + payout.id + ')'
+      ? '✅ Payout sent — ' + netAmount + ' (' + payout.id + ')'
       : statusText === 'approved'
-        ? '✅ Payout approved — ' + amount + ' will be paid within 24 hours'
+        ? '✅ Payout approved — ' + netAmount + ' net payout will be paid within 24 hours'
         : '❌ Payout request ' + (payout.id) + ' was rejected';
     const bankLine = payout.bank ? payout.bank.bankName + ' ••••' + String(payout.bank.accountNumber || '').slice(-4) : '';
     const text =
       'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
       (statusText === 'paid'
-        ? 'Your payout of ' + amount + ' has been sent to your bank account (' + bankLine + ').\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout of ' + netAmount + ' has been sent to your bank account (' + bankLine + '). A ' + feePct + '% platform fee of ' + feeAmount + ' was deducted from the ' + amount + ' requested.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of ' + amount + ' has been approved. Payment will be completed within 24 hours.'
+          ? 'Your payout request of ' + amount + ' has been approved. After the ' + feePct + '% platform fee of ' + feeAmount + ', ' + netAmount + ' will be paid within 24 hours.'
           : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
       '\n\nThank you for growing Unisocials.\n\nUnisocials Team';
     const html =
@@ -1986,14 +2022,16 @@ async function sendPayoutStatusEmailToRequester(payout) {
       '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
       '<p style="margin:0 0 14px;color:#475569">' +
       (statusText === 'paid'
-        ? 'Your payout of <strong>' + amount + '</strong> has been sent to your bank account (' + escapeHtml(bankLine) + '). Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout of <strong>' + netAmount + '</strong> has been sent to your bank account (' + escapeHtml(bankLine) + '). A ' + feePct + '% platform fee of ' + feeAmount + ' was deducted from the ' + amount + ' requested. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of <strong>' + amount + '</strong> has been approved. <strong>Payment will be completed within 24 hours.</strong>'
+          ? 'Your payout request of <strong>' + amount + '</strong> has been approved. After the ' + feePct + '% platform fee of ' + feeAmount + ', <strong>' + netAmount + '</strong> will be paid within 24 hours.'
           : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
       '</p>' +
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Request ID', payout.id) +
-      payoutEmailRow('Amount', amount) +
+      payoutEmailRow('Amount requested', amount) +
+      payoutEmailRow('Platform fee (' + feePct + '%)', '-' + feeAmount) +
+      payoutEmailRow('Net payout', netAmount) +
       payoutEmailRow('Bank', bankLine) +
       '</table>' +
       '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Thank you for growing Unisocials.</p>' +
@@ -4515,23 +4553,49 @@ codes[idx] = entry;
     async function influencerAdminPayoutSummary(authCtx) {
       const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
       const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
+      const nowMs = Date.now();
       let totalVerifiedRevenue = 0;
+      let heldAmount = 0;
+      const heldPayments = [];
       authorizedEvents.forEach(ev => {
         orders.forEach(o => {
           if (eventMatchesOrder(o, ev) && String(o.status || '').toLowerCase() === 'verified') {
-            totalVerifiedRevenue += Number(o.amount) || 0;
+            const amount = Number(o.amount) || 0;
+            totalVerifiedRevenue += amount;
+            // Every payment made through the site stays on hold for 7 days
+            // from the moment it was paid before it becomes withdrawable.
+            const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+            const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+            if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
+              heldAmount += amount;
+              heldPayments.push({
+                orderId: o.orderId || '',
+                eventName: o.eventName || '',
+                amount,
+                paidAt: new Date(paidMs).toISOString(),
+                unlocksAt: new Date(unlocksMs).toISOString()
+              });
+            }
           }
         });
       });
+      const maturedRevenue = Math.max(0, totalVerifiedRevenue - heldAmount);
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
       const committed = mine
         .filter(p => ['pending','approved','paid'].includes(String(p.status || '').toLowerCase()))
         .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
       return {
         payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
         totalVerifiedRevenue,
         totalRequested: committed,
-        availableBalance: Math.max(0, totalVerifiedRevenue - committed),
+        // Only payments past the 7-day countdown can be requested for withdrawal.
+        availableBalance: Math.max(0, maturedRevenue - committed),
+        maturedRevenue,
+        heldAmount,
+        heldPayments,
+        feeRate: PAYOUT_FEE_RATE,
+        holdDays: PAYOUT_HOLD_DAYS,
         hasOpenRequest: mine.some(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()))
       };
     }
@@ -4546,6 +4610,11 @@ codes[idx] = entry;
         totalVerifiedRevenue: summary.totalVerifiedRevenue,
         totalRequested: summary.totalRequested,
         availableBalance: summary.availableBalance,
+        maturedRevenue: summary.maturedRevenue,
+        heldAmount: summary.heldAmount,
+        heldPayments: summary.heldPayments,
+        feeRate: summary.feeRate,
+        holdDays: summary.holdDays,
         hasOpenRequest: summary.hasOpenRequest,
         payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
         savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null
@@ -4574,15 +4643,24 @@ codes[idx] = entry;
       const summary = await influencerAdminPayoutSummary(authCtx);
       if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
       if (amount > summary.availableBalance) {
-        return sendJson(res, 400, { success:false, error:'Requested amount exceeds your available balance of ₦' + summary.availableBalance.toLocaleString() + '.' });
+        let error = 'Requested amount exceeds your available balance of ₦' + summary.availableBalance.toLocaleString() + '.';
+        if (summary.heldAmount > 0) {
+          error += ' ₦' + summary.heldAmount.toLocaleString() + ' from recent site payments is still inside the ' + PAYOUT_HOLD_DAYS + '-day countdown and unlocks automatically.';
+        }
+        return sendJson(res, 400, { success:false, error });
       }
 
+      // 20% platform fee is taken out of every payment before it is paid out.
+      const fee = payoutFeeSplit({ amount });
       const payout = {
         id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
         requestedBy: authCtx.user.id,
         requesterName: authCtx.user.name || '',
         requesterEmail: authCtx.user.email || '',
         amount,
+        feeRate: fee.feeRate,
+        feeAmount: fee.feeAmount,
+        netAmount: fee.netAmount,
         payoutMethod,
         bank: { bankName, accountNumber, accountName },
         note,
@@ -4611,7 +4689,7 @@ codes[idx] = entry;
         payout: payoutPublic(payout),
         availableBalance: Math.max(0, summary.availableBalance - amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted. The admin has been notified and will pay within 24 hours of approval.'
+        message: 'Payout request submitted: ₦' + amount.toLocaleString() + ' requested, ' + Math.round(fee.feeRate * 100) + '% platform fee ₦' + fee.feeAmount.toLocaleString() + ', net payout ₦' + fee.netAmount.toLocaleString() + '. The admin has been notified and will pay within 24 hours of approval.'
       });
     }
 

@@ -1012,10 +1012,13 @@
     <div class="payout-balance-grid">
       <div class="admin-stat revenue"><div class="admin-stat-label">Verified Commission Revenue</div><div class="admin-stat-value" id="payoutTotalRevenue">₦0</div></div>
       <div class="admin-stat pending"><div class="admin-stat-label">Requested / In Progress</div><div class="admin-stat-value" id="payoutTotalRequested">₦0</div></div>
+      <div class="admin-stat"><div class="admin-stat-label">On Hold — 7-day countdown</div><div class="admin-stat-value" id="payoutHeld">₦0</div></div>
       <div class="admin-stat verified"><div class="admin-stat-label">Available Balance</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
     </div>
 
     <div id="payoutOpenNotice" style="display:none;margin-bottom:14px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
+    <div id="payoutFeeNotice" style="display:none;margin-bottom:14px;background:#F1F8E9;border:1px solid #C8E6C9;color:#1B5E20;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
+    <div id="payoutHoldNotice" style="display:none;margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
 
     <div class="influencer-section-heading"><div><strong>1. Your bank account</strong><div>Saved and reused for every payout request. Double-check it before requesting.</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
@@ -1034,11 +1037,12 @@
       </select>
     </div>
 
-    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div>Available balance is your verified commission minus anything already requested.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div>Available balance is your verified commission from payments past the 7-day countdown, minus anything already requested. A 20% platform fee is taken out of every payout.</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-      <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" /></div>
+      <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" oninput="updatePayoutFeePreview()" /></div>
       <div class="form-group"><label for="payoutNote">Note to admin <span style="opacity:.6;">— optional</span></label><input type="text" id="payoutNote" placeholder="Anything the admin should know" maxlength="500" /></div>
     </div>
+    <div id="payoutFeePreview" style="display:none;margin:0 0 14px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.8;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
       <button class="btn-submit" id="requestPayoutBtn" onclick="requestPayout()">💰 Request Payout</button>
       <span style="font-size:.78rem;color:var(--text-3);">Approved payouts are paid within <strong>24 hours</strong>.</span>
@@ -2053,6 +2057,69 @@ fetch('/api/admin/events/notify', {
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
 
+      // ── 20% platform fee + 7-day hold countdown state ──
+      var payoutFeeRate = 0.20;
+      var payoutHoldDays = 7;
+      var payoutHeldData = [];
+      var payoutHoldTimer = null;
+
+      function fmtN2(n) {
+        return Math.round(Number(n || 0) * 100) / 100;
+      }
+
+      function fmtCountdown(ms) {
+        if (!(ms > 0)) return '0d 00h 00m 00s';
+        var s = Math.floor(ms / 1000);
+        var d = Math.floor(s / 86400); s -= d * 86400;
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+        return d + 'd ' + pad(h) + 'h ' + pad(m) + 'm ' + pad(s) + 's';
+      }
+
+      // Live countdown: shows how much of the site's payments is still locked
+      // and how long until the next payment becomes withdrawable.
+      function renderPayoutHoldNotice() {
+        var el = document.getElementById('payoutHoldNotice');
+        if (!el) return;
+        var now = Date.now();
+        var remaining = payoutHeldData.filter(function(h) {
+          return new Date(h.unlocksAt).getTime() > now;
+        });
+        if (!remaining.length) {
+          el.style.display = 'none';
+          if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
+          return;
+        }
+        var totalHeld = remaining.reduce(function(s, h) { return s + (Number(h.amount) || 0); }, 0);
+        var next = remaining.slice().sort(function(a, b) {
+          return new Date(a.unlocksAt) - new Date(b.unlocksAt);
+        })[0];
+        var until = new Date(next.unlocksAt).getTime() - now;
+        el.innerHTML = '⏳ <strong>' + fmtN(totalHeld) + '</strong> from payments made on the site is on hold for <strong>' + payoutHoldDays + ' days</strong>. ' +
+          (remaining.length === 1 ? 'It unlocks' : 'Next payment unlocks') + ' in <strong>' + fmtCountdown(until) + '</strong>' +
+          (remaining.length > 1 ? ' &middot; ' + remaining.length + ' payments on hold.' : '.');
+        el.style.display = 'block';
+      }
+
+      // Live fee breakdown under the amount field: shows the 20% that is
+      // taken out and what will actually be paid to the bank.
+      window.updatePayoutFeePreview = function() {
+        var box = document.getElementById('payoutFeePreview');
+        if (!box) return;
+        var input = document.getElementById('payoutAmount');
+        var amount = Number((input && input.value) || 0);
+        if (!(amount > 0)) { box.style.display = 'none'; return; }
+        var fee = fmtN2(amount * payoutFeeRate);
+        var net = fmtN2(amount - fee);
+        var pct = Math.round(payoutFeeRate * 100);
+        box.innerHTML = '💸 Breakdown of this request:<br>' +
+          'Requested: <strong>' + fmtN(amount) + '</strong><br>' +
+          'Platform fee (' + pct + '%): <strong style="color:#B71C1C;">−' + fmtN(fee) + '</strong><br>' +
+          'You receive: <strong style="color:#1B5E20;">' + fmtN(net) + '</strong>';
+        box.style.display = 'block';
+      };
+
       window.loadPayouts = function() {
         fetch('/api/influencer-admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
           .then(function(r){ return r.json(); })
@@ -2061,9 +2128,28 @@ fetch('/api/admin/events/notify', {
             var totalEl = document.getElementById('payoutTotalRevenue');
             var reqEl = document.getElementById('payoutTotalRequested');
             var availEl = document.getElementById('payoutAvailable');
+            var heldEl = document.getElementById('payoutHeld');
             if (totalEl) totalEl.textContent = fmtN(data.totalVerifiedRevenue || 0);
             if (reqEl) reqEl.textContent = fmtN(data.totalRequested || 0);
             if (availEl) availEl.textContent = fmtN(data.availableBalance || 0);
+            if (heldEl) heldEl.textContent = fmtN(data.heldAmount || 0);
+
+            payoutFeeRate = Number(data.feeRate);
+            if (!isFinite(payoutFeeRate)) payoutFeeRate = 0.20;
+            payoutHoldDays = Number(data.holdDays) || 7;
+            var feeNotice = document.getElementById('payoutFeeNotice');
+            if (feeNotice) {
+              var pct = Math.round(payoutFeeRate * 100);
+              feeNotice.innerHTML = '💸 A <strong>' + pct + '% platform fee</strong> is taken out of every payment — e.g. on a ₦10,000 request you receive <strong>₦' +
+                (10000 - Math.round(10000 * payoutFeeRate)).toLocaleString() + '</strong>. Each request below shows its fee.';
+              feeNotice.style.display = 'block';
+            }
+
+            payoutHeldData = Array.isArray(data.heldPayments) ? data.heldPayments : [];
+            if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
+            renderPayoutHoldNotice();
+            if (payoutHeldData.length) payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
+            updatePayoutFeePreview();
 
             savedPayoutBank = data.savedBankAccount || null;
             if (savedPayoutBank) {
@@ -2080,7 +2166,8 @@ fetch('/api/admin/events/notify', {
               var open = (data.payouts || []).find(function(p){ return ['pending','approved'].indexOf(String(p.status||'').toLowerCase()) !== -1; });
               if (open) {
                 var dueLine = open.paymentDueBy ? ' Payment due by ' + fmtPayoutDate(open.paymentDueBy) + '.' : '';
-                notice.innerHTML = '⏳ Your request <strong>' + esc(open.id) + '</strong> for <strong>' + fmtN(open.amount) + '</strong> is <strong>' + esc(open.status) + '</strong>.' +
+                var feeLine = open.netAmount != null ? ' <span style="opacity:.85;">(net ' + fmtN(open.netAmount) + ' after ' + Math.round((open.feeRate || 0.2) * 100) + '% fee)</span>' : '';
+                notice.innerHTML = '⏳ Your request <strong>' + esc(open.id) + '</strong> for <strong>' + fmtN(open.amount) + '</strong>' + feeLine + ' is <strong>' + esc(open.status) + '</strong>.' +
                   (open.status === 'approved' ? ' The admin will pay within 24 hours.' + dueLine : ' The admin has been notified by email.') +
                   ' You can submit a new request once it is completed.';
                 notice.style.display = 'block';
@@ -2103,6 +2190,7 @@ fetch('/api/admin/events/notify', {
                 '<strong style="color:var(--text-1);">' + fmtN(p.amount) + '</strong>' +
                 '<span style="display:flex;gap:8px;align-items:center;">' + payoutStatusBadge(p.status) + '<code style="font-size:.72rem;color:var(--text-3);">' + esc(p.id) + '</code></span>' +
                 '</div>' +
+                '<div style="margin-top:6px;font-size:.8rem;color:var(--text-3);">20% platform fee: <span style="color:#B71C1C;">−' + fmtN(p.feeAmount || 0) + '</span> &middot; You receive: <strong style="color:#1B5E20;">' + fmtN(p.netAmount != null ? p.netAmount : p.amount) + '</strong></div>' +
                 '<div class="payout-meta">' +
                 '<span>📅 ' + esc(p.payoutMethodLabel || '') + '</span>' +
                 '<span>🏦 ' + esc(p.bankName || '—') + ' ••••' + esc(String(p.accountNumber || '').slice(-4)) + ' (' + esc(p.accountName || '—') + ')</span>' +

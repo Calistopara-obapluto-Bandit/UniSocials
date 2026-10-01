@@ -1126,7 +1126,8 @@
           <div class="admin-stats">
             <div class="admin-stat pending"><div class="admin-stat-label">Pending Review</div><div class="admin-stat-value" id="payoutAdminPending">0</div></div>
             <div class="admin-stat"><div class="admin-stat-label">Approved (pay within 24h)</div><div class="admin-stat-value" id="payoutAdminApproved">0</div></div>
-            <div class="admin-stat verified"><div class="admin-stat-label">Paid Total</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
+            <div class="admin-stat verified"><div class="admin-stat-label">Paid Total (after 20% fee)</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
+            <div class="admin-stat revenue"><div class="admin-stat-label">20% Fees Retained</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
           </div>
           <div id="payoutAdminList"></div>
         </div>
@@ -2635,12 +2636,17 @@ fetch('/api/admin/events/notify', {
             var pendingEl = document.getElementById('payoutAdminPending');
             var approvedEl = document.getElementById('payoutAdminApproved');
             var paidEl = document.getElementById('payoutAdminPaid');
+            var feesEl = document.getElementById('payoutAdminFees');
             var pending = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'pending'; });
             var approved = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'approved'; });
             var paid = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'paid'; });
             if (pendingEl) pendingEl.textContent = pending.length;
             if (approvedEl) approvedEl.textContent = approved.length;
-            if (paidEl) paidEl.textContent = fmtN(paid.reduce(function(s,p){ return s + (Number(p.amount)||0); }, 0));
+            // Paid totals are what actually reaches the bank: gross minus the 20% fee.
+            var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * 0.8) * 100) / 100; };
+            var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * 0.2) * 100) / 100; };
+            if (paidEl) paidEl.textContent = fmtN(paid.reduce(function(s,p){ return s + netOf(p); }, 0));
+            if (feesEl) feesEl.textContent = fmtN(paid.reduce(function(s,p){ return s + feeOf(p); }, 0));
 
             var list = document.getElementById('payoutAdminList');
             if (!list) return;
@@ -2663,7 +2669,7 @@ fetch('/api/admin/events/notify', {
                 actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'approve\')">✅ Verify & Approve</button>' +
                   '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
               } else if (st === 'approved') {
-                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'mark_paid\')">💸 Mark as Paid</button>' +
+                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'mark_paid\')">💸 Mark ₦' + fmtN(netOf(p)) + ' as Paid</button>' +
                   '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
               } else if (st === 'paid') {
                 actions = '<span style="font-size:.78rem;color:#1B5E20;font-weight:700;">✅ Paid ' + esc(p.paidAt ? new Date(p.paidAt).toLocaleString() : '') + '</span>';
@@ -2682,7 +2688,14 @@ fetch('/api/admin/events/notify', {
                 '<span><code style="font-size:.72rem;">' + esc(p.id) + '</code></span>' +
                 '</div>' +
                 '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;">' +
+                '<span>Requested <strong>' + fmtN(p.amount) + '</strong></span>' +
+                '<span>20% platform fee <strong style="color:#B71C1C;">−' + fmtN(feeOf(p)) + '</strong></span>' +
+                '<span>Send <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
+                '</div>' +
+                '<div style="margin-top:8px;">' +
                 '<strong>🏦 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +
+                '</div>' +
                 (dueLine ? '<div style="margin-top:6px;color:#0D47A1;font-weight:600;font-size:.8rem;">' + dueLine + '</div>' : '') +
                 (p.note ? '<div style="margin-top:6px;color:var(--text-3);font-size:.8rem;">Note: ' + esc(p.note) + '</div>' : '') +
                 '</div>' +
