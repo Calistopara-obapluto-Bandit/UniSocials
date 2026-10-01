@@ -71,6 +71,11 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .nav-inf-menu-item small{display:block;font-weight:500;font-size:.7rem;color:var(--text-3);margin-top:2px}
 .nav-inf-menu-item.danger{color:#b71c1c;border-top:1px solid var(--border);border-radius:0 0 9px 9px;margin-top:5px;padding-top:12px}
 .nav-inf-menu-item.danger:hover{background:#fff4f3;color:#8e1b1b}
+.nav-inf-menu-item.active{background:var(--accent-ghost);color:var(--accent)}
+.mobile-inf-link.active{color:var(--text-1)}
+.portal-view{padding-bottom:8px}
+.portal-events-head-intro{margin-bottom:14px}
+.portal-events-head-intro p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6}
 @media(max-width:1000px){.nav-inf-menu-list{right:auto;left:0}}
 @media(max-width:600px){.nav-inf-menu{display:none}}
 
@@ -114,15 +119,21 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 </style>
 </head>
 <body class="influencer-page">
-<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="index.html">Home</a><a href="events.html">Events</a><a href="tickets.html">Tickets</a><a href="about.html">About</a><a href="contact.html">Contact</a><a href="#commissionDashboard" class="mobile-inf-link">📊 Commission Dashboard</a><a href="#payoutSection" class="mobile-inf-link">💰 Commission payouts</a><a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a><a href="events.html" class="mobile-cta btn-primary">Get Tickets</a><a href="#" class="mobile-inf-logout" id="mobileInfLogout" style="display:none;">⎋ Log out</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner" data-account-controls="own"><a href="index.html" class="nav-logo">Uni<span>socials</span> · Influencer</a><ul class="nav-links" role="list"><li><a href="index.html">Home</a></li><li><a href="events.html">Events</a></li><li><a href="tickets.html">Tickets</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul><div class="nav-cta"><div class="nav-inf-menu" id="navInfMenu" style="display:none;"><button type="button" class="nav-inf-menu-trigger" id="navInfMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="navInfMenuList"><span id="navInfMenuLabel">My Commission</span><span class="nav-inf-menu-caret" aria-hidden="true">▾</span></button><div class="nav-inf-menu-list" id="navInfMenuList" role="menu"><a class="nav-inf-menu-item" id="navInfDashboard" href="#commissionDashboard" role="menuitem">📊 Commission Dashboard<small>Sales, tickets and your commission</small></a><a class="nav-inf-menu-item" id="navInfPayouts" href="#payoutSection" role="menuitem">💰 Commission Payouts<small>Request and track your withdrawals</small></a><button type="button" class="nav-inf-menu-item danger" id="navInfLogout" role="menuitem">⎋ Log out</button></div></div><a href="events.html" class="btn-primary">Get Tickets</a></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
+<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="#earned" class="mobile-inf-link" data-view-link="earned">📊 Commission Earned</a><a href="#payouts" class="mobile-inf-link" data-view-link="payouts">💰 Commission Payouts</a><a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a><a href="#" class="mobile-inf-logout" id="mobileInfLogout" style="display:none;">⎋ Log out</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner" data-account-controls="own"><a href="#earned" class="nav-logo" data-view-link="earned">Uni<span>socials</span> · Influencer</a><div class="nav-cta"><div class="nav-inf-menu" id="navInfMenu" style="display:none;"><button type="button" class="nav-inf-menu-trigger" id="navInfMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="navInfMenuList"><span id="navInfMenuLabel">My Commission</span><span class="nav-inf-menu-caret" aria-hidden="true">▾</span></button><div class="nav-inf-menu-list" id="navInfMenuList" role="menu"><button type="button" class="nav-inf-menu-item" id="navInfEarned" data-view-link="earned" role="menuitem">📊 Commission Earned<small>Sales, tickets and your 17.5%</small></button><button type="button" class="nav-inf-menu-item" id="navInfPayouts" data-view-link="payouts" role="menuitem">💰 Commission Payouts<small>Request and track your withdrawals</small></button><button type="button" class="nav-inf-menu-item danger" id="navInfLogout" role="menuitem">⎋ Log out</button></div></div></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
 <section id="loginView"><section class="page-header"><div class="container"><div class="section-label reveal">Influencer Portal</div><h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1><p class="section-sub reveal reveal-delay-2">Sign in to manage your Unisocials referral link and track your results.</p></div></section><section class="influencer-login"><div class="auth-section"><div class="container"><div class="influencer-login-card reveal"><div class="influencer-mark">U</div><div class="influencer-kicker">Influencer Portal</div><h1>Sign In</h1><p class="influencer-subtitle">Use your influencer account to access your referral dashboard.</p><div class="influencer-error" id="loginError"></div><form id="loginForm"><div class="influencer-form-group"><label for="email">Email Address</label><input id="email" type="email" placeholder="you@university.edu.ng" autocomplete="username" required></div><div class="influencer-form-group"><label for="password">Password</label><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></div><button class="influencer-login-btn" type="submit" id="loginBtn">Sign In</button></form><p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p><div class="admin-entry"><div class="admin-entry-title">Creating or running events?</div><p>That's a different account: an Influencer Admin creates events, tracks sales and requests commission payouts.</p><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div></div></div></div></section></section>
-<main id="dashboard" class="influencer-dashboard hidden"><div class="influencer-container"><div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1>Your referral dashboard</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div></div>
+<main id="dashboard" class="influencer-dashboard hidden"><div class="influencer-container">
+<div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1 id="portalViewTitle">Commission Earned</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div></div>
+<div class="portal-view" id="viewEarned">
+<section class="portal-events-head-intro"><p id="viewEarnedIntro">Your referral link, the sales it has brought in, and the 17.5% commission you have earned on them.</p></section>
 <div class="admin-entry-bar"><div><strong>Run your own events?</strong><span>Influencer Admins get their own dashboard for events, sales, check-in staff and commission payouts.</span></div><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div>
 <section class="portal-selector" id="portalSelector" aria-label="Referral portal selector"><div class="portal-selector-copy"><div class="portal-selector-label">Working for</div><div class="portal-selector-title" id="portalTitle">Loading referral portals…</div><div class="portal-meta" id="portalMeta"></div></div><select class="portal-select" id="portalSelect" aria-label="Select Influencer Admin"></select></section><section class="relationship-panel" id="relationshipPanel"><div class="relationship-head"><div><h2>Influencer Admin requests</h2><p>Review requests to work with you. You keep the same influencer account and login.</p></div></div><div class="relationship-list" id="relationshipList"><div class="relationship-empty">Loading requests...</div></div></section>
 <section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every sale through your link is split <strong>2.5% to Unisocials, 17.5% commission to you, 80% to the event owner</strong>, and the event's Influencer Admin is who pays you.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
-<section class="influencer-stats" id="commissionDashboard"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (17.5%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
+<section class="influencer-stats" id="commissionEarned"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (17.5%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
 <section class="portal-events" id="portalEvents"><div class="portal-events-head"><div><div class="influencer-overline">Selected portal</div><h2>Events &amp; performance</h2><p id="eventsSubtitle">Events authorised to the selected Influencer Admin.</p></div></div><div class="portal-events-list" id="portalEventsList"><div class="portal-empty">Loading events…</div></div></section>
 <section class="all-overview hidden" id="allOverview"><div class="all-overview-head"><div class="influencer-overline">All relationships</div><h2>Performance by Influencer Admin</h2><p>Each accepted relationship remains separate. The totals above are the combined overview of these individual portals.</p></div><div class="all-overview-list" id="allOverviewList"><div class="portal-empty">Loading relationship totals…</div></div></section>
+</div><!-- /viewEarned -->
+<div class="portal-view hidden" id="viewPayouts">
+<section class="portal-events-head-intro"><p id="viewPayoutsIntro">Request a withdrawal of your commission and track every payout the event's Influencer Admin has released to you.</p></section>
 <section class="portal-events" id="payoutSection"><div class="portal-events-head"><div><div class="influencer-overline">Your earnings</div><h2>Commission payouts</h2><p>Every sale made through your referral link is split <strong>2.5% to Unisocials, 17.5% commission to you, 80% to the event owner</strong>. Your 17.5% is 17.5% of the <strong>full ticket</strong>, and the event's Influencer Admin is who pays it.</p></div></div>
 <div class="payout-note" id="payoutSplitNote">Loading your commission…</div>
 <div class="payout-grid">
@@ -146,6 +157,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 </div>
 <div style="margin-top:20px"><div class="influencer-overline">History</div><div id="poHistory"><div class="portal-empty">Loading payout history…</div></div></div>
 </section>
+</div><!-- /viewPayouts -->
 <div class="influencer-notice">Your account is limited to referral performance. You cannot access orders, events, check-in, universities, subscribers, or admin settings.</div></div></main>
 <script src="templatemo-622-clearwave.js"></script>
 <script>
@@ -170,6 +182,47 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       label.textContent=name?name.split(' ')[0]+"'s Commission":'My Commission';
     }
   }
+  // ── Views: Commission Earned and Commission Payouts are separate screens ──
+  // These switch views rather than scroll to an anchor, so picking a destination
+  // in the dropdown lands on that page instead of the same long scroll.
+  var PORTAL_VIEWS = {
+    earned: { root: 'viewEarned', title: 'Commission Earned' },
+    payouts: { root: 'viewPayouts', title: 'Commission Payouts' }
+  };
+  var currentView = 'earned';
+  function showView(name, skipHash) {
+    var view = PORTAL_VIEWS[name] ? name : 'earned';
+    currentView = view;
+    Object.keys(PORTAL_VIEWS).forEach(function(k) {
+      var el = document.getElementById(PORTAL_VIEWS[k].root);
+      if (el) el.classList.toggle('hidden', k !== view);
+    });
+    var title = document.getElementById('portalViewTitle');
+    if (title) title.textContent = PORTAL_VIEWS[view].title;
+    // Mark the active destination in both the dropdown and the mobile menu.
+    document.querySelectorAll('[data-view-link]').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-view-link') === view);
+    });
+    var menu = document.getElementById('navInfMenu');
+    if (menu && menu.classList.contains('open')) menu.classList.remove('open');
+    var mobile = document.getElementById('mobileMenu');
+    if (mobile && mobile.classList.contains('open')) mobile.classList.remove('open');
+    if (document.body) document.body.style.overflow = '';
+    if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'auto' });
+    if (!skipHash) {
+      var target = '#' + view;
+      if (window.history && window.history.replaceState) window.history.replaceState(null, '', target);
+    }
+    // The payouts screen owns its own numbers and countdown; load them when
+    // that screen is actually opened rather than only on first sign-in.
+    if (view === 'payouts' && typeof loadPayouts === 'function' && localStorage.getItem(KEY)) loadPayouts();
+  }
+  function viewFromHash() {
+    var h = String(window.location.hash || '').replace(/^#/, '');
+    return PORTAL_VIEWS[h] ? h : 'earned';
+  }
+  window.addEventListener('hashchange', function(){ showView(viewFromHash(), true); });
+
   function portalLogout(e){
     if(e)e.preventDefault();
     var token=localStorage.getItem(KEY);
@@ -434,6 +487,15 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     document.addEventListener('click',function(e){if(!menu.contains(e.target))setOpen(false);});
     document.addEventListener('keydown',function(e){if(e.key==='Escape')setOpen(false);});
   })();
+
+  // Every dropdown / mobile-menu destination switches view instead of scrolling.
+  document.querySelectorAll('[data-view-link]').forEach(function(el){
+    el.addEventListener('click',function(e){
+      e.preventDefault();
+      showView(el.getAttribute('data-view-link'));
+    });
+  });
+  showView(viewFromHash(), true);
   syncPortalAccountUI();
   document.getElementById('copyCodeBtn').onclick=function(){var v=document.getElementById('refCode').textContent;if(v&&v!=='—')copyText(v).then(function(){showCopied('Referral code');});};
   document.getElementById('copyLinkBtn').onclick=function(){var v=document.getElementById('refLink').href;if(v&&v!=='#')copyText(v).then(function(){showCopied('Referral link');});};
