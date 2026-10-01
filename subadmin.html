@@ -464,17 +464,48 @@
     }
 </style>
 <style id="responsive-dashboard-tabs">
-  /* Small screens: the tab strip becomes a dropdown so every tab stays reachable
-     without sideways scrolling. */
-  .admin-tab-select-wrap { display: none; max-width: 1160px; margin: 0 auto; padding: 10px 16px; }
-  .admin-tab-select {
-    width: 100%; background: var(--surface-2, #fff); border: 1.5px solid var(--border, #e2e8f0);
-    border-radius: 12px; padding: 11px 14px; font-size: .85rem; font-weight: 600;
-    color: var(--text-1, #0f172a); cursor: pointer;
+  /* Small screens: the tab strip collapses into a styled menu that matches the
+     dashboard chrome, so every tab stays reachable without sideways scrolling. */
+  .admin-tab-menu {
+    display: none; position: sticky; top: 0; z-index: 50;
+    background: var(--surface-2, #fff); border-bottom: 1px solid var(--border, #e2e8f0);
+    max-width: 1160px; margin: 0 auto; padding: 8px 12px;
   }
+  .admin-tab-toggle {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: var(--surface, #fff); border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 10px 14px; font-size: .84rem; font-weight: 700;
+    color: var(--text-1, #0f172a); cursor: pointer; transition: border-color .25s, color .25s;
+    min-height: 44px; /* comfortable tap target on a phone */
+  }
+  .admin-tab-toggle:hover, .admin-tab-menu.open .admin-tab-toggle { border-color: var(--accent); color: var(--accent); }
+  .admin-tab-toggle-icon { font-size: 1rem; line-height: 1; }
+  .admin-tab-toggle-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-tab-caret { font-size: .7rem; opacity: .6; transition: transform .2s; }
+  .admin-tab-menu.open .admin-tab-caret { transform: rotate(180deg); }
+  .admin-tab-list {
+    position: absolute; left: 12px; right: 12px; top: calc(100% - 2px); z-index: 60;
+    background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 14px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, .16); padding: 6px;
+    /* Bounded to the viewport so a long tab list never runs off-screen. */
+    max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .admin-tab-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: transparent; border: none; border-radius: 10px; padding: 10px 12px;
+    font-size: .84rem; font-weight: 600; color: var(--text-2); cursor: pointer;
+  }
+  .admin-tab-item:hover { background: var(--surface-2, #f8fafc); color: var(--text-1); }
+  .admin-tab-item[aria-selected="true"] { background: var(--accent-ghost, rgba(15,118,110,.08)); color: var(--accent); font-weight: 700; }
   @media (max-width: 760px) {
     .admin-tabs-inner { display: none; }
-    .admin-tab-select-wrap { display: block; }
+    .admin-tab-menu { display: block; }
+  }
+  @media (max-width: 420px) {
+    .admin-tab-menu { padding: 7px 10px; }
+    .admin-tab-toggle { padding: 9px 12px; font-size: .82rem; min-height: 40px; }
+    .admin-tab-item { padding: 9px 10px; font-size: .82rem; }
   }
 </style>
 </head>
@@ -539,8 +570,13 @@
           <button class="admin-tab" data-tab="staff">👥 Staff Access</button>
         </div>
       </div>
-      <div class="admin-tab-select-wrap">
-        <select class="admin-tab-select" id="adminTabSelect" aria-label="Choose a dashboard section"></select>
+      <div class="admin-tab-menu" id="adminTabMenu">
+        <button class="admin-tab-toggle" id="adminTabToggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="adminTabList">
+          <span class="admin-tab-toggle-icon" id="adminTabToggleIcon" aria-hidden="true">🎫</span>
+          <span class="admin-tab-toggle-label" id="adminTabToggleLabel">Check-in</span>
+          <span class="admin-tab-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="admin-tab-list" id="adminTabList" role="listbox" aria-label="Dashboard sections" hidden></div>
       </div>
 
       <div class="container">
@@ -2273,30 +2309,69 @@ resultBox.className = 'admin-scan-result show';
           });
         });
 
-      // ── Small screens: the tab strip becomes a dropdown ──
-      // The select mirrors the tab buttons, so choosing an entry runs exactly the
+      // ── Small screens: the tab strip collapses into a styled menu ──
+      // The menu mirrors the tab buttons, so choosing an entry runs exactly the
       // same activation + lazy-load path as tapping the tab itself.
-      (function setupTabSelect() {
-        var sel = document.getElementById('adminTabSelect');
-        if (!sel) return;
+      (function setupTabMenu() {
+        var menu = document.getElementById('adminTabMenu');
+        var toggle = document.getElementById('adminTabToggle');
+        var list = document.getElementById('adminTabList');
+        var label = document.getElementById('adminTabToggleLabel');
+        var icon = document.getElementById('adminTabToggleIcon');
+        if (!menu || !toggle || !list || !label) return;
         var buttons = Array.prototype.slice.call(tabButtons);
         if (!buttons.length) return;
+
+        // Split "💰 Sales" into an icon and a label so the toggle can show both.
+        var split = function(btn) {
+          var text = (btn.textContent || '').trim();
+          var tokens = text.split(/\s+/).filter(Boolean);
+          var hasIcon = tokens.length > 1 && !/[A-Za-z0-9]/.test(tokens[0]);
+          return { icon: hasIcon ? tokens[0] : '', text: (hasIcon ? tokens.slice(1) : tokens).join(' ') };
+        };
+
         var html = '';
         buttons.forEach(function(btn) {
           var name = btn.getAttribute('data-tab');
           if (!name) return;
-          html += '<option value="' + esc(name) + '">' + esc((btn.textContent || name).trim()) + '</option>';
+          var p = split(btn);
+          html += '<button class="admin-tab-item" type="button" role="option" data-tab="' + esc(name) + '" aria-selected="false">' +
+            '<span class="admin-tab-toggle-icon" aria-hidden="true">' + esc(p.icon) + '</span><span>' + esc(p.text) + '</span></button>';
         });
-        sel.innerHTML = html;
+        list.innerHTML = html;
+
+        var items = Array.prototype.slice.call(list.querySelectorAll('.admin-tab-item'));
+        var isOpen = function() { return menu.classList.contains('open'); };
+        var setOpen = function(on) {
+          menu.classList.toggle('open', on);
+          list.hidden = !on;
+          toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
+        };
         var sync = function() {
           var active = document.querySelector('.admin-tab.active');
-          if (active) sel.value = active.getAttribute('data-tab') || '';
+          if (!active) return;
+          var name = active.getAttribute('data-tab') || '';
+          var p = split(active);
+          label.textContent = p.text;
+          if (icon) icon.textContent = p.icon;
+          items.forEach(function(item) {
+            item.setAttribute('aria-selected', item.getAttribute('data-tab') === name ? 'true' : 'false');
+          });
         };
-        sel.addEventListener('change', function() {
-          for (var i = 0; i < buttons.length; i++) {
-            if (buttons[i].getAttribute('data-tab') === sel.value) { buttons[i].click(); return; }
-          }
+
+        toggle.addEventListener('click', function(e) { e.stopPropagation(); setOpen(!isOpen()); });
+        items.forEach(function(item) {
+          item.addEventListener('click', function() {
+            var name = item.getAttribute('data-tab') || '';
+            setOpen(false);
+            for (var i = 0; i < buttons.length; i++) {
+              if (buttons[i].getAttribute('data-tab') === name) { buttons[i].click(); return; }
+            }
+          });
         });
+        // A click anywhere else, or Escape, closes the menu.
+        document.addEventListener('click', function() { if (isOpen()) setOpen(false); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && isOpen()) { setOpen(false); toggle.focus(); } });
         buttons.forEach(function(btn) { btn.addEventListener('click', sync); });
         sync();
       })();

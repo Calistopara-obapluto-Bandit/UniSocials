@@ -22,21 +22,62 @@
     })(window, document, "clarity", "script", "y4hhcy2o3a");
   </script>
 <style id="influencer-admin-request-styles">
-    /* The request form reuses the newsletter styling but needs a real grid,
-       because it asks for three things at once. */
-    .iaf-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; }
-    .iaf-form .subscribe-input { width: 100%; min-width: 0; }
-    select.subscribe-input { appearance: none; -webkit-appearance: none; cursor: pointer; }
-    .iaf-note { margin: 12px 0 0; font-size: .82rem; color: var(--text-3); }
-    .iaf-note strong { color: var(--accent); }
-    .iaf-note a { color: var(--accent); font-weight: 700; }
-    @media (max-width: 900px) {
-      .iaf-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Influencer Admin: a nav dropdown that carries the create-account form, so
+       the marketing page keeps its single-column focus. */
+    .iaf-nav { position: relative; }
+    .iaf-nav-toggle {
+      display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+      font-size: .82rem; font-weight: 700; color: var(--text-1);
+      background: transparent; border: 1.5px solid var(--border); border-radius: 100px;
+      padding: 9px 16px; cursor: pointer; transition: border-color .25s, color .25s, background .25s;
     }
-    @media (max-width: 620px) {
-      .iaf-form { grid-template-columns: 1fr; }
-      .iaf-form .subscribe-btn { width: 100%; justify-content: center; }
+    .iaf-nav-toggle:hover, .iaf-nav.open .iaf-nav-toggle { border-color: var(--accent); color: var(--accent); background: var(--accent-ghost, rgba(15,118,110,.06)); }
+    .iaf-caret { font-size: .7rem; opacity: .7; transition: transform .25s; }
+    .iaf-nav.open .iaf-caret { transform: rotate(180deg); }
+    .iaf-nav-panel {
+      position: absolute; right: 0; top: calc(100% + 12px); z-index: 60;
+      width: min(400px, calc(100vw - 40px));
+      background: var(--surface, #fff); border: 1px solid var(--border);
+      border-radius: 18px; box-shadow: 0 22px 60px rgba(15, 23, 42, .16);
+      padding: 20px; text-align: left;
     }
+    .iaf-nav-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .iaf-nav-head strong { font-size: .95rem; color: var(--text-1); }
+    .iaf-nav-head span { font-size: .78rem; color: var(--text-3); }
+    .iaf-form { display: grid; gap: 9px; }
+    .iaf-field {
+      width: 100%; box-sizing: border-box; background: var(--surface-2, #fff);
+      border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 14px;
+      font-size: .87rem; color: var(--text-1);
+    }
+    .iaf-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ghost, rgba(15,118,110,.12)); }
+    .iaf-submit {
+      width: 100%; margin-top: 3px; font-size: .85rem; font-weight: 700; color: #fff;
+      background: var(--accent); border: none; border-radius: 100px; padding: 12px 20px; cursor: pointer;
+    }
+    .iaf-submit:hover { filter: brightness(1.06); }
+    .iaf-submit:disabled { opacity: .6; cursor: not-allowed; }
+    .iaf-status { margin: 12px 0 0; font-size: .8rem; line-height: 1.45; }
+    .iaf-hint { margin: 8px 0 0; font-size: .74rem; color: var(--text-3); }
+    .iaf-hint strong { color: var(--accent); }
+    .iaf-signin { display: block; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); font-size: .8rem; color: var(--text-2); text-decoration: none; }
+    .iaf-signin strong { color: var(--accent); }
+    .iaf-signin:hover strong { text-decoration: underline; }
+    /* The dropdown lives in the nav, which is hidden on small screens, so the panel
+       becomes a compact sheet there and the mobile menu opens it instead. */
+    @media (max-width: 992px) {
+      .iaf-nav-panel {
+        position: fixed; left: 14px; right: 14px; top: 72px; width: auto;
+        max-height: calc(100vh - 90px); max-height: calc(100dvh - 90px);
+        overflow-y: auto; overscroll-behavior: contain; padding: 16px;
+      }
+    }
+    @media (max-width: 380px) {
+      .iaf-nav-panel { left: 10px; right: 10px; padding: 14px; }
+      .iaf-field { padding: 10px 12px; font-size: .84rem; }
+      .iaf-submit { padding: 11px 16px; }
+    }
+    .mobile-iaf { color: var(--accent); font-weight: 700; }
   </style>
 </head>
 <body>
@@ -70,6 +111,8 @@
     <a href="tickets.html">Tickets</a>
 <a href="about.html">About</a>
     <a href="contact.html">Contact</a>
+    <a href="influencer-admin.html" class="mobile-iaf-signin">Influencer Admin sign in</a>
+    <a href="#" class="mobile-iaf" id="iafMobileToggle">✨ Create Influencer Admin account</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
     <a href="#" class="mobile-menu-logout" id="mobileMenuLogout" style="display:none;">Log out</a>
   </div>
@@ -87,6 +130,30 @@
       </ul>
       <div class="nav-cta">
         <span class="nav-account-slot"></span>
+        <!-- Influencer Admin: sign in, or open the create-account form -->
+        <div class="iaf-nav" id="iafNav">
+          <button class="iaf-nav-toggle" id="iafNavToggle" type="button" aria-haspopup="true" aria-expanded="false">
+            <span aria-hidden="true">👤</span> Influencer Admin
+            <span class="iaf-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="iaf-nav-panel" id="iafNavPanel" hidden>
+            <div class="iaf-nav-head">
+              <strong>Create your Influencer Admin account</strong>
+              <span>We'll email your login email and password to you.</span>
+            </div>
+            <form class="iaf-form" id="influencerAdminForm" novalidate>
+              <input type="text" id="iafName" class="iaf-field" placeholder="Full name" autocomplete="name" required />
+              <input type="email" id="iafEmail" class="iaf-field" placeholder="Your email address" autocomplete="email" required />
+              <select id="iafUniversity" class="iaf-field" aria-label="Your university" required>
+                <option value="">Select your university…</option>
+              </select>
+              <button type="submit" class="iaf-submit" id="iafBtn">✨ Create my account</button>
+            </form>
+            <p class="iaf-status" id="iafStatus"></p>
+            <p class="iaf-hint">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>.</p>
+            <a class="iaf-signin" href="influencer-admin.html">Already have an account? <strong>Sign in</strong> →</a>
+          </div>
+        </div>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -232,29 +299,7 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         <p class="subscribe-status" id="subscribeStatus"></p>
       </div>
     </div>
-  </section>
-
-  <!-- ── CREATE INFLUENCER ADMIN ACCOUNT ── -->
-  <section class="subscribe-section" id="influencer-admin-request">
-    <div class="container">
-      <div class="subscribe-inner reveal">
-        <h2 class="subscribe-title">Run events for your campus<br /><em>as an Influencer Admin</em></h2>
-        <p class="subscribe-sub">Create your event, invite influencers and track every sale — instantly. Give us your name and we'll email your login email and password straight to your inbox.</p>
-        <form class="subscribe-form iaf-form" id="influencerAdminForm" novalidate>
-          <input type="text" id="iafName" class="subscribe-input" placeholder="Your full name" autocomplete="name" required />
-          <input type="email" id="iafEmail" class="subscribe-input" placeholder="Your email address" autocomplete="email" required />
-          <select id="iafUniversity" class="subscribe-input" aria-label="Your university" required>
-            <option value="">Select your university…</option>
-          </select>
-          <button type="submit" class="subscribe-btn" id="iafBtn">✨ Create my account</button>
-        </form>
-        <p class="subscribe-status" id="iafStatus"></p>
-        <p class="iaf-note">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>. Already have one? <a href="influencer-admin.html">Sign in</a>.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── FOOTER ── -->
+  </section><!-- ── FOOTER ── -->
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
@@ -499,10 +544,54 @@ homeUni.addEventListener('change', function() {
         .catch(function() {});
     })();
 
-    // ── Create Influencer Admin account ──
+    // ── Create Influencer Admin account (nav dropdown) ──
     (function() {
+      var nav = document.getElementById('iafNav');
+      var toggle = document.getElementById('iafNavToggle');
+      var panel = document.getElementById('iafNavPanel');
       var form = document.getElementById('influencerAdminForm');
-      if (!form) return;
+      if (!nav || !toggle || !panel || !form) return;
+
+      // ── Open / close ──
+      var setOpen = function(open) {
+        nav.classList.toggle('open', open);
+        panel.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+          var first = document.getElementById('iafName');
+          if (first && first.focus) first.focus();
+        }
+      };
+      var isOpen = function() { return nav.classList.contains('open'); };
+
+      toggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setOpen(!isOpen());
+      });
+      // A click anywhere outside closes it; clicks inside must not bubble out.
+      panel.addEventListener('click', function(e) { e.stopPropagation(); });
+      document.addEventListener('click', function() { if (isOpen()) setOpen(false); });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isOpen()) { setOpen(false); toggle.focus(); }
+      });
+      // Enter on the toggle behaves like a click for keyboard users.
+      toggle.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!isOpen()); }
+      });
+
+      // The nav is hidden on small screens, so the mobile menu opens the same panel.
+      var mobileToggle = document.getElementById('iafMobileToggle');
+      if (mobileToggle) {
+        mobileToggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          var menu = document.getElementById('mobileMenu');
+          var burger = document.getElementById('hamburger');
+          if (menu) menu.classList.remove('open');
+          if (burger) { burger.classList.remove('open'); burger.setAttribute('aria-expanded', 'false'); }
+          setOpen(true);
+        });
+      }
+
       var name = document.getElementById('iafName');
       var email = document.getElementById('iafEmail');
       var university = document.getElementById('iafUniversity');
@@ -533,11 +622,10 @@ homeUni.addEventListener('change', function() {
       }
 
       // Same campus list the rest of the site uses.
-      var universities = [];
       fetch('/api/universities')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          universities = (data && data.success && data.universities) || [];
+          var universities = (data && data.success && data.universities) || [];
           if (!university) return;
           var html = '<option value="">Select your university…</option>';
           universities.forEach(function(u) { html += '<option value="' + escHtml(u.name) + '">' + escHtml(u.name) + '</option>'; });
@@ -546,7 +634,6 @@ homeUni.addEventListener('change', function() {
         .catch(function() {
           // Never block the form: allow a typed university if the list fails.
           if (university) {
-            university.removeAttribute('disabled');
             var input = document.createElement('input');
             input.type = 'text';
             input.className = university.className;
@@ -585,6 +672,8 @@ homeUni.addEventListener('change', function() {
               extra = ' Login email: ' + d.credentials.email + '  ·  Password: ' + d.credentials.password + ' — save these now.';
             }
             say('✅ ' + (d.message || 'Your account is ready.') + (d.loginEmail ? ' Your login email is ' + d.loginEmail + '.' : '') + extra, 'ok');
+            // Keep the panel open so the applicant can read / copy the result.
+            setOpen(true);
           })
           .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account. Please try again.'), 'bad'); })
           .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });
