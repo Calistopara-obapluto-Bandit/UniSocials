@@ -508,6 +508,49 @@
     .admin-tab-item { padding: 9px 10px; font-size: .82rem; }
   }
 </style>
+<style id="small-screen-guards">
+  /* Shared small-screen hardening. The rules above shape the chrome for wider
+     viewports, so anything that can still push this dashboard sideways on a
+     phone is neutralised here rather than per-panel. */
+  @media (max-width: 600px) {
+    /* Top bar: the logo ellipsis instead of shoving the actions off-screen. */
+    .admin-topbar-inner { min-width: 0; }
+    .admin-topbar .nav-logo {
+      min-width: 0; flex: 1 1 auto;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .admin-topbar-actions { flex: 0 0 auto; min-width: 0; }
+    .admin-user-name { max-width: 92px; padding: 5px 8px; font-size: .68rem; }
+    .admin-topbar-status { display: none !important; }
+
+    /* Scan row: stack outright instead of leaning on the 260px min-widths. */
+    .admin-scan-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+    .admin-scan-inputs .form-group { min-width: 0; width: 100%; }
+    .admin-scan-inputs > button { width: 100% !important; }
+
+    /* Filter dropdowns must be free to shrink below their desktop hint. */
+    .admin-cat-filter, .admin-cat-filters > *, .admin-toolbar > *, .admin-filters > * {
+      min-width: 0; max-width: 100%; flex: 1 1 100%;
+    }
+    .admin-toolbar, .admin-filters, .admin-cat-filters { min-width: 0; }
+
+    /* Search + referral fields carry inline min-widths; override them so they
+       cannot hold the row wider than the screen. */
+    #checkinSearch, #refCodeDisplay, #refLinkDisplay {
+      min-width: 0 !important; width: 100% !important; box-sizing: border-box;
+    }
+
+    /* Long buyer emails, referral codes and bank details wrap rather than scroll. */
+    .admin-panel, .admin-order, .admin-order-meta, .admin-stat,
+    .admin-toolbar, .admin-filters, .admin-cat-filters {
+      min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+    }
+    .admin-ticket-code code { word-break: break-all; }
+  }
+  @media (max-width: 400px) {
+    .admin-user-name { max-width: 74px; }
+  }
+</style>
 </head>
 <body>
 

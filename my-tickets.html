@@ -136,6 +136,17 @@
       .lookup-card { padding: 28px 20px; }
       .lookup-actions .btn-primary, .lookup-actions .btn-cta-ghost { width: 100%; }
     }
+    /* Small-screen guards: buyer names, emails and ticket codes are user-supplied
+       and can be long enough to push the card wider than the viewport. */
+    @media (max-width: 600px) {
+      .order-card, .order-card-top, .order-card-meta, .order-codes, .order-code-row {
+        min-width: 0; max-width: 100%;
+      }
+      .order-card { padding: 16px 14px; }
+      .order-card-title, .order-card-meta { overflow-wrap: anywhere; }
+      .order-code-row { flex-wrap: wrap; }
+      .order-code-row code { word-break: break-all; min-width: 0; }
+    }
   </style>
 </head>
 <body>

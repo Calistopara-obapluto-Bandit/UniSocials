@@ -87,6 +87,16 @@
       .success-actions .btn-cta-ghost { width: 100%; justify-content: center; }
       .success-icon { width: 72px; height: 72px; font-size: 36px; }
     }
+    /* Small-screen guards: order references and ticket codes are long strings
+       that must wrap rather than widen the confirmation card. */
+    @media (max-width: 600px) {
+      .success-card, .success-actions, .success-summary, .success-summary div {
+        min-width: 0; max-width: 100%;
+      }
+      .success-summary div { flex-wrap: wrap; }
+      .success-summary div > * { min-width: 0; overflow-wrap: anywhere; }
+      code { word-break: break-all; }
+    }
   </style>
   <script type="text/javascript">
     (function(c,l,a,r,i,t,y){

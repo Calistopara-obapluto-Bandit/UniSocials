@@ -41,9 +41,17 @@
       border-radius: 18px; box-shadow: 0 22px 60px rgba(15, 23, 42, .16);
       padding: 20px; text-align: left;
     }
-    .iaf-nav-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
-    .iaf-nav-head strong { font-size: .95rem; color: var(--text-1); }
-    .iaf-nav-head span { font-size: .78rem; color: var(--text-3); }
+  .iaf-nav-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+  .iaf-nav-head strong { font-size: .95rem; color: var(--text-1); }
+  .iaf-nav-head span { font-size: .78rem; color: var(--text-3); }
+  /* The log-in path is the common case, so it sits above the signup form. */
+  .iaf-login-link {
+    display: block; text-align: center; text-decoration: none; margin-bottom: 14px;
+    font-size: .85rem; font-weight: 700; color: var(--accent);
+    border: 1.5px solid var(--accent); border-radius: 100px; padding: 11px 18px;
+    transition: background .25s, color .25s;
+  }
+  .iaf-login-link:hover { background: var(--accent); color: #fff; }
     .iaf-form { display: grid; gap: 9px; }
     .iaf-field {
       width: 100%; box-sizing: border-box; background: var(--surface-2, #fff);
@@ -137,6 +145,7 @@
             <span class="iaf-caret" aria-hidden="true">▾</span>
           </button>
           <div class="iaf-nav-panel" id="iafNavPanel" hidden>
+            <a class="iaf-login-link" href="influencer-admin.html">🔑 Log in to your dashboard</a>
             <div class="iaf-nav-head">
               <strong>Create your Influencer Admin account</strong>
               <span>We'll email your login email and password to you.</span>
@@ -151,7 +160,7 @@
             </form>
             <p class="iaf-status" id="iafStatus"></p>
             <p class="iaf-hint">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>.</p>
-            <a class="iaf-signin" href="influencer-admin.html">Already have an account? <strong>Sign in</strong> →</a>
+            <a class="iaf-signin" href="influencer-admin.html">Already have an account? <strong>Sign in on the dashboard page</strong> →</a>
           </div>
         </div>
         <a href="events.html" class="btn-primary">Get Tickets</a>

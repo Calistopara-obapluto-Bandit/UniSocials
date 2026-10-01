@@ -66,6 +66,17 @@
     }
     .month-chip .month-name { color: var(--text-1); font-weight: 700; text-transform: capitalize; }
     .month-chip .month-count { color: var(--accent); font-weight: 700; }
+    /* Small-screen guards: event names, venues and organiser details are
+       user-supplied and can otherwise widen the whole listing on a phone. */
+    @media (max-width: 600px) {
+      .uni-picker-bar, .uni-picker-label { min-width: 0; max-width: 100%; }
+      .events-month-summary { min-width: 0; }
+      .month-chip { max-width: 100%; }
+      .month-chip .month-name { overflow-wrap: anywhere; min-width: 0; }
+      .event-card, .event-preview, .event-preview-row { min-width: 0; max-width: 100%; }
+      .event-preview-row { flex-wrap: wrap; }
+      .event-preview-row > * { min-width: 0; overflow-wrap: anywhere; }
+    }
   </style>
   <script type="text/javascript">
     (function(c,l,a,r,i,t,y){

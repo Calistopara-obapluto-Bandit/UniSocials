@@ -813,6 +813,12 @@
   .iaf-request-status { font-size: .8rem; margin-top: 10px; }
   .iaf-request-hint { font-size: .74rem; color: var(--text-3); margin-top: 6px; }
   .iaf-request-hint strong { color: var(--accent); }
+  .iaf-login-now {
+    width: 100%; margin-top: 10px; font-size: .85rem; font-weight: 700; color: #fff;
+    background: var(--accent); border: none; border-radius: 100px; padding: 12px 20px; cursor: pointer;
+  }
+  .iaf-login-now:hover { filter: brightness(1.06); }
+  .iaf-login-now[hidden] { display: none; }
   @media (max-width: 520px) { .iaf-request-form { grid-template-columns: 1fr; } }
 </style>
 <style id="responsive-dashboard-chrome">
@@ -862,6 +868,48 @@
     .admin-tab-item { padding: 9px 10px; font-size: .82rem; }
   }
 </style>
+<style id="small-screen-guards">
+  /* Shared small-screen hardening. The rules above shape the chrome for wider
+     viewports, so anything that can still push this dashboard sideways on a
+     phone is neutralised here rather than per-panel. */
+  @media (max-width: 600px) {
+    /* Top bar: the logo ellipsis instead of shoving the actions off-screen. */
+    .admin-topbar-inner { min-width: 0; }
+    .admin-topbar .nav-logo {
+      min-width: 0; flex: 1 1 auto;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .admin-topbar-actions { flex: 0 0 auto; min-width: 0; }
+    .admin-user-name { max-width: 92px; padding: 5px 8px; font-size: .68rem; }
+    .admin-topbar-status { display: none !important; }
+
+    /* Scan row: stack outright instead of leaning on the 260px min-widths. */
+    .admin-scan-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+    .admin-scan-inputs .form-group { min-width: 0; width: 100%; }
+    .admin-scan-inputs > button { width: 100% !important; }
+
+    /* Filter dropdowns must be free to shrink below their desktop hint. */
+    .admin-cat-filter, .admin-cat-filters > *, .admin-toolbar > *, .admin-filters > * {
+      min-width: 0; max-width: 100%; flex: 1 1 100%;
+    }
+    .admin-toolbar, .admin-filters, .admin-cat-filters { min-width: 0; }
+
+    /* Section headings stack rather than squeezing their two halves together. */
+    .influencer-section-heading { flex-direction: column; align-items: flex-start; }
+    .influencer-header-search { min-width: 0; width: 100%; flex: 1 1 100%; }
+    .influencer-header-search-panel { position: static; width: 100%; margin-top: 8px; }
+
+    /* Long buyer emails, payout references and bank details wrap, not scroll. */
+    .admin-panel, .admin-order, .admin-order-meta, .admin-stat, .payout-card,
+    .payout-meta, .admin-toolbar, .admin-filters, .admin-cat-filters {
+      min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+    }
+    .admin-ticket-code code { word-break: break-all; }
+  }
+  @media (max-width: 400px) {
+    .admin-user-name { max-width: 74px; }
+  }
+</style>
 </head>
 <body>
 <!-- ── ADMIN TOP BAR ── -->
@@ -897,7 +945,7 @@
 </form>
 
 <!-- Self-service account request -->
-<div class="iaf-request">
+<div class="iaf-request" id="iafRequest">
 <div class="iaf-request-head">
 <strong>Don't have an account yet?</strong>
 <span>Create your Influencer Admin login in a few seconds — we email your password to you.</span>
@@ -910,6 +958,8 @@
 <button class="btn-submit" id="iafBtn" type="submit">✨ Create my account</button>
 </form>
 <div class="iaf-request-status" id="iafStatus"></div>
+<!-- Appears once an account exists: signs in without hunting for the fields. -->
+<button class="iaf-login-now" id="iafLoginNowBtn" type="button" hidden>🔑 Log in to my dashboard</button>
 <div class="iaf-request-hint">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>.</div>
 </div>
 
@@ -2411,10 +2461,31 @@ fetch('/api/admin/events/notify', {
               var d = res.data || {};
               if (!res.ok || !d.success) throw new Error(d.error || 'Could not create your account.');
               // Drop the details straight into the sign-in form above.
-              if (document.getElementById('adminEmail')) document.getElementById('adminEmail').value = d.loginEmail || '';
+              var emailField = document.getElementById('adminEmail');
+              var passField = document.getElementById('adminPassword');
+              if (emailField) emailField.value = d.loginEmail || '';
               form.reset();
               var extra = (!d.emailSent && d.credentials) ? ' Login email: ' + d.credentials.email + ' · Password: ' + d.credentials.password + ' — save these now.' : '';
               say('✅ ' + (d.message || 'Your account is ready.') + extra, 'ok');
+
+              // Offer a one-tap way in. When we emailed the password the applicant
+              // still has to type it, so the button only pre-fills and focuses;
+              // when the email failed we hold the password and can sign in directly.
+              var loginNow = document.getElementById('iafLoginNowBtn');
+              if (loginNow) {
+                loginNow.hidden = false;
+                loginNow.setAttribute('data-has-password', (!d.emailSent && d.credentials) ? 'yes' : 'no');
+                loginNow.onclick = function() {
+                  if (emailField) emailField.value = d.loginEmail || (d.credentials && d.credentials.email) || '';
+                  if (passField && !d.emailSent && d.credentials) passField.value = d.credentials.password;
+                  if (!passField || (!d.emailSent && d.credentials)) {
+                    var btn2 = document.getElementById('loginBtn');
+                    if (btn2) btn2.click();
+                  } else if (passField.focus) {
+                    passField.focus();
+                  }
+                };
+              }
             })
             .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account.'), 'bad'); })
             .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });
