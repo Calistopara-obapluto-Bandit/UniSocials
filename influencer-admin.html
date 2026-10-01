@@ -2101,7 +2101,9 @@ fetch('/api/admin/events/notify', {
         var sel = document.getElementById('chkEvent');
         if (!sel) return;
         var keep = sel.value;
-        fetch('/api/events', { headers: authHeaders() })
+        // Scoped endpoint: only events this Influencer Admin created or was
+        // authorised to. /api/events would list the whole site.
+        fetch('/api/checkin-staff/events', { headers: authHeaders() })
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var list = (data && data.success && data.events) || [];

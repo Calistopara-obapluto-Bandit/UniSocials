@@ -2834,7 +2834,7 @@ if (pathname === '/api/checkin-staff' && (req.method === 'GET' || req.method ===
   let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
   const name = String(data.name || '').trim().replace(/\s+/g, ' ');
   const contactEmail = String(data.email || '').trim().toLowerCase();
-  const eventName = String(data.eventName || '').trim().slice(0, 120);
+  const requestedEvent = String(data.eventName || '').trim().slice(0, 120);
 
   if (name.length < 2 || name.length > 80) {
     return sendJson(res, 400, { success: false, error: 'Please enter the staff member\u2019s full name.' });
@@ -2857,8 +2857,28 @@ if (pathname === '/api/checkin-staff' && (req.method === 'GET' || req.method ===
   if (callerUser && !createdByAdmin) {
     return sendJson(res, 401, { success: false, error: 'Sign in as an Influencer Admin to add check-in staff.' });
   }
-  if (!eventName) {
+  if (!requestedEvent) {
     return sendJson(res, 400, { success: false, error: 'Please choose which event this person will work.' });
+  }
+
+  // An Influencer Admin may only staff their OWN events: one they created, or
+  // one they were explicitly authorized to. The dropdown is a convenience, not
+  // the control — an Influencer Admin must not be able to post someone onto
+  // another admin's gate by naming that event.
+  let eventName = requestedEvent;
+  if (authCtx && authCtx.role === 'influencer_admin') {
+    const allEvents = await readEvents();
+    const mine = influencerAdminVisibleEvents(authCtx, allEvents);
+    const target = mine.find(ev => String(ev.name || '').trim().toLowerCase() === requestedEvent.toLowerCase());
+    if (!target) {
+      return sendJson(res, 403, {
+        success: false,
+        error: 'You can only add check-in staff for events you created or were authorised to.'
+      });
+    }
+    // Use the event's own stored name, so case/whitespace variants are recorded
+    // exactly as the event spells it.
+    eventName = String(target.name || '').trim();
   }
 
   const users = await readUsers();
@@ -2898,6 +2918,25 @@ if (pathname === '/api/checkin-staff' && (req.method === 'GET' || req.method ===
     message: emailSent
       ? 'Check-in staff account created — we emailed the login details to ' + contactEmail + '.'
       : 'Check-in staff account created. We could not send the email, so share these login details with them now.'
+  });
+}
+
+// ── Events an Influencer Admin may staff ──
+// The Check-in Staff dropdown must only offer events this Influencer Admin
+// created or was authorised to. The public /api/events list is every event on
+// the site, so using it here would invite them to pick somebody else's event.
+if (pathname === '/api/checkin-staff/events' && req.method === 'GET') {
+  const authCtx = await isAdminOrInfluencerAdmin(req);
+  if (!authCtx || !['admin', 'influencer_admin'].includes(authCtx.role)) {
+    return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  }
+  const allEvents = await readEvents();
+  const scoped = authCtx.role === 'influencer_admin'
+    ? influencerAdminVisibleEvents(authCtx, allEvents)
+    : allEvents.filter(ev => ev.archived !== true);
+  return sendJson(res, 200, {
+    success: true,
+    events: scoped.filter(ev => ev.archived !== true).map(ev => ({ id: ev.id, name: ev.name }))
   });
 }
 
