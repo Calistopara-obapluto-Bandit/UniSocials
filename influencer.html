@@ -74,6 +74,26 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .nav-inf-menu-item.active{background:var(--accent-ghost);color:var(--accent)}
 .mobile-inf-link.active{color:var(--text-1)}
 .portal-view{padding-bottom:8px}
+/* Signed in, the portal shows one control: the commission dropdown. The public
+   site links and the hamburger have no place on a commission-only account. */
+.nav.is-portal-mode .nav-logo,.nav.is-portal-mode .nav-hamburger{display:none}
+.nav.is-portal-mode .nav-inner{justify-content:flex-end;gap:0}
+.nav.is-portal-mode{padding:0}
+/* Live withdrawal countdown, always present on the payouts screen. */
+.hold-card{background:var(--surface-2);border:1px solid #FFE0B2;border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:16px}
+.hold-card-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+.hold-card-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:#E65100;font-weight:800}
+.hold-card-clock{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.5rem;font-weight:800;color:#E65100;letter-spacing:.02em;line-height:1.2}
+.hold-card-note{font-size:.8rem;color:var(--text-3);line-height:1.6}
+.hold-card-note strong{color:var(--text-1)}
+.payout-receive{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--accent-ghost);border:1px solid var(--accent-border);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.payout-receive-label{font-size:.78rem;font-weight:800;color:var(--text-2)}
+.payout-receive-value{font-size:1.3rem;font-weight:800;color:var(--accent)}
+.payout-receive-value.is-error{color:#b71c1c}
+.payout-receive-note{font-size:.74rem;color:var(--text-3);width:100%}
+.payout-all-btn{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:8px 14px;font:inherit;font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap}
+.payout-all-btn:hover{background:var(--accent-ghost)}
+.payout-all-btn:disabled{opacity:.55;cursor:not-allowed}
 .portal-events-head-intro{margin-bottom:14px}
 .portal-events-head-intro p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6}
 @media(max-width:1000px){.nav-inf-menu-list{right:auto;left:0}}
@@ -134,6 +154,10 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 </div><!-- /viewEarned -->
 <div class="portal-view hidden" id="viewPayouts">
 <section class="portal-events-head-intro"><p id="viewPayoutsIntro">Request a withdrawal of your commission and track every payout the event's Influencer Admin has released to you.</p></section>
+<div class="hold-card" id="poHoldCard">
+<div class="hold-card-head"><span class="hold-card-label" id="poHoldCardLabel">Next commission unlocks in</span><span class="hold-card-clock" id="poHoldClock">—</span></div>
+<div class="hold-card-note" id="poHoldCardNote">Every verified payment waits <strong id="poHoldCardDays">7 days</strong> after it is paid before its commission can be requested. This countdown ticks down to the moment yours becomes available.</div>
+</div>
 <section class="portal-events" id="payoutSection"><div class="portal-events-head"><div><div class="influencer-overline">Your earnings</div><h2>Commission payouts</h2><p>Every sale made through your referral link is split <strong>2.5% to Unisocials, 17.5% commission to you, 80% to the event owner</strong>. Your 17.5% is 17.5% of the <strong>full ticket</strong>, and the event's Influencer Admin is who pays it.</p></div></div>
 <div class="payout-note" id="payoutSplitNote">Loading your commission…</div>
 <div class="payout-grid">
@@ -151,7 +175,8 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 <div class="payout-field"><label for="poAccountNumber">Account number</label><input type="text" id="poAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off"></div>
 <div class="payout-field"><label for="poAccountName">Account name</label><input type="text" id="poAccountName" placeholder="As on your bank record" autocomplete="off"></div>
 <div class="payout-field"><label for="poMethod">Payment schedule</label><select id="poMethod"><option value="7_days">Every 7 days</option><option value="14_days">Every 14 days</option><option value="after_event">After event day</option></select></div>
-<div class="payout-field"><label for="poAmount">Amount to withdraw (₦)</label><input type="number" id="poAmount" placeholder="e.g. 15000" min="1"></div>
+<div class="payout-field"><label for="poAmount">Amount to withdraw (₦)</label><input type="number" id="poAmount" placeholder="e.g. 15000" min="1" inputmode="numeric"></div>
+<div class="payout-receive"><span class="payout-receive-label">You will receive</span><span class="payout-receive-value" id="poReceive">₦0</span><button class="payout-all-btn" type="button" id="poAllBtn">Withdraw everything</button><span class="payout-receive-note" id="poReceiveNote">Nothing further is deducted — Unisocials already took its 2.5% from the ticket.</span></div>
 <button class="payout-btn" type="button" id="poRequestBtn">Request payout</button><div class="payout-msg" id="poMsg"></div>
 </div>
 </div>
@@ -174,8 +199,12 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     var menu=document.getElementById('navInfMenu');
     var mobOut=document.getElementById('mobileInfLogout');
     var label=document.getElementById('navInfMenuLabel');
+    var nav=document.getElementById('mainNav');
     if(menu)menu.style.display=signedIn?'inline-block':'none';
     if(mobOut)mobOut.style.display=signedIn?'block':'none';
+    // Signed in, the header is just the commission dropdown: no public site
+    // links, no logo link and no hamburger on a commission-only account.
+    if(nav)nav.classList.toggle('is-portal-mode',signedIn);
     if(label){
       var nameEl=document.getElementById('userName');
       var name=(nameEl&&nameEl.textContent&&nameEl.textContent!=='—')?nameEl.textContent:'';
@@ -334,25 +363,99 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
   }
   // ── Payouts: request the 17.5% commission earned through the referral link ──
-  var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7;
+  var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7, payoutAvailable=0;
+  // ── The amount they will receive, worked out for them ──
+  // Unisocials already took its 2.5% from the ticket, so the withdrawal fee is 0
+  // and what they receive is simply the amount requested, capped by what is
+  // actually available.
+  function currentPayoutAmount(){
+    var raw=document.getElementById('poAmount');
+    if(!raw)return 0;
+    var n=Number(raw.value);
+    return isFinite(n)&&n>0?n:0;
+  }
+  // Fill the amount automatically the first time a balance is available, so the
+  // form never sits empty while a perfectly good balance is waiting.
+  function syncPayoutAmountField(){
+    var raw=document.getElementById('poAmount');
+    if(!raw)return;
+    var all=document.getElementById('poAllBtn');
+    var filled=false;
+    if(payoutAvailable>0&&!currentPayoutAmount()){raw.value=String(payoutAvailable);filled=true;}
+    if(all){
+      all.textContent=payoutAvailable>0?'Withdraw everything ('+fmt(payoutAvailable)+')':'Nothing available yet';
+      all.disabled=payoutAvailable<=0;
+    }
+    // Auto-filling the amount must refresh the readout too, or it would show a
+    // stale figure until the user happens to type.
+    if(filled)updatePayoutReceive();
+  }
+  function updatePayoutReceive(){
+    var out=document.getElementById('poReceive'),note=document.getElementById('poReceiveNote');
+    if(!out)return;
+    var asked=currentPayoutAmount();
+    var net=Math.round(Math.max(0,asked)*100)/100;
+    out.textContent=fmt(net);
+    var bad=false;
+    if(note){
+      if(asked<=0){
+        note.textContent='Enter an amount, or use “Withdraw everything” to request your full available balance. Nothing further is deducted — Unisocials already took its '+pct(payoutPlatformRate)+' from the ticket.';
+      }else if(asked>payoutAvailable+0.005){
+        out.classList.add('is-error');bad=true;
+        note.textContent='That is more than your available balance of '+fmt(payoutAvailable)+'. Reduce the amount to '+fmt(payoutAvailable)+' or less.';
+      }else if(net<asked){
+        note.textContent='You asked for '+fmt(asked)+' but only '+fmt(net)+' is available to withdraw.';
+      }else{
+        note.textContent='Nothing further is deducted — Unisocials already took its '+pct(payoutPlatformRate)+' from the ticket, so you receive the full '+fmt(net)+'.';
+      }
+    }
+    if(!bad)out.classList.remove('is-error');
+  }
   function poMsg(id,text,good){var el=document.getElementById(id);if(!el)return;el.textContent=text;el.className='payout-msg '+(good?'ok':'bad');}
   function fmtWhen(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d.getTime()))return String(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
   // Percentages keep one decimal: Math.round() turned our 17.5% into "18%".
   function pct(rate){var v=Math.round((Number(rate)||0)*1000)/10;return (Math.abs(v-Math.round(v))<0.001?String(Math.round(v)):String(v))+'%';}
+  var payoutPlatformRate=0.025;
   function renderPayoutHold(){
-    var el=document.getElementById('poHeld');if(!el)return;
     if(payoutTimer){clearInterval(payoutTimer);payoutTimer=null;}
+    var el=document.getElementById('poHeld');
     var now=Date.now();
     var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
-    if(!left.length){el.textContent=fmt(0);renderPayoutHoldBanner([]);return;}
+    if(!left.length){
+      if(el)el.textContent=fmt(0);
+      renderPayoutHoldBanner([]);renderHoldCard([]);
+      return;
+    }
     var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
     var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
     var ms=new Date(next.unlocksAt).getTime()-now;
     var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
-    el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+    if(el)el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
     renderPayoutHoldBanner(left);
+    renderHoldCard(left);
     // Tick every second so the withdrawal hold visibly counts down.
     payoutTimer=setInterval(renderPayoutHold,1000);
+  }
+  // The hold countdown is always on screen: it either counts down to the next
+  // unlock, or states the rule plainly when nothing is being held right now.
+  function renderHoldCard(left){
+    var clock=document.getElementById('poHoldClock');
+    var label=document.getElementById('poHoldCardLabel');
+    var note=document.getElementById('poHoldCardNote');
+    if(!clock)return;
+    if(!left.length){
+      clock.textContent='—';
+      if(label)label.textContent='No commission on hold right now';
+      if(note)note.innerHTML='Every verified payment waits <strong>'+payoutHoldDays+' days</strong> after it is paid before its commission can be requested. Anything you can withdraw now is already clear.';
+      return;
+    }
+    var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+    var ms=Math.max(0,new Date(next.unlocksAt).getTime()-Date.now());
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+    clock.textContent=dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+    if(label)label.textContent='Next commission unlocks in';
+    if(note)note.innerHTML='<strong>'+fmt(total)+'</strong> of your commission is still inside the '+payoutHoldDays+'-day hold across '+left.length+' payment'+(left.length===1?'':'s')+'. You can request it the moment this reaches zero.';
   }
   // A plain-language banner so it is obvious the money is counting down,
   // not just a number in a corner of the panel.
@@ -398,6 +501,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       document.getElementById('poCommission').textContent=fmt(d.totalCommission||0);
       document.getElementById('poAvailable').textContent=fmt(d.availableBalance||0);
       var rates=d.commissionRates||{eventOwner:.8,influencer:.175,platformReferred:.025,platformDirect:.2};
+      if(isFinite(Number(rates.platformReferred)))payoutPlatformRate=Number(rates.platformReferred);
       document.getElementById('payoutSplitNote').textContent='On the ₦'+Number(d.referredRevenue||0).toLocaleString()+' your link brought in: ₦'+Number(d.eventOwnerShare||0).toLocaleString()+' ('+pct(rates.eventOwner)+') went to the event owner, ₦'+Number(d.totalCommission||0).toLocaleString()+' ('+pct(rates.influencer)+') is your commission, and ₦'+Number(d.platformShare||0).toLocaleString()+' ('+pct(rates.platform)+') to Unisocials.';
       var bank=d.savedBankAccount||{};
       if(bank.bankName)document.getElementById('poBankName').value=bank.bankName;
@@ -408,10 +512,14 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       var notice=document.getElementById('payoutOpenNotice');
       var open=(d.payouts||[]).filter(function(p){return ['pending','approved'].indexOf(String(p.status||'').toLowerCase())!==-1;})[0];
       if(open){notice.style.display='block';notice.innerHTML='⏳ Your request <strong>'+open.id+'</strong> for <strong>'+fmt(open.netAmount!=null?open.netAmount:open.amount)+'</strong> is <strong>'+open.status+'</strong>. '+(open.status==='approved'?'The admin will pay within 24 hours.':'The admin has been notified by email.');}else{notice.style.display='none';}
-      if(isFinite(Number(d.holdDays))){payoutHoldDays=Number(d.holdDays);var hd=document.getElementById('poHoldDays');if(hd)hd.textContent=String(payoutHoldDays);}
+      if(isFinite(Number(d.holdDays))){payoutHoldDays=Number(d.holdDays);var hd=document.getElementById('poHoldDays');if(hd)hd.textContent=String(payoutHoldDays);var cd=document.getElementById('poHoldCardDays');if(cd)cd.textContent=String(payoutHoldDays);}
       payoutHeld=Array.isArray(d.heldPayments)?d.heldPayments:[];
       renderPayoutHold();
       renderPayoutHistory(d.payouts||[]);
+      // Show what they would actually receive without making them do the maths.
+      payoutAvailable=Number(d.availableBalance)||0;
+      syncPayoutAmountField();
+      updatePayoutReceive();
     }catch(e){poMsg('poMsg',e.message||'Unable to load payouts',false);}
   }
   document.getElementById('poRequestBtn').onclick=async function(){
@@ -476,6 +584,13 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   });
   document.getElementById('navInfLogout').onclick=portalLogout;
   document.getElementById('mobileInfLogout').onclick=portalLogout;
+  // Live "you will receive" as the amount is typed, plus a one-tap full balance.
+  document.getElementById('poAmount').addEventListener('input',updatePayoutReceive);
+  document.getElementById('poAllBtn').onclick=function(){
+    document.getElementById('poAmount').value=String(payoutAvailable);
+    updatePayoutReceive();
+    document.getElementById('poAmount').focus();
+  };
   // The portal's own dropdown: open/close on the trigger, close on outside click
   // or Escape, and close after picking a destination.
   (function(){
