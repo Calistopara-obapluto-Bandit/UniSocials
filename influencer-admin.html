@@ -677,9 +677,9 @@
 </style>
 <style id="influencer-admin-scope">
   /* Influencer Admin dashboard is intentionally limited to its two oversight views. */
-  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]):not([data-tab="payouts"]) { display:none !important; }
+  .admin-tab[data-tab]:not([data-tab="overview"]):not([data-tab="events"]):not([data-tab="event-sales"]):not([data-tab="influencers"]):not([data-tab="payouts"]):not([data-tab="staff"]) { display:none !important; }
   .admin-panel[id="panel-checkin"], .admin-panel[id="panel-universities"], .admin-panel[id="panel-subscribers"], .admin-panel[id="panel-subadmins"] { display:none !important; }
-  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales):not(#panel-influencers):not(#panel-payouts) { display:none !important; }
+  .admin-panel[id^="panel-"]:not(#panel-overview):not(#panel-events):not(#panel-event-sales):not(#panel-influencers):not(#panel-payouts):not(#panel-staff) { display:none !important; }
   #panel-payouts.active { display:block; }
   .payout-badge { display:inline-flex; align-items:center; padding:3px 12px; border-radius:100px; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .payout-badge.pending { background:#FFF3E0; color:#E65100; border:1px solid #FFE0B2; }
@@ -952,6 +952,7 @@
 <button class="admin-tab" data-tab="events">➕ Add Events</button>
 <button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
 <button class="admin-tab" data-tab="influencers">📣 My Influencers</button>
+<button class="admin-tab" data-tab="staff">🎟 Check-in Staff</button>
 <button class="admin-tab" data-tab="payouts">💰 Payouts</button>
 </div>
 </div>
@@ -1112,6 +1113,33 @@
       <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
     </div>
     <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<!-- ── CHECK-IN STAFF PANEL ── -->
+<div class="admin-panel" id="panel-staff">
+  <div class="admin-panel-heading">
+    <div>
+      <h1>🎟 Check-in Staff</h1>
+      <p>Add the people scanning tickets at your gate. We create their login and email the password to them — they sign in on the check-in page, not this dashboard.</p>
+    </div>
+  </div>
+  <div class="admin-scan-panel">
+    <div class="influencer-section-heading">
+      <div><strong>Add check-in staff</strong><div>They receive a <strong>name@unisocials.com</strong> login and a one-time password by email.</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="chkName">Full name</label><input type="text" id="chkName" placeholder="e.g. Ada Gate" autocomplete="name" /></div>
+      <div class="form-group"><label for="chkEmail">Their email address</label><input type="email" id="chkEmail" placeholder="they@example.com" autocomplete="email" /></div>
+      <div class="form-group"><label for="chkEvent">Event</label><select id="chkEvent"><option value="">Select an event…</option></select></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-submit" style="white-space:nowrap;" id="chkBtn" type="button">➕ Add check-in staff</button>
+      <button class="admin-refresh-btn" id="chkRefreshBtn" type="button">↻ Refresh</button>
+      <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="chkCount"></span>
+    </div>
+    <div class="iaf-request-status" id="chkStatus" role="status" aria-live="polite" style="margin-top:12px;"></div>
+    <div class="admin-ticket-codes" id="chkList" style="margin-top:14px;"></div>
   </div>
 </div>
 
@@ -2048,6 +2076,124 @@ fetch('/api/admin/events/notify', {
         .catch(function() { showToast('Network error removing sub-admin', true); });
       };
 
+      // Check-in staff panel buttons (delegated by id, no inline handlers).
+      (function() {
+        var addBtn = document.getElementById('chkBtn');
+        var refBtn = document.getElementById('chkRefreshBtn');
+        if (addBtn) addBtn.addEventListener('click', addCheckinStaff);
+        if (refBtn) refBtn.addEventListener('click', function() { loadCheckinStaff(); });
+        // Enter anywhere in the three fields submits, like a normal form.
+        ['chkName', 'chkEmail', 'chkEvent'].forEach(function(id) {
+          var f = document.getElementById(id);
+          if (!f) return;
+          f.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); addCheckinStaff(); }
+          });
+        });
+      })();
+
+      // ── Check-in staff this Influencer Admin created ──
+      // The server mints each person's <name>@unisocials.com login, generates a
+      // one-time password and emails it to the address given here, so the
+      // Influencer Admin never handles or sees a password.
+      var chkEventsLoaded = false;
+      function loadCheckinEventOptions() {
+        var sel = document.getElementById('chkEvent');
+        if (!sel) return;
+        var keep = sel.value;
+        fetch('/api/events', { headers: authHeaders() })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.events) || [];
+            var opts = '<option value="">Select an event…</option>';
+            list.forEach(function(ev) {
+              opts += '<option value="' + esc(ev.name || '') + '">' + esc(ev.name || '') + '</option>';
+            });
+            sel.innerHTML = opts;
+            if (keep) sel.value = keep;
+            chkEventsLoaded = true;
+          })
+          .catch(function() { chkEventsLoaded = true; });
+      }
+
+      window.loadCheckinStaff = function() {
+        var list = document.getElementById('chkList');
+        var count = document.getElementById('chkCount');
+        if (!chkEventsLoaded) loadCheckinEventOptions();
+        if (!list) return;
+        list.innerHTML = '<div style="color:var(--text-3);padding:12px;font-size:0.85rem;">Loading your check-in staff…</div>';
+        fetch('/api/checkin-staff', { headers: authHeaders() })
+          .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+          .then(function(res) {
+            var d = res.data || {};
+            if (!res.ok || !d.success) throw new Error(d.error || 'Could not load your check-in staff.');
+            var staff = d.staff || [];
+            if (count) count.textContent = staff.length + ' staff member' + (staff.length !== 1 ? 's' : '');
+            if (!staff.length) {
+              list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No check-in staff yet. Add the first person above — they&rsquo;ll get their login by email.</div>';
+              return;
+            }
+            list.innerHTML = staff.map(function(s) {
+              var ev = s.eventName ? esc(s.eventName) : '<span style="color:var(--text-3)">Not set</span>';
+              return '<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);">' +
+                '<div style="min-width:0;">' +
+                  '<strong style="color:var(--text-1);">' + esc(s.name || '') + '</strong>' +
+                  '<div style="font-size:0.75rem;color:var(--accent);font-family:monospace;overflow-wrap:anywhere;">' + esc(s.loginEmail || '') + '</div>' +
+                  '<div style="font-size:0.73rem;color:var(--text-3);margin-top:2px;">🎟 ' + ev + '</div>' +
+                '</div>' +
+                '<div style="font-size:0.7rem;color:var(--text-3);white-space:nowrap;">' + esc(fmtDate(s.createdAt)) + '</div>' +
+              '</div>';
+            }).join('');
+          })
+          .catch(function(e) {
+            if (list) list.innerHTML = '<div style="color:#B71C1C;padding:12px;font-size:0.85rem;">' + esc(e.message || 'Could not load your check-in staff.') + '</div>';
+          });
+      };
+
+      function sayCheckinStatus(msg, tone) {
+        var el = document.getElementById('chkStatus');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.color = tone === 'ok' ? 'var(--accent)' : (tone === 'bad' ? '#B71C1C' : '');
+      }
+
+      function addCheckinStaff() {
+        var name = (document.getElementById('chkName') || {}).value || '';
+        var email = (document.getElementById('chkEmail') || {}).value || '';
+        var eventName = (document.getElementById('chkEvent') || {}).value || '';
+        var btn = document.getElementById('chkBtn');
+        name = String(name).trim().replace(/\s+/g, ' ');
+        email = String(email).trim().toLowerCase();
+        eventName = String(eventName).trim();
+        if (name.length < 2) return sayCheckinStatus('⚠️ Please enter their full name.', 'bad');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return sayCheckinStatus('⚠️ Please enter a valid email address.', 'bad');
+        if (!eventName) return sayCheckinStatus('⚠️ Please choose which event they will work.', 'bad');
+        if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+        sayCheckinStatus('Creating their account…');
+        fetch('/api/checkin-staff', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ name: name, email: email, eventName: eventName })
+        })
+          .then(function(r) { return r.json().then(function(d2) { return { ok: r.ok, data: d2 }; }); })
+          .then(function(res) {
+            var d = res.data || {};
+            if (!res.ok || !d.success) throw new Error(d.error || 'Could not add that person.');
+            // Clear the form so the next person can be typed straight away.
+            ['chkName', 'chkEmail'].forEach(function(id) {
+              var f = document.getElementById(id);
+              if (f) f.value = '';
+            });
+            var extra = (!d.emailSent && d.credentials)
+              ? ' Share these with them now — login email: ' + d.credentials.email + ' · Password: ' + d.credentials.password
+              : ' Their login is ' + (d.loginEmail || '') + '.';
+            sayCheckinStatus('✅ ' + (d.message || 'Check-in staff account created.') + extra, 'ok');
+            loadCheckinStaff();
+          })
+          .catch(function(e) { sayCheckinStatus('⚠️ ' + (e.message || 'Could not add that person.'), 'bad'); })
+          .then(function() { if (btn) { btn.disabled = false; btn.textContent = '➕ Add check-in staff'; } });
+      }
+
       // ── Influencer Manager (master admin only) ──
       window.loadInfluencers = function() {
         fetch('/api/influencer-admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
@@ -2381,6 +2527,7 @@ fetch('/api/admin/events/notify', {
         loadAuthorizedEventSales();
         if (typeof window.loadInfluencers === 'function') loadInfluencers();
         if (typeof window.loadPayouts === 'function') loadPayouts();
+        if (typeof window.loadCheckinStaff === 'function') loadCheckinStaff();
       };
 
       // ── Account creation lives on the homepage, not here ──
@@ -2416,7 +2563,8 @@ fetch('/api/admin/events/notify', {
             var name = btn.getAttribute('data-tab');
             switchTab(name);
             if (name === 'influencers' && typeof window.loadInfluencers === 'function') loadInfluencers();
-            if (name === 'payouts' && typeof window.loadPayouts === 'function') loadPayouts();});
+            if (name === 'payouts' && typeof window.loadPayouts === 'function') loadPayouts();
+            if (name === 'staff' && typeof window.loadCheckinStaff === 'function') loadCheckinStaff();});
       });
       window.switchTab = switchTab;
 

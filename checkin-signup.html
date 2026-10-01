@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check-in Staff Signup — Unisocials</title>
+  <meta name="description" content="Sign in or create your Unisocials check-in staff account to scan guest tickets at the gate." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .auth-section { padding: 56px 0 80px; }
+    .auth-card {
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-lg);
+    }
+    .auth-card .auth-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 18px;
+    }
+    .auth-card h2 { font-size: 1.4rem; font-weight: 700; color: var(--text-1); text-align: center; margin-bottom: 6px; }
+    .auth-card .auth-sub { font-size: 0.86rem; color: var(--text-3); text-align: center; margin-bottom: 24px; line-height: 1.6; }
+
+    .signup-form { display: grid; gap: 12px; }
+    .signup-form label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 6px; }
+    .signup-form input, .signup-form select {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.9rem;
+      color: var(--text-1);
+      min-height: 46px;
+    }
+    .signup-form input:focus, .signup-form select:focus {
+      outline: none;
+      border-color: var(--accent-border);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .signup-form button[type="submit"] {
+      width: 100%; margin-top: 4px; min-height: 46px;
+      font-size: 0.9rem; font-weight: 700;
+      border-radius: 100px; cursor: pointer;
+    }
+    .signup-form button[type="submit"]:disabled { opacity: 0.65; cursor: wait; }
+
+    .signup-status { font-size: 0.84rem; margin-top: 14px; line-height: 1.55; }
+    .signup-status:empty { display: none; }
+    .signup-hint { font-size: 0.76rem; color: var(--text-3); margin-top: 8px; text-align: center; }
+    .signup-hint strong { color: var(--accent); }
+    .signup-note {
+      margin-top: 18px; padding: 14px 16px;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      border-radius: 12px;
+      font-size: 0.78rem; color: var(--text-2); line-height: 1.6;
+    }
+    .signup-note strong { color: var(--text-1); }
+    .auth-switch { text-align: center; font-size: 0.85rem; color: var(--text-3); margin-top: 20px; }
+    .auth-switch a { color: var(--accent); text-decoration: underline; font-weight: 600; }
+
+    @media (max-width: 600px) {
+      .auth-section { padding: 34px 0 56px; }
+      .auth-card { padding: 28px 18px; }
+      .auth-card h2 { font-size: 1.2rem; }
+      .signup-form input, .signup-form select { font-size: 0.95rem; /* stops iOS zooming on focus */ }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="auth-section">
+    <div class="container">
+      <div class="auth-card">
+        <div class="auth-icon">🎟️</div>
+        <h2>Check-in staff account</h2>
+        <p class="auth-sub">If an Influencer Admin added you to their event, use the login email we emailed you. Otherwise ask them to add you first.</p>
+
+        <form class="signup-form" id="checkinStaffForm" novalidate>
+          <div>
+            <label for="chkName">Full name</label>
+            <input type="text" id="chkName" placeholder="e.g. Ada Gate" autocomplete="name" required />
+          </div>
+          <div>
+            <label for="chkEmail">Your email address</label>
+            <input type="email" id="chkEmail" placeholder="you@example.com" autocomplete="email" required />
+            <p class="signup-hint">We'll email your new login email and password here.</p>
+          </div>
+          <div>
+            <label for="chkEvent">Event</label>
+            <select id="chkEvent" required>
+              <option value="">Select your event…</option>
+            </select>
+          </div>
+          <button class="btn-primary" id="chkBtn" type="submit">🎟 Create my check-in account</button>
+        </form>
+
+        <p class="signup-status" id="chkStatus" role="status" aria-live="polite"></p>
+        <p class="signup-hint">You'll sign in with <strong id="chkEmailHint">yourname@unisocials.com</strong>.</p>
+
+        <div class="signup-note">
+          <strong>What you get:</strong> the gate dashboard — scan a guest's ticket QR code or type their order ID, and see the check-ins you have made.
+        </div>
+
+        <p class="auth-switch">Already have your login? <a href="checkin.html">Go to the check-in dashboard</a></p>
+      </div>
+    </div>
+  </section>
+
+  <script src="templatemo-622-clearwave.js"></script>
+  <script>
+  (function() {
+    var form = document.getElementById('checkinStaffForm');
+    if (!form) return;
+    var name = document.getElementById('chkName');
+    var email = document.getElementById('chkEmail');
+    var eventSel = document.getElementById('chkEvent');
+    var btn = document.getElementById('chkBtn');
+    var status = document.getElementById('chkStatus');
+    var hint = document.getElementById('chkEmailHint');
+
+    function say(msg, tone) {
+      if (!status) return;
+      status.textContent = msg;
+      status.style.color = tone === 'ok' ? 'var(--accent)' : (tone === 'bad' ? '#B71C1C' : '');
+    }
+
+    // Local escaper: this block lives in its own IIFE.
+    function escHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    // Show the login email the account will be created with, live.
+    if (name && hint) {
+      name.addEventListener('input', function() {
+        var slug = name.value.toLowerCase().replace(/[^a-z0-9\s._-]/g, '').trim().split(/[\s._-]+/).filter(Boolean).join('.');
+        hint.textContent = (slug || 'yourname') + '@unisocials.com';
+      });
+    }
+
+    // Public event list, so the applicant can pick the event they were added to.
+    function loadEvents() {
+      fetch('/api/events')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var list = (data && data.success && data.events) || [];
+          var html = '<option value="">Select your event…</option>';
+          list.forEach(function(ev) { html += '<option value="' + escHtml(ev.name || '') + '">' + escHtml(ev.name || '') + '</option>'; });
+          if (eventSel) eventSel.innerHTML = html;
+        })
+        .catch(function() {
+          // Never block the form: the applicant can still type their event.
+          if (eventSel) {
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.id = eventSel.id;
+            input.placeholder = 'Your event';
+            eventSel.parentNode.replaceChild(input, eventSel);
+            eventSel = input;
+          }
+        });
+    }
+    loadEvents();
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var payload = {
+        name: name ? name.value.trim().replace(/\s+/g, ' ') : '',
+        email: email ? email.value.trim() : '',
+        eventName: eventSel ? eventSel.value.trim() : ''
+      };
+      if (!payload.name) return say('⚠️ Please enter your full name.', 'bad');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return say('⚠️ Please enter a valid email address.', 'bad');
+      if (!payload.eventName) return say('⚠️ Please select your event.', 'bad');
+      if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+      say('Creating your account…');
+      fetch('/api/checkin-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // The Influencer Admin token is not available on this page, so send none:
+        // the server will explain clearly if the account must be added by them.
+        body: JSON.stringify(payload)
+      })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          var d = res.data || {};
+          if (!res.ok || !d.success) throw new Error(d.error || 'Could not create your account.');
+          form.reset();
+          var extra = '';
+          // If the email could not be delivered, show the details so nobody is locked out.
+          if (!d.emailSent && d.credentials) {
+            extra = ' Login email: ' + d.credentials.email + '  ·  Password: ' + d.credentials.password + ' — save these now.';
+          }
+          say('✅ ' + (d.message || 'Your check-in account is ready.') + (d.loginEmail ? ' Your login email is ' + d.loginEmail + '.' : '') + extra, 'ok');
+          var link = document.querySelector('.auth-switch a');
+          if (link && d.loginEmail) {
+            link.href = 'checkin.html?login=' + encodeURIComponent(d.loginEmail);
+            link.textContent = 'Go to the check-in dashboard →';
+          }
+        })
+        .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account.'), 'bad'); })
+        .then(function() { if (btn) { btn.disabled = false; btn.textContent = '🎟 Create my check-in account'; } });
+    });
+  })();
+  </script>
+</body>
+</html>

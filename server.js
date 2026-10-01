@@ -1946,9 +1946,11 @@ async function sendContactEmail(data) {
   return { sent: false, configured: false, provider: '' };
 }
 
-// Domain every self-service Influencer Admin logs in with: their name, e.g.
-// ada.nwosu@unisocials.com. The generated password is emailed to the real
-// address they signed up with, never to this address.
+// Domain every self-service Unisocials staff account logs in with: their name,
+// e.g. ada.nwosu@unisocials.com. Both Influencer Admins and check-in staff use
+// it, so the login convention is identical across the two dashboards. The
+// generated password is emailed to the real address they signed up with, never
+// to this address.
 const INFLUENCER_ADMIN_EMAIL_DOMAIN = 'unisocials.com';
 
 // "Ada Nwosu" -> "ada.nwosu"; strips anything that is not safe for an email local part.
@@ -1956,6 +1958,43 @@ function influencerAdminEmailLocalPart(name) {
   const cleaned = String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9\s._-]/g, '').trim();
   const parts = cleaned.split(/[\s._-]+/).filter(Boolean);
   return parts.join('.') || 'influencer.admin';
+}
+
+// Reserve a free <name>@unisocials.com login, auto-suffixed when taken.
+// Returns null only when every variant up to 99 is already in use.
+async function reserveStaffLoginEmail(name) {
+  const localPart = influencerAdminEmailLocalPart(name);
+  let loginEmail = localPart + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
+  if (await findUserByEmail(loginEmail)) {
+    loginEmail = null;
+    for (let n = 2; n <= 99 && !loginEmail; n++) {
+      const candidate = localPart + n + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
+      if (!(await findUserByEmail(candidate))) loginEmail = candidate;
+    }
+  }
+  return loginEmail;
+}
+
+// Build (but do not save) a self-service staff account with a one-time password.
+// Shared by the Influencer Admin and check-in staff signup flows so both mint
+// logins, hash passwords and stamp ids the same way.
+async function buildSelfServiceStaffUser({ name, contactEmail, role, prefix, extra }) {
+  const loginEmail = await reserveStaffLoginEmail(name);
+  if (!loginEmail) return null;
+  const password = generateTemporaryPassword();
+  const user = Object.assign({
+    id: prefix + crypto.randomBytes(4).toString('hex').toUpperCase(),
+    name: name,
+    email: loginEmail,
+    contactEmail: contactEmail,
+    phone: '',
+    passwordHash: hashPassword(password),
+    role: role,
+    selfRegistered: true,
+    mustChangePassword: true,
+    createdAt: new Date().toISOString()
+  }, extra || {});
+  return { user, password };
 }
 
 // A readable one-time password that still satisfies validatePassword.
@@ -2003,6 +2042,41 @@ async function sendInfluencerAdminCredentialsEmail(user, password) {
 
 function payoutEmailRow(label, value) {
   return '<tr><td style="padding:6px 0;color:#64748b;font-size:13px;width:40%">' + escapeHtml(label) + '</td><td style="padding:6px 0;color:#0f172a;font-size:13px;font-weight:600">' + escapeHtml(String(value == null ? '—' : value)) + '</td></tr>';
+}
+
+// Email a check-in staff member their check-in login email + password at the
+// address they gave. Mirrors sendInfluencerAdminCredentialsEmail but points at
+// the check-in dashboard, which is where this role actually signs in.
+async function sendCheckinStaffCredentialsEmail(user, password) {
+  const to = String(user.contactEmail || '').trim();
+  if (!to) return false;
+  const subject = 'Your Unisocials check-in staff account is ready';
+  const text =
+    'Hi ' + (user.name || 'there') + ',\n\n' +
+    'Your check-in staff account has been created and is ready to use.\n\n' +
+    'Login email: ' + user.email + '\n' +
+    'Password: ' + password + '\n\n' +
+    'Sign in here: ' + siteUrl() + '/checkin.html\n\n' +
+    'You will be able to scan and verify guest tickets at the gate.\n\n' +
+    'Please sign in and change your password straight away, and keep it safe.\n\n' +
+    '— Unisocials';
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
+    '<h2 style="margin:0 0 6px">You&rsquo;re on the gate team 🎟️</h2>' +
+    '<p style="margin:0 0 14px;color:#475569">Your Unisocials check-in staff account is ready to use.</p>' +
+    '<table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">' +
+    payoutEmailRow('Name', user.name) +
+    payoutEmailRow('Login email', user.email) +
+    payoutEmailRow('Password', password) +
+    payoutEmailRow('Event', user.eventName || '—') +
+    '</table>' +
+    '<p style="margin:16px 0"><a href="' + escapeHtml(siteUrl() + '/checkin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to check guests in</a></p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">Please change your password after your first sign in, and keep it safe.</p>' +
+    '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because you were added as check-in staff for an Unisocials event.</p>' +
+    '</div>';
+  const sent = await sendBrevoEmail(to, subject, text, html, user.name);
+  if (!sent) console.warn('Check-in staff credentials email not sent to', to, '(no BREVO_API_KEY or delivery failed)');
+  return !!sent;
 }
 
 // Email the Main Admin whenever an Influencer Admin requests a payout.
@@ -2690,33 +2764,16 @@ if (pathname === '/api/influencer-admin-requests' && req.method === 'POST') {
   }
 
   // <name>@unisocials.com, uniquified if that name is already taken.
-  const localPart = influencerAdminEmailLocalPart(name);
-  let loginEmail = localPart + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
-  if (await findUserByEmail(loginEmail)) {
-    loginEmail = null;
-    for (let n = 2; n <= 99 && !loginEmail; n++) {
-      const candidate = localPart + n + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
-      if (!(await findUserByEmail(candidate))) loginEmail = candidate;
-    }
-    if (!loginEmail) {
-      return sendJson(res, 409, { success: false, error: 'That name is already taken on Unisocials. Please request the account using a slightly different full name.' });
-    }
+  const built = await buildSelfServiceStaffUser({
+    name, contactEmail, role: 'influencer_admin', prefix: 'IADM-',
+    extra: { university: university }
+  });
+  if (!built) {
+    return sendJson(res, 409, { success: false, error: 'That name is already taken on Unisocials. Please request the account using a slightly different full name.' });
   }
-
-  const password = generateTemporaryPassword();
-  const user = {
-    id: 'IADM-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
-    name: name,
-    email: loginEmail,
-    contactEmail: contactEmail,
-    university: university,
-    phone: '',
-    passwordHash: hashPassword(password),
-    role: 'influencer_admin',
-    selfRegistered: true,
-    mustChangePassword: true,
-    createdAt: new Date().toISOString()
-  };
+  const user = built.user;
+  const password = built.password;
+  const loginEmail = user.email;
   await addUser(user);
   // Never let a mail failure leave somebody locked out of an account that exists.
   const emailSent = await sendInfluencerAdminCredentialsEmail(user, password);
@@ -2731,6 +2788,130 @@ if (pathname === '/api/influencer-admin-requests' && req.method === 'POST') {
       ? 'Your Influencer Admin account is ready — we emailed your login email and password to ' + contactEmail + '.'
       : 'Your Influencer Admin account is ready. We could not send the email, so save the login details below now.'
   });
+}
+
+// ── Check-in staff: create + list, for Influencer Admins (and self-service) ──
+// ⚠️ SCOPE: the self-service path lets anyone who knows the site create a gate
+// account. A checkin_staff can only scan tickets (mark a code used) — they get
+// no orders, events, payouts or account access — but that is still gate access.
+// If that is too open, gate the POST behind an Influencer Admin session and keep
+// only the dashboard flow; the rest of this route is unchanged.
+// An Influencer Admin running an event needs staff who can scan tickets at the
+// gate. They get the same <name>@unisocials.com login convention as an Influencer
+// Admin, but the role is checkin_staff, so they sign in at /checkin.html and can
+// do nothing else. The password is emailed to the address they supplied.
+if (pathname === '/api/checkin-staff' && (req.method === 'GET' || req.method === 'POST')) {
+  const authCtx = await isAdminOrInfluencerAdmin(req);
+
+  // ── List: an Influencer Admin sees only the staff they created ──
+  if (req.method === 'GET') {
+    if (!authCtx || !['admin', 'influencer_admin'].includes(authCtx.role)) {
+      return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+    }
+    const users = await readUsers();
+    let staff = users.filter(u => u.role === 'checkin_staff');
+    if (authCtx.role === 'influencer_admin') {
+      const me = String((authCtx.user && authCtx.user.id) || '').trim();
+      const myEmail = String((authCtx.user && authCtx.user.email) || '').trim().toLowerCase();
+      // Never fall back to "see everything": an unscoped list would leak the
+      // main admin's gate teams.
+      staff = staff.filter(u =>
+        String(u.createdById || '').trim() === me ||
+        String(u.createdByEmail || '').trim().toLowerCase() === myEmail
+      );
+    }
+    return sendJson(res, 200, { success: true, staff: staff.map(checkinStaffPublic) });
+  }
+
+  // ── Create ──
+  const rl = rateLimit(req, 'checkin-staff-request', 10, 60000); // 10/min per IP
+  if (!rl.allowed) {
+    res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+    res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+    return;
+  }
+  const body = await readBody(req);
+  let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+  const name = String(data.name || '').trim().replace(/\s+/g, ' ');
+  const contactEmail = String(data.email || '').trim().toLowerCase();
+  const eventName = String(data.eventName || '').trim().slice(0, 120);
+
+  if (name.length < 2 || name.length > 80) {
+    return sendJson(res, 400, { success: false, error: 'Please enter the staff member\u2019s full name.' });
+  }
+  const emailError = validateEmail(contactEmail);
+  if (emailError) return sendJson(res, 400, { success: false, error: emailError });
+
+  // Either an Influencer Admin adds someone from their dashboard, or the person
+  // signs themselves up from the public check-in signup page. Both paths mint
+  // the same <name>@unisocials.com login and email the password to the address
+  // given, so nobody has to hand-carry a password.
+  const createdByAdmin = !!(authCtx && ['admin', 'influencer_admin'].includes(authCtx.role));
+  // isAdminOrInfluencerAdmin returns null both for "no session" and for "a session
+  // that is not allowed here". Resolve the session directly so a signed-in buyer
+  // or check-in staff member is rejected rather than silently treated as anonymous.
+  const callerToken = (req.headers['authorization'] || '').startsWith('Bearer ')
+    ? (req.headers['authorization'] || '').slice(7).trim()
+    : '';
+  const callerUser = callerToken ? await getSessionUser(callerToken) : null;
+  if (callerUser && !createdByAdmin) {
+    return sendJson(res, 401, { success: false, error: 'Sign in as an Influencer Admin to add check-in staff.' });
+  }
+  if (!eventName) {
+    return sendJson(res, 400, { success: false, error: 'Please choose which event this person will work.' });
+  }
+
+  const users = await readUsers();
+  const alreadyRegistered = users.find(u => String(u.contactEmail || '').trim().toLowerCase() === contactEmail);
+  if (alreadyRegistered) {
+    return sendJson(res, 409, { success: false, error: 'A Unisocials account has already been created for ' + contactEmail + '.' });
+  }
+
+  const built = await buildSelfServiceStaffUser({
+    name, contactEmail, role: 'checkin_staff', prefix: 'CHK-',
+    extra: {
+      eventName: eventName,
+      // Recorded so the creator can list and later revoke only their own staff.
+      // A self-service signup has no creator, so it lands in nobody's list and is
+      // only visible to the Main Admin through Staff Accounts.
+      createdById: createdByAdmin && authCtx.role !== 'admin' ? String((authCtx.user && authCtx.user.id) || '') : '',
+      createdByEmail: createdByAdmin && authCtx.role !== 'admin' ? String((authCtx.user && authCtx.user.email) || '').toLowerCase() : '',
+      createdByRole: createdByAdmin ? authCtx.role : 'self',
+    }
+  });
+  if (!built) {
+    return sendJson(res, 409, { success: false, error: 'That name is already taken on Unisocials. Please add the staff member using a slightly different full name.' });
+  }
+  const user = built.user;
+  const password = built.password;
+  await addUser(user);
+
+  const emailSent = await sendCheckinStaffCredentialsEmail(user, password);
+  return sendJson(res, 200, {
+    success: true,
+    staff: checkinStaffPublic(user),
+    loginEmail: user.email,
+    emailSent: emailSent,
+    // Only echoed back when the email could not be delivered, so nobody who
+    // was genuinely added ends up locked out of an account that exists.
+    credentials: emailSent ? null : { email: user.email, password: password },
+    message: emailSent
+      ? 'Check-in staff account created — we emailed the login details to ' + contactEmail + '.'
+      : 'Check-in staff account created. We could not send the email, so share these login details with them now.'
+  });
+}
+
+// Check-in staff must never see bank details, hashes or the real contact address.
+function checkinStaffPublic(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    loginEmail: user.email,
+    eventName: user.eventName || '',
+    role: 'checkin_staff',
+    createdAt: user.createdAt,
+    archived: user.archived === true
+  };
 }
 
 // ── AUTH: Login (rate-limited) ──

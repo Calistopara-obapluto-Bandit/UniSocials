@@ -375,6 +375,18 @@
       .admin-logout { padding: 5px 7px; font-size: 0.64rem; }
     }
   </style>
+<style id="checkin-signup-link-styles">
+  /* This page is check-in sign-in only. Accounts are created by an Influencer
+     Admin from their dashboard, or requested on the signup page. */
+  .chk-signup { margin-top: 18px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,.18); text-align: center; }
+  .chk-signup p { font-size: 0.8rem; color: rgba(255,255,255,0.72); margin: 0 0 12px; }
+  .chk-signup-link {
+    display: block; text-decoration: none; font-size: 0.84rem; font-weight: 700;
+    color: var(--accent); border: 1.5px solid var(--accent); border-radius: 100px;
+    padding: 12px 18px; transition: background .25s, color .25s;
+  }
+  .chk-signup-link:hover { background: var(--accent); color: #fff; }
+</style>
 <style id="small-screen-guards">
   /* Shared small-screen hardening. The rules above shape the chrome for wider
      viewports, so anything that can still push this dashboard sideways on a
@@ -438,6 +450,11 @@
           </div>
           <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
         </form>
+
+        <div class="chk-signup">
+          <p>Been added as check-in staff? Use the login email we emailed you.</p>
+          <a class="chk-signup-link" href="checkin-signup.html">🎟 Create or sign up for a check-in account</a>
+        </div>
 
         <p class="auth-switch" style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
           Are you the site admin? <a href="admin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Admin Dashboard</a>
@@ -611,6 +628,17 @@
         connStatus.style.display = 'none';
         var nameEl = document.getElementById('adminUserName'); if (nameEl) nameEl.style.display = 'none';
       }
+
+      // The signup page hands the new login email back via ?login=, so the field
+      // is already filled in when the applicant follows it.
+      (function() {
+        try {
+          var loginEmail = (new URLSearchParams(window.location.search).get('login') || '').trim();
+          if (!loginEmail) return;
+          var field = document.getElementById('subAdminEmail');
+          if (field) { field.value = loginEmail; field.focus(); }
+        } catch (e) {}
+      })();
 
       // Login handler — dedicated check-in staff only (email + password)
       window.subAdminLogin = function(e) {
