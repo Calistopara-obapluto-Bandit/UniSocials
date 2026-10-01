@@ -1612,19 +1612,24 @@ resultBox.className = 'admin-scan-result show';
 
         var html = '';
         filtered.forEach(function(o) {
+          // ── Same fields, same order, same styling as the main admin's order card ──
           var qty = (parseInt(o.qty, 10) || 0) + ' ticket' + ((parseInt(o.qty, 10) || 0) === 1 ? '' : 's');
           var buyer = '<div class="admin-order-buyer"><strong>' + esc(o.buyerName || '—') + '</strong> &middot; ' +
-            '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>' +
-            (o.buyerPhone ? ' &middot; ' + esc(o.buyerPhone) : '') + '</div>';
+            '<a href="mailto:' + esc(o.buyerEmail || '') + '">' + esc(o.buyerEmail || '—') + '</a>';
+          if (o.buyerPhone) buyer += ' &middot; ' + esc(o.buyerPhone);
+          if (o.buyerFaculty) buyer += ' &middot; ' + esc(o.buyerFaculty);
+          buyer += '</div>';
+
           var ticketList = '';
           if (o.status === 'verified' && Array.isArray(o.ticketCodes) && o.ticketCodes.length) {
-            ticketList = '<div class="admin-ticket-codes"><div class="admin-ticket-codes-label">\uD83C\uDF9F Ticket Codes (' + o.ticketCodes.length + ')</div>';
+            ticketList = '<div class="admin-ticket-codes"><div class="admin-ticket-codes-label">🎟 Ticket Codes (' + o.ticketCodes.length + ')</div>';
             o.ticketCodes.forEach(function(tc, i) {
               var used = tc && tc.used;
-              ticketList += '<div class="admin-ticket-code">' +
+              ticketList += '<div class="admin-ticket-code' + (used ? ' used' : '') + '">' +
                 '<span style="color:var(--text-3);font-size:0.72rem;">#' + (i + 1) + '</span>' +
                 '<code>' + esc(tc.code) + '</code>' +
                 (used ? '<span style="color:#B71C1C;font-weight:700;">Used</span>' : '<span style="color:#1B5E20;font-weight:700;">OK</span>') +
+                '<a class="admin-ticket-open" href="ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(tc.code) + '" target="_blank" rel="noopener" title="Open ticket">\u2197</a>' +
                 '</div>';
             });
             ticketList += '</div>';
@@ -1642,8 +1647,9 @@ resultBox.className = 'admin-scan-result show';
                         '<span>\uD83D\uDCCD ' + esc(o.eventVenue || '—') + '</span>' +
                         (o.eventCategory ? '<span>\uD83C\uDFF7 ' + esc(o.eventCategory) + '</span>' : '') +
                         '<span>\uD83C\uDF9F ' + esc(qty) + '</span>' +
-                        '<span>\uD83D\uDCB3 Flutterwave</span>' +
+                        '<span>\uD83D\uDCB3 ' + esc(o.paymentMethod || 'Flutterwave') + '</span>' +
                         '<span>\u23F5 ' + fmtDate(o.createdAt) + '</span>' +
+                        (o.paymentNotifiedAt ? '<span>\uD83D\uDCB6 Paid ' + fmtDate(o.paymentNotifiedAt) + '</span>' : '') +
                         (o.verifiedAt ? '<span>\u2705 ' + fmtDate(o.verifiedAt) + '</span>' : '') +
                       '</div>' +
                       buyer +
@@ -1651,6 +1657,7 @@ resultBox.className = 'admin-scan-result show';
                     '</div>' +
                     '<div class="admin-order-right">' +
                       '<div class="admin-order-amount">' + fmtN(o.amount) + '</div>' +
+                      (o.paymentNotified && o.status === 'pending' ? '<div class="admin-order-amount" style="color:#E65100;font-size:0.75rem;font-weight:600;">\uD83D\uDCB6 Payment claimed</div>' : '') +
                       '<div class="admin-readonly-note">\uD83D\uDD0D View only</div>' +
                     '</div>' +
                   '</div>';
