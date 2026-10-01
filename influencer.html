@@ -79,6 +79,11 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .nav.is-portal-mode .nav-logo,.nav.is-portal-mode .nav-hamburger{display:none}
 .nav.is-portal-mode .nav-inner{justify-content:flex-end;gap:0}
 .nav.is-portal-mode{padding:0}
+/* Signed out there is no dropdown to offer and no dashboard to navigate to, so
+   the portal header is not rendered at all on the login screen. The sign-in
+   card carries its own links to the buyer sign-in and the Influencer Admin
+   signup. */
+.nav.is-logged-out{display:none}
 /* Live withdrawal countdown, always present on the payouts screen. */
 .hold-card{background:var(--surface-2);border:1px solid #FFE0B2;border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:16px}
 .hold-card-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
@@ -231,7 +236,21 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     if(mobOut)mobOut.style.display=signedIn?'block':'none';
     // Signed in, the header is just the commission dropdown: no public site
     // links, no logo link and no hamburger on a commission-only account.
-    if(nav)nav.classList.toggle('is-portal-mode',signedIn);
+    if(nav){
+      nav.classList.toggle('is-portal-mode',signedIn);
+      nav.classList.toggle('is-logged-out',!signedIn);
+    }
+    // The hamburger menu is the other way into the commission destinations, so
+    // it stays closed while signed out too.
+    var mobileMenu=document.getElementById('mobileMenu');
+    if(mobileMenu){
+      mobileMenu.classList.remove('open');
+      mobileMenu.style.display=signedIn?'':'none';
+    }
+    // Belt and braces: the dropdown cannot be opened without a session.
+    if(menu)menu.setAttribute('aria-hidden',signedIn?'false':'true');
+    var triggerEl=document.getElementById('navInfMenuTrigger');
+    if(triggerEl)triggerEl.setAttribute('tabindex',signedIn?'0':'-1');
     if(label){
       var nameEl=document.getElementById('userName');
       var name=(nameEl&&nameEl.textContent&&nameEl.textContent!=='—')?nameEl.textContent:'';
@@ -669,7 +688,12 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   (function(){
     var menu=document.getElementById('navInfMenu'),trigger=document.getElementById('navInfMenuTrigger');
     if(!menu||!trigger)return;
-    function setOpen(on){menu.classList.toggle('open',on);trigger.setAttribute('aria-expanded',on?'true':'false');}
+    function setOpen(on){
+      // Only a signed-in session ever opens the commission dropdown.
+      if(on&&!localStorage.getItem(KEY))return;
+      menu.classList.toggle('open',on);
+      trigger.setAttribute('aria-expanded',on?'true':'false');
+    }
     trigger.addEventListener('click',function(e){e.stopPropagation();setOpen(!menu.classList.contains('open'));});
     menu.addEventListener('click',function(e){if(e.target.closest('.nav-inf-menu-item')&&!e.target.closest('#navInfLogout'))setOpen(false);});
     document.addEventListener('click',function(e){if(!menu.contains(e.target))setOpen(false);});
