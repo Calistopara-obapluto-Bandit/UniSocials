@@ -21,6 +21,23 @@
         y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
     })(window, document, "clarity", "script", "y4hhcy2o3a");
   </script>
+<style id="influencer-admin-request-styles">
+    /* The request form reuses the newsletter styling but needs a real grid,
+       because it asks for three things at once. */
+    .iaf-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; }
+    .iaf-form .subscribe-input { width: 100%; min-width: 0; }
+    select.subscribe-input { appearance: none; -webkit-appearance: none; cursor: pointer; }
+    .iaf-note { margin: 12px 0 0; font-size: .82rem; color: var(--text-3); }
+    .iaf-note strong { color: var(--accent); }
+    .iaf-note a { color: var(--accent); font-weight: 700; }
+    @media (max-width: 900px) {
+      .iaf-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .iaf-form { grid-template-columns: 1fr; }
+      .iaf-form .subscribe-btn { width: 100%; justify-content: center; }
+    }
+  </style>
 </head>
 <body>
 
@@ -213,6 +230,26 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
           <button type="submit" class="subscribe-btn" id="subscribeBtn">🔔 Notify me</button>
         </form>
         <p class="subscribe-status" id="subscribeStatus"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CREATE INFLUENCER ADMIN ACCOUNT ── -->
+  <section class="subscribe-section" id="influencer-admin-request">
+    <div class="container">
+      <div class="subscribe-inner reveal">
+        <h2 class="subscribe-title">Run events for your campus<br /><em>as an Influencer Admin</em></h2>
+        <p class="subscribe-sub">Create your event, invite influencers and track every sale — instantly. Give us your name and we'll email your login email and password straight to your inbox.</p>
+        <form class="subscribe-form iaf-form" id="influencerAdminForm" novalidate>
+          <input type="text" id="iafName" class="subscribe-input" placeholder="Your full name" autocomplete="name" required />
+          <input type="email" id="iafEmail" class="subscribe-input" placeholder="Your email address" autocomplete="email" required />
+          <select id="iafUniversity" class="subscribe-input" aria-label="Your university" required>
+            <option value="">Select your university…</option>
+          </select>
+          <button type="submit" class="subscribe-btn" id="iafBtn">✨ Create my account</button>
+        </form>
+        <p class="subscribe-status" id="iafStatus"></p>
+        <p class="iaf-note">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>. Already have one? <a href="influencer-admin.html">Sign in</a>.</p>
       </div>
     </div>
   </section>
@@ -460,6 +497,98 @@ homeUni.addEventListener('change', function() {
           });
         })
         .catch(function() {});
+    })();
+
+    // ── Create Influencer Admin account ──
+    (function() {
+      var form = document.getElementById('influencerAdminForm');
+      if (!form) return;
+      var name = document.getElementById('iafName');
+      var email = document.getElementById('iafEmail');
+      var university = document.getElementById('iafUniversity');
+      var btn = document.getElementById('iafBtn');
+      var status = document.getElementById('iafStatus');
+      var hint = document.getElementById('iafEmailHint');
+
+      var say = function(msg, tone) {
+        if (!status) return;
+        status.textContent = msg;
+        status.style.color = tone === 'ok' ? 'var(--accent)' : (tone === 'bad' ? '#e11d48' : '');
+      };
+
+      // Local escaper: this block lives in its own IIFE, so it cannot rely on
+      // helpers defined by the other scripts on the page.
+      var escHtml = function(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
+
+      // Show the login email the account will be created with, live.
+      if (name && hint) {
+        name.addEventListener('input', function() {
+          var slug = name.value.toLowerCase().replace(/[^a-z0-9\s._-]/g, '').trim().split(/[\s._-]+/).filter(Boolean).join('.');
+          hint.textContent = (slug || 'yourname') + '@unisocials.com';
+        });
+      }
+
+      // Same campus list the rest of the site uses.
+      var universities = [];
+      fetch('/api/universities')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          universities = (data && data.success && data.universities) || [];
+          if (!university) return;
+          var html = '<option value="">Select your university…</option>';
+          universities.forEach(function(u) { html += '<option value="' + escHtml(u.name) + '">' + escHtml(u.name) + '</option>'; });
+          university.innerHTML = html;
+        })
+        .catch(function() {
+          // Never block the form: allow a typed university if the list fails.
+          if (university) {
+            university.removeAttribute('disabled');
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = university.className;
+            input.id = university.id;
+            input.placeholder = 'Your university';
+            university.parentNode.replaceChild(input, university);
+            university = input;
+          }
+        });
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var payload = {
+          name: name ? name.value.trim().replace(/\s+/g, ' ') : '',
+          email: email ? email.value.trim() : '',
+          university: university ? university.value.trim() : ''
+        };
+        if (!payload.name) return say('⚠️ Please enter your full name.', 'bad');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return say('⚠️ Please enter a valid email address.', 'bad');
+        if (!payload.university) return say('⚠️ Please select your university.', 'bad');
+        if (btn) { btn.disabled = true; btn.textContent = 'Creating your account…'; }
+        say('Creating your account…');
+        fetch('/api/influencer-admin-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+          .then(function(res) {
+            var d = res.data || {};
+            if (!res.ok || !d.success) throw new Error(d.error || 'Could not create your account.');
+            form.reset();
+            var extra = '';
+            // If the email could not be delivered, show the details so nobody is locked out.
+            if (!d.emailSent && d.credentials) {
+              extra = ' Login email: ' + d.credentials.email + '  ·  Password: ' + d.credentials.password + ' — save these now.';
+            }
+            say('✅ ' + (d.message || 'Your account is ready.') + (d.loginEmail ? ' Your login email is ' + d.loginEmail + '.' : '') + extra, 'ok');
+          })
+          .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account. Please try again.'), 'bad'); })
+          .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });
+      });
     })();
 
     // ── Newsletter / subscribe box ──

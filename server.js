@@ -1946,6 +1946,61 @@ async function sendContactEmail(data) {
   return { sent: false, configured: false, provider: '' };
 }
 
+// Domain every self-service Influencer Admin logs in with: their name, e.g.
+// ada.nwosu@unisocials.com. The generated password is emailed to the real
+// address they signed up with, never to this address.
+const INFLUENCER_ADMIN_EMAIL_DOMAIN = 'unisocials.com';
+
+// "Ada Nwosu" -> "ada.nwosu"; strips anything that is not safe for an email local part.
+function influencerAdminEmailLocalPart(name) {
+  const cleaned = String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9\s._-]/g, '').trim();
+  const parts = cleaned.split(/[\s._-]+/).filter(Boolean);
+  return parts.join('.') || 'influencer.admin';
+}
+
+// A readable one-time password that still satisfies validatePassword.
+function generateTemporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(10);
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
+  return 'Uni-' + out + String(crypto.randomInt(0, 10));
+}
+
+// Email a new self-service Influencer Admin their login email + password at the
+// address they signed up with. Returns true only when it really went out.
+async function sendInfluencerAdminCredentialsEmail(user, password) {
+  const to = String(user.contactEmail || '').trim();
+  if (!to) return false;
+  const subject = 'Your Unisocials Influencer Admin account is ready';
+  const text =
+    'Hi ' + (user.name || 'there') + ',\n\n' +
+    'Your Influencer Admin account has been created and is ready to use.\n\n' +
+    'Login email: ' + user.email + '\n' +
+    'Password: ' + password + '\n\n' +
+    'Sign in here: ' + siteUrl() + '/influencer-admin.html\n\n' +
+    'University: ' + (user.university || '—') + '\n\n' +
+    'Please sign in and change your password straight away, and keep it safe.\n\n' +
+    '— Unisocials';
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
+    '<h2 style="margin:0 0 6px">Welcome to Unisocials 🎉</h2>' +
+    '<p style="margin:0 0 14px;color:#475569">Your Influencer Admin account is ready to use.</p>' +
+    '<table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">' +
+    payoutEmailRow('Name', user.name) +
+    payoutEmailRow('Login email', user.email) +
+    payoutEmailRow('Password', password) +
+    payoutEmailRow('University', user.university || '—') +
+    '</table>' +
+    '<p style="margin:16px 0"><a href="' + escapeHtml(siteUrl() + '/influencer-admin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to your dashboard</a></p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">Please change your password after your first sign in, and keep it safe.</p>' +
+    '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because you requested an Influencer Admin account on Unisocials.</p>' +
+    '</div>';
+  const sent = await sendBrevoEmail(to, subject, text, html, user.name);
+  if (!sent) console.warn('Influencer Admin credentials email not sent to', to, '(no BREVO_API_KEY or delivery failed)');
+  return !!sent;
+}
+
 function payoutEmailRow(label, value) {
   return '<tr><td style="padding:6px 0;color:#64748b;font-size:13px;width:40%">' + escapeHtml(label) + '</td><td style="padding:6px 0;color:#0f172a;font-size:13px;font-weight:600">' + escapeHtml(String(value == null ? '—' : value)) + '</td></tr>';
 }
@@ -2601,6 +2656,83 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
+// ── PUBLIC: request a self-service Influencer Admin account ──
+// The applicant gives their name, their real email and their university. We mint
+// the login as <name>@unisocials.com, generate a one-time password and email both
+// to the address they signed up with. Instant approval, as requested.
+if (pathname === '/api/influencer-admin-requests' && req.method === 'POST') {
+  const rl = rateLimit(req, 'influencer-admin-request', 5, 60000); // 5/min per IP
+  if (!rl.allowed) {
+    res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+    res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+    return;
+  }
+  const body = await readBody(req);
+  let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+  const name = String(data.name || '').trim().replace(/\s+/g, ' ');
+  const contactEmail = String(data.email || '').trim().toLowerCase();
+  const university = String(data.university || '').trim();
+  if (name.length < 2 || name.length > 80) {
+    return sendJson(res, 400, { success: false, error: 'Please enter your full name.' });
+  }
+  const emailError = validateEmail(contactEmail);
+  if (emailError) return sendJson(res, 400, { success: false, error: emailError });
+  if (!university || university.length > 120) {
+    return sendJson(res, 400, { success: false, error: 'Please select your university.' });
+  }
+
+  const users = await readUsers();
+  // One account per real address: otherwise anyone could farm accounts by
+  // re-submitting the same inbox with variations of the same name.
+  const alreadyRegistered = users.find(u => String(u.contactEmail || '').trim().toLowerCase() === contactEmail);
+  if (alreadyRegistered) {
+    return sendJson(res, 409, { success: false, error: 'An Influencer Admin account has already been created for ' + contactEmail + '. Check your inbox for your login details, or reset your password from the sign-in page.' });
+  }
+
+  // <name>@unisocials.com, uniquified if that name is already taken.
+  const localPart = influencerAdminEmailLocalPart(name);
+  let loginEmail = localPart + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
+  if (await findUserByEmail(loginEmail)) {
+    loginEmail = null;
+    for (let n = 2; n <= 99 && !loginEmail; n++) {
+      const candidate = localPart + n + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
+      if (!(await findUserByEmail(candidate))) loginEmail = candidate;
+    }
+    if (!loginEmail) {
+      return sendJson(res, 409, { success: false, error: 'That name is already taken on Unisocials. Please request the account using a slightly different full name.' });
+    }
+  }
+
+  const password = generateTemporaryPassword();
+  const user = {
+    id: 'IADM-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+    name: name,
+    email: loginEmail,
+    contactEmail: contactEmail,
+    university: university,
+    phone: '',
+    passwordHash: hashPassword(password),
+    role: 'influencer_admin',
+    selfRegistered: true,
+    mustChangePassword: true,
+    createdAt: new Date().toISOString()
+  };
+  await addUser(user);
+  // Never let a mail failure leave somebody locked out of an account that exists.
+  const emailSent = await sendInfluencerAdminCredentialsEmail(user, password);
+  return sendJson(res, 200, {
+    success: true,
+    loginEmail: loginEmail,
+    emailSent: emailSent,
+    // The password is only echoed back when the email could not be delivered,
+    // so the applicant can still get in. Change it after the first sign in.
+    credentials: emailSent ? null : { email: loginEmail, password: password },
+    message: emailSent
+      ? 'Your Influencer Admin account is ready — we emailed your login email and password to ' + contactEmail + '.'
+      : 'Your Influencer Admin account is ready. We could not send the email, so save the login details below now.'
+  });
+}
+
 // ── AUTH: Login (rate-limited) ──
     if (pathname === '/api/auth/login' && req.method === 'POST') {
       const rl = rateLimit(req, 'login', 10, 60000); // 10/min per IP
@@ -3061,13 +3193,44 @@ const user = {
       return sendJson(res,200,{success:true,user:publicUser(updatedUser)});
     }
 
-    // ── Admin: dedicated staff accounts (check-in staff / influencer admin) ──
-    if (pathname === '/api/admin/staff' && (req.method === 'GET' || req.method === 'POST' || req.method === 'DELETE')) {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+    // ── Admin / Sub-admin: dedicated staff accounts (check-in staff / influencer admin) ──
+    // Listing and archiving/restricting is open to sub-admins as well, so gate
+    // staff can be switched off without the main admin. Creating and deleting
+    // accounts stays master-admin only.
+    if (pathname === '/api/admin/staff' && (req.method === 'GET' || req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE')) {
+      const manageCtx = await isAdminOrSubadmin(req);
+      if (req.method === 'GET' || req.method === 'PATCH') {
+        // Listing and archiving is shared with sub-admins.
+        if (!manageCtx || !['admin', 'subadmin'].includes(manageCtx.role)) {
+          return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+        }
+      } else if (!isAdminAuthorized(req)) {
+        // Creating and deleting accounts stays master-admin only.
+        return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      }
       if (req.method === 'GET') {
         const users = await readUsers();
         const staff = users.filter(u => ['checkin_staff','influencer_admin'].includes(u.role)).map(u => publicUser(u));
         return sendJson(res, 200, { success: true, staff });
+      }
+      if (req.method === 'PATCH') {
+        // Archive = restrict access without deleting the account or its history.
+        const body = await readBody(req); let data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) {}
+        const email = String(data.email || '').trim().toLowerCase();
+        const archived = data.archived === true;
+        if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+        const user = await findUserByEmail(email);
+        if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) {
+          return sendJson(res, 404, { success: false, error: 'Staff account not found' });
+        }
+        user.archived = archived;
+        user.archivedAt = archived ? new Date().toISOString() : null;
+        user.archivedBy = archived ? (manageCtx.role === 'subadmin' ? 'Sub-Admin' : 'Admin') : null;
+        await replaceUser(user);
+        // Kick any live session so the restriction takes effect immediately.
+        if (archived) await deleteUserSessions(user.id);
+        return sendJson(res, 200, { success: true, staff: publicUser(user) });
       }
       if (req.method === 'POST') {
         const body = await readBody(req); let data = {};
@@ -4593,8 +4756,10 @@ codes[idx] = entry;
         const visibleOrders = eventOrders.filter(o => String(o.status || '').toLowerCase() !== 'rejected');
         const verified = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
         const pending = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
-        const rejected = eventOrders.filter(o => String(o.status || '').toLowerCase() === 'rejected');
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, rejectedOrders:rejected.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
+        // rejectedOrders is deliberately NOT returned: rejected payments are the
+        // Main Admin's decision and must not be surfaced in the Influencer Admin
+        // dashboard.
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
       });
       // feeRate lets the dashboard show the 80/20 split on ticket revenue.
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, events:result });

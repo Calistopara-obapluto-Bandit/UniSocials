@@ -463,6 +463,20 @@
       .admin-stats { grid-template-columns: 1fr; }
     }
 </style>
+<style id="responsive-dashboard-tabs">
+  /* Small screens: the tab strip becomes a dropdown so every tab stays reachable
+     without sideways scrolling. */
+  .admin-tab-select-wrap { display: none; max-width: 1160px; margin: 0 auto; padding: 10px 16px; }
+  .admin-tab-select {
+    width: 100%; background: var(--surface-2, #fff); border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 11px 14px; font-size: .85rem; font-weight: 600;
+    color: var(--text-1, #0f172a); cursor: pointer;
+  }
+  @media (max-width: 760px) {
+    .admin-tabs-inner { display: none; }
+    .admin-tab-select-wrap { display: block; }
+  }
+</style>
 </head>
 <body>
 
@@ -522,7 +536,11 @@
           <button class="admin-tab" data-tab="events">🎤 Events</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
+          <button class="admin-tab" data-tab="staff">👥 Staff Access</button>
         </div>
+      </div>
+      <div class="admin-tab-select-wrap">
+        <select class="admin-tab-select" id="adminTabSelect" aria-label="Choose a dashboard section"></select>
       </div>
 
       <div class="container">
@@ -806,6 +824,24 @@
         <div class="admin-panel" id="panel-influencers">
           <div class="admin-panel-heading"><div><h1>📣 Influencers</h1><p>View all influencers created by any Influencer Admin, with the same referral performance information available to Influencer Admins.</p></div><button class="admin-refresh-btn" type="button" onclick="loadAllInfluencers()">↻ Refresh</button></div>
           <div class="admin-card" style="padding:0;overflow:hidden;"><div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"><strong>All Influencers</strong><span id="allInfluencerCount" style="font-size:.78rem;color:var(--text-3);"></span></div><div id="allInfluencersList" style="padding:14px 16px;"><div style="text-align:center;padding:20px;color:var(--text-3);">Loading influencers…</div></div></div>
+        </div>
+
+        <!-- ── STAFF ACCESS PANEL (archive / restore) ── -->
+        <div class="admin-panel" id="panel-staff">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>👥 Staff Access</h1>
+              <p>Restrict Influencer Admin and Check-in Staff accounts. <strong>📦 Archive</strong> signs the account out and blocks it from signing in again — its history is kept. <strong>♻️ Restore</strong> gives access back. Password resets stay with the main admin.</p>
+            </div>
+            <button class="admin-refresh-btn" type="button" onclick="loadStaffAccounts()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <strong>🎫 Check-in &amp; Influencer Admin accounts</strong>
+              <span id="staffCount" style="font-size:.78rem;color:var(--text-3);"></span>
+            </div>
+            <div id="staffList"><div style="text-align:center;padding:20px;color:var(--text-3);">Loading accounts…</div></div>
+          </div>
         </div>
 
         <div class="admin-panel" id="panel-events">
@@ -1348,6 +1384,66 @@ resultBox.className = 'admin-scan-result show';
           showToast('Could not prepare that image. Try another file.', true);
           input.value = '';
         });
+      };
+
+      // ── Staff access: sub-admin can archive / restore gate & Influencer Admin accounts ──
+      // Archiving blocks sign-in server-side and drops any live session, so this
+      // is a real restriction rather than a cosmetic flag in this dashboard.
+      window.loadStaffAccounts = function() {
+        var token = getSubToken();
+        var el = document.getElementById('staffList');
+        if (!token || !el) return;
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);">Loading accounts…</div>';
+        fetch('/api/admin/staff', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Unable to load accounts'); return d; }); })
+          .then(function(data) {
+            var list = (data && data.success && data.staff) || [];
+            var active = list.filter(function(u) { return !u.archived; });
+            var archived = list.filter(function(u) { return u.archived; });
+            var count = document.getElementById('staffCount');
+            if (count) count.textContent = active.length + ' active' + (archived.length ? ' · ' + archived.length + ' archived' : '');
+            if (!list.length) { el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-3);">No Check-in Staff or Influencer Admin accounts yet.</div>'; return; }
+            var row = function(u, isArchived) {
+              var label = u.role === 'checkin_staff' ? 'Check-in Staff' : 'Influencer Admin';
+              return '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);' + (isArchived ? 'opacity:.6;' : '') + '">' +
+                '<div style="display:flex;flex-direction:column;gap:3px;">' +
+                  '<div><strong>' + esc(u.name || '—') + '</strong> <span style="font-size:.72rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
+                  '<span style="font-size:.72rem;font-weight:700;color:' + (isArchived ? '#B71C1C' : 'var(--accent)') + ';">' + label + (isArchived ? ' · Archived' : '') + '</span>' +
+                '</div>' +
+                // Data attribute, not an inline onclick: an email address never
+                // has to be escaped into a JS string in the markup.
+                '<button class="btn-submit" data-staff-archive="' + esc(u.email || '') + '" data-archived="' + (isArchived ? '1' : '0') + '" style="width:auto;white-space:nowrap;padding:8px 14px;font-size:.76rem;">' +
+                  (isArchived ? '♻️ Restore' : '📦 Archive') + '</button>' +
+              '</div>';
+            };
+            var html = '';
+            if (active.length) { html += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);padding-bottom:6px;">Active accounts</div>'; active.forEach(function(u) { html += row(u, false); }); }
+            if (archived.length) { html += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);padding:14px 0 6px;">Archived — blocked from signing in</div>'; archived.forEach(function(u) { html += row(u, true); }); }
+            el.innerHTML = html;
+            el.querySelectorAll('[data-staff-archive]').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                setStaffArchived(btn.getAttribute('data-staff-archive') || '', btn.getAttribute('data-archived') !== '1');
+              });
+            });
+          })
+          .catch(function(e) { el.innerHTML = '<div style="padding:14px;color:#B71C1C;">' + esc(e.message || 'Could not load accounts.') + '</div>'; });
+      };
+
+      window.setStaffArchived = function(email, archived) {
+        if (!email) return;
+        var going = archived === true || archived === 'true';
+        if (!confirm((going ? 'Archive' : 'Restore') + ' ' + email + '?' + (going ? '\n\nThey will be signed out and blocked from signing in until restored.' : ''))) return;
+        fetch('/api/admin/staff', {
+          method: 'PATCH',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ email: email, archived: going })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.success) { showToast(going ? email + ' archived.' : email + ' restored.'); loadStaffAccounts(); }
+            else showToast((d && d.error) || 'Could not update the account', true);
+          })
+          .catch(function() { showToast('Network error updating the account', true); });
       };
 
       // ── Influencers overview: sub-admin can view all influencer-admin-created accounts ──
@@ -2155,25 +2251,55 @@ resultBox.className = 'admin-scan-result show';
         if (name !== 'checkin' && typeof window.stopQRScanner === 'function') {
           try { window.stopQRScanner(); } catch(e) {}
         }
-      }
-      tabButtons.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var tabName = btn.getAttribute('data-tab');
-          switchTab(tabName);
-          // Load referral link data when referral tab is clicked
-          if (tabName === 'referral') {
-            loadReferralLink();
-          }
-          // Load the read-only sales list when the Sales tab is opened
-          if (tabName === 'sales') {
-            loadSalesOrders();
-          }
-          // Load the read-only payout list when the Payouts tab is opened
-          if (tabName === 'payouts') {
-            loadPayoutList();
+      }tabButtons.forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var tabName = btn.getAttribute('data-tab');
+            switchTab(tabName);
+            // Load referral link data when referral tab is clicked
+            if (tabName === 'referral') {
+              loadReferralLink();
+            }
+            // Load the read-only sales list when the Sales tab is opened
+            if (tabName === 'sales') {
+              loadSalesOrders();
+            }
+            // Load the read-only payout list when the Payouts tab is opened
+            if (tabName === 'payouts') {
+              loadPayoutList();
+            }
+            if (tabName === 'staff') {
+              loadStaffAccounts();
+            }
+          });
+        });
+
+      // ── Small screens: the tab strip becomes a dropdown ──
+      // The select mirrors the tab buttons, so choosing an entry runs exactly the
+      // same activation + lazy-load path as tapping the tab itself.
+      (function setupTabSelect() {
+        var sel = document.getElementById('adminTabSelect');
+        if (!sel) return;
+        var buttons = Array.prototype.slice.call(tabButtons);
+        if (!buttons.length) return;
+        var html = '';
+        buttons.forEach(function(btn) {
+          var name = btn.getAttribute('data-tab');
+          if (!name) return;
+          html += '<option value="' + esc(name) + '">' + esc((btn.textContent || name).trim()) + '</option>';
+        });
+        sel.innerHTML = html;
+        var sync = function() {
+          var active = document.querySelector('.admin-tab.active');
+          if (active) sel.value = active.getAttribute('data-tab') || '';
+        };
+        sel.addEventListener('change', function() {
+          for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].getAttribute('data-tab') === sel.value) { buttons[i].click(); return; }
           }
         });
-      });
+        buttons.forEach(function(btn) { btn.addEventListener('click', sync); });
+        sync();
+      })();
 
       // Auto-refresh events + universities every 30s (does NOT touch order endpoints)
       setInterval(function() {

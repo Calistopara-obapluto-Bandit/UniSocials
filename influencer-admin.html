@@ -800,6 +800,37 @@
     #aesInfluencers > div { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; padding-left: 0 !important; padding-right: 0 !important; }
   }
 </style>
+<style id="influencer-admin-request-styles">
+  /* Self-service account request on the sign-in card. */
+  .iaf-request { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--border); text-align: left; }
+  .iaf-request-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .iaf-request-head strong { font-size: .92rem; color: var(--text-1); }
+  .iaf-request-head span { font-size: .78rem; color: var(--text-3); }
+  .iaf-request-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .iaf-request-form .iaf-input { width: 100%; box-sizing: border-box; background: var(--surface-2, #fff); border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 13px; font-size: .85rem; color: var(--text-1); }
+  .iaf-request-form .iaf-input:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
+  .iaf-request-form .btn-submit { grid-column: 1 / -1; width: 100%; margin-top: 2px; }
+  .iaf-request-status { font-size: .8rem; margin-top: 10px; }
+  .iaf-request-hint { font-size: .74rem; color: var(--text-3); margin-top: 6px; }
+  .iaf-request-hint strong { color: var(--accent); }
+  @media (max-width: 520px) { .iaf-request-form { grid-template-columns: 1fr; } }
+</style>
+<style id="responsive-dashboard-chrome">
+  /* Signed-in name chip in the top bar. */
+  .admin-user-name { display:inline-flex; align-items:center; padding:7px 11px; border:1px solid rgba(255,255,255,.18); border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Small screens: the tab strip becomes a dropdown so every tab stays reachable
+     without sideways scrolling. */
+  .admin-tab-select-wrap { display: none; margin: 0 auto; padding: 10px 16px; }
+  .admin-tab-select {
+    width: 100%; background: var(--surface-2, #fff); border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 11px 14px; font-size: .85rem; font-weight: 600;
+    color: var(--text-1, #0f172a); cursor: pointer;
+  }
+  @media (max-width: 760px) {
+    .admin-tabs-inner { display: none; }
+    .admin-tab-select-wrap { display: block; }
+  }
+</style>
 </head>
 <body>
 <!-- ── ADMIN TOP BAR ── -->
@@ -807,6 +838,7 @@
 <div class="admin-topbar-inner">
 <a class="nav-logo" href="index.html">Uni<span>socials</span> · Admin</a>
 <div class="admin-topbar-actions">
+<span class="admin-user-name" id="adminUserName" style="display:none;"></span>
 <span class="admin-topbar-status" id="connStatus" style="display:none;">
 <span class="pulse"></span> <span id="connStatusText">Connected</span>
 </span>
@@ -833,6 +865,23 @@
 <button class="btn-submit" id="loginBtn" type="submit">Login to Dashboard</button>
 </form>
 
+<!-- Self-service account request -->
+<div class="iaf-request">
+<div class="iaf-request-head">
+<strong>Don't have an account yet?</strong>
+<span>Create your Influencer Admin login in a few seconds — we email your password to you.</span>
+</div>
+<form id="influencerAdminForm" class="iaf-request-form" novalidate>
+<input type="text" id="iafName" class="iaf-input" placeholder="Full name" autocomplete="name" required />
+<input type="email" id="iafEmail" class="iaf-input" placeholder="Your email address" autocomplete="email" required />
+<input type="text" id="iafUniversity" class="iaf-input" placeholder="University" list="iafUniversityList" required />
+<datalist id="iafUniversityList"></datalist>
+<button class="btn-submit" id="iafBtn" type="submit">✨ Create my account</button>
+</form>
+<div class="iaf-request-status" id="iafStatus"></div>
+<div class="iaf-request-hint">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>.</div>
+</div>
+
 </div>
 </div>
 <!-- ── DASHBOARD ── -->
@@ -845,12 +894,10 @@
 <button class="admin-tab" data-tab="event-sales">🎟 Event Sales</button>
 <button class="admin-tab" data-tab="influencers">📣 My Influencers</button>
 <button class="admin-tab" data-tab="payouts">💰 Payouts</button>
-
-
-
-
-
 </div>
+</div>
+<div class="admin-tab-select-wrap">
+<select class="admin-tab-select" id="adminTabSelect" aria-label="Choose a dashboard section"></select>
 </div>
 <div class="container">
 <!-- ── OVERVIEW PANEL ── -->
@@ -877,10 +924,6 @@
 <div class="admin-stat verified">
 <div class="admin-stat-label">Verified</div>
 <div class="admin-stat-value" id="statVerified">0</div>
-</div>
-<div class="admin-stat rejected">
-<div class="admin-stat-label">Rejected</div>
-<div class="admin-stat-value" id="statRejected">0</div>
 </div>
 <div class="admin-stat revenue">
 <div class="admin-stat-label">Revenue (Verified)</div>
@@ -1573,18 +1616,18 @@ function fmtN(n) {
             if (!x.ok || !x.data || !x.data.success) throw new Error((x.data && x.data.error) || 'Unable to load overview');
             if (isFinite(Number(x.data.feeRate))) overviewFeeRate = Number(x.data.feeRate);
             var rows = x.data.events || [];
-            var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.pendingOrders||0) + Number(ev.verifiedOrders||0); a.pending += Number(ev.pendingOrders||0); a.verified += Number(ev.verifiedOrders||0); a.rejected += Number(ev.rejectedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,pending:0,verified:0,rejected:0,tickets:0,revenue:0});
+            var totals = rows.reduce(function(a, ev){ a.orders += Number(ev.pendingOrders||0) + Number(ev.verifiedOrders||0); a.pending += Number(ev.pendingOrders||0); a.verified += Number(ev.verifiedOrders||0); a.tickets += Number(ev.ticketsSold||0); a.revenue += Number(ev.revenue||0); return a; }, {orders:0,pending:0,verified:0,tickets:0,revenue:0});
             var st=document.getElementById('statTotal'); if(st) st.textContent=totals.orders;
             var sv=document.getElementById('statVerified'); if(sv) sv.textContent=totals.verified;
             var sp=document.getElementById('statPending'); if(sp) sp.textContent=totals.pending;
-            var srj=document.getElementById('statRejected'); if(srj) srj.textContent=totals.rejected;
+            
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
             // 80/20 split of ticket revenue: 80% sent to this admin, 20% retained by the Main Admin.
             var s80=document.getElementById('statShare80'); if(s80) s80.textContent='₦'+Math.round(totals.revenue*(1-overviewFeeRate)).toLocaleString();
             var s20=document.getElementById('statRetain20'); if(s20) s20.textContent='₦'+Math.round(totals.revenue*overviewFeeRate).toLocaleString();
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet. Events you create are added automatically.</div>'; }
-              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span>'+(Number(ev.rejectedOrders||0)?'<span>❌ '+Number(ev.rejectedOrders||0)+' rejected</span>':'')+'<span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">💰 Your 80%: <strong style="color:#1B5E20;">₦'+Math.round(er*(1-overviewFeeRate)).toLocaleString()+'</strong> · 🛡 Admin retains 20%: <strong style="color:#E65100;">₦'+Math.round(er*overviewFeeRate).toLocaleString()+'</strong></div></div>'; }).join(''); }
+              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">💰 Your 80%: <strong style="color:#1B5E20;">₦'+Math.round(er*(1-overviewFeeRate)).toLocaleString()+'</strong> · 🛡 Admin retains 20%: <strong style="color:#E65100;">₦'+Math.round(er*overviewFeeRate).toLocaleString()+'</strong></div></div>'; }).join(''); }
             }
             if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
           })
@@ -2273,7 +2316,76 @@ fetch('/api/admin/events/notify', {
         if (typeof window.loadPayouts === 'function') loadPayouts();
       };
 
-      // ── Tab switching ──
+      // ── Self-service Influencer Admin account request ──
+      (function() {
+        var form = document.getElementById('influencerAdminForm');
+        if (!form) return;
+        var name = document.getElementById('iafName');
+        var email = document.getElementById('iafEmail');
+        var university = document.getElementById('iafUniversity');
+        var list = document.getElementById('iafUniversityList');
+        var btn = document.getElementById('iafBtn');
+        var status = document.getElementById('iafStatus');
+        var hint = document.getElementById('iafEmailHint');
+
+        var say = function(msg, tone) {
+          if (!status) return;
+          status.textContent = msg;
+          status.style.color = tone === 'ok' ? 'var(--accent)' : (tone === 'bad' ? '#B71C1C' : '');
+        };
+
+        if (name && hint) {
+          name.addEventListener('input', function() {
+            var slug = name.value.toLowerCase().replace(/[^a-z0-9\s._-]/g, '').trim().split(/[\s._-]+/).filter(Boolean).join('.');
+            hint.textContent = (slug || 'yourname') + '@unisocials.com';
+          });
+        }
+
+        // Suggest the campus list, but a typed university always works.
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var unis = (data && data.success && data.universities) || [];
+            if (!list) return;
+            var html = '';
+            unis.forEach(function(u) { html += '<option value="' + esc(u.name) + '"></option>'; });
+            list.innerHTML = html;
+          })
+          .catch(function() {});
+
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          var payload = {
+            name: name ? name.value.trim().replace(/\s+/g, ' ') : '',
+            email: email ? email.value.trim() : '',
+            university: university ? university.value.trim() : ''
+          };
+          if (!payload.name) return say('⚠️ Please enter your full name.', 'bad');
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return say('⚠️ Please enter a valid email address.', 'bad');
+          if (!payload.university) return say('⚠️ Please enter your university.', 'bad');
+          if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+          say('Creating your account…');
+          fetch('/api/influencer-admin-requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+              var d = res.data || {};
+              if (!res.ok || !d.success) throw new Error(d.error || 'Could not create your account.');
+              // Drop the details straight into the sign-in form above.
+              if (document.getElementById('adminEmail')) document.getElementById('adminEmail').value = d.loginEmail || '';
+              form.reset();
+              var extra = (!d.emailSent && d.credentials) ? ' Login email: ' + d.credentials.email + ' · Password: ' + d.credentials.password + ' — save these now.' : '';
+              say('✅ ' + (d.message || 'Your account is ready.') + extra, 'ok');
+            })
+            .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account.'), 'bad'); })
+            .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });
+        });
+      })();
+
+// ── Tab switching ──
       var tabButtons = document.querySelectorAll('.admin-tab');
       var panels = document.querySelectorAll('.admin-panel');
       function switchTab(name) {
@@ -2292,10 +2404,37 @@ fetch('/api/admin/events/notify', {
             var name = btn.getAttribute('data-tab');
             switchTab(name);
             if (name === 'influencers' && typeof window.loadInfluencers === 'function') loadInfluencers();
-            if (name === 'payouts' && typeof window.loadPayouts === 'function') loadPayouts();
-          });
-        });
+            if (name === 'payouts' && typeof window.loadPayouts === 'function') loadPayouts();});
+      });
       window.switchTab = switchTab;
+
+      // ── Small screens: the tab strip becomes a dropdown ──
+      // The select mirrors the tab buttons, so choosing an entry runs exactly the
+      // same activation path as tapping the tab itself.
+      (function setupTabSelect() {
+        var sel = document.getElementById('adminTabSelect');
+        if (!sel) return;
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.admin-tab'));
+        if (!buttons.length) return;
+        var html = '';
+        buttons.forEach(function(btn) {
+          var name = btn.getAttribute('data-tab');
+          if (!name) return;
+          html += '<option value="' + esc(name) + '">' + esc((btn.textContent || name).trim()) + '</option>';
+        });
+        sel.innerHTML = html;
+        var sync = function() {
+          var active = document.querySelector('.admin-tab.active');
+          if (active) sel.value = active.getAttribute('data-tab') || '';
+        };
+        sel.addEventListener('change', function() {
+          for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].getAttribute('data-tab') === sel.value) { buttons[i].click(); return; }
+          }
+        });
+        buttons.forEach(function(btn) { btn.addEventListener('click', sync); });
+        sync();
+      })();
 
 // Initial state — restore the database-backed session from persistent localStorage.
       (async function restoreInfluencerAdminSession() {

@@ -750,6 +750,22 @@
       .admin-tab { padding: 9px 8px; min-height: 40px; }
     }
 </style>
+<style id="responsive-dashboard-chrome">
+  /* Signed-in name chip in the top bar. */
+  .admin-user-name { display:inline-flex; align-items:center; padding:7px 11px; border:1px solid rgba(255,255,255,.18); border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Small screens: the tab strip becomes a dropdown so every tab stays reachable
+     without sideways scrolling. */
+  .admin-tab-select-wrap { display: none; max-width: 1160px; margin: 0 auto; padding: 10px 16px; }
+  .admin-tab-select {
+    width: 100%; background: var(--surface-2, #fff); border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 11px 14px; font-size: .85rem; font-weight: 600;
+    color: var(--text-1, #0f172a); cursor: pointer;
+  }
+  @media (max-width: 760px) {
+    .admin-tabs-inner { display: none; }
+    .admin-tab-select-wrap { display: block; }
+  }
+</style>
 </head>
 <body>
 
@@ -758,6 +774,7 @@
     <div class="admin-topbar-inner">
       <a href="index.html" class="nav-logo">Uni<span>socials</span> · Admin</a>
       <div class="admin-topbar-actions">
+        <span class="admin-user-name" id="adminUserName" style="display:none;"></span>
         <span class="admin-topbar-status" id="connStatus" style="display:none;">
           <span class="pulse"></span> <span id="connStatusText">Connected</span>
         </span>
@@ -812,6 +829,9 @@
           <button class="admin-tab" data-tab="payouts">💰 Payout Requests</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
+      </div>
+      <div class="admin-tab-select-wrap">
+        <select class="admin-tab-select" id="adminTabSelect" aria-label="Choose a dashboard section"></select>
       </div>
 
       <div class="container">
@@ -1161,7 +1181,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>👥 Dedicated Staff Accounts</h1>
-              <p>Create separate login accounts for Check-in Staff and Influencer Admins. Each account only gets its assigned dashboard.</p>
+              <p>Create separate login accounts for Check-in Staff and Influencer Admins. Each account only gets its assigned dashboard. Use 📦 to <strong>archive</strong> an account — it is signed out and blocked from signing in, but its history is kept. ♻️ restores it.</p>
             </div>
           </div>
           <div class="admin-scan-panel">
@@ -1273,6 +1293,15 @@ function safeImg(value) {
       }
 
       function showLoggedIn() {
+        // Show who is signed in. The master admin logs in with a password, so the
+        // stored profile name is used when present and "Main Admin" otherwise.
+        var nameEl = document.getElementById('adminUserName');
+        if (nameEl) {
+          var u = null;
+          try { var raw = localStorage.getItem('unn_admin_user'); u = raw ? JSON.parse(raw) : null; } catch (e) {}
+          nameEl.textContent = (u && (u.name || u.fullName || u.email)) ? (u.name || u.fullName || u.email) : 'Main Admin';
+          nameEl.style.display = 'inline-flex';
+        }
         loginScreen.style.display = 'none';
         dashboard.classList.add('visible');
         logoutBtn.style.display = 'inline-block';
@@ -1287,6 +1316,7 @@ function safeImg(value) {
         viewSiteBtn.style.display = 'none';
         connStatus.style.display = 'none';
         if (notifBadge) notifBadge.style.display = 'none';
+        var nameEl = document.getElementById('adminUserName'); if (nameEl) nameEl.style.display = 'none';
       }
 
       // Mark new orders as seen
@@ -2619,17 +2649,45 @@ fetch('/api/admin/events/notify', {
           .then(function(r){ return r.json(); }).then(function(data){
             var list=(data&&data.success&&data.staff)||[];
             var el=document.getElementById('staffList'), count=document.getElementById('staffCount');
-            if(count) count.textContent=list.length+' account'+(list.length!==1?'s':'');
+            var active=list.filter(function(u){return !u.archived;});
+            var archived=list.filter(function(u){return u.archived;});
+            if(count) count.textContent=active.length+' active'+(active.length!==1?'s':'')+(archived.length?' · '+archived.length+' archived':'');
             if(!el) return;
             if(!list.length){ el.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-3);font-size:.85rem;">No dedicated staff accounts yet.</div>'; return; }
-            var html='<div class="admin-ticket-codes-label">👥 Active Accounts</div>';
-            list.forEach(function(u){
+            var html='';
+            var row=function(u,isArchived){
               var label=u.role==='checkin_staff'?'Check-in Staff':'Influencer Admin';
-              html+='<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
-                '<div style="display:flex;flex-direction:column;gap:4px;"><div><strong>'+esc(u.name||'—')+'</strong> <span style="font-size:.72rem;color:var(--text-3);">'+esc(u.email||'')+'</span></div>'+                '<span style="font-size:.72rem;color:var(--accent);font-weight:700;">'+label+'</span></div>'+                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\''+esc(u.email||'')+'\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteStaffAccount(\''+esc(u.email||'')+'\')" title="Remove account" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
-            });
+              return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;'+(isArchived?'opacity:.6;':'')+'">'+
+                '<div style="display:flex;flex-direction:column;gap:4px;"><div><strong>'+esc(u.name||'—')+'</strong> <span style="font-size:.72rem;color:var(--text-3);">'+esc(u.email||'')+'</span></div>'+
+                '<span style="font-size:.72rem;color:'+(isArchived?'#B71C1C':'var(--accent)')+';font-weight:700;">'+label+(isArchived?' · Archived':'')+'</span></div>'+
+                '<div style="display:flex;gap:6px;align-items:flex-start;">'+
+                  '<button class="admin-ticket-copy" onclick="resetManagedPassword(\''+esc(u.email||'')+'\')" title="Reset password">🔑</button>'+
+                  '<button class="admin-ticket-copy" data-staff-archive="'+esc(u.email||'')+'" data-archived="'+(isArchived?'1':'0')+'" title="'+(isArchived?'Restore account':'Archive account — blocks sign in')+'" style="color:'+(isArchived?'#1B5E20':'#E65100')+';">'+(isArchived?'♻️':'📦')+'</button>'+
+                  '<button class="admin-ticket-copy" onclick="deleteStaffAccount(\''+esc(u.email||'')+'\')" title="Remove account" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>'+
+                '</div></div>';
+            };
+            if (active.length) { html+='<div class="admin-ticket-codes-label">👥 Active Accounts</div>'; active.forEach(function(u){ html+=row(u,false); }); }
+            if (archived.length) { html+='<div class="admin-ticket-codes-label" style="margin-top:12px;">📦 Archived (blocked from signing in)</div>'; archived.forEach(function(u){ html+=row(u,true); }); }
             el.innerHTML=html;
+            // Archive / restore buttons use data attributes so no email ever has
+            // to be spliced into an inline onclick handler.
+            el.querySelectorAll('[data-staff-archive]').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                setStaffArchived(btn.getAttribute('data-staff-archive') || '', btn.getAttribute('data-archived') !== '1');
+              });
+            });
           }).catch(function(){ showToast('Could not load staff accounts',true); });
+      };
+      // Archive = restrict the account without deleting it or its history.
+      window.setStaffArchived = function(email, archived){
+        if (!email) return;
+        var going = archived === true || archived === 'true';
+        if (!confirm((going ? 'Archive' : 'Restore') + ' ' + email + '?' + (going ? '\n\nThey will be signed out and blocked from signing in again until restored.' : ''))) return;
+        fetch('/api/admin/staff', { method:'PATCH', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify({ email: email, archived: going }) })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) { showToast(going ? email + ' archived.' : email + ' restored.'); loadStaffAccounts(); }
+            else showToast((data && data.error) || 'Could not update the account', true);
+          }).catch(function(){ showToast('Network error updating the account', true); });
       };
       window.addStaffAccount = function(){
         var role=(document.getElementById('staffRole')||{}).value||'';
@@ -2914,6 +2972,34 @@ fetch('/api/admin/events/notify', {
         });
       });
       window.switchTab = switchTab;
+
+      // ── Small screens: the tab strip becomes a dropdown ──
+      // The select mirrors the tab buttons, so choosing an entry runs exactly the
+      // same activation + lazy-load path as tapping the tab itself.
+      (function setupTabSelect() {
+        var sel = document.getElementById('adminTabSelect');
+        if (!sel) return;
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.admin-tab'));
+        if (!buttons.length) return;
+        var html = '';
+        buttons.forEach(function(btn) {
+          var name = btn.getAttribute('data-tab');
+          if (!name) return;
+          html += '<option value="' + esc(name) + '">' + esc((btn.textContent || name).trim()) + '</option>';
+        });
+        sel.innerHTML = html;
+        var sync = function() {
+          var active = document.querySelector('.admin-tab.active');
+          if (active) sel.value = active.getAttribute('data-tab') || '';
+        };
+        sel.addEventListener('change', function() {
+          for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].getAttribute('data-tab') === sel.value) { buttons[i].click(); return; }
+          }
+        });
+        buttons.forEach(function(btn) { btn.addEventListener('click', sync); });
+        sync();
+      })();
 
 // Initial state — restore the master-admin (sessionStorage) session if present.
       if (getToken()) {
