@@ -145,7 +145,7 @@
             <span class="iaf-caret" aria-hidden="true">▾</span>
           </button>
           <div class="iaf-nav-panel" id="iafNavPanel" hidden>
-            <a class="iaf-login-link" href="influencer-admin.html">🔑 Log in to your dashboard</a>
+            <a class="iaf-login-link" id="iafLoginLink" href="influencer-admin.html">🔑 Log in to your dashboard</a>
             <div class="iaf-nav-head">
               <strong>Create your Influencer Admin account</strong>
               <span>We'll email your login email and password to you.</span>
@@ -601,6 +601,15 @@ homeUni.addEventListener('change', function() {
         });
       }
 
+      // The sign-in page links here with #influencer-admin-signup, so arriving
+      // from it must land on an already-open panel rather than a closed nav.
+      if (window.location.hash === '#influencer-admin-signup') {
+        setOpen(true);
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      }
+
       var name = document.getElementById('iafName');
       var email = document.getElementById('iafEmail');
       var university = document.getElementById('iafUniversity');
@@ -683,6 +692,12 @@ homeUni.addEventListener('change', function() {
             say('✅ ' + (d.message || 'Your account is ready.') + (d.loginEmail ? ' Your login email is ' + d.loginEmail + '.' : '') + extra, 'ok');
             // Keep the panel open so the applicant can read / copy the result.
             setOpen(true);
+            // Point the log-in link at this account so signing in is one tap and
+            // the email field is already filled in.
+            var loginLink = document.getElementById('iafLoginLink');
+            if (loginLink && d.loginEmail) {
+              loginLink.href = 'influencer-admin.html?login=' + encodeURIComponent(d.loginEmail);
+            }
           })
           .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account. Please try again.'), 'bad'); })
           .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });

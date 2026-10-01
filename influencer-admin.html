@@ -801,25 +801,16 @@
   }
 </style>
 <style id="influencer-admin-request-styles">
-  /* Self-service account request on the sign-in card. */
-  .iaf-request { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--border); text-align: left; }
-  .iaf-request-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-  .iaf-request-head strong { font-size: .92rem; color: var(--text-1); }
-  .iaf-request-head span { font-size: .78rem; color: var(--text-3); }
-  .iaf-request-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .iaf-request-form .iaf-input { width: 100%; box-sizing: border-box; background: var(--surface-2, #fff); border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 13px; font-size: .85rem; color: var(--text-1); }
-  .iaf-request-form .iaf-input:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
-  .iaf-request-form .btn-submit { grid-column: 1 / -1; width: 100%; margin-top: 2px; }
-  .iaf-request-status { font-size: .8rem; margin-top: 10px; }
-  .iaf-request-hint { font-size: .74rem; color: var(--text-3); margin-top: 6px; }
-  .iaf-request-hint strong { color: var(--accent); }
-  .iaf-login-now {
-    width: 100%; margin-top: 10px; font-size: .85rem; font-weight: 700; color: #fff;
-    background: var(--accent); border: none; border-radius: 100px; padding: 12px 20px; cursor: pointer;
+  /* This page is sign-in only. Account creation lives in the homepage dropdown,
+     so the card just points people there instead of hosting a second form. */
+  .iaf-signup { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--border); text-align: center; }
+  .iaf-signup p { font-size: .8rem; color: var(--text-3); margin: 0 0 12px; }
+  .iaf-signup-link {
+    display: block; text-decoration: none; font-size: .85rem; font-weight: 700;
+    color: var(--accent); border: 1.5px solid var(--accent); border-radius: 100px;
+    padding: 12px 18px; transition: background .25s, color .25s;
   }
-  .iaf-login-now:hover { filter: brightness(1.06); }
-  .iaf-login-now[hidden] { display: none; }
-  @media (max-width: 520px) { .iaf-request-form { grid-template-columns: 1fr; } }
+  .iaf-signup-link:hover { background: var(--accent); color: #fff; }
 </style>
 <style id="responsive-dashboard-chrome">
   /* Signed-in name chip in the top bar. */
@@ -944,23 +935,10 @@
 <button class="btn-submit" id="loginBtn" type="submit">Login to Dashboard</button>
 </form>
 
-<!-- Self-service account request -->
-<div class="iaf-request" id="iafRequest">
-<div class="iaf-request-head">
-<strong>Don't have an account yet?</strong>
-<span>Create your Influencer Admin login in a few seconds — we email your password to you.</span>
-</div>
-<form id="influencerAdminForm" class="iaf-request-form" novalidate>
-<input type="text" id="iafName" class="iaf-input" placeholder="Full name" autocomplete="name" required />
-<input type="email" id="iafEmail" class="iaf-input" placeholder="Your email address" autocomplete="email" required />
-<input type="text" id="iafUniversity" class="iaf-input" placeholder="University" list="iafUniversityList" required />
-<datalist id="iafUniversityList"></datalist>
-<button class="btn-submit" id="iafBtn" type="submit">✨ Create my account</button>
-</form>
-<div class="iaf-request-status" id="iafStatus"></div>
-<!-- Appears once an account exists: signs in without hunting for the fields. -->
-<button class="iaf-login-now" id="iafLoginNowBtn" type="button" hidden>🔑 Log in to my dashboard</button>
-<div class="iaf-request-hint">You'll sign in with <strong id="iafEmailHint">yourname@unisocials.com</strong>.</div>
+<!-- Account creation lives on the homepage; keep this page a plain sign-in. -->
+<div class="iaf-signup">
+<p>Don't have an Influencer Admin account yet?</p>
+<a class="iaf-signup-link" href="index.html#influencer-admin-signup">✨ Create your Influencer Admin account</a>
 </div>
 
 </div>
@@ -2402,94 +2380,18 @@ fetch('/api/admin/events/notify', {
         if (typeof window.loadPayouts === 'function') loadPayouts();
       };
 
-      // ── Self-service Influencer Admin account request ──
+      // ── Account creation lives on the homepage, not here ──
+      // The sign-in card links out to index.html#influencer-admin-signup, so all
+      // that is needed here is making that link pre-fill the login email when the
+      // homepage hands one back (e.g. index.html?login=<email>).
       (function() {
-        var form = document.getElementById('influencerAdminForm');
-        if (!form) return;
-        var name = document.getElementById('iafName');
-        var email = document.getElementById('iafEmail');
-        var university = document.getElementById('iafUniversity');
-        var list = document.getElementById('iafUniversityList');
-        var btn = document.getElementById('iafBtn');
-        var status = document.getElementById('iafStatus');
-        var hint = document.getElementById('iafEmailHint');
-
-        var say = function(msg, tone) {
-          if (!status) return;
-          status.textContent = msg;
-          status.style.color = tone === 'ok' ? 'var(--accent)' : (tone === 'bad' ? '#B71C1C' : '');
-        };
-
-        if (name && hint) {
-          name.addEventListener('input', function() {
-            var slug = name.value.toLowerCase().replace(/[^a-z0-9\s._-]/g, '').trim().split(/[\s._-]+/).filter(Boolean).join('.');
-            hint.textContent = (slug || 'yourname') + '@unisocials.com';
-          });
-        }
-
-        // Suggest the campus list, but a typed university always works.
-        fetch('/api/universities')
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var unis = (data && data.success && data.universities) || [];
-            if (!list) return;
-            var html = '';
-            unis.forEach(function(u) { html += '<option value="' + esc(u.name) + '"></option>'; });
-            list.innerHTML = html;
-          })
-          .catch(function() {});
-
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          var payload = {
-            name: name ? name.value.trim().replace(/\s+/g, ' ') : '',
-            email: email ? email.value.trim() : '',
-            university: university ? university.value.trim() : ''
-          };
-          if (!payload.name) return say('⚠️ Please enter your full name.', 'bad');
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return say('⚠️ Please enter a valid email address.', 'bad');
-          if (!payload.university) return say('⚠️ Please enter your university.', 'bad');
-          if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
-          say('Creating your account…');
-          fetch('/api/influencer-admin-requests', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-            .then(function(res) {
-              var d = res.data || {};
-              if (!res.ok || !d.success) throw new Error(d.error || 'Could not create your account.');
-              // Drop the details straight into the sign-in form above.
-              var emailField = document.getElementById('adminEmail');
-              var passField = document.getElementById('adminPassword');
-              if (emailField) emailField.value = d.loginEmail || '';
-              form.reset();
-              var extra = (!d.emailSent && d.credentials) ? ' Login email: ' + d.credentials.email + ' · Password: ' + d.credentials.password + ' — save these now.' : '';
-              say('✅ ' + (d.message || 'Your account is ready.') + extra, 'ok');
-
-              // Offer a one-tap way in. When we emailed the password the applicant
-              // still has to type it, so the button only pre-fills and focuses;
-              // when the email failed we hold the password and can sign in directly.
-              var loginNow = document.getElementById('iafLoginNowBtn');
-              if (loginNow) {
-                loginNow.hidden = false;
-                loginNow.setAttribute('data-has-password', (!d.emailSent && d.credentials) ? 'yes' : 'no');
-                loginNow.onclick = function() {
-                  if (emailField) emailField.value = d.loginEmail || (d.credentials && d.credentials.email) || '';
-                  if (passField && !d.emailSent && d.credentials) passField.value = d.credentials.password;
-                  if (!passField || (!d.emailSent && d.credentials)) {
-                    var btn2 = document.getElementById('loginBtn');
-                    if (btn2) btn2.click();
-                  } else if (passField.focus) {
-                    passField.focus();
-                  }
-                };
-              }
-            })
-            .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account.'), 'bad'); })
-            .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });
-        });
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var email = (params.get('login') || '').trim();
+          if (!email) return;
+          var field = document.getElementById('adminEmail');
+          if (field) { field.value = email; field.focus(); }
+        } catch (e) {}
       })();
 
 // ── Tab switching ──
