@@ -926,7 +926,7 @@
 <div class="admin-login-card reveal visible">
 <div class="admin-login-icon">🔐</div>
 <h2>Influencer Admin Access</h2>
-<p>Sign in with the account created for you by the main admin.</p>
+<p>Sign in with your <strong>name@unisocials.com</strong> login — not the personal email you signed up with.</p>
 <div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
 <!-- Master admin login -->
 <form id="loginForm" onsubmit="adminLogin(event)">
@@ -935,10 +935,10 @@
 <button class="btn-submit" id="loginBtn" type="submit">Login to Dashboard</button>
 </form>
 
-<!-- Account creation lives on the homepage; keep this page a plain sign-in. -->
+<!-- Account creation has its own page; this one stays a plain sign-in. -->
 <div class="iaf-signup">
-<p>Don't have an Influencer Admin account yet?</p>
-<a class="iaf-signup-link" href="influencer-admin-signup.html">✨ Create your Influencer Admin account</a>
+<p>No account yet, or signing in with a different one?</p>
+<a class="iaf-signup-link" href="influencer-admin-signup.html">✨ Create or sign in to an Influencer Admin account</a>
 </div>
 
 </div>
@@ -2582,7 +2582,7 @@ fetch('/api/admin/events/notify', {
         if (typeof window.loadCheckinStaff === 'function') loadCheckinStaff();
       };
 
-      // ── Account creation lives on the homepage, not here ──
+      // ── Account creation lives on its own page, not here ──
       // The sign-in card links out to influencer-admin-signup.html, so all
       // that is needed here is making that link pre-fill the login email when the
       // homepage hands one back (e.g. index.html?login=<email>).
