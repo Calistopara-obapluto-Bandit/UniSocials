@@ -938,7 +938,7 @@
 <!-- Account creation lives on the homepage; keep this page a plain sign-in. -->
 <div class="iaf-signup">
 <p>Don't have an Influencer Admin account yet?</p>
-<a class="iaf-signup-link" href="index.html#influencer-admin-signup">✨ Create your Influencer Admin account</a>
+<a class="iaf-signup-link" href="influencer-admin-signup.html">✨ Create your Influencer Admin account</a>
 </div>
 
 </div>
@@ -1307,6 +1307,9 @@ function fmtN(n) {
         viewSiteBtn.style.display = 'none';
         connStatus.style.display = 'none';
         if (notifBadge) notifBadge.style.display = 'none';
+        // Clear the signed-in name too, otherwise it stays on screen after logout.
+        var nameEl = document.getElementById('adminUserName');
+        if (nameEl) { nameEl.style.display = 'none'; nameEl.textContent = ''; }
       }
 
       // Explicit logout: revoke the server session, then clear the local token.
@@ -2381,7 +2384,7 @@ fetch('/api/admin/events/notify', {
       };
 
       // ── Account creation lives on the homepage, not here ──
-      // The sign-in card links out to index.html#influencer-admin-signup, so all
+      // The sign-in card links out to influencer-admin-signup.html, so all
       // that is needed here is making that link pre-fill the login email when the
       // homepage hands one back (e.g. index.html?login=<email>).
       (function() {
