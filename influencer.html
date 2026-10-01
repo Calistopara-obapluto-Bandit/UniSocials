@@ -111,9 +111,10 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 <div class="payout-grid">
 <div class="payout-stat"><div class="payout-stat-label">Sales through your link</div><div class="payout-stat-value" id="poRevenue">₦0</div></div>
 <div class="payout-stat"><div class="payout-stat-label">Your commission (17.5%)</div><div class="payout-stat-value mine" id="poCommission">₦0</div></div>
-<div class="payout-stat"><div class="payout-stat-label">On hold — 7 days</div><div class="payout-stat-value" id="poHeld">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">On hold — <span id="poHoldDays">7</span> days</div><div class="payout-stat-value" id="poHeld">₦0</div></div>
 <div class="payout-stat"><div class="payout-stat-label">Available to withdraw</div><div class="payout-stat-value mine" id="poAvailable">₦0</div></div>
 </div>
+<div id="poHoldBanner" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:12px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;font-size:.82rem;line-height:1.6"></div>
 <div id="payoutOpenNotice" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:12px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;font-size:.82rem;line-height:1.6"></div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
 <div><div class="payout-field"><label for="poNotifyEmail">Payout notification email</label><input type="email" id="poNotifyEmail" placeholder="you@gmail.com" autocomplete="email"></div><button class="payout-btn ghost" type="button" id="poSaveEmailBtn">Save email</button><div class="payout-msg" id="poEmailMsg"></div></div>
@@ -259,21 +260,35 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
   }
   // ── Payouts: request the 17.5% commission earned through the referral link ──
-  var payoutFeeRate=0.02, payoutHeld=[], payoutTimer=null;
+  var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7;
   function poMsg(id,text,good){var el=document.getElementById(id);if(!el)return;el.textContent=text;el.className='payout-msg '+(good?'ok':'bad');}
   function fmtWhen(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d.getTime()))return String(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
   function renderPayoutHold(){
     var el=document.getElementById('poHeld');if(!el)return;
+    if(payoutTimer){clearInterval(payoutTimer);payoutTimer=null;}
     var now=Date.now();
     var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
-    if(payoutTimer){clearInterval(payoutTimer);payoutTimer=null;}
-    if(!left.length){el.textContent=fmt(0);return;}
+    if(!left.length){el.textContent=fmt(0);renderPayoutHoldBanner([]);return;}
     var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
     var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
     var ms=new Date(next.unlocksAt).getTime()-now;
-    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000);
-    el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m';
-    payoutTimer=setInterval(renderPayoutHold,60000);
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+    el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+    renderPayoutHoldBanner(left);
+    // Tick every second so the withdrawal hold visibly counts down.
+    payoutTimer=setInterval(renderPayoutHold,1000);
+  }
+  // A plain-language banner so it is obvious the money is counting down,
+  // not just a number in a corner of the panel.
+  function renderPayoutHoldBanner(left){
+    var el=document.getElementById('poHoldBanner');if(!el)return;
+    if(!left.length){el.style.display='none';return;}
+    var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+    var ms=new Date(next.unlocksAt).getTime()-Date.now();
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+    el.style.display='block';
+    el.innerHTML='⏳ <strong>'+fmt(total)+'</strong> of your commission is still inside the <strong>'+payoutHoldDays+'-day withdrawal countdown</strong> and cannot be requested yet. It unlocks in <strong>'+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s</strong>.';
   }
   function renderPayoutHistory(rows){
     var box=document.getElementById('poHistory');if(!box)return;
@@ -317,6 +332,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       var notice=document.getElementById('payoutOpenNotice');
       var open=(d.payouts||[]).filter(function(p){return ['pending','approved'].indexOf(String(p.status||'').toLowerCase())!==-1;})[0];
       if(open){notice.style.display='block';notice.innerHTML='⏳ Your request <strong>'+open.id+'</strong> for <strong>'+fmt(open.netAmount!=null?open.netAmount:open.amount)+'</strong> is <strong>'+open.status+'</strong>. '+(open.status==='approved'?'The admin will pay within 24 hours.':'The admin has been notified by email.');}else{notice.style.display='none';}
+      if(isFinite(Number(d.holdDays))){payoutHoldDays=Number(d.holdDays);var hd=document.getElementById('poHoldDays');if(hd)hd.textContent=String(payoutHoldDays);}
       payoutHeld=Array.isArray(d.heldPayments)?d.heldPayments:[];
       renderPayoutHold();
       renderPayoutHistory(d.payouts||[]);

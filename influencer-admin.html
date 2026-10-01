@@ -2387,13 +2387,13 @@ fetch('/api/admin/events/notify', {
       function renderPayoutHoldNotice() {
         var el = document.getElementById('payoutHoldNotice');
         if (!el) return;
+        if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
         var now = Date.now();
         var remaining = payoutHeldData.filter(function(h) {
           return new Date(h.unlocksAt).getTime() > now;
         });
         if (!remaining.length) {
           el.style.display = 'none';
-          if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
           return;
         }
         var totalHeld = remaining.reduce(function(s, h) { return s + (Number(h.commissionAmount != null ? h.commissionAmount : h.amount) || 0); }, 0);
@@ -2403,6 +2403,7 @@ fetch('/api/admin/events/notify', {
         var until = new Date(next.unlocksAt).getTime() - now;
         el.innerHTML = '⏳ Your referrers have <strong>' + fmtN(totalHeld) + '</strong> of commission still inside the <strong>' + payoutHoldDays + '-day countdown</strong> before they can request it. Next unlocks in <strong>' + fmtCountdown(until) + '</strong>.';
         el.style.display = 'block';
+        payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
       }
 
       var N = '\u{1F4B0}';
@@ -2434,7 +2435,7 @@ fetch('/api/admin/events/notify', {
             if (notice) {
               notice.innerHTML = '🔗 Link used: <strong style="color:#1B5E20;">' + refPct + '% Unisocials</strong> · <strong>' + inflPct + '% to the influencer</strong> · <strong>' + Math.round((1 - commissionRates.referred - commissionRates.influencer) * 100) + '% to you</strong>' +
                 ' &nbsp;|&nbsp; No link: <strong style="color:#E65100;">' + dirPct + '% Unisocials</strong> · <strong>' + Math.round((1 - commissionRates.direct) * 100) + '% to you</strong>' +
-                '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct) you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unipolarus retained <strong>' + fmtN(data.platformFee) + '</strong>.';
+                '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct) you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unisocials retained <strong>' + fmtN(data.platformFee) + '</strong>.';
               notice.style.display = 'block';
             }
 

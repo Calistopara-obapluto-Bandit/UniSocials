@@ -318,6 +318,37 @@ const COMMISSION_SPLIT = {
   ownerCreditDirect: OWNER_CREDIT_DIRECT
 };
 
+// Every verified payment sits on a 7-day hold before its share becomes
+// withdrawable. One definition of that rule, so the owner, the referrer and the
+// site-wide admin view all count down to the same unlock moment.
+function collectHeldPayments(orders, matches, shareOf) {
+  const nowMs = Date.now();
+  const isMine = matches || function () { return true; };
+  const share = shareOf || function (amount) { return amount; };
+  const held = [];
+  (orders || []).forEach(o => {
+    if (String(o.status || '').toLowerCase() !== 'verified') return;
+    if (!isMine(o)) return;
+    const amount = Number(o.amount) || 0;
+    const referred = !!String(o.referralCode || '').trim();
+    const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+    if (!Number.isFinite(paidMs)) return;
+    const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+    if (nowMs >= unlocksMs) return;
+    held.push({
+      orderId: o.orderId || '',
+      eventName: o.eventName || '',
+      amount,
+      referred,
+      commissionAmount: Math.round((Number(share(amount, referred)) || 0) * 100) / 100,
+      paidAt: new Date(paidMs).toISOString(),
+      unlocksAt: new Date(unlocksMs).toISOString()
+    });
+  });
+  held.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
+  return held;
+}
+
 // ── Payout requests: who may withdraw what ──
 // The event owner withdraws their 80% (97.5% credited, less the 17.5% allocated
 // to the referrer). The INFLUENCER who owns the referral code withdraws their
@@ -5655,8 +5686,20 @@ codes[idx] = entry;
     // ── Admin: manage payout requests (verify, pay, reject) ──
     if (pathname === '/api/admin/payouts' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Admin access only' });
-      const payouts = await readPayouts();
-      return sendJson(res, 200, { success: true, payouts: payouts.map(payoutPublic), commissionRates: COMMISSION_SPLIT, feeRate: PAYOUT_FEE_RATE });
+      const [payouts, orders] = await Promise.all([readPayouts(), readOrders()]);
+      // The site-wide view of what is still counting down before it can be
+      // withdrawn, so the Main Admin sees the hold the owners and referrers see.
+      const heldPayments = collectHeldPayments(orders, null, function (amount, referred) {
+        return commissionSplit(amount, referred).ownerNetAmount;
+      });
+      return sendJson(res, 200, {
+        success: true,
+        payouts: payouts.map(payoutPublic),
+        commissionRates: COMMISSION_SPLIT,
+        feeRate: PAYOUT_FEE_RATE,
+        holdDays: PAYOUT_HOLD_DAYS,
+        heldPayments
+      });
     }
 
     if (pathname === '/api/admin/payouts' && req.method === 'POST') {

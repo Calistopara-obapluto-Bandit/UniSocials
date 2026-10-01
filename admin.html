@@ -1222,6 +1222,7 @@
             <div class="admin-stat verified"><div class="admin-stat-label">Paid Out</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
             <div class="admin-stat revenue"><div class="admin-stat-label">Platform Fee Retained</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
           </div>
+          <div id="payoutHoldNotice" style="display:none;margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
           <div class="admin-toolbar">
             <div class="admin-filters">
               <button class="admin-filter-btn active" data-payout-filter="all" onclick="setPayoutFilter('all')">All</button>
@@ -2790,6 +2791,41 @@ fetch('/api/admin/events/notify', {
       var payoutRequesterFilter = '';
       var payoutScheduleFilter = '';
       var payoutsAll = [];
+      var payoutHeldData = [];
+      var payoutHoldDays = 7;
+      var payoutHoldTimer = null;
+
+      // d / hh / mm / ss countdown, shared by the hold banner and the table.
+      function fmtCountdown(ms) {
+        if (!(ms > 0)) return '0d 00h 00m 00s';
+        var s = Math.floor(ms / 1000);
+        var d = Math.floor(s / 86400); s -= d * 86400;
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+        return d + 'd ' + pad(h) + 'h ' + pad(m) + 'm ' + pad(s) + 's';
+      }
+
+      // Ticks once a second so the withdrawal hold visibly counts down instead
+      // of showing whatever was left at the moment the panel loaded.
+      function renderPayoutHoldNotice() {
+        var el = document.getElementById('payoutHoldNotice');
+        if (!el) return;
+        var now = Date.now();
+        var remaining = payoutHeldData.filter(function(h) {
+          return new Date(h.unlocksAt).getTime() > now;
+        });
+        if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
+        if (!remaining.length) { el.style.display = 'none'; return; }
+        var totalHeld = remaining.reduce(function(s, h) {
+          return s + (Number(h.commissionAmount != null ? h.commissionAmount : h.amount) || 0);
+        }, 0);
+        var next = remaining[0];
+        var until = new Date(next.unlocksAt).getTime() - now;
+        el.style.display = 'block';
+        el.innerHTML = '⏳ <strong>' + fmtN(totalHeld) + '</strong> of verified payments is still inside the <strong>' + payoutHoldDays + '-day withdrawal countdown</strong> across ' + remaining.length + ' payment' + (remaining.length === 1 ? '' : 's') + '. Next unlocks in <strong>' + fmtCountdown(until) + '</strong>.';
+        payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
+      }
 
       window.loadPayoutRequests = function() {
         fetch('/api/admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
@@ -2797,6 +2833,9 @@ fetch('/api/admin/events/notify', {
           .then(function(data){
             if (!data || !data.success) { showToast((data && data.error) || 'Could not load payout requests', true); return; }
             payoutsAll = data.payouts || [];
+            payoutHeldData = Array.isArray(data.heldPayments) ? data.heldPayments : [];
+            payoutHoldDays = Number(data.holdDays) || 7;
+            renderPayoutHoldNotice();
             populatePayoutFilterSelects();
             renderPayoutRequests();
           })
