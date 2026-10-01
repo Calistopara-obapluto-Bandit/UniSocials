@@ -94,6 +94,22 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .payout-all-btn{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:8px 14px;font:inherit;font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap}
 .payout-all-btn:hover{background:var(--accent-ghost)}
 .payout-all-btn:disabled{opacity:.55;cursor:not-allowed}
+/* What you can actually withdraw, surfaced on the Commission Earned screen so
+   the earned / available / held split is visible without opening Payouts. */
+.earn-summary{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:20px 22px;margin-bottom:16px}
+.earn-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.earn-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+.earn-stat-label{font-size:.64rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);font-weight:800}
+.earn-stat-value{font-size:1.25rem;font-weight:800;color:var(--text-1);margin-top:6px}
+.earn-stat-value.ok{color:#1B5E20}
+.earn-stat-value.held{color:#E65100}
+.earn-summary-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.earn-summary-foot p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6;flex:1 1 260px}
+.earn-summary-foot strong{color:var(--text-1)}
+.earn-clock{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:800;color:#E65100}
+.earn-cta{border:0;background:var(--accent);color:#fff;border-radius:100px;padding:12px 22px;font:inherit;font-size:.85rem;font-weight:800;cursor:pointer;white-space:nowrap}
+.earn-cta:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:640px){.earn-summary-grid{grid-template-columns:1fr}.earn-summary{padding:18px 16px}}
 .portal-events-head-intro{margin-bottom:14px}
 .portal-events-head-intro p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6}
 @media(max-width:1000px){.nav-inf-menu-list{right:auto;left:0}}
@@ -145,6 +161,17 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 <div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1 id="portalViewTitle">Commission Earned</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div></div>
 <div class="portal-view" id="viewEarned">
 <section class="portal-events-head-intro"><p id="viewEarnedIntro">Your referral link, the sales it has brought in, and the 17.5% commission you have earned on them.</p></section>
+<section class="earn-summary" aria-label="Commission earned and available">
+<div class="earn-summary-grid">
+<div class="earn-stat"><div class="earn-stat-label">Total commission earned</div><div class="earn-stat-value" id="earnTotal">₦0</div></div>
+<div class="earn-stat"><div class="earn-stat-label">Available to withdraw</div><div class="earn-stat-value ok" id="earnAvailable">₦0</div></div>
+<div class="earn-stat"><div class="earn-stat-label">Still counting down</div><div class="earn-stat-value held" id="earnHeld">₦0</div></div>
+</div>
+<div class="earn-summary-foot">
+<p id="earnHoldNote">Payments you made wait <strong><span id="earnHoldDays">7</span> days</strong> before their commission can be withdrawn.</p>
+<button class="earn-cta" type="button" id="earnWithdrawBtn" disabled>Withdraw ₦0</button>
+</div>
+</section>
 <div class="admin-entry-bar"><div><strong>Run your own events?</strong><span>Influencer Admins get their own dashboard for events, sales, check-in staff and commission payouts.</span></div><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div>
 <section class="portal-selector" id="portalSelector" aria-label="Referral portal selector"><div class="portal-selector-copy"><div class="portal-selector-label">Working for</div><div class="portal-selector-title" id="portalTitle">Loading referral portals…</div><div class="portal-meta" id="portalMeta"></div></div><select class="portal-select" id="portalSelect" aria-label="Select Influencer Admin"></select></section><section class="relationship-panel" id="relationshipPanel"><div class="relationship-head"><div><h2>Influencer Admin requests</h2><p>Review requests to work with you. You keep the same influencer account and login.</p></div></div><div class="relationship-list" id="relationshipList"><div class="relationship-empty">Loading requests...</div></div></section>
 <section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every sale through your link is split <strong>2.5% to Unisocials, 17.5% commission to you, 80% to the event owner</strong>, and the event's Influencer Admin is who pays you.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
@@ -363,7 +390,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
   }
   // ── Payouts: request the 17.5% commission earned through the referral link ──
-  var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7, payoutAvailable=0;
+  var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7, payoutAvailable=0, payoutEarnedTotal=0;
   // ── The amount they will receive, worked out for them ──
   // Unisocials already took its 2.5% from the ticket, so the withdrawal fee is 0
   // and what they receive is simply the amount requested, capped by what is
@@ -423,7 +450,10 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
     if(!left.length){
       if(el)el.textContent=fmt(0);
-      renderPayoutHoldBanner([]);renderHoldCard([]);
+      renderPayoutHoldBanner([]);renderHoldCard([]);renderEarnedSummary();
+      // Keep ticking even with nothing held, so the earned screen stays correct
+      // the moment a hold expires.
+      payoutTimer=setInterval(renderPayoutHold,1000);
       return;
     }
     var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
@@ -433,6 +463,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     if(el)el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
     renderPayoutHoldBanner(left);
     renderHoldCard(left);
+    renderEarnedSummary();
     // Tick every second so the withdrawal hold visibly counts down.
     payoutTimer=setInterval(renderPayoutHold,1000);
   }
@@ -456,6 +487,41 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     clock.textContent=dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
     if(label)label.textContent='Next commission unlocks in';
     if(note)note.innerHTML='<strong>'+fmt(total)+'</strong> of your commission is still inside the '+payoutHoldDays+'-day hold across '+left.length+' payment'+(left.length===1?'':'s')+'. You can request it the moment this reaches zero.';
+  }
+  // The earned screen shows the same split as the payouts screen, because that is
+// where someone lands first: what they have earned, how much of it they can
+  // withdraw today, and how long the rest is counting down.
+  function renderEarnedSummary(){
+    var total=document.getElementById('earnTotal'),
+        avail=document.getElementById('earnAvailable'),
+        held=document.getElementById('earnHeld'),
+        note=document.getElementById('earnHoldNote'),
+        days=document.getElementById('earnHoldDays'),
+        btn=document.getElementById('earnWithdrawBtn');
+    if(!total)return;
+    var now=Date.now();
+    var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
+    var heldTotal=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    if(days)days.textContent=String(payoutHoldDays);
+    total.textContent=fmt(payoutEarnedTotal);
+    avail.textContent=fmt(payoutAvailable);
+    held.textContent=left.length?fmt(heldTotal):'₦0';
+    if(note){
+      if(left.length){
+        var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+        var ms=Math.max(0,new Date(next.unlocksAt).getTime()-now);
+        var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+        note.innerHTML='<strong>'+fmt(heldTotal)+'</strong> is still inside the '+payoutHoldDays+'-day hold and unlocks in <span class="earn-clock">'+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s</span>. Everything else is ready to withdraw now.';
+      }else{
+        note.innerHTML=payoutEarnedTotal>0
+          ? 'All of it is ready to withdraw now. Every payment waits <strong>'+payoutHoldDays+' days</strong> before its commission can be requested.'
+          : 'Payments you make through your link wait <strong>'+payoutHoldDays+' days</strong> before their commission can be withdrawn.';
+      }
+    }
+    if(btn){
+      btn.textContent='Withdraw '+fmt(payoutAvailable);
+      btn.disabled=payoutAvailable<=0;
+    }
   }
   // A plain-language banner so it is obvious the money is counting down,
   // not just a number in a corner of the panel.
@@ -518,8 +584,10 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       renderPayoutHistory(d.payouts||[]);
       // Show what they would actually receive without making them do the maths.
       payoutAvailable=Number(d.availableBalance)||0;
+      payoutEarnedTotal=Number(d.totalCommission)||0;
       syncPayoutAmountField();
       updatePayoutReceive();
+      renderEarnedSummary();
     }catch(e){poMsg('poMsg',e.message||'Unable to load payouts',false);}
   }
   document.getElementById('poRequestBtn').onclick=async function(){
@@ -586,6 +654,11 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   document.getElementById('mobileInfLogout').onclick=portalLogout;
   // Live "you will receive" as the amount is typed, plus a one-tap full balance.
   document.getElementById('poAmount').addEventListener('input',updatePayoutReceive);
+  document.getElementById('earnWithdrawBtn').onclick=function(){
+    showView('payouts');
+    syncPayoutAmountField();
+    updatePayoutReceive();
+  };
   document.getElementById('poAllBtn').onclick=function(){
     document.getElementById('poAmount').value=String(payoutAvailable);
     updatePayoutReceive();
