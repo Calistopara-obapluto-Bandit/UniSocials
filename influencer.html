@@ -48,7 +48,16 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .admin-entry-bar span{font-size:.78rem;color:var(--text-3);line-height:1.55}
 @media(max-width:600px){.admin-entry-bar{flex-direction:column;align-items:flex-start}}
 
-/* ── Payouts: the 18% commission the referrer withdraws ── */
+/* The Influencer Portal has its OWN account controls. The shared header injects a
+   buyer-session account chip and logout that stay hidden here, because this page
+   signs in with a different token — so the portal supplies its own. */
+.nav-inf-payouts,.nav-inf-logout{font-size:.82rem;font-weight:700;color:var(--text-2);text-decoration:none;border:1.5px solid var(--border);border-radius:100px;padding:9px 16px;white-space:nowrap;transition:color .3s,border-color .3s,background .3s}
+.nav-inf-payouts:hover,.nav-inf-logout:hover{color:var(--accent);border-color:var(--accent-border);background:var(--accent-ghost)}
+.nav-inf-logout{color:var(--text-3)}
+.mobile-inf-link,.mobile-inf-logout{color:var(--accent);font-weight:700}
+.mobile-inf-logout{color:var(--text-1)}
+
+/* ── Payouts: the 17.5% commission the referrer withdraws ── */
 .payout-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}
 .payout-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px}
 .payout-stat-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:800}
@@ -88,20 +97,20 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 </style>
 </head>
 <body class="influencer-page">
-<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="index.html">Home</a><a href="events.html">Events</a><a href="tickets.html">Tickets</a><a href="about.html">About</a><a href="contact.html">Contact</a><a href="events.html" class="mobile-cta btn-primary">Get Tickets</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner"><a href="index.html" class="nav-logo">Uni<span>socials</span></a><ul class="nav-links" role="list"><li><a href="index.html">Home</a></li><li><a href="events.html">Events</a></li><li><a href="tickets.html">Tickets</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul><div class="nav-cta"><a href="events.html" class="btn-primary">Get Tickets</a></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
+<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="index.html">Home</a><a href="events.html">Events</a><a href="tickets.html">Tickets</a><a href="about.html">About</a><a href="contact.html">Contact</a><a href="#payoutSection" class="mobile-inf-link">💰 Commission payouts</a><a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a><a href="events.html" class="mobile-cta btn-primary">Get Tickets</a><a href="#" class="mobile-inf-logout" id="mobileInfLogout" style="display:none;">Log out</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner"><a href="index.html" class="nav-logo">Uni<span>socials</span> · Influencer</a><ul class="nav-links" role="list"><li><a href="index.html">Home</a></li><li><a href="events.html">Events</a></li><li><a href="tickets.html">Tickets</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul><div class="nav-cta"><a href="#payoutSection" class="nav-inf-payouts" id="navInfPayouts">💰 Payouts</a><a href="events.html" class="btn-primary">Get Tickets</a><a class="nav-inf-logout" id="navInfLogout" href="#" style="display:none;">Log out</a></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
 <section id="loginView"><section class="page-header"><div class="container"><div class="section-label reveal">Influencer Portal</div><h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1><p class="section-sub reveal reveal-delay-2">Sign in to manage your Unisocials referral link and track your results.</p></div></section><section class="influencer-login"><div class="auth-section"><div class="container"><div class="influencer-login-card reveal"><div class="influencer-mark">U</div><div class="influencer-kicker">Influencer Portal</div><h1>Sign In</h1><p class="influencer-subtitle">Use your influencer account to access your referral dashboard.</p><div class="influencer-error" id="loginError"></div><form id="loginForm"><div class="influencer-form-group"><label for="email">Email Address</label><input id="email" type="email" placeholder="you@university.edu.ng" autocomplete="username" required></div><div class="influencer-form-group"><label for="password">Password</label><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></div><button class="influencer-login-btn" type="submit" id="loginBtn">Sign In</button></form><p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p><div class="admin-entry"><div class="admin-entry-title">Creating or running events?</div><p>That's a different account: an Influencer Admin creates events, tracks sales and requests commission payouts.</p><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div></div></div></div></section></section>
 <main id="dashboard" class="influencer-dashboard hidden"><div class="influencer-container"><div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1>Your referral dashboard</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div><button class="influencer-logout" id="logoutBtn" type="button">Log out</button></div>
 <div class="admin-entry-bar"><div><strong>Run your own events?</strong><span>Influencer Admins get their own dashboard for events, sales, check-in staff and commission payouts.</span></div><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div>
 <section class="portal-selector" id="portalSelector" aria-label="Referral portal selector"><div class="portal-selector-copy"><div class="portal-selector-label">Working for</div><div class="portal-selector-title" id="portalTitle">Loading referral portals…</div><div class="portal-meta" id="portalMeta"></div></div><select class="portal-select" id="portalSelect" aria-label="Select Influencer Admin"></select></section><section class="relationship-panel" id="relationshipPanel"><div class="relationship-head"><div><h2>Influencer Admin requests</h2><p>Review requests to work with you. You keep the same influencer account and login.</p></div></div><div class="relationship-list" id="relationshipList"><div class="relationship-empty">Loading requests...</div></div></section>
-<section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every payment is split <strong>80% to the event owner, 18% commission to you, 2% to Unisocials</strong>.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
-<section class="influencer-stats"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (18%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
+<section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every sale through your link is split <strong>2.5% to Unisocials, 17.5% commission to you, 80% to the event owner</strong>, and the event's Influencer Admin is who pays you.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
+<section class="influencer-stats"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (17.5%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
 <section class="portal-events" id="portalEvents"><div class="portal-events-head"><div><div class="influencer-overline">Selected portal</div><h2>Events &amp; performance</h2><p id="eventsSubtitle">Events authorised to the selected Influencer Admin.</p></div></div><div class="portal-events-list" id="portalEventsList"><div class="portal-empty">Loading events…</div></div></section>
 <section class="all-overview hidden" id="allOverview"><div class="all-overview-head"><div class="influencer-overline">All relationships</div><h2>Performance by Influencer Admin</h2><p>Each accepted relationship remains separate. The totals above are the combined overview of these individual portals.</p></div><div class="all-overview-list" id="allOverviewList"><div class="portal-empty">Loading relationship totals…</div></div></section>
-<section class="portal-events" id="payoutSection"><div class="portal-events-head"><div><div class="influencer-overline">Your earnings</div><h2>Commission payouts</h2><p>Every sale made through your referral link is split <strong>80% to the event owner, 18% commission to you, 2% to Unisocials</strong>. The 18% is yours to withdraw, once it clears the 7-day countdown.</p></div></div>
+<section class="portal-events" id="payoutSection"><div class="portal-events-head"><div><div class="influencer-overline">Your earnings</div><h2>Commission payouts</h2><p>Every sale made through your referral link is split <strong>2.5% to Unisocials, 17.5% commission to you, 80% to the event owner</strong>. Your 17.5% is 17.5% of the <strong>full ticket</strong>, and the event's Influencer Admin is who pays it.</p></div></div>
 <div class="payout-note" id="payoutSplitNote">Loading your commission…</div>
 <div class="payout-grid">
 <div class="payout-stat"><div class="payout-stat-label">Sales through your link</div><div class="payout-stat-value" id="poRevenue">₦0</div></div>
-<div class="payout-stat"><div class="payout-stat-label">Your commission (18%)</div><div class="payout-stat-value mine" id="poCommission">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">Your commission (17.5%)</div><div class="payout-stat-value mine" id="poCommission">₦0</div></div>
 <div class="payout-stat"><div class="payout-stat-label">On hold — 7 days</div><div class="payout-stat-value" id="poHeld">₦0</div></div>
 <div class="payout-stat"><div class="payout-stat-label">Available to withdraw</div><div class="payout-stat-value mine" id="poAvailable">₦0</div></div>
 </div>
@@ -128,6 +137,28 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   function headers(){return {'Authorization':'Bearer '+(localStorage.getItem(KEY)||'')};}
   function fmt(n){return '₦'+Number(n||0).toLocaleString();}
   function showError(msg){var e=document.getElementById('loginError');e.textContent=msg;e.classList.add('show');}
+  // The portal's own account controls. The shared header's chip/logout belong to
+  // the buyer/admin session, so this page shows and drives its own instead.
+  function syncPortalAccountUI(){
+    var signedIn=!!localStorage.getItem(KEY);
+    var navOut=document.getElementById('navInfLogout');
+    var mobOut=document.getElementById('mobileInfLogout');
+    var payouts=document.getElementById('navInfPayouts');
+    if(navOut)navOut.style.display=signedIn?'inline-flex':'none';
+    if(mobOut)mobOut.style.display=signedIn?'block':'none';
+    if(payouts)payouts.style.display=signedIn?'inline-flex':'none';
+  }
+  function portalLogout(e){
+    if(e)e.preventDefault();
+    var token=localStorage.getItem(KEY);
+    localStorage.removeItem(KEY);
+    if(token)fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+token}}).catch(function(){});
+    var menu=document.getElementById('mobileMenu');
+    if(menu&&menu.classList)menu.classList.remove('open');
+    if(document.body)document.body.style.overflow='';
+    syncPortalAccountUI();
+    location.reload();
+  }
   function copyText(text){
     if(!text) return Promise.reject(new Error('Nothing to copy'));
     if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
@@ -227,7 +258,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   async function loadPortals(){
     var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
   }
-  // ── Payouts: request the 18% commission earned through the referral link ──
+  // ── Payouts: request the 17.5% commission earned through the referral link ──
   var payoutFeeRate=0.02, payoutHeld=[], payoutTimer=null;
   function poMsg(id,text,good){var el=document.getElementById(id);if(!el)return;el.textContent=text;el.className='payout-msg '+(good?'ok':'bad');}
   function fmtWhen(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d.getTime()))return String(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
@@ -256,7 +287,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       var badge=document.createElement('span');badge.className='payout-status '+String(p.status||'pending').toLowerCase();badge.textContent=p.status||'pending';
       head.appendChild(amt);head.appendChild(badge);row.appendChild(head);
       var meta=document.createElement('div');meta.className='payout-row-meta';
-      meta.textContent='Requested '+fmt(p.amount)+' · Unisocials fee '+Math.round(rate*100)+'% ('+fmt(p.feeAmount||0)+') · '+(p.bankName||'')+' ••••'+String(p.accountNumber||'').slice(-4)+' · '+fmtWhen(p.createdAt);
+      meta.textContent='Requested '+fmt(p.amount)+(rate>0?' · Unisocials fee '+Math.round(rate*100)+'% ('+fmt(p.feeAmount||0)+')':'')+' · '+(p.bankName||'')+' ••••'+String(p.accountNumber||'').slice(-4)+' · '+fmtWhen(p.createdAt);
       row.appendChild(meta);
       if(p.paidAt){var done=document.createElement('div');done.className='payout-row-meta';done.style.color='#1B5E20';done.textContent='✅ Paid '+fmtWhen(p.paidAt)+(p.notifiedEmail?' · completion email sent to '+p.notifiedEmail:'');row.appendChild(done);}
       if(p.adminNote){var n=document.createElement('div');n.className='payout-row-meta';n.textContent='Admin note: '+p.adminNote;row.appendChild(n);}
@@ -275,7 +306,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       document.getElementById('poRevenue').textContent=fmt(d.referredRevenue||0);
       document.getElementById('poCommission').textContent=fmt(d.totalCommission||0);
       document.getElementById('poAvailable').textContent=fmt(d.availableBalance||0);
-      var rates=d.commissionRates||{eventOwner:.8,influencer:.18,platform:.02};
+      var rates=d.commissionRates||{eventOwner:.8,influencer:.175,platformReferred:.025,platformDirect:.2};
       document.getElementById('payoutSplitNote').textContent='On the ₦'+Number(d.referredRevenue||0).toLocaleString()+' your link brought in: ₦'+Number(d.eventOwnerShare||0).toLocaleString()+' ('+Math.round(rates.eventOwner*100)+'%) went to the event owner, ₦'+Number(d.totalCommission||0).toLocaleString()+' ('+Math.round(rates.influencer*100)+'%) is your commission, and ₦'+Number(d.platformShare||0).toLocaleString()+' ('+Math.round(rates.platform*100)+'%) to Unisocials.';
       var bank=d.savedBankAccount||{};
       if(bank.bankName)document.getElementById('poBankName').value=bank.bankName;
@@ -338,8 +369,8 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       await loadPortals();
       await loadRelationships();
       await loadPayouts();
-      loginView.classList.add('hidden');dash.classList.remove('hidden');return true;
-    }catch(e){localStorage.removeItem(KEY);return false;}
+      loginView.classList.add('hidden');dash.classList.remove('hidden');syncPortalAccountUI();return true;
+    }catch(e){localStorage.removeItem(KEY);syncPortalAccountUI();return false;}
   }
   document.getElementById('portalSelect').addEventListener('change',function(){selectPortal(this.value);});
   document.getElementById('loginForm').addEventListener('submit',async function(e){
@@ -351,7 +382,10 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       localStorage.setItem(KEY,d.token);if(!(await load()))throw new Error('Could not load dashboard');
     }catch(err){showError(err.message||'Login failed');}finally{btn.disabled=false;}
   });
-  document.getElementById('logoutBtn').onclick=function(){var token=localStorage.getItem(KEY);localStorage.removeItem(KEY);fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+(token||'')}}).catch(function(){});location.reload();};
+  document.getElementById('logoutBtn').onclick=portalLogout;
+  document.getElementById('navInfLogout').onclick=portalLogout;
+  document.getElementById('mobileInfLogout').onclick=portalLogout;
+  syncPortalAccountUI();
   document.getElementById('copyCodeBtn').onclick=function(){var v=document.getElementById('refCode').textContent;if(v&&v!=='—')copyText(v).then(function(){showCopied('Referral code');});};
   document.getElementById('copyLinkBtn').onclick=function(){var v=document.getElementById('refLink').href;if(v&&v!=='#')copyText(v).then(function(){showCopied('Referral link');});};
   load();setInterval(function(){if(localStorage.getItem(KEY))load();},30000);

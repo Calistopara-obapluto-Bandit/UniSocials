@@ -241,45 +241,88 @@ const PAYOUT_METHODS = {
   'after_event': { label: 'After event day', description: 'Payout after the event day' }
 };const PAYOUT_STATUSES = ['pending','approved','paid','rejected'];
 
-// How every verified ticket payment is split, and it adds up to 100%:
-//   80% → the event owner who ran the event
-//   18% → the influencer's commission, which they request as a payout
-//    2% → Unisocials' platform fee, retained when that payout is paid
-// The 2% is the whole company cut: the old 20% platform fee is gone, so an
-// Influencer Admin is no longer charged a fifth of their commission.
-const COMMISSION_SPLIT = { eventOwner: 0.80, influencer: 0.18, platform: 0.02 };
-const EVENT_OWNER_RATE = COMMISSION_SPLIT.eventOwner;
-const INFLUENCER_COMMISSION_RATE = COMMISSION_SPLIT.influencer;
-// Platform fee: 2% of every payout is retained by Unisocials before it is paid out.
-const PAYOUT_FEE_RATE = COMMISSION_SPLIT.platform;
+// ── How a verified ticket payment is split ──
+// A sale made through an influencer's referral link:
+//   2.5% → Unisocials      (the platform fee, instead of the usual 20%)
+//   17.5% → the influencer (17.5% of the FULL ticket, not of the remainder)
+//   80%   → the event owner
+// A sale with no link used:
+//   20% → Unisocials
+//   80% → the event owner
+// Both branches total 100%. The event owner is credited 97.5% of a referred
+// sale and 80% of a direct one, but always withdraws 80% because the
+// influencer's 17.5% is allocated out of their credit. The event's Influencer
+// Admin is the one who pays that commission to their referrer.
+const PLATFORM_FEE_REFERRED = 0.025;
+const PLATFORM_FEE_DIRECT = 0.20;
+const INFLUENCER_COMMISSION_RATE = 0.175;
+const EVENT_OWNER_RATE = 0.80;
+// What the event owner is CREDITED with before any referrer allocation:
+// 97.5% of a referred sale, 80% of a direct one.
+const OWNER_CREDIT_REFERRED = 1 - PLATFORM_FEE_REFERRED;
+const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
+// Neither the owner's 80% nor the influencer's 17.5% is deducted again at
+// payout: both platform fees are already taken from the ticket itself.
+const PAYOUT_FEE_RATE = 0;
 // Payments made through the site mature for 7 days before they can be
 // requested as a withdrawal.
 const PAYOUT_HOLD_DAYS = 7;
 const PAYOUT_HOLD_MS = PAYOUT_HOLD_DAYS * 24 * 60 * 60 * 1000;
 
-// Split a gross payment into the three shares. Rounded to kobo at the end so
-// the three parts always add back up to the gross amount.
-function commissionSplit(amount) {
+// Split one payment. `referred` decides which platform fee applies, and the
+// influencer's share is always 17.5% of the FULL amount. The platform fee is
+// taken off the top, then the influencer's commission is allocated out of what
+// the owner was credited, so the parts always add back up to the gross.
+function commissionSplit(amount, referred) {
   const gross = Math.max(0, Number(amount) || 0);
   const round2 = n => Math.round(n * 100) / 100;
-  const eventOwnerAmount = round2(gross * COMMISSION_SPLIT.eventOwner);
-  const influencerAmount = round2(gross * COMMISSION_SPLIT.influencer);
-  // The platform fee takes whatever is left, so rounding can never make the
-  // three shares exceed the payment they came from.
-  const platformAmount = round2(gross - eventOwnerAmount - influencerAmount);
+  const isReferred = referred === true;
+  const platformRate = isReferred ? PLATFORM_FEE_REFERRED : PLATFORM_FEE_DIRECT;
+  const influencerAmount = isReferred ? round2(gross * INFLUENCER_COMMISSION_RATE) : 0;
+  const platformAmount = round2(gross * platformRate);
+  const ownerCreditAmount = round2(gross - platformAmount);
   return {
-    rates: COMMISSION_SPLIT,
-    eventOwnerAmount,
+    referred: isReferred,
+    platformRate,
+    influencerRate: INFLUENCER_COMMISSION_RATE,
+    ownerCreditAmount,
     influencerAmount,
+    ownerNetAmount: round2(ownerCreditAmount - influencerAmount),
     platformAmount
   };
 }
 
+// Aggregate referred and direct payments into one split.
+function commissionTotals(referredAmount, directAmount) {
+  const referred = commissionSplit(referredAmount, true);
+  const direct = commissionSplit(directAmount, false);
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  return {
+    referredAmount: round2(referredAmount),
+    directAmount: round2(directAmount),
+    grossAmount: round2(referredAmount + directAmount),
+    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount),
+    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount),
+    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount),
+    platformAmount: round2(referred.platformAmount + direct.platformAmount)
+  };
+}
+
+// The headline rates, for the dashboards and the emails.
+const COMMISSION_SPLIT = {
+  eventOwner: EVENT_OWNER_RATE,
+  influencer: INFLUENCER_COMMISSION_RATE,
+  platformReferred: PLATFORM_FEE_REFERRED,
+  platformDirect: PLATFORM_FEE_DIRECT,
+  ownerCreditReferred: OWNER_CREDIT_REFERRED,
+  ownerCreditDirect: OWNER_CREDIT_DIRECT
+};
+
 // ── Payout requests: who may withdraw what ──
-// A payment is split 80% to the event owner (the Influencer Admin who ran the
-// event), 18% commission to the influencer whose link brought the buyer, and 2%
-// to Unisocials. Only the 18% is withdrawable by a person, and it belongs to the
-// INFLUENCER who owns the referral code — never to the event owner.
+// The event owner withdraws their 80% (97.5% credited, less the 17.5% allocated
+// to the referrer). The INFLUENCER who owns the referral code withdraws their
+// own 17.5% of the full ticket. Both are separate requests paid from the same
+// verified payment, and neither is deducted twice.
 
 // Validate a payout request body. Shared by the referrer and the legacy
 // Influencer Admin flow so both enforce exactly the same rules.
@@ -304,9 +347,10 @@ function parsePayoutRequestBody(body) {
 // Build and store a payout request for a session user. The same records, the
 // same admin approve/pay endpoints and the same emails are used for every role;
 // only who may request, and against which balance, differs.
-async function storePayoutRequest(user, parsed) {
+async function storePayoutRequest(user, parsed, extra) {
   const { amount, payoutMethod, note, bank } = parsed;
-  // The 2% platform fee is taken out of every payment before it is paid out.
+  // No further deduction: the platform fee (2.5% referred / 20% direct) was
+  // already taken from the ticket itself, not from this share.
   const fee = payoutFeeSplit({ amount });
   const payout = {
     id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
@@ -332,6 +376,12 @@ async function storePayoutRequest(user, parsed) {
     reviewedBy: null,
     adminNote: ''
   };
+  // A referrer's commission is paid by the Influencer Admin of the event, so
+  // stamp the owners who are allowed to release it. Without this a payout could
+  // be approved by whoever happened to be signed in.
+  if (extra && Array.isArray(extra.eventOwnerIds) && extra.eventOwnerIds.length) {
+    payout.eventOwnerIds = extra.eventOwnerIds.map(String);
+  }
   await addPayoutRequest(payout);
 
   // Remember the bank account so the next request prefills it.
@@ -345,21 +395,20 @@ async function storePayoutRequest(user, parsed) {
   return payout;
 }
 
-// Turn a verified-payment total into the balance a request may draw from:
-// only the matured share, less everything already requested.
-function payoutBalance(revenue, heldRevenue, payouts) {
+// Turn an earned total into the balance a request may draw from: only the
+// matured share, less everything already requested.
+function payoutBalance(earned, held, payouts) {
   const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
-  const maturedRevenue = round2(Math.max(0, revenue - heldRevenue));
-  const maturedCommission = round2(maturedRevenue * INFLUENCER_COMMISSION_RATE);
+  const matured = round2(Math.max(0, earned - held));
   const committed = round2(payouts
     .filter(p => ['pending', 'approved', 'paid'].includes(String(p.status || '').toLowerCase()))
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
   return {
-    maturedRevenue,
-    maturedCommission,
+    earned: round2(earned),
+    held: round2(held),
+    matured,
     committed,
-    availableBalance: round2(Math.max(0, maturedCommission - committed)),
-    totalCommission: round2(revenue * INFLUENCER_COMMISSION_RATE)
+    availableBalance: round2(Math.max(0, matured - committed))
   };
 }
 
@@ -386,8 +435,9 @@ async function savePayoutNotificationEmail(userId, notificationEmail) {
 }
 
 // Gross → fee → net split for a payout request. The rate is stored on each
-// request, so payouts made under the old 20% fee keep showing 20% while new
-// ones retain only the 2% platform fee.
+// request: new payouts carry 0% because the platform fee (2.5% referred / 20%
+// direct) was already taken from the ticket, while anything requested under the
+// old model keeps showing the rate it was actually made with.
 function payoutFeeSplit(p) {
   const gross = Math.max(0, Number(p && p.amount) || 0);
   const rateNum = Number(p && p.feeRate);
@@ -407,9 +457,12 @@ function payoutPublic(p) {
     requestedBy: p.requestedBy,
     requesterName: p.requesterName || '',
     requesterEmail: p.requesterEmail || '',
-    // 'influencer' = the referrer withdrawing their 18% commission. Older
+    // 'influencer' = the referrer withdrawing their 17.5% commission. Older
     // records have no role stored, so fall back to the requester itself.
     requesterRole: p.requesterRole || '',
+    // The Influencer Admins allowed to release a referrer's commission: the
+    // owners of the events the referrer's links point at.
+    eventOwnerIds: Array.isArray(p.eventOwnerIds) ? p.eventOwnerIds.map(String) : [],
     // The real, receivable inbox the requester gave on their account form.
     requesterContactEmail: p.requesterContactEmail || '',
     // False means no completion email can be delivered for this payout: neither
@@ -422,7 +475,7 @@ function payoutPublic(p) {
     feeRate: fee.feeRate,
     feeAmount: fee.feeAmount,
     netAmount: fee.netAmount,
-    // The 80/18/2 split this request sits in, so the admin and sub-admin
+    // The rates this request sits in, so the admin and sub-admin
     // dashboards can show the whole picture next to the payout itself.
     commissionRates: COMMISSION_SPLIT,
     influencerRate: COMMISSION_SPLIT.influencer,
@@ -2262,13 +2315,12 @@ async function sendPayoutRequestEmailToAdmin(payout) {
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
     const feeAmount = '₦' + fee.feeAmount.toLocaleString();
     const netAmount = '₦' + fee.netAmount.toLocaleString();
-    const subject = '💰 Payout Request — send ' + netAmount + ', retain ' + feeAmount + ' (' + (payout.requesterName || payout.requesterEmail) + ')';
+    const subject = '💰 Payout Request — ' + netAmount + ' for ' + (payout.requesterName || payout.requesterEmail);
     const text =
       'New payout request on Unisocials.\n\n' +
       'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
       'Amount requested: ' + amount + '\n' +
-      'Send to them (' + (100 - feePct) + '%): ' + netAmount + '\n' +
-      'Unisocials platform fee (' + feePct + '%): ' + feeAmount + '\n' +
+      'Send to them: ' + netAmount + '\n' +
       'Payment schedule: ' + (m.label || payout.payoutMethod) + '\n' +
       'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
       'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
@@ -2282,8 +2334,7 @@ async function sendPayoutRequestEmailToAdmin(payout) {
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
       payoutEmailRow('Amount requested', amount) +
-      payoutEmailRow('Send to them (' + (100 - feePct) + '%)', netAmount) +
-      payoutEmailRow('Platform fee — Unisocials (' + feePct + '%)', feeAmount) +
+      payoutEmailRow('Send to them', netAmount) +
       payoutEmailRow('Payment schedule', m.label || payout.payoutMethod) +
       payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
       payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
@@ -2347,9 +2398,9 @@ async function sendPayoutStatusEmailToRequester(payout) {
     const text =
       'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
       (statusText === 'paid'
-        ? 'Your payout is complete. ' + netAmount + ' (' + (100 - feePct) + '% of the ' + amount + ' commission you requested) has been sent to your bank account (' + bankLine + '). The ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout is complete. ' + netAmount + ' has been sent to your bank account (' + bankLine + '). Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' (' + (100 - feePct) + '%) will be sent to you within 24 hours, and the ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials.'
+          ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' will be sent to you within 24 hours.'
           : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
       '\n\nThank you for growing Unisocials.\n\nUnisocials Team';
     const html =
@@ -2359,16 +2410,15 @@ async function sendPayoutStatusEmailToRequester(payout) {
       '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
       '<p style="margin:0 0 14px;color:#475569">' +
       (statusText === 'paid'
-        ? 'Your payout is complete: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '% of the ' + amount + ' commission you requested) has been sent to your bank account (' + escapeHtml(bankLine) + '). The ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout is complete: <strong>' + netAmount + '</strong> has been sent to your bank account (' + escapeHtml(bankLine) + '). Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
-          ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '%) will be sent to you within 24 hours, and the ' + feePct + '% platform fee (' + feeAmount + ') is retained by Unisocials.'
+          ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> will be sent to you within 24 hours.'
           : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
       '</p>' +
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Request ID', payout.id) +
       payoutEmailRow('Amount requested', amount) +
       payoutEmailRow('Sent to you (' + (100 - feePct) + '%)', netAmount) +
-      payoutEmailRow('Platform fee — Unisocials (' + feePct + '%)', feeAmount) +
       payoutEmailRow('Bank', bankLine) +
       (payout.paidAt ? payoutEmailRow('Paid on', fmtEmailDate(payout.paidAt)) : '') +
       '</table>' +
@@ -4530,7 +4580,7 @@ codes[idx] = entry;
       // has its own independent code/link.
       function commissionForOrder(order) {
         // Respect an explicitly stored commission amount/rate when the order has one.
-        // Orders without one fall back to the site-wide 18% influencer commission,
+        // Orders without one fall back to the site-wide 17.5% influencer commission,
         // so the referral portal never reports a flat zero for real sales.
         const explicit = Number(order && (order.commissionAmount ?? order.influencerCommission ?? order.referralCommission));
         if (Number.isFinite(explicit)) return explicit;
@@ -4735,7 +4785,7 @@ codes[idx] = entry;
 
     // ── Sub-admin: list payout requests (READ-ONLY) ──
     // Mirrors the main admin's Payout Requests panel so a sub-admin can see every
-    // payout the admin pays out — amounts, the 80/18/2 split, bank details and status.
+    // payout is released — amounts, the rates, bank details and status.
     // It deliberately exposes NO payout capability: approving, marking paid and
     // rejecting all live on /api/admin/payouts (POST), which requires the master
     // admin password and is unreachable with a sub-admin session token.
@@ -4747,7 +4797,7 @@ codes[idx] = entry;
         return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
       }
       const payouts = await readPayouts();
-      // The sub-admin sees the same totals the main admin does — the 80/18/2
+      // The sub-admin sees the same totals the main admin does — the
       // split included — so nothing about a payout is hidden from oversight.
       const all = payouts.map(payoutPublic);
       const sum = (rows, key) => Math.round(rows.reduce((n, p) => n + (Number(p[key]) || 0), 0) * 100) / 100;
@@ -5206,88 +5256,87 @@ codes[idx] = entry;
         // Main Admin's decision and must not be surfaced in the Influencer Admin
         // dashboard.
         const revenue = verified.reduce((n,o)=>n+(Number(o.amount)||0),0);
-        // Per-event 80/18/2 breakdown so the requester sees where their 18%
-        // commission comes from, alongside what the owner and Unisocials keep.
-        const split = commissionSplit(revenue);
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, influencerCommission:split.influencerAmount, eventOwnerShare:split.eventOwnerAmount, platformShare:split.platformAmount, influencers:influencerRows };
+        // Per-event breakdown, splitting referred sales (17.5% to the influencer,
+        // 2.5% to Unisocials) from direct ones (20% to Unisocials).
+        const referred = verified.filter(o => !!String(o.referralCode || '').trim()).reduce((n,o)=>n+(Number(o.amount)||0),0);
+        const split = commissionTotals(referred, revenue - referred);
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
       });
-      // commissionRates lets the dashboard show the 80/18/2 split on ticket revenue.
+      // commissionRates lets the dashboard show how each sale was split.
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
     }
 
-    // ── Influencer Admin: event earnings + referrer payouts (read-only) ──
-    // The Influencer Admin is the EVENT OWNER: they keep the 80% of every
-    // verified payment on their events. The withdrawable 18% belongs to the
-    // influencer whose referral link brought the buyer, so this account never
-    // requests a payout — it only sees what its referrers have asked for and
-    // what the Main Admin still owes them.
+    // ── Influencer Admin: their 80% share, minus what is owed to referrers ──
+    // The event owner is credited 97.5% of a referred sale and 80% of a direct
+    // one, but the influencer's 17.5% is allocated out of that credit — so the
+    // owner always withdraws 80% of the ticket. Sales are classified per order
+    // by whether they carried a referral code.
     async function influencerAdminPayoutSummary(authCtx) {
       const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
       const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
       const nowMs = Date.now();
       const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
-      let totalVerifiedRevenue = 0;
-      let heldAmount = 0;
+      let referredAmount = 0;
+      let directAmount = 0;
+      let heldReferred = 0;
+      let heldDirect = 0;
       const heldPayments = [];
       authorizedEvents.forEach(ev => {
         orders.forEach(o => {
-          if (eventMatchesOrder(o, ev) && String(o.status || '').toLowerCase() === 'verified') {
-            const amount = Number(o.amount) || 0;
-            totalVerifiedRevenue += amount;
-            // Every payment made through the site stays on hold for 7 days
-            // from the moment it was paid before it becomes withdrawable.
-            const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
-            const unlocksMs = paidMs + PAYOUT_HOLD_MS;
-            if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
-              heldAmount += amount;
-              heldPayments.push({
-                orderId: o.orderId || '',
-                eventName: o.eventName || '',
-                amount,
-                // What this payment has actually earned, so the countdown is
-                // read in commission rather than in gross ticket revenue.
-                commissionAmount: round2(amount * INFLUENCER_COMMISSION_RATE),
-                paidAt: new Date(paidMs).toISOString(),
-                unlocksAt: new Date(unlocksMs).toISOString()
-              });
-            }
+          if (!eventMatchesOrder(o, ev) || String(o.status || '').toLowerCase() !== 'verified') return;
+          const amount = Number(o.amount) || 0;
+          const referred = !!String(o.referralCode || '').trim();
+          if (referred) referredAmount += amount; else directAmount += amount;
+          // Every payment made through the site stays on hold for 7 days
+          // from the moment it was paid before it becomes withdrawable.
+          const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+          const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+          if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
+            if (referred) heldReferred += amount; else heldDirect += amount;
+            // What this payment actually earned the owner, so the countdown is
+            // read in withdrawable share rather than gross ticket revenue.
+            heldPayments.push({
+              orderId: o.orderId || '',
+              eventName: o.eventName || '',
+              amount,
+              referred,
+              commissionAmount: commissionSplit(amount, referred).ownerNetAmount,
+              paidAt: new Date(paidMs).toISOString(),
+              unlocksAt: new Date(unlocksMs).toISOString()
+            });
           }
         });
       });
-      totalVerifiedRevenue = round2(totalVerifiedRevenue);
-      heldAmount = round2(heldAmount);
-      const maturedRevenue = round2(Math.max(0, totalVerifiedRevenue - heldAmount));
-      // The influencer only ever earns their 18% of the payment — the 80% is
-      // the event owner's and the 2% is Unisocials'.
-      const totalCommission = round2(totalVerifiedRevenue * INFLUENCER_COMMISSION_RATE);
-      const maturedCommission = round2(maturedRevenue * INFLUENCER_COMMISSION_RATE);
-      const heldCommission = round2(heldAmount * INFLUENCER_COMMISSION_RATE);
-      const split = commissionSplit(totalVerifiedRevenue);
+      const totals = commissionTotals(referredAmount, directAmount);
+      const heldTotals = commissionTotals(heldReferred, heldDirect);
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
-      const committed = mine
-        .filter(p => ['pending','approved','paid'].includes(String(p.status || '').toLowerCase()))
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const balance = payoutBalance(totals.ownerNetAmount, heldTotals.ownerNetAmount, mine);
       heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
       return {
         payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        totalVerifiedRevenue,
-        totalRequested: round2(committed),
-        // Only commission from payments past the 7-day countdown, and only what
-        // is left after earlier requests, can be withdrawn.
-        availableBalance: round2(Math.max(0, maturedCommission - committed)),
-        maturedRevenue,
-        heldAmount,
+        // Gross ticket money, and how it was split.
+        totalVerifiedRevenue: totals.grossAmount,
+        referredAmount: totals.referredAmount,
+        directAmount: totals.directAmount,
+        // 97.5% of referred sales + 80% of direct sales: what the owner is owed
+        // before the referrers' commission is allocated out of it.
+        ownerCreditAmount: totals.ownerCreditAmount,
+        // 17.5% of every referred ticket, owed to the influencers.
+        influencerOwed: totals.influencerAmount,
+        // What the owner actually walks away with: 80% of every ticket.
+        ownerNetAmount: totals.ownerNetAmount,
+        platformFee: totals.platformAmount,
+        heldAmount: round2(heldTotals.grossAmount),
         heldPayments,
-        // The 18/2/80 breakdown of everything verified on these events.
-        totalCommission,
-        maturedCommission,
-        heldCommission,
+        earned: balance.earned,
+        matured: balance.matured,
+        held: balance.held,
+        totalRequested: balance.committed,
+        availableBalance: balance.availableBalance,
         commissionRates: COMMISSION_SPLIT,
-        eventOwnerShare: split.eventOwnerAmount,
-        platformShare: split.platformAmount,
         feeRate: PAYOUT_FEE_RATE,
         holdDays: PAYOUT_HOLD_DAYS,
-        hasOpenRequest: mine.some(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()))
+        hasOpenRequest: mine.some(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase()))
       };
     }
 
@@ -5323,51 +5372,129 @@ codes[idx] = entry;
       const summary = await influencerAdminPayoutSummary(authCtx);
       const referrerPayouts = await referrerPayoutsForInfluencerAdmin(authCtx);
       const openReferrerPayouts = referrerPayouts.filter(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()));
+      const contactEmail = isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail) ? '' : String((authCtx.user && authCtx.user.contactEmail) || '').trim().toLowerCase();
       return sendJson(res, 200, {
         success: true,
-        // This account's own 80% of verified event revenue, and the share of
-        // that revenue owed to its referrers as commission.
+        payouts: summary.payouts.map(payoutPublic),
+        // Gross ticket money on this account's events, split by whether a
+        // referral link was used.
         totalVerifiedRevenue: summary.totalVerifiedRevenue,
-        maturedRevenue: summary.maturedRevenue,
+        referredAmount: summary.referredAmount,
+        directAmount: summary.directAmount,
+        // Credited, allocated out, and what is actually withdrawable.
+        ownerCreditAmount: summary.ownerCreditAmount,
+        influencerOwed: summary.influencerOwed,
+        ownerNetAmount: summary.ownerNetAmount,
+        platformFee: summary.platformFee,
         heldAmount: summary.heldAmount,
         heldPayments: summary.heldPayments,
-        eventOwnerShare: summary.eventOwnerShare,
-        ownerMaturedShare: Math.round(summary.maturedRevenue * EVENT_OWNER_RATE * 100) / 100,
-        // Commission earned by this account's referrers, which the Main Admin
-        // pays out on the owner's behalf.
-        referrerCommission: summary.totalCommission,
-        referrerCommissionHeld: summary.heldCommission,
-        referrerCommissionMatured: summary.maturedCommission,
-        platformShare: summary.platformShare,
+        totalRequested: summary.totalRequested,
+        availableBalance: summary.availableBalance,
         commissionRates: summary.commissionRates,
         feeRate: summary.feeRate,
         holdDays: summary.holdDays,
+        hasOpenRequest: summary.hasOpenRequest,
+        payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
+        savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null,
+        // Where the "payout complete" notice goes. The @unisocials.com login
+        // cannot receive mail, so this is the only usable address.
+        notificationEmail: contactEmail,
+        notificationEmailOnFile: !!contactEmail,
+        // Read-only visibility of what this account's referrers have asked for.
         referrerPayouts: referrerPayouts.map(payoutPublic),
         openReferrerPayoutCount: openReferrerPayouts.length,
-        openReferrerPayoutAmount: Math.round(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100,
-        // The owner has nothing to withdraw and nothing to be paid: the 18%
-        // commission is the referrer's, and the 80% arrives with the ticket
-        // money itself rather than through a payout request.
-        readOnly: true,
-        withdrawableByEventOwner: false
+        openReferrerPayoutAmount: Math.round(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100
       });
     }
 
-    // The withdrawable 18% belongs to the influencer, not the event owner.
-    // Close the old write routes explicitly so a stale dashboard can never
-    // move the referrer's commission to the wrong bank account.
-    if (pathname === '/api/influencer-admin/payouts' && (req.method === 'POST' || req.method === 'PATCH')) {
-      return sendJson(res, 403, {
-        success: false,
-        error: 'Event owners keep their 80% directly and do not request payouts. The 18% commission is withdrawn by the influencer who brought the sale — they do it from their Influencer Portal → Payouts.'
+    // The event owner withdraws their 80%: 97.5% of a referred sale less the
+    // influencer's 17.5% allocated out of it, and 80% of a direct sale. The same
+    // request/approve/pay flow and completion email the referrer uses.
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const parsed = parsePayoutRequestBody(await readBody(req));
+      if (parsed.error) return sendJson(res, 400, { success:false, error: parsed.error });
+
+      const summary = await influencerAdminPayoutSummary(authCtx);
+      if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
+      if (parsed.amount > summary.availableBalance) {
+        let error = 'payout amount not valid: the amount you requested exceeds your available ' +
+          Math.round(EVENT_OWNER_RATE * 100) + '% share of ₦' + summary.availableBalance.toLocaleString() + '.';
+        error += ' That is ' + Math.round(EVENT_OWNER_RATE * 100) + '% of the ₦' + Math.round(summary.matured / EVENT_OWNER_RATE).toLocaleString() +
+          ' in matured verified payments, less ₦' + summary.totalRequested.toLocaleString() + ' already requested.';
+        if (summary.held > 0) {
+          error += ' You also have ₦' + summary.held.toLocaleString() + ' inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
+        }
+        return sendJson(res, 400, { success:false, error });
+      }
+
+      const freshUser = (await findUserById(authCtx.user.id)) || authCtx.user;
+      const payout = await storePayoutRequest(freshUser, parsed);
+      const fee = payoutFeeSplit(payout);
+      // Notify the Main Admin by email so they can verify and pay within 24 hours.
+      const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      return sendJson(res, 200, {
+        success: true,
+        payout: payoutPublic(payout),
+        availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
+        adminEmailSent: !!emailSent,
+        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' will be sent to you, and the Main Admin will pay it within 24 hours of approval. Your referrers\' 17.5% commission is separate — they request it themselves.'
       });
     }
 
-    // ── Influencer (referrer): withdraw the 18% commission ──
-    // The 18% is earned only on sales that came through this influencer's own
-    // referral link, and it is this account — not the event owner — that asks
-    // for it to be paid. Same request/approve/pay flow, same emails and the
-    // same admin oversight as every other payout.
+    // Save the real inbox payout notifications go to. An Influencer Admin
+    // created by the Main Admin has no contactEmail, so without this the
+    // "payout complete" notice would have nowhere to go. Saving it here also
+    // re-sends the completion notice for any already-paid payout that never
+    // reached them.
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'PATCH') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const notificationEmail = String(data.notificationEmail || '').trim().toLowerCase();
+      const emailError = validateEmail(notificationEmail);
+      if (emailError) return sendJson(res, 400, { success:false, error: emailError });
+      // The site mints <name>@unisocials.com logins that cannot receive mail.
+      if (isInternalLoginEmail(notificationEmail)) {
+        return sendJson(res, 400, { success:false, error:'Use a real email address you check (Gmail, Yahoo, Outlook). Your @unisocials.com login cannot receive mail.' });
+      }
+      const users = await readUsers();
+      const taken = users.find(u => String(u.id) !== String(authCtx.user.id) && String(u.contactEmail || '').trim().toLowerCase() === notificationEmail);
+      if (taken) return sendJson(res, 409, { success:false, error:'That email is already used by another Unisocials account.' });
+      const saved = await savePayoutNotificationEmail(authCtx.user.id, notificationEmail);
+      if (saved.error) return sendJson(res, saved.status, { success:false, error: saved.error });
+      return sendJson(res, 200, {
+        success: true,
+        notificationEmail: notificationEmail,
+        resentPayoutNotifications: saved.resent,
+        message: 'Payout notifications will be sent to ' + notificationEmail + '.'
+      });
+    }
+
+    // ── Influencer (referrer): withdraw the 17.5% commission ──
+    // The 17.5% is earned only on sales that came through this influencer's own
+    // referral link. They ask for it here; the Influencer Admin of the event
+    // approves and pays it. Same records, emails and oversight as every other
+    // payout — only the role allowed to release it differs.
+    // The Influencer Admins who run the events this referrer's links point at.
+    // They are the ones who owe, approve and pay the commission.
+    async function eventOwnerIdsForInfluencer(user) {
+      const ids = new Set();
+      const fresh = (await findUserById(user.id)) || user;
+      getAcceptedInfluencerAssignments(fresh).forEach(a => {
+        const id = String(a.influencerAdminId || '').trim();
+        if (id) ids.add(id);
+      });
+      const links = await getReferralLinksByInfluencerId(user.id);
+      links.forEach(l => {
+        const id = String(l.influencerAdminId || '').trim();
+        if (id) ids.add(id);
+      });
+      return [...ids];
+    }
+
     async function influencerPayoutSummary(user) {
       const links = await getReferralLinksByInfluencerId(user.id);
       const codes = new Set(links.map(l => String(l.code || '').trim()).filter(Boolean));
@@ -5384,6 +5511,8 @@ codes[idx] = entry;
         if (String(o.status || '').toLowerCase() !== 'verified') return;
         const amount = Number(o.amount) || 0;
         referredRevenue += amount;
+        // The commission is 17.5% of the FULL ticket, not of the owner's 97.5%.
+        const commission = commissionSplit(amount, true).influencerAmount;
         const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
         const unlocksMs = paidMs + PAYOUT_HOLD_MS;
         if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
@@ -5392,7 +5521,7 @@ codes[idx] = entry;
             orderId: o.orderId || '',
             eventName: o.eventName || '',
             amount,
-            commissionAmount: round2(amount * INFLUENCER_COMMISSION_RATE),
+            commissionAmount: commission,
             paidAt: new Date(paidMs).toISOString(),
             unlocksAt: new Date(unlocksMs).toISOString()
           });
@@ -5400,31 +5529,31 @@ codes[idx] = entry;
       });
       referredRevenue = round2(referredRevenue);
       heldRevenue = round2(heldRevenue);
-      const balance = payoutBalance(referredRevenue, heldRevenue, payouts.filter(p => String(p.requestedBy) === String(user.id)));
-      const split = commissionSplit(referredRevenue);
-      heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
       const mine = payouts.filter(p => String(p.requestedBy) === String(user.id));
+      const earned = round2(referredRevenue * INFLUENCER_COMMISSION_RATE);
+      const held = round2(heldRevenue * INFLUENCER_COMMISSION_RATE);
+      const balance = payoutBalance(earned, held, mine);
+      // For context: of the money their link brought in, 97.5% was credited to
+      // the event owner (who passes on 80% to themselves) and 2.5% to Unisocials.
+      const totals = commissionTotals(referredRevenue, 0);
+      heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
       return {
         payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        // What the referral link brought in, and the 18% cut of it.
         referredRevenue,
         heldRevenue,
         heldPayments,
-        totalCommission: balance.totalCommission,
-        maturedRevenue: balance.maturedRevenue,
-        maturedCommission: balance.maturedCommission,
-        heldCommission: round2(heldRevenue * INFLUENCER_COMMISSION_RATE),
+        // 17.5% of the FULL ticket, withdrawn with no further deduction.
+        totalCommission: earned,
         availableBalance: balance.availableBalance,
         totalRequested: balance.committed,
-        // For context: of the money their link brought in, 80% went to the
-        // event owner and 2% to Unisocials.
-        eventOwnerShare: split.eventOwnerAmount,
-        platformShare: split.platformAmount,
+        maturedRevenue: balance.matured,
         commissionRates: COMMISSION_SPLIT,
         feeRate: PAYOUT_FEE_RATE,
         holdDays: PAYOUT_HOLD_DAYS,
         referralCodes: [...codes],
-        hasOpenRequest: mine.some(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()))
+        hasOpenRequest: mine.some(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase())),
+        eventOwnerShare: totals.ownerCreditAmount,
+        platformShare: totals.platformAmount
       };
     }
 
@@ -5442,8 +5571,8 @@ codes[idx] = entry;
         heldRevenue: summary.heldRevenue,
         heldPayments: summary.heldPayments,
         totalCommission: summary.totalCommission,
-        maturedCommission: summary.maturedCommission,
-        heldCommission: summary.heldCommission,
+        maturedCommission: summary.maturedRevenue,
+        heldCommission: summary.heldRevenue * INFLUENCER_COMMISSION_RATE,
         availableBalance: summary.availableBalance,
         totalRequested: summary.totalRequested,
         eventOwnerShare: summary.eventOwnerShare,
@@ -5475,14 +5604,17 @@ codes[idx] = entry;
         let error = 'payout amount not valid: the amount you requested exceeds your available commission of ₦' +
           summary.availableBalance.toLocaleString() + ' (' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of the ₦' +
           summary.maturedRevenue.toLocaleString() + ' your referral link brought in).';
-        if (summary.heldCommission > 0) {
-          error += ' You also have ₦' + summary.heldCommission.toLocaleString() + ' of commission inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
+        const heldCommission = Math.round(summary.heldRevenue * INFLUENCER_COMMISSION_RATE * 100) / 100;
+        if (heldCommission > 0) {
+          error += ' You also have ₦' + heldCommission.toLocaleString() + ' of commission inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
         }
         return sendJson(res, 400, { success:false, error });
       }
 
       const freshUser = (await findUserById(sessionUser.id)) || sessionUser;
-      const payout = await storePayoutRequest(freshUser, parsed);
+      const payout = await storePayoutRequest(freshUser, parsed, {
+        eventOwnerIds: await eventOwnerIdsForInfluencer(freshUser)
+      });
       const fee = payoutFeeSplit(payout);
       // Notify the Main Admin by email so they can verify and pay within 24 hours.
       const emailSent = await sendPayoutRequestEmailToAdmin(payout);
@@ -5491,7 +5623,7 @@ codes[idx] = entry;
         payout: payoutPublic(payout),
         availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted: of your ₦' + parsed.amount.toLocaleString() + ' commission, ₦' + fee.netAmount.toLocaleString() + ' (' + Math.round((1 - fee.feeRate) * 100) + '%) will be sent to you and ₦' + fee.feeAmount.toLocaleString() + ' (' + Math.round(fee.feeRate * 100) + '%) is the Unisocials platform fee. The admin has been notified and will pay within 24 hours of approval.'
+        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' of commission will be sent to you — ' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of every sale made through your link, with nothing further deducted. The Influencer Admin of the event has been notified and will pay within 24 hours of approval.'
       });
     }
 
@@ -5528,7 +5660,6 @@ codes[idx] = entry;
     }
 
     if (pathname === '/api/admin/payouts' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Admin access only' });
       const body = await readBody(req);
       let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
       const payoutId = String(data.payoutId || '').trim();
@@ -5541,11 +5672,28 @@ codes[idx] = entry;
       const payouts = await readPayouts();
       const existing = payouts.find(p => p.id === payoutId);
       if (!existing) return sendJson(res, 404, { success:false, error:'Payout request not found.' });
+
+      // Who may release this payout:
+      //   • the master admin, for everything;
+      //   • the Influencer Admin of the event, for a referrer's commission on
+      //     their own events — that is who owes the money and pays it out.
+      // A sub-admin can see payouts but never release one.
+      let reviewerLabel = 'Admin';
+      if (!isAdminAuthorized(req)) {
+        const ownerCtx = await isAdminOrInfluencerAdmin(req);
+        const ownerId = ownerCtx && ownerCtx.role === 'influencer_admin' ? String(ownerCtx.user.id) : '';
+        const allowedOwners = Array.isArray(existing.eventOwnerIds) ? existing.eventOwnerIds.map(String) : [];
+        if (!ownerId || !allowedOwners.includes(ownerId)) {
+          return sendJson(res, 401, { success:false, error:'Only the Main Admin, or the Influencer Admin of the event this commission belongs to, can pay it.' });
+        }
+        reviewerLabel = (ownerCtx.user.name || 'Event Owner');
+      }
+
       const currentStatus = String(existing.status || '').toLowerCase();
       if (currentStatus === 'paid') return sendJson(res, 409, { success:false, error:'This payout has already been paid.' });
 
       const nowIso = new Date().toISOString();
-      const patch = { reviewedAt: nowIso, reviewedBy: 'Admin', adminNote: adminNote || existing.adminNote || '' };
+      const patch = { reviewedAt: nowIso, reviewedBy: reviewerLabel, adminNote: adminNote || existing.adminNote || '' };
       if (action === 'approve') {
         if (currentStatus === 'approved') return sendJson(res, 409, { success:false, error:'This payout is already approved.' });
         patch.status = 'approved';
@@ -5568,7 +5716,7 @@ codes[idx] = entry;
       const payout = Object.assign({}, existing, patch, emailSent ? { notifiedEmail: notifyEmail } : {});
       // When nothing receivable is on file, say so instead of silently claiming
       // the influencer was notified — they can be asked for their real inbox.
-      const emailWarning = notifyEmail ? '' : 'This Influencer Admin has no real email address on file, so the payout email could not be sent. Ask them to add one in their dashboard → Payouts.';
+      const emailWarning = notifyEmail ? '' : 'This requester has no real email address on file, so the payout email could not be sent. Ask them to add one in their dashboard → Payouts.';
       return sendJson(res, 200, { success: true, payout: payoutPublic(payout), emailSent: !!emailSent, emailAddress: notifyEmail, emailSentTo: emailSent ? notifyEmail : '', emailWarning });
     }
 

@@ -999,11 +999,11 @@
 <div class="admin-stat-value" id="statOwner80">₦0</div>
 </div>
 <div class="admin-stat verified">
-<div class="admin-stat-label">Your Commission (18%)</div>
+<div class="admin-stat-label">Owed to Referrers (17.5%)</div>
 <div class="admin-stat-value" id="statInfl18">₦0</div>
 </div>
 <div class="admin-stat pending">
-<div class="admin-stat-label">Unisocials (2%)</div>
+<div class="admin-stat-label">Unisocials Fee (2.5% / 20%)</div>
 <div class="admin-stat-value" id="statPlatform2">₦0</div>
 </div>
 </div>
@@ -1075,8 +1075,8 @@
 <div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
 <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
 <div class="admin-stat verified"><div class="admin-stat-label">Event Owner (80%)</div><div class="admin-stat-value" id="aesOwner80">₦0</div></div>
-<div class="admin-stat verified"><div class="admin-stat-label">Your Commission (18%)</div><div class="admin-stat-value" id="aesInfl18">₦0</div></div>
-<div class="admin-stat pending"><div class="admin-stat-label">Unisocials (2%)</div><div class="admin-stat-value" id="aesPlatform2">₦0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label">Owed to Referrers (17.5%)</div><div class="admin-stat-value" id="aesInfl18">₦0</div></div>
+<div class="admin-stat pending"><div class="admin-stat-label">Unisocials Fee (2.5% / 20%)</div><div class="admin-stat-value" id="aesPlatform2">₦0</div></div>
 </div>
 <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
 <h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
@@ -1148,12 +1148,12 @@
   </div>
 </div>
 
-<!-- ── PAYOUTS PANEL (event owner view — read-only) ── -->
+<!-- ── PAYOUTS PANEL (event owner: their 80%, and paying their referrers) ── -->
 <div class="admin-panel" id="panel-payouts">
   <div class="admin-panel-heading">
     <div>
       <h1>💰 Earnings &amp; Referrer Payouts</h1>
-      <p>Every verified payment on your events is split <strong>80% to you</strong>, <strong>18% commission to the influencer</strong> whose link brought the buyer, and <strong>2% to Unisocials</strong>. You keep the 80% directly from the ticket money — the withdrawable 18% belongs to your referrers.</p>
+      <p>A sale made through an influencer's link is split <strong>2.5% to Unisocials, 17.5% to the influencer, 80% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. Either way you withdraw <strong>80%</strong> — and you approve and pay your referrers' 17.5% from here.</p>
     </div>
     <button class="admin-refresh-btn" type="button" onclick="loadPayouts()">↻ Refresh</button>
   </div>
@@ -1161,19 +1161,51 @@
   <div class="admin-scan-panel">
     <div class="payout-balance-grid">
       <div class="admin-stat revenue"><div class="admin-stat-label">Your Share (80%)</div><div class="admin-stat-value" id="payoutOwnerShare">₦0</div></div>
-      <div class="admin-stat"><div class="admin-stat-label">Verified Payments</div><div class="admin-stat-value" id="payoutTotalRevenue">₦0</div></div>
-      <div class="admin-stat pending"><div class="admin-stat-label">Referrer Commission Owed (18%)</div><div class="admin-stat-value" id="payoutReferrerCommission">₦0</div></div>
-      <div class="admin-stat"><div class="admin-stat-label">Unisocials Fee (2%)</div><div class="admin-stat-value" id="payoutPlatformShare">₦0</div></div>
+      <div class="admin-stat verified"><div class="admin-stat-label">Available to Withdraw</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
+      <div class="admin-stat"><div class="admin-stat-label">On Hold — 7-day countdown</div><div class="admin-stat-value" id="payoutHeld">₦0</div></div>
+      <div class="admin-stat pending"><div class="admin-stat-label">Owed to Referrers (17.5%)</div><div class="admin-stat-value" id="payoutReferrerCommission">₦0</div></div>
     </div>
 
     <div id="payoutFeeNotice" style="display:none;margin-bottom:14px;background:#F1F8E9;border:1px solid #C8E6C9;color:#1B5E20;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
     <div id="payoutHoldNotice" style="display:none;margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
-    <div id="payoutOwnerNotice" style="margin-bottom:14px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--text-2);border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
+    <div id="payoutOpenNotice" style="display:none;margin-bottom:14px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
   </div>
 
   <div class="admin-scan-panel" style="margin-top:16px;">
-    <div class="influencer-section-heading"><div><strong>Referrer commission requests</strong><div>Commission your referrers have asked to withdraw, and what the Main Admin still owes them. Approving and paying is done by the Main Admin only.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>1. Your payout notification email</strong><div>Your real inbox, outside Unisocials — that is where the "payout complete" notice goes. Your <code>@unisocials.com</code> login cannot receive mail.</div></div></div>
+    <div id="payoutNotifyNotice" style="display:none;margin-bottom:12px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+      <div class="form-group" style="flex:1 1 260px;margin-bottom:0;"><label for="payoutNotifyEmail">Real email address</label><input type="email" id="payoutNotifyEmail" placeholder="you@gmail.com" autocomplete="email" /></div>
+      <button class="btn-submit" id="savePayoutNotifyEmailBtn" type="button" style="margin-bottom:0;" onclick="savePayoutNotifyEmail()">Save email</button>
+    </div>
+
+    <div class="influencer-section-heading"><div><strong>2. Your bank account</strong><div>Saved and reused for every payout request. Double-check it before requesting.</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="payoutBankName">Bank Name</label><input type="text" id="payoutBankName" placeholder="e.g. GTBank, Opay, Palmpay" autocomplete="off" /></div>
+      <div class="form-group"><label for="payoutAccountNumber">Account Number</label><input type="text" id="payoutAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off" /></div>
+      <div class="form-group"><label for="payoutAccountName">Account Name</label><input type="text" id="payoutAccountName" placeholder="As it appears on your bank record" autocomplete="off" /></div>
+    </div>
+
+    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div>Request any part of your 80%. Nothing further is deducted — the Unisocials fee was already taken from the ticket.</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="form-group"><label for="payoutMethod">Payment schedule</label><select id="payoutMethod"><option value="7_days">Every 7 days</option><option value="14_days">Every 14 days</option><option value="after_event">After event day</option></select></div>
+      <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" /></div>
+      <div class="form-group"><label for="payoutNote">Note to admin <span style="opacity:.6;">— optional</span></label><input type="text" id="payoutNote" placeholder="Anything the admin should know" maxlength="500" /></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="btn-submit" id="requestPayoutBtn" onclick="requestPayout()">💰 Request Payout</button>
+      <span style="font-size:.78rem;color:var(--text-3);">Approved payouts are paid within <strong>24 hours</strong>, and you get an email the moment yours is <strong>complete</strong>.</span>
+    </div>
+  </div>
+
+  <div class="admin-scan-panel" style="margin-top:16px;">
+    <div class="influencer-section-heading"><div><strong>Referrer commission requests</strong><div>Your referrers' 17.5% of every sale made through their link. <strong>You approve and pay these</strong> — the money is already yours, held for them.</div></div></div>
     <div id="payoutHistory"></div>
+  </div>
+
+  <div class="admin-scan-panel" style="margin-top:16px;">
+    <div class="influencer-section-heading"><div><strong>Your payout history</strong><div>Your own 80% requests and their status.</div></div></div>
+    <div id="payoutOwnHistory"></div>
   </div>
 </div>
 
@@ -1647,17 +1679,19 @@ function fmtN(n) {
       };
 
       var authorizedEventSales = [];
-      // 80/18/2 split served by the event-overview API (fallbacks match the
-      // site-wide rates: 80% owner, 18% influencer commission, 2% Unisocials).
-      var overviewFeeRate = 0.02;
+      // Per-sale split served by the event-overview API (fallbacks match the
+      // site-wide rates: 80% owner, 17.5% referrer commission, 2.5% Unisocials on a
+      // referred sale and 20% on a direct one.
+      var overviewFeeRate = 0.025;
       var overviewOwnerRate = 0.80;
-      var overviewInflRate = 0.18;
+      var overviewInflRate = 0.175;
       function applyOverviewRates(d) {
         if (isFinite(Number(d.feeRate))) overviewFeeRate = Number(d.feeRate);
         if (d.commissionRates) {
           if (isFinite(Number(d.commissionRates.eventOwner))) overviewOwnerRate = Number(d.commissionRates.eventOwner);
           if (isFinite(Number(d.commissionRates.influencer))) overviewInflRate = Number(d.commissionRates.influencer);
-          if (isFinite(Number(d.commissionRates.platform))) overviewFeeRate = Number(d.commissionRates.platform);
+          // A referred sale costs Unisocials 2.5%; a direct one 20%.
+          if (isFinite(Number(d.commissionRates.platformReferred))) overviewFeeRate = Number(d.commissionRates.platformReferred);
         }
       }
       window.loadAuthorizedEventSales = function() {
@@ -1684,7 +1718,7 @@ function fmtN(n) {
         if(!box)return;
         var rows=data.influencers||[];
         if(!rows.length){box.innerHTML='<div style="color:var(--text-3);padding:14px;">No influencers are assigned to this Influencer Admin yet.</div>';return;}
-        box.innerHTML=rows.map(function(r){var rv=Number(r.revenue||0);return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+rv.toLocaleString()+'</strong><br><small style="color:#1B5E20;">18% commission ₦'+Math.round(rv*overviewInflRate).toLocaleString()+'</small><small style="color:#E65100;"> · 2% Unisocials ₦'+Math.round(rv*overviewFeeRate).toLocaleString()+'</small></div></div>';}).join('');
+        box.innerHTML=rows.map(function(r){var rv=Number(r.revenue||0);return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+rv.toLocaleString()+'</strong><br><small style="color:#1B5E20;">17.5% commission ₦'+Math.round(rv*overviewInflRate).toLocaleString()+'</small><small style="color:#E65100;"> · Unisocials ₦'+Math.round(rv*overviewFeeRate).toLocaleString()+'</small></div></div>';}).join('');
       };
       var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
 
@@ -1706,14 +1740,14 @@ function fmtN(n) {
             var sp=document.getElementById('statPending'); if(sp) sp.textContent=totals.pending;
             
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
-            // 80/18/2 split of verified ticket revenue: the event owner keeps 80%,
-            // this account earns 18% commission, Unisocials retains 2%.
-            var s80=document.getElementById('statOwner80'); if(s80) s80.textContent='₦'+Math.round(totals.revenue*overviewOwnerRate).toLocaleString();
-            var s18=document.getElementById('statInfl18'); if(s18) s18.textContent='₦'+Math.round(totals.revenue*overviewInflRate).toLocaleString();
-            var s2=document.getElementById('statPlatform2'); if(s2) s2.textContent='₦'+Math.round(totals.revenue*overviewFeeRate).toLocaleString();
+            // Split of verified ticket revenue: the event owner keeps 80%,
+            // 17.5% of a referred sale goes to the referrers, and Unisocialss retains 2.5%.
+            var s80=document.getElementById('statOwner80'); if(s80) s80.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.eventOwnerShare)||0);},0)).toLocaleString();
+            var s18=document.getElementById('statInfl18'); if(s18) s18.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.influencerCommission)||0);},0)).toLocaleString();
+            var s2=document.getElementById('statPlatform2'); if(s2) s2.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.platformShare)||0);},0)).toLocaleString();
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet. Events you create are added automatically.</div>'; }
-              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner 80%: <strong>₦'+Math.round(er*overviewOwnerRate).toLocaleString()+'</strong> · 💰 Your commission 18%: <strong style="color:#1B5E20;">₦'+Math.round(er*overviewInflRate).toLocaleString()+'</strong> · 🛡 Unisocials 2%: <strong style="color:#E65100;">₦'+Math.round(er*overviewFeeRate).toLocaleString()+'</strong></div></div>'; }).join(''); }
+              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner 80%: <strong>₦'+(ev.eventOwnerShare!=null?Math.round(ev.eventOwnerShare):Math.round(er*overviewOwnerRate)).toLocaleString()+'</strong> · 💰 Owed to referrers 17.5%: <strong style="color:#1B5E20;">₦'+(ev.influencerCommission!=null?Math.round(ev.influencerCommission):Math.round(er*overviewInflRate)).toLocaleString()+'</strong> · 🛡 Unisocials: <strong style="color:#E65100;">₦'+(ev.platformShare!=null?Math.round(ev.platformShare):Math.round(er*overviewFeeRate)).toLocaleString()+'</strong></div></div>'; }).join(''); }
             }
             if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
           })
@@ -2325,8 +2359,8 @@ fetch('/api/admin/events/notify', {
       }
 
       // This account keeps the 80% of every verified payment on its events.
-      // The withdrawable 18% belongs to the referrers, so nothing here can
-      // request a payout — it only reports what is owed and what was asked for.
+      // The event owner's own 80% is withdrawable; the referrers' 17.5% is tracked
+      // here too, because this account is the one who approves and pays it.
       var payoutFeeRate = 0.02;
       var commissionRates = { eventOwner: 0.80, influencer: 0.18, platform: 0.02 };
       var payoutHoldDays = 7;
@@ -2371,77 +2405,202 @@ fetch('/api/admin/events/notify', {
         el.style.display = 'block';
       }
 
+      var N = '\u{1F4B0}';
       window.loadPayouts = function() {
         fetch('/api/influencer-admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
           .then(function(r){ return r.json(); })
           .then(function(data){
             if (!data || !data.success) { showToast((data && data.error) || 'Could not load payouts', true); return; }
             var set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = fmtN(v || 0); };
-            set('payoutOwnerShare', data.ownerMaturedShare != null ? data.ownerMaturedShare : data.eventOwnerShare);
-            set('payoutTotalRevenue', data.totalVerifiedRevenue);
-            set('payoutReferrerCommission', data.referrerCommission);
-            set('payoutPlatformShare', data.platformShare);
+            set('payoutOwnerShare', data.ownerNetAmount);
+            set('payoutAvailable', data.availableBalance);
+            set('payoutHeld', data.heldPayments ? data.heldPayments.reduce(function(s,h){ return s + (Number(h.commissionAmount)||0); }, 0) : 0);
+            set('payoutReferrerCommission', data.influencerOwed);
 
             if (isFinite(Number(data.feeRate))) payoutFeeRate = Number(data.feeRate);
             if (data.commissionRates) {
               commissionRates = {
-                eventOwner: Number(data.commissionRates.eventOwner) || 0.80,
-                influencer: Number(data.commissionRates.influencer) || 0.18,
-                platform: Number(data.commissionRates.platform) || 0.02
+                referred: Number(data.commissionRates.platformReferred) || 0.025,
+                direct: Number(data.commissionRates.platformDirect) || 0.20,
+                influencer: Number(data.commissionRates.influencer) || 0.175
               };
             }
             payoutHoldDays = Number(data.holdDays) || 7;
 
-            var own = Math.round(commissionRates.eventOwner * 100);
-            var infl = Math.round(commissionRates.influencer * 100);
-            var plat = Math.round(payoutFeeRate * 100);
+            var refPct = Math.round(commissionRates.referred * 100);
+            var dirPct = Math.round(commissionRates.direct * 100);
+            var inflPct = Math.round(commissionRates.influencer * 100);
             var notice = document.getElementById('payoutFeeNotice');
             if (notice) {
-              notice.innerHTML = '🏛 <strong>' + own + '% to you</strong> · 💰 <strong style="color:#1B5E20;">' + infl + '% commission to your referrers</strong> · 🛡 <strong style="color:#E65100;">' + plat + '% to Unisocials</strong>' +
-                '. You keep your ' + own + '% straight from the ticket money; referrers withdraw their ' + infl + '% from the Influencer Portal, and only the ' + plat + '% platform fee is deducted when they are paid.';
+              notice.innerHTML = '🔗 Link used: <strong style="color:#1B5E20;">' + refPct + '% Unisocials</strong> · <strong>' + inflPct + '% to the influencer</strong> · <strong>' + Math.round((1 - commissionRates.referred - commissionRates.influencer) * 100) + '% to you</strong>' +
+                ' &nbsp;|&nbsp; No link: <strong style="color:#E65100;">' + dirPct + '% Unisocials</strong> · <strong>' + Math.round((1 - commissionRates.direct) * 100) + '% to you</strong>' +
+                '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct) you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unipolarus retained <strong>' + fmtN(data.platformFee) + '</strong>.';
               notice.style.display = 'block';
             }
-            var ownerNotice = document.getElementById('payoutOwnerNotice');
-            if (ownerNotice) {
-              var open = data.openReferrerPayoutCount || 0;
-              ownerNotice.innerHTML = '💡 <strong>Nothing for you to withdraw here.</strong> Your ' + own + '% arrives with the ticket payments themselves. ' +
-                (open
-                  ? '<strong>' + open + '</strong> referrer ' + (open === 1 ? 'request is' : 'requests are') + ' awaiting payment, totalling <strong>' + fmtN(data.openReferrerPayoutAmount) + '</strong>. The Main Admin approves and pays them within 24 hours.'
-                  : 'No referrer has an open payout request right now.');
-            }
 
-            payoutHeldData = Array.isArray(data.heldPayments) ? data.heldPayments : [];
-            if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
             renderPayoutHoldNotice();
-            if (payoutHeldData.length) payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
 
-            var list = document.getElementById('payoutHistory');
-            if (!list) return;
-            var payouts = data.referrerPayouts || [];
-            if (!payouts.length) {
-              list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">No referrer has requested a commission payout yet. They withdraw from the Influencer Portal once their ' + infl + '% clears the ' + payoutHoldDays + '-day countdown.</div>';
-              return;
+            var openNotice = document.getElementById('payoutOpenNotice');
+            if (openNotice) {
+              var open = (data.payouts || []).filter(function(p){ return ['pending','approved'].indexOf(String(p.status||'').toLowerCase()) !== -1; })[0];
+              if (open) {
+                openNotice.innerHTML = '⏳ Your request <strong>' + esc(open.id) + '</strong> for <strong>' + fmtN(open.netAmount != null ? open.netAmount : open.amount) + '</strong> is <strong>' + esc(open.status) + '</strong>. ' +
+                  (open.status === 'approved' ? 'You will be paid within 24 hours.' : 'The Main Admin has been notified by email.');
+                openNotice.style.display = 'block';
+              } else { openNotice.style.display = 'none'; }
             }
-            list.innerHTML = payouts.map(function(p) {
-              var rate = isFinite(Number(p.feeRate)) ? Number(p.feeRate) : payoutFeeRate;
-              return '<div class="payout-card">' +
-                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">' +
-                '<strong style="color:var(--text-1);">' + esc(p.requesterName || 'Referrer') + '</strong>' +
-                '<span style="display:flex;gap:8px;align-items:center;">' + payoutStatusBadge(p.status) + '<code style="font-size:.72rem;color:var(--text-3);">' + esc(p.id) + '</code></span>' +
-                '</div>' +
-                '<div style="margin-top:6px;font-size:.8rem;color:var(--text-3);">Commission requested: <strong>' + fmtN(p.amount) + '</strong> &middot; Sent to them (' + (100 - Math.round(rate * 100)) + '%): <strong style="color:#1B5E20;">' + fmtN(p.netAmount) + '</strong> &middot; Unisocials fee: <strong style="color:#E65100;">' + fmtN(p.feeAmount) + '</strong></div>' +
-                '<div class="payout-meta">' +
-                '<span>📧 ' + esc(p.requesterContactEmail || p.requesterEmail || '—') + '</span>' +
-                '<span>🏦 ' + esc(p.bankName || '—') + ' ••••' + esc(String(p.accountNumber || '').slice(-4)) + ' (' + esc(p.accountName || '—') + ')</span>' +
-                '<span>🕒 ' + esc(fmtPayoutDate(p.createdAt)) + '</span>' +
-                (p.paidAt ? '<span>✅ Paid ' + esc(fmtPayoutDate(p.paidAt)) + '</span>' : '') +
-                (p.paymentDueBy && p.status === 'approved' ? '<span>⏰ Due ' + esc(fmtPayoutDate(p.paymentDueBy)) + '</span>' : '') +
-                '</div>' +
-                (p.adminNote ? '<div style="margin-top:8px;font-size:.78rem;color:var(--text-3);">Admin note: ' + esc(p.adminNote) + '</div>' : '') +
-                '</div>';
-            }).join('');
+
+            var nf = document.getElementById('payoutNotifyEmail');
+            if (nf && !nf.value) nf.value = data.notificationEmail || '';
+            var nn = document.getElementById('payoutNotifyNotice');
+            if (nn) {
+              if (data.notificationEmailOnFile) { nn.style.display = 'none'; }
+              else { nn.innerHTML = '📧 Add a real email above so we can tell you when your payout is <strong>complete</strong>. Accounts created by the Main Admin do not have one yet.'; nn.style.display = 'block'; }
+            }
+
+            var bank = data.savedBankAccount || {};
+            if (bank.bankName) { var bn=document.getElementById('payoutBankName'); if (bn && !bn.value) bn.value = bank.bankName; }
+            if (bank.accountNumber) { var an=document.getElementById('payoutAccountNumber'); if (an && !an.value) an.value = bank.accountNumber; }
+            if (bank.accountName) { var nm=document.getElementById('payoutAccountName'); if (nm && !nm.value) nm.value = bank.accountName; }
+
+            // Referrer commission requests — this account approves and pays these.
+            var list = document.getElementById('payoutHistory');
+            if (list) {
+              var referrerPayouts = data.referrerPayouts || [];
+              if (!referrerPayouts.length) {
+                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">No referrer has requested commission yet. They can request once their ' + inflPct + '% clears the ' + payoutHoldDays + '-day countdown.</div>';
+              } else {
+                list.innerHTML = referrerPayouts.map(function(p) {
+                  var st = String(p.status || '').toLowerCase();
+                  var acts = '';
+                  if (st === 'pending') {
+                    acts = '<button class="btn-submit" style="white-space:nowrap;padding:8px 14px;font-size:.78rem;" data-po-act="approve" data-po-id="' + esc(p.id) + '">✅ Approve</button>' +
+                      '<button class="btn-submit" style="white-space:nowrap;padding:8px 14px;font-size:.78rem;background:#B71C1C;" data-po-act="reject" data-po-id="' + esc(p.id) + '">✖ Reject</button>';
+                  } else if (st === 'approved') {
+                    acts = '<button class="btn-submit" style="white-space:nowrap;padding:8px 14px;font-size:.78rem;" data-po-act="mark_paid" data-po-id="' + esc(p.id) + '">' + N + ' Pay ' + fmtN(p.netAmount) + '</button>' +
+                      '<button class="btn-submit" style="white-space:nowrap;padding:8px 14px;font-size:.78rem;background:#B71C1C;" data-po-act="reject" data-po-id="' + esc(p.id) + '">✖ Reject</button>';
+                  } else if (st === 'paid') {
+                    acts = '<span style="font-size:.78rem;color:#1B5E20;font-weight:700;">✅ Paid ' + esc(p.paidAt ? fmtPayoutDate(p.paidAt) : '') + '</span>';
+                  }
+                  return '<div class="payout-card">' +
+                    '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">' +
+                    '<strong style="color:var(--text-1);">' + esc(p.requesterName || 'Referrer') + ' — ' + fmtN(p.netAmount) + '</strong>' +
+                    '<span style="display:flex;gap:8px;align-items:center;">' + payoutStatusBadge(p.status) + '<code style="font-size:.72rem;color:var(--text-3);">' + esc(p.id) + '</code></span>' +
+                    '</div>' +
+                    '<div class="payout-meta">' +
+                    '<span>📧 ' + esc(p.requesterContactEmail || p.requesterEmail || '—') + '</span>' +
+                    '<span>🏦 ' + esc(p.bankName || '—') + ' ••••' + esc(String(p.accountNumber || '').slice(-4)) + ' (' + esc(p.accountName || '—') + ')</span>' +
+                    '<span>🕒 ' + esc(fmtPayoutDate(p.createdAt)) + '</span>' +
+                    (p.paidAt ? '<span>✅ Paid ' + esc(fmtPayoutDate(p.paidAt)) + '</span>' : '') +
+                    (p.paymentDueBy && st === 'approved' ? '<span>⏰ Due ' + esc(fmtPayoutDate(p.paymentDueBy)) + '</span>' : '') +
+                    '</div>' +
+                    (acts ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">' + acts + '</div>' : '') +
+                    '</div>';
+                }).join('');
+              }
+            }
+
+            // This account's own 80% withdrawals.
+            var own = document.getElementById('payoutOwnHistory');
+            if (own) {
+              var mine = data.payouts || [];
+              if (!mine.length) {
+                own.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">You have not requested a payout of your 80% yet.</div>';
+              } else {
+                own.innerHTML = mine.map(function(p) {
+                  return '<div class="payout-card">' +
+                    '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">' +
+                    '<strong style="color:var(--text-1);">' + fmtN(p.netAmount != null ? p.netAmount : p.amount) + '</strong>' +
+                    '<span style="display:flex;gap:8px;align-items:center;">' + payoutStatusBadge(p.status) + '<code style="font-size:.72rem;color:var(--text-3);">' + esc(p.id) + '</code></span>' +
+                    '</div>' +
+                    '<div class="payout-meta"><span>🏦 ' + esc(p.bankName || '—') + ' ••••' + esc(String(p.accountNumber || '').slice(-4)) + '</span>' +
+                    '<span>🕒 ' + esc(fmtPayoutDate(p.createdAt)) + '</span>' +
+                    (p.paidAt ? '<span>✅ Paid ' + esc(fmtPayoutDate(p.paidAt)) + '</span>' : '') +
+                    (p.reviewedBy ? '<span>👤 ' + esc(p.reviewedBy) + '</span>' : '') +
+                    '</div>' +
+                    (p.adminNote ? '<div style="margin-top:8px;font-size:.78rem;color:var(--text-3);">Admin note: ' + esc(p.adminNote) + '</div>' : '') +
+                    '</div>';
+                }).join('');
+              }
+            }
           })
           .catch(function(){ showToast('Network error loading payouts', true); });
+      };
+
+      // Approve, pay or reject a REFERRER's commission. This is the money the
+      // owner already holds, so they are the ones who release it.
+      window.payoutAction = function(payoutId, action, trigger) {
+        var note = '';
+        if (action === 'reject') {
+          note = prompt('Reason for rejecting this commission request (emailed to the referrer):');
+          if (note === null) return;
+          note = String(note).trim();
+          if (!note) return showToast('A rejection reason is required.', true);
+        }
+        if (action === 'mark_paid' && !confirm('Confirm you have sent this transfer to the referrer. They will be emailed that the payout is complete.')) return;
+        if (action === 'approve' && !confirm('Approve this commission? You will pay it within 24 hours.')) return;
+        if (trigger) { trigger.disabled = true; }
+        fetch('/api/admin/payouts', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify({ payoutId: payoutId, action: action, adminNote: note }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              if (data.emailWarning) showToast(data.emailWarning, true);
+              else showToast(action === 'mark_paid' ? 'Paid. The referrer has been emailed.' : (action === 'approve' ? 'Approved. Pay within 24 hours.' : 'Request rejected.'));
+              loadPayouts();
+            } else showToast((data && data.error) || 'Could not update that request', true);
+          })
+          .catch(function(){ showToast('Network error updating the request', true); });
+      };
+      document.getElementById('payoutHistory').addEventListener('click', function(e) {
+        var b = e.target.closest('[data-po-act]');
+        if (b) payoutAction(b.getAttribute('data-po-id'), b.getAttribute('data-po-act'), b);
+      });
+
+      // Save the real inbox that payout notifications go to.
+      window.savePayoutNotifyEmail = function() {
+        var field = document.getElementById('payoutNotifyEmail');
+        var email = ((field && field.value) || '').trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('Enter a valid email address.', true);
+        if (/@unisocials\.com$/i.test(email)) return showToast('Use a real inbox (Gmail, Yahoo, Outlook) — your @unisocials.com login cannot receive mail.', true);
+        var btn = document.getElementById('savePayoutNotifyEmailBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        fetch('/api/influencer-admin/payouts', { method:'PATCH', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify({ notificationEmail: email }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) { showToast(data.message || 'Payout notification email saved.'); loadPayouts(); }
+            else showToast((data && data.error) || 'Could not save that email', true);
+          })
+          .catch(function(){ showToast('Network error saving email', true); })
+          .finally(function(){ if (btn) { btn.disabled = false; btn.textContent = 'Save email'; } });
+      };
+
+      // Request a payout of the owner's own 80%.
+      window.requestPayout = function() {
+        var amount = Number((document.getElementById('payoutAmount')||{}).value || 0);
+        var method = (document.getElementById('payoutMethod')||{}).value || '';
+        var note = (document.getElementById('payoutNote')||{}).value || '';
+        var bankName = ((document.getElementById('payoutBankName')||{}).value || '').trim();
+        var accountNumber = ((document.getElementById('payoutAccountNumber')||{}).value || '').replace(/[\s-]/g, '');
+        var accountName = ((document.getElementById('payoutAccountName')||{}).value || '').trim();
+        if (!bankName) return showToast('Enter your bank name.', true);
+        if (!/^\d{10}$/.test(accountNumber)) return showToast('Enter a valid 10-digit account number.', true);
+        if (!accountName) return showToast('Enter the bank account name.', true);
+        if (!(amount > 0)) return showToast('Enter the amount you want to withdraw.', true);
+        var btn = document.getElementById('requestPayoutBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+        fetch('/api/influencer-admin/payouts', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ amount: amount, payoutMethod: method, note: note, bank: { bankName: bankName, accountNumber: accountNumber, accountName: accountName } }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              showToast(data.message || 'Payout request submitted.');
+              var amt = document.getElementById('payoutAmount'); if (amt) amt.value = '';
+              var nt = document.getElementById('payoutNote'); if (nt) nt.value = '';
+              loadPayouts();
+            } else showToast((data && data.error) || 'Failed to submit payout request', true);
+          })
+          .catch(function(){ showToast('Network error submitting request', true); })
+          .finally(function(){ if (btn) { btn.disabled = false; btn.textContent = N + ' Request Payout'; } });
       };
 
 // Load only the Influencer Admin oversight views on login

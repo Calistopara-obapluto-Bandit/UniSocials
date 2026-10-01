@@ -1209,7 +1209,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>💰 Payout Requests</h1>
-              <p>Influencer commission payout requests. Every payment is split <strong>80/18/2</strong>: <strong>80%</strong> to the event owner, <strong>18%</strong> commission to the influencer whose link brought the buyer, <strong>2%</strong> to Unisocials. A request is for that 18%, and the only deduction is the <strong>2% platform fee</strong> — send the rest to the influencer's bank account. Verify the details, send the transfer, then mark it paid. Approved payouts are promised within 24 hours.</p>
+              <p>Every payout on the site. A sale through an influencer's link is split <strong>2.5% to Unisocials, 17.5% to the influencer, 80% to the event owner</strong>; a sale with no link is <strong>20% / 80%</strong>. Requests are paid in full — the platform fee was already taken from the ticket. Referrer commission is normally paid by the Influencer Admin of the event; you can still verify, release or reject any payout here. Approved payouts are promised within 24 hours.</p>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="admin-refresh-btn" type="button" onclick="loadPayoutRequests()">↻ Refresh</button>
@@ -1219,8 +1219,8 @@
           <div class="admin-stats">
             <div class="admin-stat pending"><div class="admin-stat-label">Pending Review</div><div class="admin-stat-value" id="payoutAdminPending">0</div></div>
             <div class="admin-stat"><div class="admin-stat-label">Approved (pay within 24h)</div><div class="admin-stat-value" id="payoutAdminApproved">0</div></div>
-            <div class="admin-stat verified"><div class="admin-stat-label">Paid to Influencers (98%)</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
-            <div class="admin-stat revenue"><div class="admin-stat-label">Unisocials Fee (2%)</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
+            <div class="admin-stat verified"><div class="admin-stat-label">Paid Out</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
+            <div class="admin-stat revenue"><div class="admin-stat-label">Platform Fee Retained</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
           </div>
           <div class="admin-toolbar">
             <div class="admin-filters">
@@ -2874,7 +2874,7 @@ fetch('/api/admin/events/notify', {
             if (pendingEl) pendingEl.textContent = pending.length;
             if (approvedEl) approvedEl.textContent = approved.length;
             // Paid totals are what actually reaches the bank: the commission
-            // minus the 2% platform fee. Older payouts keep their own stored
+            // minus any platform fee. Older payouts keep their own stored
             // rate, so each one is split by the fee it was actually made with.
             var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0.02; };
             var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * (1 - rateOf(p))) * 100) / 100; };
@@ -2916,7 +2916,7 @@ fetch('/api/admin/events/notify', {
               }
               html += '<div class="admin-scan-panel" style="margin-bottom:12px;' + (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
                 '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (18%)</span>' : '') + '</strong>' +
+                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (17.5%)</span>' : '') + '</strong>' +
                 payoutBadgeHtml(p.status) +
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +

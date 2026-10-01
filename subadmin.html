@@ -768,7 +768,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>🏦 Payouts</h1>
-              <p>Every payout the main admin makes to influencers, exactly as they see it — including the <strong>80/18/2</strong> split and bank details. This view is <strong>read-only</strong> — approving, paying and rejecting a payout is done by the main admin only.</p>
+              <p>Every payout on the site, exactly as the main admin sees it — bank details, amounts and who released it. A sale through an influencer's link is split <strong>2.5% Unsocials / 17.5% influencer / 80% event owner</strong>; a direct sale is <strong>20% / 80%</strong>. This view is <strong>read-only</strong> — releasing a payout is done by the main admin or the event's Influencer Admin.</p>
             </div>
             <button class="admin-refresh-btn" onclick="loadPayoutList()">↻ Refresh</button>
           </div>
@@ -783,11 +783,11 @@
               <div class="admin-stat-value" id="payoutStatPending">0</div>
             </div>
             <div class="admin-stat verified">
-              <div class="admin-stat-label">Paid to Influencers (98%)</div>
+              <div class="admin-stat-label">Paid Out</div>
               <div class="admin-stat-value" id="payoutStatPaid">₦0</div>
             </div>
             <div class="admin-stat revenue">
-              <div class="admin-stat-label">Unisocials Fee (2%)</div>
+              <div class="admin-stat-label">Platform Fee Retained</div>
               <div class="admin-stat-value" id="payoutStatFees">₦0</div>
             </div>
           </div>
@@ -2146,7 +2146,7 @@ resultBox.className = 'admin-scan-result show';
           html += '<div class="admin-scan-panel" style="margin-bottom:12px;' +
             (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
             '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-            '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (18%)</span>' : '') + '</strong>' +
+            '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (17.5%)</span>' : '') + '</strong>' +
             '<span class="admin-order-badge ' + esc(st) + '">' + esc(st) + '</span>' +
             '</div>' +
             '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
