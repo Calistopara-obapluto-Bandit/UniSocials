@@ -130,9 +130,9 @@
             <input type="text" id="iafName" placeholder="e.g. Ada Nwosu" autocomplete="name" required />
           </div>
           <div>
-            <label for="iafEmail">Your email address</label>
-            <input type="email" id="iafEmail" placeholder="you@example.com" autocomplete="email" required />
-            <p class="signup-hint">We'll email your new login email and password here.</p>
+            <label for="iafEmail">Your real email address</label>
+            <input type="email" id="iafEmail" placeholder="you@gmail.com" autocomplete="email" required />
+            <p class="signup-hint">Your inbox outside Unisocials. We send your new login email and password here, plus an email the moment a payout is <strong>complete</strong>. Not your <code>@unisocials.com</code> login.</p>
           </div>
           <div>
             <label for="iafUniversity">University</label>
@@ -220,6 +220,7 @@
       };
       if (!payload.name) return say('⚠️ Please enter your full name.', 'bad');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return say('⚠️ Please enter a valid email address.', 'bad');
+      if (/@unisocials\.com$/i.test(payload.email)) return say('⚠️ Enter your real inbox (Gmail, Yahoo, Outlook) — your @unisocials.com login cannot receive mail.', 'bad');
       if (!payload.university) return say('⚠️ Please select your university.', 'bad');
       if (btn) { btn.disabled = true; btn.textContent = 'Creating your account…'; }
       say('Creating your account…');

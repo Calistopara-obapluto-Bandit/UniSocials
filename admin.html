@@ -1262,6 +1262,7 @@
               <div class="form-group"><label for="staffRole">Account Type</label><select id="staffRole"><option value="checkin_staff">Check-in Staff</option><option value="influencer_admin">Influencer Admin</option></select></div>
               <div class="form-group"><label for="staffName">Full Name</label><input type="text" id="staffName" placeholder="e.g. Event Staff" /></div>
               <div class="form-group"><label for="staffEmail">Login Email</label><input type="email" id="staffEmail" placeholder="staff@unisocials.com" /></div>
+              <div class="form-group"><label for="staffContactEmail">Real Email <span style="opacity:.6;">— optional</span></label><input type="email" id="staffContactEmail" placeholder="e.g. ada@gmail.com" /><p style="margin:6px 0 0;font-size:.72rem;color:var(--text-3);">Where they receive their <strong>payout complete</strong> email. A <code>@unisocials.com</code> login cannot receive mail.</p></div>
               <div class="form-group"><label for="staffPassword">Password</label><input type="password" id="staffPassword" placeholder="8+ chars, letter, number & symbol" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -2766,12 +2767,14 @@ fetch('/api/admin/events/notify', {
         var role=(document.getElementById('staffRole')||{}).value||'';
         var name=((document.getElementById('staffName')||{}).value||'').trim();
         var email=((document.getElementById('staffEmail')||{}).value||'').trim();
+        var contactEmail=((document.getElementById('staffContactEmail')||{}).value||'').trim();
         var password=((document.getElementById('staffPassword')||{}).value||'').trim();
         if(!name||!email||!password) return showToast('Name, Email, and Password are required.',true);
         if(password.length<6) return showToast('Password must be at least 6 characters.',true);
-        fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({role:role,name:name,email:email,password:password})})
+        if(contactEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return showToast('Enter a valid real email address, or leave it blank.',true);
+        fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({role:role,name:name,email:email,contactEmail:contactEmail,password:password})})
           .then(function(r){return r.json();}).then(function(data){
-            if(data&&data.success){ showToast((role==='checkin_staff'?'Check-in Staff':'Influencer Admin')+' account created for '+name+'.'); ['staffName','staffEmail','staffPassword'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); loadStaffAccounts(); }
+            if(data&&data.success){ showToast((role==='checkin_staff'?'Check-in Staff':'Influencer Admin')+' account created for '+name+'.'); ['staffName','staffEmail','staffContactEmail','staffPassword'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); loadStaffAccounts(); }
             else showToast((data&&data.error)||'Failed to create account',true);
           }).catch(function(){showToast('Network error creating account',true);});
       };
@@ -2914,7 +2917,7 @@ fetch('/api/admin/events/notify', {
                 payoutBadgeHtml(p.status) +
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
-                '<span>📧 ' + esc(p.requesterEmail || '—') + '</span>' +
+                '<span>📧 ' + esc(p.requesterContactEmail || p.requesterEmail || '—') + (p.requesterContactEmail ? '' : ' <em style="color:#E65100;">(no real email — payout notices will not reach them)</em>') + '</span>' +
                 '<span>📅 ' + esc(p.payoutMethodLabel || p.payoutMethod || '') + '</span>' +
                 '<span>🕒 ' + esc(p.createdAt ? new Date(p.createdAt).toLocaleString() : '—') + '</span>' +
                 '<span><code style="font-size:.72rem;">' + esc(p.id) + '</code></span>' +
@@ -2952,7 +2955,14 @@ fetch('/api/admin/events/notify', {
           .then(function(r){ return r.json(); })
           .then(function(data){
             if (data && data.success) {
-              showToast(action === 'mark_paid' ? 'Marked as paid. Requester notified by email.' : (action === 'approve' ? 'Approved. Pay within 24 hours — requester notified.' : 'Request rejected. Requester notified.'));
+              if (data.emailWarning) {
+                // No receivable address on file — never claim the influencer was told.
+                showToast(data.emailWarning, true);
+              } else {
+                showToast(action === 'mark_paid'
+                  ? 'Marked as paid. ' + (data.emailSent ? 'Completion email sent to ' + data.emailSentTo + '.' : 'Requester emailed.')
+                  : (action === 'approve' ? 'Approved. Pay within 24 hours — requester notified.' : 'Request rejected. Requester notified.'));
+              }
               loadPayoutRequests();
             } else showToast((data && data.error) || 'Failed to update payout', true);
           })

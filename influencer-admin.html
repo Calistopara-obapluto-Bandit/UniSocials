@@ -1165,14 +1165,21 @@
     <div id="payoutFeeNotice" style="display:none;margin-bottom:14px;background:#F1F8E9;border:1px solid #C8E6C9;color:#1B5E20;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
     <div id="payoutHoldNotice" style="display:none;margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
 
-    <div class="influencer-section-heading"><div><strong>1. Your bank account</strong><div>Saved and reused for every payout request. Double-check it before requesting.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>1. Your payout notification email</strong><div>Your real inbox, outside Unisocials. We email you here when a payout is approved, and the moment it is <strong>complete (paid)</strong>. Your <code>@unisocials.com</code> login cannot receive mail.</div></div></div>
+    <div id="payoutNotifyNotice" style="display:none;margin-bottom:12px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+      <div class="form-group" style="flex:1 1 260px;margin-bottom:0;"><label for="payoutNotifyEmail">Real email address</label><input type="email" id="payoutNotifyEmail" placeholder="you@gmail.com" autocomplete="email" /></div>
+      <button class="btn-submit" id="savePayoutNotifyEmailBtn" type="button" style="margin-bottom:0;" onclick="savePayoutNotifyEmail()">Save email</button>
+    </div>
+
+    <div class="influencer-section-heading"><div><strong>2. Your bank account</strong><div>Saved and reused for every payout request. Double-check it before requesting.</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
       <div class="form-group"><label for="payoutBankName">Bank Name</label><input type="text" id="payoutBankName" placeholder="e.g. GTBank, Opay, Palmpay" autocomplete="off" /></div>
       <div class="form-group"><label for="payoutAccountNumber">Account Number</label><input type="text" id="payoutAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off" /></div>
       <div class="form-group"><label for="payoutAccountName">Account Name</label><input type="text" id="payoutAccountName" placeholder="As it appears on your bank record" autocomplete="off" /></div>
     </div>
 
-    <div class="influencer-section-heading"><div><strong>2. Payment schedule</strong><div>How you want to receive your commission.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>3. Payment schedule</strong><div>How you want to receive your commission.</div></div></div>
     <div class="form-group" style="max-width:420px;">
       <label for="payoutMethod">Payout Method</label>
       <select id="payoutMethod">
@@ -1182,7 +1189,7 @@
       </select>
     </div>
 
-    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div>Available balance is your verified commission from payments past the 7-day countdown, minus anything already requested. Every payout is split <strong>80/20</strong> — <strong>80% is sent to you</strong>, <strong>20% is retained by the admin</strong>.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>4. Amount &amp; request</strong><div>Available balance is your verified commission from payments past the 7-day countdown, minus anything already requested. Every payout is split <strong>80/20</strong> — <strong>80% is sent to you</strong>, <strong>20% is retained by the admin</strong>.</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
       <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" oninput="updatePayoutFeePreview()" /></div>
       <div class="form-group"><label for="payoutNote">Note to admin <span style="opacity:.6;">— optional</span></label><input type="text" id="payoutNote" placeholder="Anything the admin should know" maxlength="500" /></div>
@@ -1190,7 +1197,7 @@
     <div id="payoutFeePreview" style="display:none;margin:0 0 14px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.8;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
       <button class="btn-submit" id="requestPayoutBtn" onclick="requestPayout()">💰 Request Payout</button>
-      <span style="font-size:.78rem;color:var(--text-3);">Approved payouts are paid within <strong>24 hours</strong>.</span>
+      <span style="font-size:.78rem;color:var(--text-3);">Approved payouts are paid within <strong>24 hours</strong>, and you get an email the moment yours is <strong>complete</strong>.</span>
     </div>
   </div>
 
@@ -2337,6 +2344,8 @@ fetch('/api/admin/events/notify', {
 
       // ── 20% platform fee + 7-day hold countdown state ──
       var payoutFeeRate = 0.20;
+      // The real inbox completion emails are delivered to (blank if unset).
+      var payoutNotifyEmail = '';
       var payoutHoldDays = 7;
       var payoutHeldData = [];
       var payoutHoldTimer = null;
@@ -2435,6 +2444,21 @@ fetch('/api/admin/events/notify', {
             updatePayoutFeePreview();
 
             savedPayoutBank = data.savedBankAccount || null;
+
+            // Payout completion emails need a real inbox; the @unisocials.com
+            // login cannot receive one, so prompt when nothing is on file.
+            var notifyField = document.getElementById('payoutNotifyEmail');
+            if (notifyField && !notifyField.value) notifyField.value = data.notificationEmail || '';
+            payoutNotifyEmail = data.notificationEmail || '';
+            var notifyNotice = document.getElementById('payoutNotifyNotice');
+            if (notifyNotice) {
+              if (data.notificationEmailOnFile) {
+                notifyNotice.style.display = 'none';
+              } else {
+                notifyNotice.innerHTML = '📧 Add a real email above so we can tell you when a payout is <strong>complete</strong>. Accounts created by the Main Admin do not have one yet.';
+                notifyNotice.style.display = 'block';
+              }
+            }
             if (savedPayoutBank) {
               var bn = document.getElementById('payoutBankName');
               var an = document.getElementById('payoutAccountNumber');
@@ -2482,11 +2506,35 @@ fetch('/api/admin/events/notify', {
                 (p.paymentDueBy && p.status === 'approved' ? '<span>⏰ Due ' + esc(fmtPayoutDate(p.paymentDueBy)) + '</span>' : '') +
                 '</div>' +
                 (p.adminNote ? '<div style="margin-top:8px;font-size:.78rem;color:var(--text-3);">Admin note: ' + esc(p.adminNote) + '</div>' : '') +
+                (p.status === 'paid'
+                  ? '<div style="margin-top:8px;font-size:.78rem;color:#1B5E20;">📧 Completion email ' + (p.notifiedEmail ? 'sent to ' + esc(p.notifiedEmail) + (p.notifiedAt ? ' on ' + esc(fmtPayoutDate(p.notifiedAt)) : '') : 'could not be sent — add a real email above') + '.</div>'
+                  : '') +
                 '</div>';
             });
             list.innerHTML = html;
           })
           .catch(function(){ showToast('Network error loading payouts', true); });
+      };
+
+      // Save the real inbox that "payout complete" notices go to.
+      window.savePayoutNotifyEmail = function() {
+        var field = document.getElementById('payoutNotifyEmail');
+        var email = ((field && field.value) || '').trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('Enter a valid email address.', true);
+        if (/@unisocials\.com$/i.test(email)) return showToast('Use a real inbox (Gmail, Yahoo, Outlook) — your @unisocials.com login cannot receive mail.', true);
+        var btn = document.getElementById('savePayoutNotifyEmailBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        fetch('/api/influencer-admin/payouts', { method:'PATCH', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ notificationEmail: email }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              showToast(data.message || 'Payout notification email saved.');
+              loadPayouts();
+            } else showToast((data && data.error) || 'Could not save that email', true);
+          })
+          .catch(function(){ showToast('Network error saving email', true); })
+          .finally(function(){ if (btn) { btn.disabled = false; btn.textContent = 'Save email'; } });
       };
 
       window.requestPayout = function() {
@@ -2497,6 +2545,8 @@ fetch('/api/admin/events/notify', {
         var method = (document.getElementById('payoutMethod')||{}).value || '';
         var note = (document.getElementById('payoutNote')||{}).value || '';
 
+        var notifyEmail = ((document.getElementById('payoutNotifyEmail')||{}).value || '').trim();
+        if (!notifyEmail) return showToast('Save your real payout notification email first — it is how we tell you a payout is complete.', true);
         if (!bankName.trim()) return showToast('Enter your bank name.', true);
         if (!/^\d{10}$/.test(accountNumber.replace(/[\s-]/g, ''))) return showToast('Enter a valid 10-digit account number.', true);
         if (!accountName.trim()) return showToast('Enter the bank account name.', true);

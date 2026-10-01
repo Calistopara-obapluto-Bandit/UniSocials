@@ -270,6 +270,14 @@ function payoutPublic(p) {
     requestedBy: p.requestedBy,
     requesterName: p.requesterName || '',
     requesterEmail: p.requesterEmail || '',
+    // The real, receivable inbox the requester gave on their account form.
+    requesterContactEmail: p.requesterContactEmail || '',
+    // False means no completion email can be delivered for this payout: neither
+    // the snapshotted contact email nor the requester email is a real inbox.
+    notifiable: !isInternalLoginEmail(p.requesterContactEmail) || !isInternalLoginEmail(p.requesterEmail),
+    // Proof of delivery for the completion email the requester sees.
+    notifiedEmail: p.notifiedEmail || '',
+    notifiedAt: p.notifiedAt || null,
     amount: Number(p.amount) || 0,
     feeRate: fee.feeRate,
     feeAmount: fee.feeAmount,
@@ -1953,6 +1961,15 @@ async function sendContactEmail(data) {
 // to this address.
 const INFLUENCER_ADMIN_EMAIL_DOMAIN = 'unisocials.com';
 
+// A staff login on our own domain is an internal alias and cannot receive mail,
+// so it must never be used as a notification address. Notifications (payout
+// updates, credentials) always need a real inbox: the address captured on the
+// account-creation form, stored as contactEmail.
+function isInternalLoginEmail(address) {
+  const value = String(address || '').trim().toLowerCase();
+  return !value || value.endsWith('@' + INFLUENCER_ADMIN_EMAIL_DOMAIN);
+}
+
 // "Ada Nwosu" -> "ada.nwosu"; strips anything that is not safe for an email local part.
 function influencerAdminEmailLocalPart(name) {
   const cleaned = String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9\s._-]/g, '').trim();
@@ -2079,6 +2096,16 @@ async function sendCheckinStaffCredentialsEmail(user, password) {
   return !!sent;
 }
 
+// "12 Mar 2026, 14:05" in the email's own timezone (UTC) — payout notices are
+// read days after they are sent, so keep the day and month, not just the time.
+function fmtEmailDate(iso) {
+  const ms = Date.parse(iso || '');
+  if (!Number.isFinite(ms)) return String(iso || '—');
+  return new Date(ms).toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+  }) + ' UTC';
+}
+
 // Email the Main Admin whenever an Influencer Admin requests a payout.
 async function sendPayoutRequestEmailToAdmin(payout) {
   try {
@@ -2132,11 +2159,34 @@ async function sendPayoutRequestEmailToAdmin(payout) {
   }
 }
 
-// Notify the Influencer Admin of a decision on their payout request.
+// The real inbox a payout notification should go to, or '' when the account has
+// no receivable address on file. Priority: the address captured when the payout
+// was requested, then the account's contactEmail, then the requester email only
+// when it is not an internal @unisocials.com login.
+async function payoutRecipientEmail(payout) {
+  if (!payout) return '';
+  const candidates = [payout.requesterContactEmail, payout.requesterEmail];
+  if (payout.requestedBy) {
+    let user = null;
+    try { user = await findUserById(payout.requestedBy); } catch (e) { /* non-fatal */ }
+    if (user && user.contactEmail) candidates.push(user.contactEmail);
+  }
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim().toLowerCase();
+    if (value && !isInternalLoginEmail(value)) return value;
+  }
+  return '';
+}
+
+// Notify the Influencer Admin of a decision on their payout request — including
+// when the payout is marked paid, which is the completion notice they asked for.
 async function sendPayoutStatusEmailToRequester(payout) {
   try {
-    const to = String(payout.requesterEmail || '').trim();
-    if (!to) return false;
+    const to = await payoutRecipientEmail(payout);
+    if (!to) {
+      console.warn('Payout status email skipped for ' + (payout.id || '?') + ': no real email address on file for', payout.requesterName || payout.requesterEmail || 'the requester');
+      return false;
+    }
     const fee = payoutFeeSplit(payout);
     const feePct = Math.round(fee.feeRate * 100);
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
@@ -2144,7 +2194,7 @@ async function sendPayoutStatusEmailToRequester(payout) {
     const netAmount = '₦' + fee.netAmount.toLocaleString();
     const statusText = String(payout.status || '').toLowerCase();
     const subject = statusText === 'paid'
-      ? '✅ Payout sent to you — ' + netAmount + ' (' + payout.id + ')'
+      ? '✅ Payout complete — ' + netAmount + ' has been sent to you (' + payout.id + ')'
       : statusText === 'approved'
         ? '✅ Payout approved — ' + netAmount + ' (80%) will be sent to you within 24 hours'
         : '❌ Payout request ' + (payout.id) + ' was rejected';
@@ -2152,7 +2202,7 @@ async function sendPayoutStatusEmailToRequester(payout) {
     const text =
       'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
       (statusText === 'paid'
-        ? netAmount + ' (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + bankLine + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout is complete. ' + netAmount + ' (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + bankLine + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin.\n\nBank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
           ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' (' + (100 - feePct) + '%) will be sent to you within 24 hours, and ' + feePct + '% (' + feeAmount + ') is retained by the admin.'
           : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
@@ -2164,7 +2214,7 @@ async function sendPayoutStatusEmailToRequester(payout) {
       '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
       '<p style="margin:0 0 14px;color:#475569">' +
       (statusText === 'paid'
-        ? '<strong>' + netAmount + '</strong> (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + escapeHtml(bankLine) + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        ? 'Your payout is complete: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '% of the ' + amount + ' requested) has been sent to your bank account (' + escapeHtml(bankLine) + '). The remaining ' + feePct + '% (' + feeAmount + ') is retained by the admin. Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
         : statusText === 'approved'
           ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> (' + (100 - feePct) + '%) will be sent to you within 24 hours, and ' + feePct + '% (' + feeAmount + ') is retained by the admin.'
           : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
@@ -2175,8 +2225,10 @@ async function sendPayoutStatusEmailToRequester(payout) {
       payoutEmailRow('Sent to you (' + (100 - feePct) + '%)', netAmount) +
       payoutEmailRow('Retained by admin (' + feePct + '%)', feeAmount) +
       payoutEmailRow('Bank', bankLine) +
+      (payout.paidAt ? payoutEmailRow('Paid on', fmtEmailDate(payout.paidAt)) : '') +
       '</table>' +
-      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Thank you for growing Unisocials.</p>' +
+      '<p style="margin:0 0 16px"><a href="' + escapeHtml(siteUrl() + '/influencer-admin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">View your payout history</a></p>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Thank you for growing Unisocials. We use this address for your payout notifications only.</p>' +
       '</div></div>';
     let sent = false;
     if (brevoApiKey()) sent = !!(await sendBrevoEmail(to, subject, text, html, payout.requesterName));
@@ -2751,6 +2803,12 @@ if (pathname === '/api/influencer-admin-requests' && req.method === 'POST') {
   }
   const emailError = validateEmail(contactEmail);
   if (emailError) return sendJson(res, 400, { success: false, error: emailError });
+  // This address is the account's real inbox: it receives the login details and
+  // every payout update, so it must not be one of our internal @unisocials.com
+  // logins, which can never receive mail.
+  if (isInternalLoginEmail(contactEmail)) {
+    return sendJson(res, 400, { success: false, error: 'Use your real email address (Gmail, Yahoo, Outlook) — we send your login details and payout updates there.' });
+  }
   if (!university || university.length > 120) {
     return sendJson(res, 400, { success: false, error: 'Please select your university.' });
   }
@@ -3457,14 +3515,21 @@ function checkinStaffPublic(user) {
         try { data = JSON.parse(body || '{}'); } catch (e) {}
         const name = String(data.name || '').trim();
         const email = String(data.email || '').trim().toLowerCase();
+        const contactEmail = String(data.contactEmail || '').trim().toLowerCase();
         const password = String(data.password || '');
         const role = String(data.role || '').trim();
         const passwordError = validatePassword(password);
         if (!name || !email || passwordError || !['checkin_staff','influencer_admin'].includes(role)) {
           return sendJson(res, 400, { success: false, error: passwordError || 'Name, email, and a valid role are required.' });
         }
+        // Optional real inbox: payout completion emails for an Influencer Admin
+        // go here, since the <name>@unisocials.com login cannot receive mail.
+        if (contactEmail) {
+          const contactError = validateEmail(contactEmail);
+          if (contactError) return sendJson(res, 400, { success: false, error: contactError });
+        }
         if (await findUserByEmail(email)) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
-        const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
+        const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, contactEmail: isInternalLoginEmail(contactEmail) ? '' : contactEmail, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
         await addUser(user);
         return sendJson(res, 200, { success:true, staff: publicUser(user) });
       }
@@ -5056,7 +5121,59 @@ codes[idx] = entry;
         holdDays: summary.holdDays,
         hasOpenRequest: summary.hasOpenRequest,
         payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
-        savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null
+        savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null,
+        // Where the "payout complete" notice will be sent. Empty means the
+        // account predates the real-email field and has to add one.
+        notificationEmail: isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail) ? '' : String((authCtx.user && authCtx.user.contactEmail) || '').trim().toLowerCase(),
+        notificationEmailOnFile: !isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail)
+      });
+    }
+
+    // Save the real inbox that payout notifications go to. Influencer Admins
+    // created by the Main Admin have no contactEmail, so without this their
+    // "payout complete" email would have nowhere to go. Saving it here also
+    // re-sends the completion notice for any already-paid payout that never
+    // reached them.
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'PATCH') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const notificationEmail = String(data.notificationEmail || '').trim().toLowerCase();
+      const emailError = validateEmail(notificationEmail);
+      if (emailError) return sendJson(res, 400, { success:false, error: emailError });
+      // The site mints <name>@unisocials.com logins that cannot receive mail.
+      if (isInternalLoginEmail(notificationEmail)) {
+        return sendJson(res, 400, { success:false, error:'Use a real email address you check (Gmail, Yahoo, Outlook). Your @unisocials.com login cannot receive mail.' });
+      }
+      const users = await readUsers();
+      const taken = users.find(u => String(u.id) !== String(authCtx.user.id) && String(u.contactEmail || '').trim().toLowerCase() === notificationEmail);
+      if (taken) return sendJson(res, 409, { success:false, error:'That email is already used by another Unisocials account.' });
+
+      const fresh = await findUserById(authCtx.user.id);
+      if (!fresh) return sendJson(res, 404, { success:false, error:'Account not found' });
+      fresh.contactEmail = notificationEmail;
+      await replaceUser(fresh);
+      authCtx.user.contactEmail = notificationEmail;
+
+      // An earlier paid payout may have been marked complete before this
+      // address existed, so its notice never went out. Deliver it now.
+      const mine = (await readPayouts())
+        .filter(p => String(p.requestedBy) === String(authCtx.user.id) && String(p.status || '').toLowerCase() === 'paid')
+        .sort((a, b) => new Date(b.paidAt || b.createdAt) - new Date(a.paidAt || a.createdAt));
+      let resent = 0;
+      for (const p of mine) {
+        if (p.notifiedEmail) break;
+        const sent = await sendPayoutStatusEmailToRequester(p);
+        if (!sent) break;
+        await updatePayoutRequest(p.id, { notifiedEmail: notificationEmail, notifiedAt: new Date().toISOString() });
+        resent++;
+      }
+      return sendJson(res, 200, {
+        success: true,
+        notificationEmail: notificationEmail,
+        resentPayoutNotifications: resent,
+        message: 'Payout notifications will be sent to ' + notificationEmail + '.'
       });
     }
 
@@ -5103,6 +5220,10 @@ codes[idx] = entry;
         requestedBy: authCtx.user.id,
         requesterName: authCtx.user.name || '',
         requesterEmail: authCtx.user.email || '',
+        // Snapshot the real inbox so a completion email reaches them even if
+        // their profile is edited later. The login is @unisocials.com and
+        // cannot receive mail, so this is the only usable address.
+        requesterContactEmail: isInternalLoginEmail(authCtx.user.contactEmail) ? '' : String(authCtx.user.contactEmail || '').trim().toLowerCase(),
         amount,
         feeRate: fee.feeRate,
         feeAmount: fee.feeAmount,
@@ -5180,8 +5301,15 @@ codes[idx] = entry;
 
       const updated = await updatePayoutRequest(payoutId, patch);
       // Email the Influencer Admin the outcome (best-effort, never blocks).
+      // "paid" is the completion notice: the requester hears the money is out.
+      const notifyEmail = await payoutRecipientEmail(Object.assign({}, existing, patch));
       const emailSent = updated ? await sendPayoutStatusEmailToRequester(Object.assign({}, existing, patch)) : false;
-      return sendJson(res, 200, { success: true, payout: payoutPublic(Object.assign({}, existing, patch)), emailSent: !!emailSent });
+      if (emailSent) await updatePayoutRequest(payoutId, { notifiedEmail: notifyEmail, notifiedAt: nowIso });
+      const payout = Object.assign({}, existing, patch, emailSent ? { notifiedEmail: notifyEmail } : {});
+      // When nothing receivable is on file, say so instead of silently claiming
+      // the influencer was notified — they can be asked for their real inbox.
+      const emailWarning = notifyEmail ? '' : 'This Influencer Admin has no real email address on file, so the payout email could not be sent. Ask them to add one in their dashboard → Payouts.';
+      return sendJson(res, 200, { success: true, payout: payoutPublic(payout), emailSent: !!emailSent, emailAddress: notifyEmail, emailSentTo: emailSent ? notifyEmail : '', emailWarning });
     }
 
     // ── Influencer Admin: Add Events list ──
@@ -5588,6 +5716,9 @@ function publicUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
+    // The real inbox on file, when there is one. Staff dashboards show it so an
+    // account can be given its payout notification address.
+    contactEmail: user.contactEmail || '',
     phone: user.phone,
     role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : (user.role || 'buyer'),
     createdAt: user.createdAt,
