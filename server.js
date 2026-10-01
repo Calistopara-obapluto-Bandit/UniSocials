@@ -1487,6 +1487,19 @@ function influencerAdminOwnsEvent(authCtx, event) {
   }
   return false;
 }
+// Events an Influencer Admin may see sales and commission for: explicitly
+// authorized to them, OR created by them. Matching only on
+// authorizedInfluencerAdminIds hid every event created before authorization
+// was recorded, which left the Overview empty ("No events have been
+// authorized to you yet") even though the same event showed up in the
+// Influencer Admin's own Add Events list.
+function influencerAdminVisibleEvents(authCtx, allEvents) {
+  const myId = String((authCtx && authCtx.user && authCtx.user.id) || '').trim();
+  if (!myId) return [];
+  return (allEvents || []).filter(ev =>
+    getAuthorizedInfluencerAdminIds(ev).includes(myId) || influencerAdminOwnsEvent(authCtx, ev)
+  );
+}
 async function isAdminOrSubadmin(req) {
   // This helper is intentionally limited to management roles. Ordinary
   // influencers and check-in staff must never inherit admin/sub-admin API
@@ -4537,7 +4550,7 @@ codes[idx] = entry;
       const users = await readUsers();
       const links = await readReferralLinks();
       const orders = await readOrders();
-      const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
+      const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
       const ownInfluencers = users.filter(u => {
         if (u.role !== 'influencer' || u.archived === true) return false;
         return influencerAdminOwnsInfluencer(authCtx, u);
@@ -4580,7 +4593,8 @@ codes[idx] = entry;
         const visibleOrders = eventOrders.filter(o => String(o.status || '').toLowerCase() !== 'rejected');
         const verified = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
         const pending = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
+        const rejected = eventOrders.filter(o => String(o.status || '').toLowerCase() === 'rejected');
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, rejectedOrders:rejected.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue:verified.reduce((n,o)=>n+(Number(o.amount)||0),0), influencers:influencerRows };
       });
       // feeRate lets the dashboard show the 80/20 split on ticket revenue.
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, events:result });
@@ -4592,7 +4606,7 @@ codes[idx] = entry;
     // Rejected requests never reduce the available balance.
     async function influencerAdminPayoutSummary(authCtx) {
       const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
-      const authorizedEvents = events.filter(ev => getAuthorizedInfluencerAdminIds(ev).includes(String(authCtx.user.id)));
+      const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
       const nowMs = Date.now();
       let totalVerifiedRevenue = 0;
       let heldAmount = 0;
