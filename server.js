@@ -4109,6 +4109,23 @@ codes[idx] = entry;
       });
     }
 
+    // ── Sub-admin: list sales/orders (READ-ONLY) ──
+    // Mirrors the main admin's Orders Overview so a sub-admin can see every sale
+    // made on the site. It deliberately exposes NO status-changing capability:
+    // verifying/rejecting a payment stays on /api/admin/orders/status, which
+    // requires the master admin password and is unreachable with a sub-admin
+    // session token.
+    if (pathname === '/api/subadmin/orders' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const orders = await getOrdersForCurrentSiteEvents();
+      return sendJson(res, 200, { success: true, orders: orders });
+    }
+
     // ── Sub-admin: get referral stats ──
     if (pathname === '/api/subadmin/referral-stats' && req.method === 'GET') {
       const auth = req.headers['authorization'] || '';
