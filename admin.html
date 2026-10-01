@@ -1129,6 +1129,30 @@
             <div class="admin-stat verified"><div class="admin-stat-label">Paid Total (80% sent)</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
             <div class="admin-stat revenue"><div class="admin-stat-label">You Retain (20%)</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
           </div>
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <button class="admin-filter-btn active" data-payout-filter="all" onclick="setPayoutFilter('all')">All</button>
+              <button class="admin-filter-btn" data-payout-filter="pending" onclick="setPayoutFilter('pending')">⏳ Pending</button>
+              <button class="admin-filter-btn" data-payout-filter="approved" onclick="setPayoutFilter('approved')">✅ Approved</button>
+              <button class="admin-filter-btn" data-payout-filter="paid" onclick="setPayoutFilter('paid')">💸 Paid</button>
+              <button class="admin-filter-btn" data-payout-filter="rejected" onclick="setPayoutFilter('rejected')">❌ Rejected</button>
+            </div>
+          </div>
+          <div class="admin-cat-filters">
+            <div class="admin-cat-filter">
+              <label for="payoutRequesterFilterSel">👤 Filter by Influencer Admin</label>
+              <select id="payoutRequesterFilterSel" onchange="setPayoutRequesterFilter(this.value)">
+                <option value="">All Influencer Admins</option>
+              </select>
+            </div>
+            <div class="admin-cat-filter">
+              <label for="payoutScheduleFilterSel">📅 Filter by Schedule</label>
+              <select id="payoutScheduleFilterSel" onchange="setPayoutScheduleFilter(this.value)">
+                <option value="">All Schedules</option>
+              </select>
+            </div>
+            <button class="admin-cat-clear" onclick="clearPayoutFilters()">✕ Clear Filters</button>
+          </div>
           <div id="payoutAdminList"></div>
         </div>
 
@@ -2627,19 +2651,92 @@ fetch('/api/admin/events/notify', {
         return '<span class="lookup-badge ' + esc(s) + '">' + esc(s) + '</span>';
       }
 
+      // Filter state for the payout list: status quick-filter + requester/schedule selects.
+      var payoutFilter = 'all';
+      var payoutRequesterFilter = '';
+      var payoutScheduleFilter = '';
+      var payoutsAll = [];
+
       window.loadPayoutRequests = function() {
         fetch('/api/admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
           .then(function(r){ return r.json(); })
           .then(function(data){
             if (!data || !data.success) { showToast((data && data.error) || 'Could not load payout requests', true); return; }
-            var payouts = data.payouts || [];
+            payoutsAll = data.payouts || [];
+            populatePayoutFilterSelects();
+            renderPayoutRequests();
+          })
+          .catch(function(){ showToast('Network error loading payout requests', true); });
+      };
+
+      // Build the Requester + Schedule dropdown options from the loaded payouts,
+      // preserving the current selection across refreshes.
+      function populatePayoutFilterSelects() {
+        var whoSel = document.getElementById('payoutRequesterFilterSel');
+        var schSel = document.getElementById('payoutScheduleFilterSel');
+        if (!whoSel || !schSel) return;
+        var people = [], schedules = [];
+        var pushUnique = function(arr, val) { if (val && arr.indexOf(val) === -1) arr.push(val); };
+        payoutsAll.forEach(function(p) {
+          pushUnique(people, (p.requesterName || p.requesterEmail || '').trim());
+          pushUnique(schedules, p.payoutMethodLabel || p.payoutMethod || '');
+        });
+        people.sort(function(a, b) { return a.localeCompare(b); });
+        schedules.sort(function(a, b) { return a.localeCompare(b); });
+        var keepWho = whoSel.value;
+        var keepSch = schSel.value;
+        var whoHtml = '<option value="">All Influencer Admins</option>';
+        people.forEach(function(w) { whoHtml += '<option value="' + esc(w) + '">' + esc(w) + '</option>'; });
+        var schHtml = '<option value="">All Schedules</option>';
+        schedules.forEach(function(s) { schHtml += '<option value="' + esc(s) + '">' + esc(s) + '</option>'; });
+        whoSel.innerHTML = whoHtml;
+        schSel.innerHTML = schHtml;
+        if (keepWho && people.indexOf(keepWho) !== -1) whoSel.value = keepWho;
+        else if (keepWho) payoutRequesterFilter = '';
+        if (keepSch && schedules.indexOf(keepSch) !== -1) schSel.value = keepSch;
+        else if (keepSch) payoutScheduleFilter = '';
+      }
+
+      window.setPayoutFilter = function(f) {
+        payoutFilter = f || 'all';
+        var btns = document.querySelectorAll('[data-payout-filter]');
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].classList.toggle('active', btns[i].getAttribute('data-payout-filter') === payoutFilter);
+        }
+        renderPayoutRequests();
+      };
+      window.setPayoutRequesterFilter = function(v) { payoutRequesterFilter = v || ''; renderPayoutRequests(); };
+      window.setPayoutScheduleFilter = function(v) { payoutScheduleFilter = v || ''; renderPayoutRequests(); };
+      window.clearPayoutFilters = function() {
+        payoutRequesterFilter = '';
+        payoutScheduleFilter = '';
+        var whoSel = document.getElementById('payoutRequesterFilterSel');
+        var schSel = document.getElementById('payoutScheduleFilterSel');
+        if (whoSel) whoSel.value = '';
+        if (schSel) schSel.value = '';
+        renderPayoutRequests();
+      };
+
+      function renderPayoutRequests() {
+            // Requester + Schedule selects drive the stat cards, then the status
+            // quick-filter narrows the visible list.
+            var scoped = payoutsAll.filter(function(p) {
+              var matchesRequester = !payoutRequesterFilter ||
+                ((p.requesterName || p.requesterEmail || '').trim()) === payoutRequesterFilter;
+              var matchesSchedule = !payoutScheduleFilter ||
+                (p.payoutMethodLabel || p.payoutMethod || '') === payoutScheduleFilter;
+              return matchesRequester && matchesSchedule;
+            });
+            var payouts = scoped.filter(function(p) {
+              return payoutFilter === 'all' || String(p.status || '').toLowerCase() === payoutFilter;
+            });
             var pendingEl = document.getElementById('payoutAdminPending');
             var approvedEl = document.getElementById('payoutAdminApproved');
             var paidEl = document.getElementById('payoutAdminPaid');
             var feesEl = document.getElementById('payoutAdminFees');
-            var pending = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'pending'; });
-            var approved = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'approved'; });
-            var paid = payouts.filter(function(p){ return String(p.status).toLowerCase() === 'paid'; });
+            var pending = scoped.filter(function(p){ return String(p.status).toLowerCase() === 'pending'; });
+            var approved = scoped.filter(function(p){ return String(p.status).toLowerCase() === 'approved'; });
+            var paid = scoped.filter(function(p){ return String(p.status).toLowerCase() === 'paid'; });
             if (pendingEl) pendingEl.textContent = pending.length;
             if (approvedEl) approvedEl.textContent = approved.length;
             // Paid totals are what actually reaches the bank: gross minus the 20% fee.
@@ -2651,7 +2748,11 @@ fetch('/api/admin/events/notify', {
             var list = document.getElementById('payoutAdminList');
             if (!list) return;
             if (!payouts.length) {
-              list.innerHTML = '<div class="admin-scan-panel" style="text-align:center;padding:24px;color:var(--text-3);font-size:.85rem;">No payout requests yet. Influencer Admins\u2019 requests will appear here.</div>';
+              list.innerHTML = '<div class="admin-scan-panel" style="text-align:center;padding:24px;color:var(--text-3);font-size:.85rem;">' +
+                (payoutsAll.length
+                  ? 'No ' + (payoutFilter === 'all' ? '' : esc(payoutFilter) + ' ') + 'payout requests found with the selected filters.'
+                  : 'No payout requests yet. Influencer Admins\u2019 requests will appear here.') +
+                '</div>';
               return;
             }
             // Open requests first, then newest first.
@@ -2703,9 +2804,7 @@ fetch('/api/admin/events/notify', {
                 '</div>';
             });
             list.innerHTML = html;
-          })
-          .catch(function(){ showToast('Network error loading payout requests', true); });
-      };
+      }
 
       window.payoutAction = function(payoutId, action) {
         var adminNote = '';

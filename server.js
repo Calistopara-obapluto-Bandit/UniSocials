@@ -4126,6 +4126,28 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, orders: orders });
     }
 
+    // ── Sub-admin: list payout requests (READ-ONLY) ──
+    // Mirrors the main admin's Payout Requests panel so a sub-admin can see every
+    // payout the admin pays out — amounts, the 80/20 split, bank details and status.
+    // It deliberately exposes NO payout capability: approving, marking paid and
+    // rejecting all live on /api/admin/payouts (POST), which requires the master
+    // admin password and is unreachable with a sub-admin session token.
+    if (pathname === '/api/subadmin/payouts' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const payouts = await readPayouts();
+      return sendJson(res, 200, {
+        success: true,
+        payouts: payouts.map(payoutPublic),
+        feeRate: PAYOUT_FEE_RATE,
+        readOnly: true
+      });
+    }
+
     // ── Sub-admin: get referral stats ──
     if (pathname === '/api/subadmin/referral-stats' && req.method === 'GET') {
       const auth = req.headers['authorization'] || '';

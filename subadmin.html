@@ -362,6 +362,25 @@
     .admin-stat.revenue .admin-stat-value { color: var(--accent); }
 
     .admin-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    /* Event / Category / Requester filter selects (same controls as the main admin) */
+    .admin-cat-filters { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .admin-cat-filter { flex: 1; min-width: 210px; }
+    .admin-cat-filter label {
+      display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 6px;
+    }
+    .admin-cat-filter select {
+      width: 100%; background: var(--surface-2); border: 1.5px solid var(--border);
+      border-radius: 12px; padding: 10px 14px; font-size: 0.85rem; font-weight: 600;
+      color: var(--text-1); cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .admin-cat-filter select:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
+    .admin-cat-clear {
+      font-size: 0.8rem; font-weight: 600; color: var(--accent); background: var(--accent-ghost);
+      border: 1.5px solid var(--accent-border); border-radius: 100px; padding: 8px 16px;
+      cursor: pointer; white-space: nowrap; transition: all 0.3s;
+    }
+    .admin-cat-clear:hover { background: var(--accent); color: #fff; }
     .admin-filters { display: flex; gap: 8px; flex-wrap: wrap; }
     .admin-filter-btn {
       font-size: 0.8rem;
@@ -415,6 +434,9 @@
     .admin-order-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
     .admin-order-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
     .admin-order-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
+    /* Payout statuses reuse the same badge so payout cards match order cards. */
+    .admin-order-badge.approved { background: #E3F2FD; color: #0D47A1; border: 1px solid #BBDEFB; }
+    .admin-order-badge.paid { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
     .admin-order-event { font-size: 0.95rem; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
     .admin-order-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.8rem; color: var(--text-3); margin-bottom: 10px; }
     .admin-order-meta span { display: inline-flex; align-items: center; gap: 4px; }
@@ -495,6 +517,7 @@
           <button class="admin-tab active" data-tab="checkin">🎫 Check-in</button>
           <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
           <button class="admin-tab" data-tab="sales">💰 Sales</button>
+          <button class="admin-tab" data-tab="payouts">🏦 Payouts</button>
           <button class="admin-tab" data-tab="referral">📈 Referral Links</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
@@ -621,8 +644,84 @@
             </div>
           </div>
 
+          <div class="admin-cat-filters">
+            <div class="admin-cat-filter">
+              <label for="salesEventFilterSel">🎤 Filter by Event</label>
+              <select id="salesEventFilterSel" onchange="setSalesEventFilter(this.value)">
+                <option value="">All Events</option>
+              </select>
+            </div>
+            <div class="admin-cat-filter">
+              <label for="salesCategoryFilterSel">🏷 Filter by Category</label>
+              <select id="salesCategoryFilterSel" onchange="setSalesCategoryFilter(this.value)">
+                <option value="">All Categories</option>
+              </select>
+            </div>
+            <button class="admin-cat-clear" onclick="clearSalesFilters()">✕ Clear Filters</button>
+          </div>
+
           <div class="admin-orders" id="salesOrdersList">
             <div class="admin-empty"><span>🧾</span><p>Loading sales…</p></div>
+          </div>
+        </div>
+
+        <!-- ── PAYOUTS PANEL (read-only) ── -->
+        <div class="admin-panel" id="panel-payouts">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🏦 Payouts</h1>
+              <p>Every payout the main admin makes to Influencer Admins, exactly as they see it — including the <strong>80/20</strong> split and bank details. This view is <strong>read-only</strong> — approving, paying and rejecting a payout is done by the main admin only.</p>
+            </div>
+            <button class="admin-refresh-btn" onclick="loadPayoutList()">↻ Refresh</button>
+          </div>
+
+          <div class="admin-stats">
+            <div class="admin-stat">
+              <div class="admin-stat-label">Total Payouts</div>
+              <div class="admin-stat-value" id="payoutStatTotal">0</div>
+            </div>
+            <div class="admin-stat pending">
+              <div class="admin-stat-label">Awaiting Approval</div>
+              <div class="admin-stat-value" id="payoutStatPending">0</div>
+            </div>
+            <div class="admin-stat verified">
+              <div class="admin-stat-label">Paid Out (80% sent)</div>
+              <div class="admin-stat-value" id="payoutStatPaid">₦0</div>
+            </div>
+            <div class="admin-stat revenue">
+              <div class="admin-stat-label">Admin Retains (20%)</div>
+              <div class="admin-stat-value" id="payoutStatFees">₦0</div>
+            </div>
+          </div>
+
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <button class="admin-filter-btn active" data-payout-filter="all">All</button>
+              <button class="admin-filter-btn" data-payout-filter="pending">⏳ Pending</button>
+              <button class="admin-filter-btn" data-payout-filter="approved">✅ Approved</button>
+              <button class="admin-filter-btn" data-payout-filter="paid">💸 Paid</button>
+              <button class="admin-filter-btn" data-payout-filter="rejected">❌ Rejected</button>
+            </div>
+          </div>
+
+          <div class="admin-cat-filters">
+            <div class="admin-cat-filter">
+              <label for="payoutRequesterFilterSel">👤 Filter by Influencer Admin</label>
+              <select id="payoutRequesterFilterSel" onchange="setPayoutRequesterFilter(this.value)">
+                <option value="">All Influencer Admins</option>
+              </select>
+            </div>
+            <div class="admin-cat-filter">
+              <label for="payoutScheduleFilterSel">📅 Filter by Schedule</label>
+              <select id="payoutScheduleFilterSel" onchange="setPayoutScheduleFilter(this.value)">
+                <option value="">All Schedules</option>
+              </select>
+            </div>
+            <button class="admin-cat-clear" onclick="clearPayoutFilters()">✕ Clear Filters</button>
+          </div>
+
+          <div id="payoutList">
+            <div class="admin-empty"><span>🏦</span><p>Loading payouts…</p></div>
           </div>
         </div>
 
@@ -1563,6 +1662,8 @@ resultBox.className = 'admin-scan-result show';
       // admin credential, so this panel is view-only by construction.
       var salesOrders = [];
       var salesFilter = 'all';
+      var salesEventFilter = '';
+      var salesCategoryFilter = '';
       function fmtN(n) { return '\u20A6' + Number(n || 0).toLocaleString(); }
 
       window.loadSalesOrders = function() {
@@ -1576,6 +1677,7 @@ resultBox.className = 'admin-scan-result show';
           .then(function(d) {
             if (!d || !d.success) throw new Error('bad response');
             salesOrders = Array.isArray(d.orders) ? d.orders : [];
+            populateSalesFilterSelects();
             renderSalesOrders();
           })
           .catch(function(e) {
@@ -1584,12 +1686,66 @@ resultBox.className = 'admin-scan-result show';
           });
       };
 
+      // Build the Event + Category dropdown options from the loaded sales
+      // (unique values only), preserving the current selection on refresh.
+      function populateSalesFilterSelects() {
+        var eventSel = document.getElementById('salesEventFilterSel');
+        var catSel = document.getElementById('salesCategoryFilterSel');
+        if (!eventSel || !catSel) return;
+
+        var events = [], cats = [];
+        salesOrders.forEach(function(o) {
+          var ev = (o.eventName || '').trim();
+          var ct = (o.eventCategory || '').trim();
+          if (ev && events.indexOf(ev) === -1) events.push(ev);
+          if (ct && cats.indexOf(ct) === -1) cats.push(ct);
+        });
+        events.sort(function(a, b) { return a.localeCompare(b); });
+        cats.sort(function(a, b) { return a.localeCompare(b); });
+
+        var keepEvent = eventSel.value;
+        var keepCat = catSel.value;
+
+        var evHtml = '<option value="">All Events</option>';
+        events.forEach(function(ev) { evHtml += '<option value="' + esc(ev) + '">' + esc(ev) + '</option>'; });
+        var catHtml = '<option value="">All Categories</option>';
+        cats.forEach(function(ct) { catHtml += '<option value="' + esc(ct) + '">' + esc(ct) + '</option>'; });
+        eventSel.innerHTML = evHtml;
+        catSel.innerHTML = catHtml;
+
+        // Restore the selection if it still exists after a refresh.
+        if (keepEvent && events.indexOf(keepEvent) !== -1) eventSel.value = keepEvent;
+        else if (keepEvent) { salesEventFilter = ''; }
+        if (keepCat && cats.indexOf(keepCat) !== -1) catSel.value = keepCat;
+        else if (keepCat) { salesCategoryFilter = ''; }
+      }
+
+      window.setSalesEventFilter = function(v) { salesEventFilter = v || ''; renderSalesOrders(); };
+      window.setSalesCategoryFilter = function(v) { salesCategoryFilter = v || ''; renderSalesOrders(); };
+      window.clearSalesFilters = function() {
+        salesEventFilter = '';
+        salesCategoryFilter = '';
+        var es = document.getElementById('salesEventFilterSel');
+        var cs = document.getElementById('salesCategoryFilterSel');
+        if (es) es.value = '';
+        if (cs) cs.value = '';
+        renderSalesOrders();
+      };
+
       function renderSalesOrders() {
         var list = document.getElementById('salesOrdersList');
         if (!list) return;
 
-        var stats = { total: salesOrders.length, pending: 0, verified: 0, rejected: 0, revenue: 0 };
-        salesOrders.forEach(function(o) {
+        // Event + Category filters drive the stat cards, then the status
+        // quick-filter narrows the visible list — exactly like the main admin.
+        var catFiltered = salesOrders.filter(function(o) {
+          var matchesEvent = !salesEventFilter || (o.eventName || '') === salesEventFilter;
+          var matchesCategory = !salesCategoryFilter || (o.eventCategory || '') === salesCategoryFilter;
+          return matchesEvent && matchesCategory;
+        });
+
+        var stats = { total: catFiltered.length, pending: 0, verified: 0, rejected: 0, revenue: 0 };
+        catFiltered.forEach(function(o) {
           if (o.status === 'pending') stats.pending++;
           else if (o.status === 'verified') { stats.verified++; stats.revenue += (parseFloat(o.amount) || 0); }
           else if (o.status === 'rejected') stats.rejected++;
@@ -1600,13 +1756,14 @@ resultBox.className = 'admin-scan-result show';
         set('salesStatVerified', stats.verified.toLocaleString());
         set('salesStatRevenue', fmtN(stats.revenue));
 
-        var filtered = salesOrders.filter(function(o) {
+        var filtered = catFiltered.filter(function(o) {
           return salesFilter === 'all' || o.status === salesFilter;
         });
 
         if (!filtered.length) {
           list.innerHTML = '<div class="admin-empty"><span>\uD83E\uDDFE</span><p>No ' +
-            (salesFilter === 'all' ? '' : esc(salesFilter) + ' ') + 'sales found.</p></div>';
+            (salesFilter === 'all' ? '' : esc(salesFilter) + ' ') + 'sales found' +
+            (salesEventFilter || salesCategoryFilter ? ' with the selected filters' : '') + '.</p></div>';
           return;
         }
 
@@ -1675,6 +1832,184 @@ resultBox.className = 'admin-scan-result show';
           renderSalesOrders();
         });
       });
+      // ── Payouts (read-only mirror of the main admin's Payout Requests) ──
+      // The sub-admin sees every payout the admin makes, but NO approve/pay/reject
+      // control is ever rendered here, and the server keeps every status change on
+      // /api/admin/payouts, which requires the master admin credential. View-only
+      // by construction, exactly like the Sales tab.
+      var payoutList = [];
+      var payoutFilter = 'all';
+      var payoutRequesterFilter = '';
+      var payoutScheduleFilter = '';
+
+      window.loadPayoutList = function() {
+        var list = document.getElementById('payoutList');
+        if (list) list.innerHTML = '<div class="admin-empty"><span>\uD83C\uDDFA</span><p>Loading payouts…</p></div>';
+        fetch('/api/subadmin/payouts', { headers: authHeaders() })
+          .then(function(r) {
+            if (r.status === 401 || r.status === 403) throw new Error('forbidden');
+            return r.json();
+          })
+          .then(function(d) {
+            if (!d || !d.success) throw new Error('bad response');
+            payoutList = Array.isArray(d.payouts) ? d.payouts : [];
+            populatePayoutFilterSelects();
+            renderPayoutList();
+          })
+          .catch(function(e) {
+            console.error('Payout load error:', e);
+            if (list) list.innerHTML = '<div class="admin-empty"><span>\uD83D\uDEAB</span><p>Could not load payouts. Please refresh.</p></div>';
+          });
+      };
+
+      // Build the Requester + Schedule dropdown options from the loaded payouts,
+      // preserving the current selection on refresh.
+      function populatePayoutFilterSelects() {
+        var whoSel = document.getElementById('payoutRequesterFilterSel');
+        var schSel = document.getElementById('payoutScheduleFilterSel');
+        if (!whoSel || !schSel) return;
+
+        var people = [], schedules = [];
+        var pushUnique = function(arr, val) { if (val && arr.indexOf(val) === -1) arr.push(val); };
+        payoutList.forEach(function(p) {
+          pushUnique(people, (p.requesterName || p.requesterEmail || '').trim());
+          pushUnique(schedules, p.payoutMethodLabel || p.payoutMethod || '');
+        });
+        people.sort(function(a, b) { return a.localeCompare(b); });
+        schedules.sort(function(a, b) { return a.localeCompare(b); });
+
+        var keepWho = whoSel.value;
+        var keepSch = schSel.value;
+
+        var whoHtml = '<option value="">All Influencer Admins</option>';
+        people.forEach(function(w) { whoHtml += '<option value="' + esc(w) + '">' + esc(w) + '</option>'; });
+        var schHtml = '<option value="">All Schedules</option>';
+        schedules.forEach(function(s) { schHtml += '<option value="' + esc(s) + '">' + esc(s) + '</option>'; });
+        whoSel.innerHTML = whoHtml;
+        schSel.innerHTML = schHtml;
+
+        if (keepWho && people.indexOf(keepWho) !== -1) whoSel.value = keepWho;
+        else if (keepWho) payoutRequesterFilter = '';
+        if (keepSch && schedules.indexOf(keepSch) !== -1) schSel.value = keepSch;
+        else if (keepSch) payoutScheduleFilter = '';
+      }
+
+      window.setPayoutRequesterFilter = function(v) { payoutRequesterFilter = v || ''; renderPayoutList(); };
+      window.setPayoutScheduleFilter = function(v) { payoutScheduleFilter = v || ''; renderPayoutList(); };
+      window.clearPayoutFilters = function() {
+        payoutRequesterFilter = '';
+        payoutScheduleFilter = '';
+        var whoSel = document.getElementById('payoutRequesterFilterSel');
+        var schSel = document.getElementById('payoutScheduleFilterSel');
+        if (whoSel) whoSel.value = '';
+        if (schSel) schSel.value = '';
+        renderPayoutList();
+      };
+
+      function renderPayoutList() {
+        var list = document.getElementById('payoutList');
+        if (!list) return;
+
+        var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * 0.8) * 100) / 100; };
+        var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * 0.2) * 100) / 100; };
+        var statusOf = function(p) { return String(p.status || 'pending').toLowerCase(); };
+
+        // Requester + Schedule filters drive the stat cards, then the status
+        // quick-filter narrows the visible list — same layering as Orders.
+        var whoFiltered = payoutList.filter(function(p) {
+          var matchesRequester = !payoutRequesterFilter ||
+            ((p.requesterName || p.requesterEmail || '').trim()) === payoutRequesterFilter;
+          var matchesSchedule = !payoutScheduleFilter ||
+            (p.payoutMethodLabel || p.payoutMethod || '') === payoutScheduleFilter;
+          return matchesRequester && matchesSchedule;
+        });
+
+        var stats = { total: whoFiltered.length, pending: 0, approved: 0, paid: 0, rejected: 0, paidNet: 0, paidFees: 0 };
+        whoFiltered.forEach(function(p) {
+          var st = statusOf(p);
+          if (st === 'pending') stats.pending++;
+          else if (st === 'approved') stats.approved++;
+          else if (st === 'paid') { stats.paid++; stats.paidNet += netOf(p); stats.paidFees += feeOf(p); }
+          else if (st === 'rejected') stats.rejected++;
+        });
+        var set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+        set('payoutStatTotal', stats.total.toLocaleString());
+        set('payoutStatPending', (stats.pending + stats.approved).toLocaleString());
+        set('payoutStatPaid', fmtN(stats.paidNet));
+        set('payoutStatFees', fmtN(stats.paidFees));
+
+        var filtered = whoFiltered.filter(function(p) {
+          return payoutFilter === 'all' || statusOf(p) === payoutFilter;
+        });
+
+        if (!filtered.length) {
+          list.innerHTML = '<div class="admin-empty"><span>\uD83C\uDDFA</span><p>No ' +
+            (payoutFilter === 'all' ? '' : esc(payoutFilter) + ' ') + 'payouts found' +
+            (payoutRequesterFilter || payoutScheduleFilter ? ' with the selected filters' : '') + '.</p></div>';
+          return;
+        }
+
+        // Open requests first, then newest first — same ordering as the main admin.
+        var sorted = filtered.slice().sort(function(a, b) {
+          var rank = function(p) { var s = statusOf(p); return s === 'pending' ? 0 : (s === 'approved' ? 1 : 2); };
+          if (rank(a) !== rank(b)) return rank(a) - rank(b);
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        var html = '';
+        sorted.forEach(function(p) {
+          var st = statusOf(p);
+          var dueLine = p.paymentDueBy ? '\u23F0 Pay by ' + esc(new Date(p.paymentDueBy).toLocaleString()) : '';
+          var statusLine = '';
+          if (st === 'pending') statusLine = '\u23F3 Awaiting admin verification';
+          else if (st === 'approved') statusLine = '\u2705 Approved — admin is sending it';
+          else if (st === 'paid') statusLine = '\u2705 Paid ' + esc(p.paidAt ? new Date(p.paidAt).toLocaleString() : '');
+          else statusLine = '\u274C Rejected' + (p.adminNote ? ' — ' + esc(p.adminNote) : '');
+
+          html += '<div class="admin-scan-panel" style="margin-bottom:12px;' +
+            (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
+            '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
+            '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Influencer Admin') + '</strong>' +
+            '<span class="admin-order-badge ' + esc(st) + '">' + esc(st) + '</span>' +
+            '</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
+            '<span>\uD83D\uDCE7 ' + esc(p.requesterEmail || '—') + '</span>' +
+            '<span>\uD83D\uDCC5 ' + esc(p.payoutMethodLabel || p.payoutMethod || '') + '</span>' +
+            '<span>\uD83D\uDD54 ' + esc(p.createdAt ? new Date(p.createdAt).toLocaleString() : '—') + '</span>' +
+            '<span><code style="font-size:.72rem;">' + esc(p.id) + '</code></span>' +
+            '</div>' +
+            '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;">' +
+            '<span>Requested <strong>' + fmtN(p.amount) + '</strong></span>' +
+            '<span>Send 80% <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
+            '<span>Admin retains 20% <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' +
+            '</div>' +
+            '<div style="margin-top:8px;">' +
+            '<strong>\uD83C\uDDE6 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +
+            '</div>' +
+            (dueLine ? '<div style="margin-top:6px;color:#0D47A1;font-weight:600;font-size:.8rem;">' + dueLine + '</div>' : '') +
+            (p.note ? '<div style="margin-top:6px;color:var(--text-3);font-size:.8rem;">Note: ' + esc(p.note) + '</div>' : '') +
+            '</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;">' +
+            '<span style="font-size:.78rem;color:var(--text-2);font-weight:600;">' + statusLine + '</span>' +
+            '<div class="admin-readonly-note">\uD83D\uDD0D View only</div>' +
+            '</div>' +
+            '</div>';
+        });
+        list.innerHTML = html;
+      }
+
+      // Status quick-filters for the payout list.
+      Array.prototype.forEach.call(document.querySelectorAll('[data-payout-filter]'), function(btn) {
+        btn.addEventListener('click', function() {
+          payoutFilter = btn.getAttribute('data-payout-filter') || 'all';
+          Array.prototype.forEach.call(document.querySelectorAll('[data-payout-filter]'), function(b) {
+            b.classList.toggle('active', b === btn);
+          });
+          renderPayoutList();
+        });
+      });
+
       // ── Referral Link Management ──
       window.loadReferralLink = function() {
         var token = getSubToken();
@@ -1833,6 +2168,10 @@ resultBox.className = 'admin-scan-result show';
           if (tabName === 'sales') {
             loadSalesOrders();
           }
+          // Load the read-only payout list when the Payouts tab is opened
+          if (tabName === 'payouts') {
+            loadPayoutList();
+          }
         });
       });
 
@@ -1851,6 +2190,7 @@ resultBox.className = 'admin-scan-result show';
         loadReferralLink();  // Load referral link on dashboard load
         loadGlobalSalesOverview();
         loadSalesOrders();  // Prime the read-only Sales tab
+        loadPayoutList();  // Prime the read-only Payouts tab
       } else {
         showLoggedOut();
       }
