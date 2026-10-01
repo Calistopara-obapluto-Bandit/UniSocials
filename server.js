@@ -4661,9 +4661,16 @@ codes[idx] = entry;
       const summary = await influencerAdminPayoutSummary(authCtx);
       if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
       if (amount > summary.availableBalance) {
-        let error = 'Requested amount exceeds your available balance of ₦' + summary.availableBalance.toLocaleString() + '.';
+        const isValid = amount > 0;
+        const friendly = 'payout amount not valid';
+        let error = friendly + ': ';
+        if (isValid) {
+          error += 'the payout amount you requested exceeds your available balance of ₦' + summary.availableBalance.toLocaleString() + '.';
+        } else {
+          error += 'the payout amount must be greater than zero.';
+        }
         if (summary.heldAmount > 0) {
-          error += ' ₦' + summary.heldAmount.toLocaleString() + ' from recent site payments is still inside the ' + PAYOUT_HOLD_DAYS + '-day countdown and unlocks automatically.';
+          error += ' You also have ₦' + summary.heldAmount.toLocaleString() + ' inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
         }
         return sendJson(res, 400, { success:false, error });
       }
@@ -4809,6 +4816,21 @@ codes[idx] = entry;
         if (!influencerAdminOwnsEvent(authCtx, existingEvent)) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
       }
       const isInfluencerAdminEdit = authCtx.role === 'influencer_admin' && !!existingEvent;
+      // Auto-authorize the Influencer Admin who created/updates the event to that
+      // event, so it is no longer an un-authorized event they cannot manage.
+      let authorizedAdminIds = getAuthorizedInfluencerAdminIds(existingEvent);
+      if (isInfluencerAdminEdit) {
+        // Editing: keep the admin already authorized, but ensure the current
+        // admin is authorized (idempotent re-authorize).
+        const myId = String(authCtx.user?.id || authCtx.userId || '').trim();
+        if (myId && !authorizedAdminIds.includes(myId)) authorizedAdminIds.push(myId);
+      } else if (authCtx.role === 'influencer_admin') {
+        // Creating: the creator becomes the event's admin automatically.
+        const myId = String(authCtx.user?.id || authCtx.userId || '').trim();
+        const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
+        if (myId) authorizedAdminIds.push(myId);
+        if (myEmail && !authorizedAdminIds.includes(myEmail)) authorizedAdminIds.push(myEmail);
+      }
       const imageUrl = String(data.image || '').trim();
       const isInlineImage = /^data:image\/(?:png|jpe?g|gif|webp);base64,/.test(imageUrl);
       if ((!isInlineImage && imageUrl.length > 2000) || !isSafeImageUrl(imageUrl)) {
@@ -4847,7 +4869,7 @@ codes[idx] = entry;
         icon: data.icon || '🎟️',
         featured: !!data.featured,
         archived: isInfluencerAdminEdit ? !!existingEvent.archived : !!data.archived,
-        authorizedInfluencerAdminIds: getAuthorizedInfluencerAdminIds(existingEvent),
+        authorizedInfluencerAdminIds: authorizedAdminIds,
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
