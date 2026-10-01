@@ -284,6 +284,8 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7;
   function poMsg(id,text,good){var el=document.getElementById(id);if(!el)return;el.textContent=text;el.className='payout-msg '+(good?'ok':'bad');}
   function fmtWhen(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d.getTime()))return String(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+  // Percentages keep one decimal: Math.round() turned our 17.5% into "18%".
+  function pct(rate){var v=Math.round((Number(rate)||0)*1000)/10;return (Math.abs(v-Math.round(v))<0.001?String(Math.round(v)):String(v))+'%';}
   function renderPayoutHold(){
     var el=document.getElementById('poHeld');if(!el)return;
     if(payoutTimer){clearInterval(payoutTimer);payoutTimer=null;}
@@ -323,7 +325,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       var badge=document.createElement('span');badge.className='payout-status '+String(p.status||'pending').toLowerCase();badge.textContent=p.status||'pending';
       head.appendChild(amt);head.appendChild(badge);row.appendChild(head);
       var meta=document.createElement('div');meta.className='payout-row-meta';
-      meta.textContent='Requested '+fmt(p.amount)+(rate>0?' · Unisocials fee '+Math.round(rate*100)+'% ('+fmt(p.feeAmount||0)+')':'')+' · '+(p.bankName||'')+' ••••'+String(p.accountNumber||'').slice(-4)+' · '+fmtWhen(p.createdAt);
+      meta.textContent='Requested '+fmt(p.amount)+(rate>0?' · Unisocials fee '+pct(rate)+' ('+fmt(p.feeAmount||0)+')':'')+' · '+(p.bankName||'')+' ••••'+String(p.accountNumber||'').slice(-4)+' · '+fmtWhen(p.createdAt);
       row.appendChild(meta);
       if(p.paidAt){var done=document.createElement('div');done.className='payout-row-meta';done.style.color='#1B5E20';done.textContent='✅ Paid '+fmtWhen(p.paidAt)+(p.notifiedEmail?' · completion email sent to '+p.notifiedEmail:'');row.appendChild(done);}
       if(p.adminNote){var n=document.createElement('div');n.className='payout-row-meta';n.textContent='Admin note: '+p.adminNote;row.appendChild(n);}
@@ -343,7 +345,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       document.getElementById('poCommission').textContent=fmt(d.totalCommission||0);
       document.getElementById('poAvailable').textContent=fmt(d.availableBalance||0);
       var rates=d.commissionRates||{eventOwner:.8,influencer:.175,platformReferred:.025,platformDirect:.2};
-      document.getElementById('payoutSplitNote').textContent='On the ₦'+Number(d.referredRevenue||0).toLocaleString()+' your link brought in: ₦'+Number(d.eventOwnerShare||0).toLocaleString()+' ('+Math.round(rates.eventOwner*100)+'%) went to the event owner, ₦'+Number(d.totalCommission||0).toLocaleString()+' ('+Math.round(rates.influencer*100)+'%) is your commission, and ₦'+Number(d.platformShare||0).toLocaleString()+' ('+Math.round(rates.platform*100)+'%) to Unisocials.';
+      document.getElementById('payoutSplitNote').textContent='On the ₦'+Number(d.referredRevenue||0).toLocaleString()+' your link brought in: ₦'+Number(d.eventOwnerShare||0).toLocaleString()+' ('+pct(rates.eventOwner)+') went to the event owner, ₦'+Number(d.totalCommission||0).toLocaleString()+' ('+pct(rates.influencer)+') is your commission, and ₦'+Number(d.platformShare||0).toLocaleString()+' ('+pct(rates.platform)+') to Unisocials.';
       var bank=d.savedBankAccount||{};
       if(bank.bankName)document.getElementById('poBankName').value=bank.bankName;
       if(bank.accountNumber)document.getElementById('poAccountNumber').value=bank.accountNumber;

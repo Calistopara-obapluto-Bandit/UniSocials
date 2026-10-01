@@ -293,6 +293,14 @@ function commissionSplit(amount, referred) {
 }
 
 // Aggregate referred and direct payments into one split.
+// Render a rate as a percentage label. Math.round() turned the referrer's 17.5%
+// into "18%", so keep one decimal and drop it when the rate is a whole number.
+function rateLabel(rate) {
+  const pct = (Number(rate) || 0) * 100;
+  const rounded = Math.round(pct * 10) / 10;
+  return (Math.abs(rounded - Math.round(rounded)) < 0.001 ? String(Math.round(rounded)) : String(rounded)) + '%';
+}
+
 function commissionTotals(referredAmount, directAmount) {
   const referred = commissionSplit(referredAmount, true);
   const direct = commissionSplit(directAmount, false);
@@ -2342,7 +2350,6 @@ async function sendPayoutRequestEmailToAdmin(payout) {
     if (!to) return false;
     const m = PAYOUT_METHODS[payout.payoutMethod] || {};
     const fee = payoutFeeSplit(payout);
-    const feePct = Math.round(fee.feeRate * 100);
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
     const feeAmount = '₦' + fee.feeAmount.toLocaleString();
     const netAmount = '₦' + fee.netAmount.toLocaleString();
@@ -2415,7 +2422,6 @@ async function sendPayoutStatusEmailToRequester(payout) {
       return false;
     }
     const fee = payoutFeeSplit(payout);
-    const feePct = Math.round(fee.feeRate * 100);
     const amount = '₦' + Number(payout.amount || 0).toLocaleString();
     const feeAmount = '₦' + fee.feeAmount.toLocaleString();
     const netAmount = '₦' + fee.netAmount.toLocaleString();
@@ -2449,7 +2455,7 @@ async function sendPayoutStatusEmailToRequester(payout) {
       '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
       payoutEmailRow('Request ID', payout.id) +
       payoutEmailRow('Amount requested', amount) +
-      payoutEmailRow('Sent to you (' + (100 - feePct) + '%)', netAmount) +
+      payoutEmailRow('Sent to you', netAmount) +
       payoutEmailRow('Bank', bankLine) +
       (payout.paidAt ? payoutEmailRow('Paid on', fmtEmailDate(payout.paidAt)) : '') +
       '</table>' +
@@ -5403,6 +5409,16 @@ codes[idx] = entry;
       const summary = await influencerAdminPayoutSummary(authCtx);
       const referrerPayouts = await referrerPayoutsForInfluencerAdmin(authCtx);
       const openReferrerPayouts = referrerPayouts.filter(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()));
+      const roundOut = v => Math.round((Number(v) || 0) * 100) / 100;
+      // Commission the owner has already released to their referrers no longer
+      // counts as owed, otherwise the dashboard kept demanding money that had
+      // already left and the owner could be left chasing a settled balance.
+      const influencerPaidOut = roundOut(referrerPayouts
+        .filter(p => String(p.status || '').toLowerCase() === 'paid')
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0));
+      const influencerCommitted = roundOut(referrerPayouts
+        .filter(p => ['pending','approved','paid'].includes(String(p.status || '').toLowerCase()))
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0));
       const contactEmail = isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail) ? '' : String((authCtx.user && authCtx.user.contactEmail) || '').trim().toLowerCase();
       return sendJson(res, 200, {
         success: true,
@@ -5414,7 +5430,10 @@ codes[idx] = entry;
         directAmount: summary.directAmount,
         // Credited, allocated out, and what is actually withdrawable.
         ownerCreditAmount: summary.ownerCreditAmount,
-        influencerOwed: summary.influencerOwed,
+        influencerOwed: roundOut(Math.max(0, summary.influencerOwed - influencerPaidOut)),
+        influencerEarned: summary.influencerOwed,
+        influencerPaidOut: influencerPaidOut,
+        influencerCommitted: influencerCommitted,
         ownerNetAmount: summary.ownerNetAmount,
         platformFee: summary.platformFee,
         heldAmount: summary.heldAmount,
@@ -5434,6 +5453,7 @@ codes[idx] = entry;
         // Read-only visibility of what this account's referrers have asked for.
         referrerPayouts: referrerPayouts.map(payoutPublic),
         openReferrerPayoutCount: openReferrerPayouts.length,
+        openReferrerPayoutAmount: roundOut(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0)),
         openReferrerPayoutAmount: Math.round(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100
       });
     }
@@ -5451,8 +5471,8 @@ codes[idx] = entry;
       if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
       if (parsed.amount > summary.availableBalance) {
         let error = 'payout amount not valid: the amount you requested exceeds your available ' +
-          Math.round(EVENT_OWNER_RATE * 100) + '% share of ₦' + summary.availableBalance.toLocaleString() + '.';
-        error += ' That is ' + Math.round(EVENT_OWNER_RATE * 100) + '% of the ₦' + Math.round(summary.matured / EVENT_OWNER_RATE).toLocaleString() +
+          rateLabel(EVENT_OWNER_RATE) + ' share of ₦' + summary.availableBalance.toLocaleString() + '.';
+        error += ' That is ' + rateLabel(EVENT_OWNER_RATE) + ' of the ₦' + Math.round(summary.matured / EVENT_OWNER_RATE).toLocaleString() +
           ' in matured verified payments, less ₦' + summary.totalRequested.toLocaleString() + ' already requested.';
         if (summary.held > 0) {
           error += ' You also have ₦' + summary.held.toLocaleString() + ' inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
@@ -5577,7 +5597,7 @@ codes[idx] = entry;
         totalCommission: earned,
         availableBalance: balance.availableBalance,
         totalRequested: balance.committed,
-        maturedRevenue: balance.matured,
+        maturedCommission: balance.matured,
         commissionRates: COMMISSION_SPLIT,
         feeRate: PAYOUT_FEE_RATE,
         holdDays: PAYOUT_HOLD_DAYS,
@@ -5602,7 +5622,7 @@ codes[idx] = entry;
         heldRevenue: summary.heldRevenue,
         heldPayments: summary.heldPayments,
         totalCommission: summary.totalCommission,
-        maturedCommission: summary.maturedRevenue,
+        maturedCommission: summary.maturedCommission,
         heldCommission: summary.heldRevenue * INFLUENCER_COMMISSION_RATE,
         availableBalance: summary.availableBalance,
         totalRequested: summary.totalRequested,
@@ -5633,8 +5653,8 @@ codes[idx] = entry;
       if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
       if (parsed.amount > summary.availableBalance) {
         let error = 'payout amount not valid: the amount you requested exceeds your available commission of ₦' +
-          summary.availableBalance.toLocaleString() + ' (' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of the ₦' +
-          summary.maturedRevenue.toLocaleString() + ' your referral link brought in).';
+          summary.availableBalance.toLocaleString() + ' (' + rateLabel(INFLUENCER_COMMISSION_RATE) +
+          ' of the ₦' + summary.referredRevenue.toLocaleString() + ' your referral link brought in).';
         const heldCommission = Math.round(summary.heldRevenue * INFLUENCER_COMMISSION_RATE * 100) / 100;
         if (heldCommission > 0) {
           error += ' You also have ₦' + heldCommission.toLocaleString() + ' of commission inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
@@ -5654,7 +5674,7 @@ codes[idx] = entry;
         payout: payoutPublic(payout),
         availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' of commission will be sent to you — ' + Math.round(INFLUENCER_COMMISSION_RATE * 100) + '% of every sale made through your link, with nothing further deducted. The Influencer Admin of the event has been notified and will pay within 24 hours of approval.'
+        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' of commission will be sent to you — ' + rateLabel(INFLUENCER_COMMISSION_RATE) + ' of every sale made through your link, with nothing further deducted. The Influencer Admin of the event has been notified and will pay within 24 hours of approval.'
       });
     }
 

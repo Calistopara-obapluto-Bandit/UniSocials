@@ -2087,6 +2087,11 @@ resultBox.className = 'admin-scan-result show';
         if (!list) return;
 
         var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0; };
+        // Percentages keep one decimal, so a 17.5% rate never renders as 18%.
+        var pctOf = function(p) {
+          var v = Math.round(rateOf(p) * 1000) / 10;
+          return (Math.abs(v - Math.round(v)) < 0.001 ? String(Math.round(v)) : String(v)) + '%';
+        };
         var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * (1 - rateOf(p))) * 100) / 100; };
         var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * rateOf(p)) * 100) / 100; };
         var statusOf = function(p) { return String(p.status || 'pending').toLowerCase(); };
@@ -2158,8 +2163,8 @@ resultBox.className = 'admin-scan-result show';
             '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
             '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;">' +
             '<span>Requested <strong>' + fmtN(p.amount) + '</strong></span>' +
-            '<span>Send ' + (100 - Math.round(rateOf(p) * 100)) + '% <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong></span>' +
-            '<span>Unisocials fee ' + Math.round(rateOf(p) * 100) + '% <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' +
+            '<span>Send <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong> in full' + (rateOf(p) > 0 ? ' (after ' + pctOf(p) + ' fee)' : '') + '</span>' +
+            (rateOf(p) > 0 ? '<span>Unisocials fee ' + pctOf(p) + ' <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' : '') +
             '</div>' +
             '<div style="margin-top:8px;">' +
             '<strong>\uD83C\uDDE6 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +

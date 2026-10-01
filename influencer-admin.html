@@ -2372,6 +2372,12 @@ fetch('/api/admin/events/notify', {
       }
 
       // d / hh / mm / ss countdown used by the referrer-hold banner.
+      // Percentages keep one decimal: Math.round() turned our 17.5% into "18%".
+      function pct(rate) {
+        var v = Math.round((Number(rate) || 0) * 1000) / 10;
+        return (Math.abs(v - Math.round(v)) < 0.001 ? String(Math.round(v)) : String(v)) + '%';
+      }
+
       function fmtCountdown(ms) {
         if (!(ms > 0)) return '0d 00h 00m 00s';
         var s = Math.floor(ms / 1000);
@@ -2428,14 +2434,17 @@ fetch('/api/admin/events/notify', {
             }
             payoutHoldDays = Number(data.holdDays) || 7;
 
-            var refPct = Math.round(commissionRates.referred * 100);
-            var dirPct = Math.round(commissionRates.direct * 100);
-            var inflPct = Math.round(commissionRates.influencer * 100);
+            var refPct = pct(commissionRates.referred);
+            var dirPct = pct(commissionRates.direct);
+            var inflPct = pct(commissionRates.influencer);
             var notice = document.getElementById('payoutFeeNotice');
             if (notice) {
-              notice.innerHTML = '🔗 Link used: <strong style="color:#1B5E20;">' + refPct + '% Unisocials</strong> · <strong>' + inflPct + '% to the influencer</strong> · <strong>' + Math.round((1 - commissionRates.referred - commissionRates.influencer) * 100) + '% to you</strong>' +
-                ' &nbsp;|&nbsp; No link: <strong style="color:#E65100;">' + dirPct + '% Unisocials</strong> · <strong>' + Math.round((1 - commissionRates.direct) * 100) + '% to you</strong>' +
+              notice.innerHTML = '🔗 Link used: <strong style="color:#1B5E20;">' + refPct + ' Unisocials</strong> · <strong>' + inflPct + ' to the influencer</strong> · <strong>' + pct(1 - commissionRates.referred - commissionRates.influencer) + ' to you</strong>' +
+                ' &nbsp;|&nbsp; No link: <strong style="color:#E65100;">' + dirPct + ' Unisocials</strong> · <strong>' + pct(1 - commissionRates.direct) + ' to you</strong>' +
                 '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct) you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unisocials retained <strong>' + fmtN(data.platformFee) + '</strong>.';
+              if (Number(data.influencerPaidOut) > 0) {
+                notice.innerHTML += ' You have already paid your referrers <strong style="color:#1B5E20;">' + fmtN(data.influencerPaidOut) + '</strong> of their ' + fmtN(data.influencerEarned) + ' earned.';
+              }
               notice.style.display = 'block';
             }
 
@@ -2469,7 +2478,7 @@ fetch('/api/admin/events/notify', {
             if (list) {
               var referrerPayouts = data.referrerPayouts || [];
               if (!referrerPayouts.length) {
-                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">No referrer has requested commission yet. They can request once their ' + inflPct + '% clears the ' + payoutHoldDays + '-day countdown.</div>';
+                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">No referrer has requested commission yet. They can request once their ' + inflPct + ' clears the ' + payoutHoldDays + '-day countdown.</div>';
               } else {
                 list.innerHTML = referrerPayouts.map(function(p) {
                   var st = String(p.status || '').toLowerCase();
