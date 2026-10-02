@@ -2282,7 +2282,7 @@ async function sendInfluencerAdminCredentialsEmail(user, password) {
     'Password: ' + password + '\n\n' +
     'Sign in here: ' + siteUrl() + '/influencer-admin.html\n\n' +
     'University: ' + (user.university || '—') + '\n\n' +
-    'Please sign in and change your password straight away, and keep it safe.\n\n' +
+    'This is your login. Keep it safe and don\'t share it with anyone.\n\n' +
     '— Unisocials';
   const html =
     '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
@@ -2295,7 +2295,7 @@ async function sendInfluencerAdminCredentialsEmail(user, password) {
     payoutEmailRow('University', user.university || '—') +
     '</table>' +
     '<p style="margin:16px 0"><a href="' + escapeHtml(siteUrl() + '/influencer-admin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to your dashboard</a></p>' +
-    '<p style="margin:0 0 8px;color:#475569;font-size:14px">Please change your password after your first sign in, and keep it safe.</p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">🔐 This is your login. Keep it safe and don&rsquo;t share it with anyone.</p>' +
     '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because you requested an Influencer Admin account on Unisocials.</p>' +
     '</div>';
   const sent = await sendBrevoEmail(to, subject, text, html, user.name);
@@ -2321,7 +2321,7 @@ async function sendCheckinStaffCredentialsEmail(user, password) {
     'Password: ' + password + '\n\n' +
     'Sign in here: ' + siteUrl() + '/checkin.html\n\n' +
     'You will be able to scan and verify guest tickets at the gate.\n\n' +
-    'Please sign in and change your password straight away, and keep it safe.\n\n' +
+    'This is your login. Keep it safe and don\'t share it with anyone.\n\n' +
     '— Unisocials';
   const html =
     '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
@@ -2334,7 +2334,7 @@ async function sendCheckinStaffCredentialsEmail(user, password) {
     payoutEmailRow('Event', user.eventName || '—') +
     '</table>' +
     '<p style="margin:16px 0"><a href="' + escapeHtml(siteUrl() + '/checkin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to check guests in</a></p>' +
-    '<p style="margin:0 0 8px;color:#475569;font-size:14px">Please change your password after your first sign in, and keep it safe.</p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">🔐 This is your login. Keep it safe and don&rsquo;t share it with anyone.</p>' +
     '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because you were added as check-in staff for an Unisocials event.</p>' +
     '</div>';
   const sent = await sendBrevoEmail(to, subject, text, html, user.name);
