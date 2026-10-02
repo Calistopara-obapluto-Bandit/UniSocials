@@ -21,8 +21,6 @@
         y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
     })(window, document, "clarity", "script", "y4hhcy2o3a");
   </script>
-<!-- The Influencer Admin nav pill and mobile entry are styled in
-     templatemo-622-clearwave.css so every page shows them identically. -->
 </head>
 <body>
 
@@ -55,7 +53,6 @@
     <a href="tickets.html">Tickets</a>
 <a href="about.html">About</a>
     <a href="contact.html">Contact</a>
-    <a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
     <a href="#" class="mobile-menu-logout" id="mobileMenuLogout" style="display:none;">Log out</a>
   </div>
@@ -73,10 +70,6 @@
       </ul>
       <div class="nav-cta">
         <span class="nav-account-slot"></span>
-        <!-- Influencer Admin: creating or signing up has its own page. -->
-        <a href="influencer-admin-signup.html" class="iaf-link" title="Create or sign in to an Influencer Admin account">
-          <span aria-hidden="true">👤</span> Create or sign up
-        </a>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -222,7 +215,9 @@ Unisocials is the ticket selling platform for university events across Nigeria. 
         <p class="subscribe-status" id="subscribeStatus"></p>
       </div>
     </div>
-  </section><!-- ── FOOTER ── -->
+  </section>
+
+  <!-- ── FOOTER ── -->
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">

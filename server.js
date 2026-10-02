@@ -6,8 +6,8 @@ Unisocials — Node.js server
     • PostgreSQL if DATABASE_URL is set (recommended for Render — survives restarts/redeploys)
     • JSON files in ./data otherwise (persists on local disk)
 - Flutterwave-only checkout with server-authoritative verification:
-    order is created PENDING → Flutterwave confirms → /api/verify-payment or webhook
-    checks amount+currency against the order BEFORE issuing tickets.
+    order is created PENDING → Flutterwave confirms → webhook or /api/verify-payment
+    re-verifies the transaction server-side and checks reference+amount+currency BEFORE issuing tickets.
 - One unique ticket code per ticket purchased (qty = N → N QR tickets).
 - Buyer accounts (register/login) so tickets are stored and don't require refresh.
 - Admin gate scan endpoint for check-in.
@@ -18,6 +18,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 // ── Load local .env (if present) so local dev uses the same secrets as Render.
 // Never commit .env — it holds live API keys (gitignored).
@@ -39,6 +40,8 @@ const PORT = process.env.PORT || 3000;
 
 const PUBLIC_DIR = __dirname;
 const DATA_DIR = path.join(__dirname, 'data');
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 
 // ────────────────────────────────────────────
 // STORAGE LAYER (async)
@@ -52,7 +55,23 @@ async function initStorage() {
   if (process.env.DATABASE_URL) {
     try {
       const { Pool } = require('pg');
-      db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      // Database connection hardening: keep the pool bounded and fail slow/hung
+      // database operations instead of allowing them to consume all server workers.
+      // Neon/Postgres normally provides a trusted TLS certificate; an explicit
+      // opt-out is available only when a deployment requires it.
+      const sslConfig = String(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() === 'false'
+        ? { rejectUnauthorized: false }
+        : { rejectUnauthorized: true };
+      db = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: sslConfig,
+        max: 10,
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
+        query_timeout: 15000,
+        statement_timeout: 15000,
+        keepAlive: true
+      });
       await db.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
 await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
@@ -60,19 +79,67 @@ await db.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEX
       await db.query(`CREATE TABLE IF NOT EXISTS universities (id TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS subscribers (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await db.query(`CREATE TABLE IF NOT EXISTS referral_links (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS coupons (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await db.query(`CREATE TABLE IF NOT EXISTS payouts (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
       usePg = true;
       console.log('Storage: PostgreSQL connected.');
       return;
     } catch (e) {
-      console.warn('PostgreSQL unavailable, falling back to JSON files:', e.message);
       db = null;
       usePg = false;
+      // In production, never silently fall back from the persistent database to
+      // local JSON storage. Render's filesystem is not a safe substitute for the
+      // production database and a silent fallback could make writes appear to
+      // succeed while the real data remains unchanged.
+      if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        console.error('FATAL: PostgreSQL is configured but unavailable:', e.message);
+        process.exitCode = 1;
+        throw e;
+      }
+      console.warn('PostgreSQL unavailable, using JSON files for local development:', e.message);
     }
   }
   console.log('Storage: JSON files in ./data (set DATABASE_URL to use PostgreSQL).');
 }
 
 /* ── Orders ── */
+// Run a set of statements as one atomic transaction. All-or-nothing writes keep
+// concurrent requests (gate scans, registrations, logins) from seeing half-
+// finished table rewrites or wiping each other's data.
+// Serialize JSON-storage read-modify-write cycles. In JSON-file mode every
+// "read list → modify → write list" done concurrently can silently drop other
+// requests' changes (last writer wins). The mutex guarantees one full cycle
+// completes before the next starts. PG mode does not need this (row-level ops).
+const jsonWriteLocks = new Map();
+async function withJsonWriteLock(key, work) {
+  const prev = jsonWriteLocks.get(key) || Promise.resolve();
+  let release;
+  const gate = new Promise(r => { release = r; });
+  jsonWriteLocks.set(key, gate);
+  await prev.catch(() => {});
+  try {
+    return await work();
+  } finally {
+    release();
+    if (jsonWriteLocks.get(key) === gate) jsonWriteLocks.delete(key);
+  }
+}
+
+async function withDbTransaction(work) {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (e2) { /* already aborted */ }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 async function readOrders() {
   if (usePg) {
     const r = await db.query('SELECT data FROM orders ORDER BY data->>\'createdAt\' DESC');
@@ -86,10 +153,32 @@ async function readOrders() {
 }
 async function writeOrders(orders) {
   if (usePg) {
-    await db.query('DELETE FROM orders');
-    for (const o of orders) {
-      await db.query('INSERT INTO orders (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [o.orderId, JSON.stringify(o)]);
-    }
+    // Upsert the full list and delete only rows that disappeared, in ONE
+    // transaction. The old DELETE-all + re-insert left the table empty for the
+    // duration of the rewrite: concurrent scans/orders hit timeouts and a race
+    // could permanently drop rows.
+    const rows = orders
+      .filter(o => o && o.orderId)
+      .map(o => [String(o.orderId), JSON.stringify(o)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO orders (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM orders WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM orders');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'orders.json'), JSON.stringify(orders, null, 2), 'utf8');
@@ -103,17 +192,479 @@ async function getOrder(orderId) {
   return orders.find(o => o.orderId === orderId) || null;
 }
 async function addOrder(order) {
+  if (usePg) {
+    // Create only this order. Do NOT rewrite/delete the entire orders table.
+    // This avoids a checkout failure caused by unrelated existing orders.
+    await db.query(
+      'INSERT INTO orders (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
+      [order.orderId, JSON.stringify(order)]
+    );
+    const saved = await getOrder(order.orderId);
+    if (!saved) throw new Error('Order could not be saved to PostgreSQL.');
+    return saved;
+  }
   const orders = await readOrders();
   orders.unshift(order);
   await writeOrders(orders);
+  return order;
 }
 async function patchOrder(orderId, patch) {
-  const orders = await readOrders();
-  const idx = orders.findIndex(o => o.orderId === orderId);
-  if (idx === -1) return null;
-  orders[idx] = Object.assign({}, orders[idx], patch);
-  await writeOrders(orders);
-  return orders[idx];
+  if (usePg) {
+    // Update ONLY this order's row, locked so concurrent gate scans cannot
+    // overwrite each other. The old path rewrote the whole orders table on
+    // every scan, which held locks, queued every other request behind it, and
+    // made check-in time out during busy periods.
+    return withDbTransaction(async (client) => {
+      const cur = await client.query('SELECT data FROM orders WHERE id = $1 FOR UPDATE', [orderId]);
+      if (!cur.rows.length) return null;
+      const updated = Object.assign({}, cur.rows[0].data, patch);
+      await client.query('UPDATE orders SET data = $2::jsonb, updated_at = NOW() WHERE id = $1', [orderId, JSON.stringify(updated)]);
+      return updated;
+    });
+  }
+  const orders = await withJsonWriteLock('orders', async () => {
+    const orders = await readOrders();
+    const idx = orders.findIndex(o => o.orderId === orderId);
+    if (idx === -1) return null;
+    orders[idx] = Object.assign({}, orders[idx], patch);
+    await writeOrders(orders);
+    return orders[idx];
+  });
+  return orders;
+}
+
+/* ── Coupons ── */
+/* ── Payout requests (Influencer Admin commissions) ── */
+const PAYOUT_METHODS = {
+  '7_days': { label: 'Every 7 days', description: 'Payout cycle: every 7 days' },
+  '14_days': { label: 'Every 14 days', description: 'Payout cycle: every 14 days' },
+  'after_event': { label: 'After event day', description: 'Payout after the event day' }
+};const PAYOUT_STATUSES = ['pending','approved','paid','rejected'];
+
+// ── How a verified ticket payment is split ──
+// A sale made through an influencer's referral link:
+//   2.5%  → Unisocials      (the platform fee, instead of the usual 20%)
+//   20%   → the influencer (20% of the FULL ticket, not of the remainder)
+//   77.5% → the event owner
+// A sale with no link used:
+//   20% → Unisocials
+//   80% → the event owner
+// Both branches total 100%. The event owner is credited 97.5% of a referred
+// sale and 80% of a direct one, and withdraws what is left after the
+// influencer's 20% is allocated out of their credit — 77.5% referred, 80%
+// direct. The event's Influencer Admin is the one who pays that commission to
+// their referrer.
+const PLATFORM_FEE_REFERRED = 0.025;
+const PLATFORM_FEE_DIRECT = 0.20;
+const INFLUENCER_COMMISSION_RATE = 0.20;
+// A direct sale still pays the owner 80%. On a referred sale the owner nets
+// 77.5% (97.5% credited less the influencer's 20%), which falls out of
+// commissionSplit rather than being stored separately.
+const EVENT_OWNER_RATE = 0.80;
+const EVENT_OWNER_RATE_REFERRED = 1 - PLATFORM_FEE_REFERRED - INFLUENCER_COMMISSION_RATE;
+// What the event owner is CREDITED with before any referrer allocation:
+// 97.5% of a referred sale, 80% of a direct one.
+const OWNER_CREDIT_REFERRED = 1 - PLATFORM_FEE_REFERRED;
+const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
+// Neither the owner's share nor the influencer's 20% is deducted again at
+// payout: both platform fees are already taken from the ticket itself.
+const PAYOUT_FEE_RATE = 0;
+// Payments made through the site mature for 7 days before they can be
+// requested as a withdrawal.
+const PAYOUT_HOLD_DAYS = 7;
+const PAYOUT_HOLD_MS = PAYOUT_HOLD_DAYS * 24 * 60 * 60 * 1000;
+
+// Split one payment. `referred` decides which platform fee applies, and the
+// influencer's share is always 20% of the FULL amount. The platform fee is
+// taken off the top, then the influencer's commission is allocated out of what
+// the owner was credited, so the parts always add back up to the gross.
+function commissionSplit(amount, referred) {
+  const gross = Math.max(0, Number(amount) || 0);
+  const round2 = n => Math.round(n * 100) / 100;
+  const isReferred = referred === true;
+  const platformRate = isReferred ? PLATFORM_FEE_REFERRED : PLATFORM_FEE_DIRECT;
+  const influencerAmount = isReferred ? round2(gross * INFLUENCER_COMMISSION_RATE) : 0;
+  const platformAmount = round2(gross * platformRate);
+  const ownerCreditAmount = round2(gross - platformAmount);
+  return {
+    referred: isReferred,
+    platformRate,
+    influencerRate: INFLUENCER_COMMISSION_RATE,
+    ownerCreditAmount,
+    influencerAmount,
+    ownerNetAmount: round2(ownerCreditAmount - influencerAmount),
+    platformAmount
+  };
+}
+
+// Aggregate referred and direct payments into one split.
+// Render a rate as a percentage label. Rounding kept hiding small halves.
+// into "18%", so keep one decimal and drop it when the rate is a whole number.
+function rateLabel(rate) {
+  const pct = (Number(rate) || 0) * 100;
+  const rounded = Math.round(pct * 10) / 10;
+  return (Math.abs(rounded - Math.round(rounded)) < 0.001 ? String(Math.round(rounded)) : String(rounded)) + '%';
+}
+
+function commissionTotals(referredAmount, directAmount) {
+  const referred = commissionSplit(referredAmount, true);
+  const direct = commissionSplit(directAmount, false);
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  return {
+    referredAmount: round2(referredAmount),
+    directAmount: round2(directAmount),
+    grossAmount: round2(referredAmount + directAmount),
+    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount),
+    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount),
+    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount),
+    platformAmount: round2(referred.platformAmount + direct.platformAmount)
+  };
+}
+
+// The headline rates, for the dashboards and the emails. The owner's rate
+// depends on whether a referral link was used, so both are published rather
+// than a single figure that would be wrong half the time.
+const COMMISSION_SPLIT = {
+  eventOwner: EVENT_OWNER_RATE,
+  eventOwnerReferred: EVENT_OWNER_RATE_REFERRED,
+  influencer: INFLUENCER_COMMISSION_RATE,
+  platformReferred: PLATFORM_FEE_REFERRED,
+  platformDirect: PLATFORM_FEE_DIRECT,
+  ownerCreditReferred: OWNER_CREDIT_REFERRED,
+  ownerCreditDirect: OWNER_CREDIT_DIRECT
+};
+
+// Every verified payment sits on a 7-day hold before its share becomes
+// withdrawable. One definition of that rule, so the owner, the referrer and the
+// site-wide admin view all count down to the same unlock moment.
+function collectHeldPayments(orders, matches, shareOf) {
+  const nowMs = Date.now();
+  const isMine = matches || function () { return true; };
+  const share = shareOf || function (amount) { return amount; };
+  const held = [];
+  (orders || []).forEach(o => {
+    if (String(o.status || '').toLowerCase() !== 'verified') return;
+    if (!isMine(o)) return;
+    const amount = Number(o.amount) || 0;
+    const referred = !!String(o.referralCode || '').trim();
+    const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+    if (!Number.isFinite(paidMs)) return;
+    const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+    if (nowMs >= unlocksMs) return;
+    held.push({
+      orderId: o.orderId || '',
+      eventName: o.eventName || '',
+      amount,
+      referred,
+      commissionAmount: Math.round((Number(share(amount, referred)) || 0) * 100) / 100,
+      paidAt: new Date(paidMs).toISOString(),
+      unlocksAt: new Date(unlocksMs).toISOString()
+    });
+  });
+  held.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
+  return held;
+}
+
+// ── Payout requests: who may withdraw what ──
+// The event owner withdraws their 77.5% on a referred sale (97.5% credited,
+// to the referrer). The INFLUENCER who owns the referral code withdraws their
+// less the 20% allocated to the referrer) and 80% on a direct one. The referrer
+// withdraws their own 20% of the full ticket. Both are separate requests paid from the same
+// verified payment, and neither is deducted twice.
+
+// Validate a payout request body. Shared by the referrer and the legacy
+// Influencer Admin flow so both enforce exactly the same rules.
+function parsePayoutRequestBody(body) {
+  let data = {};
+  try { data = JSON.parse(body || '{}'); } catch (e) {}
+  const amount = Math.round(Number(data.amount) * 100) / 100;
+  const payoutMethod = String(data.payoutMethod || '').trim();
+  const note = String(data.note || '').trim().slice(0, 500);
+  const bank = data.bank || {};
+  const bankName = String(bank.bankName || '').trim();
+  const accountNumber = String(bank.accountNumber || '').replace(/[\s-]/g, '');
+  const accountName = String(bank.accountName || '').trim().toUpperCase();
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter the payout amount you are requesting.' };
+  if (!PAYOUT_METHODS[payoutMethod]) return { error: 'Choose a payment schedule: every 7 days, every 14 days, or after event day.' };
+  if (!bankName) return { error: 'Bank name is required.' };
+  if (!/^\d{10}$/.test(accountNumber)) return { error: 'Enter a valid 10-digit Nigerian bank account number.' };
+  if (!accountName) return { error: 'Bank account name is required.' };
+  return { amount, payoutMethod, note, bank: { bankName, accountNumber, accountName } };
+}
+
+// Build and store a payout request for a session user. The same records, the
+// same admin approve/pay endpoints and the same emails are used for every role;
+// only who may request, and against which balance, differs.
+async function storePayoutRequest(user, parsed, extra) {
+  const { amount, payoutMethod, note, bank } = parsed;
+  // No further deduction: the platform fee (2.5% referred / 20% direct) was
+  // already taken from the ticket itself, not from this share.
+  const fee = payoutFeeSplit({ amount });
+  const payout = {
+    id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+    requestedBy: user.id,
+    requesterRole: user.role || '',
+    requesterName: user.name || '',
+    requesterEmail: user.email || '',
+    // Snapshot the real inbox so a completion email reaches them even if
+    // their profile is edited later. The login is @unisocials.com and
+    // cannot receive mail, so this is the only usable address.
+    requesterContactEmail: isInternalLoginEmail(user.contactEmail) ? '' : String(user.contactEmail || '').trim().toLowerCase(),
+    amount,
+    feeRate: fee.feeRate,
+    feeAmount: fee.feeAmount,
+    netAmount: fee.netAmount,
+    payoutMethod,
+    bank,
+    note,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+    paidAt: null,
+    reviewedBy: null,
+    adminNote: ''
+  };
+  // A referrer's commission is paid by the Influencer Admin of the event, so
+  // stamp the owners who are allowed to release it. Without this a payout could
+  // be approved by whoever happened to be signed in.
+  if (extra && Array.isArray(extra.eventOwnerIds) && extra.eventOwnerIds.length) {
+    payout.eventOwnerIds = extra.eventOwnerIds.map(String);
+  }
+  await addPayoutRequest(payout);
+
+  // Remember the bank account so the next request prefills it.
+  try {
+    const fresh = await findUserById(user.id);
+    if (fresh) {
+      fresh.payoutBankAccount = bank;
+      await replaceUser(fresh);
+    }
+  } catch (e) { /* non-fatal */ }
+  return payout;
+}
+
+// Turn an earned total into the balance a request may draw from: only the
+// matured share, less everything already requested.
+function payoutBalance(earned, held, payouts) {
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const matured = round2(Math.max(0, earned - held));
+  const committed = round2(payouts
+    .filter(p => ['pending', 'approved', 'paid'].includes(String(p.status || '').toLowerCase()))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
+  return {
+    earned: round2(earned),
+    held: round2(held),
+    matured,
+    committed,
+    availableBalance: round2(Math.max(0, matured - committed))
+  };
+}
+
+// Save the real inbox payout notifications go to, and re-send the completion
+// notice for anything already paid before that address was on file.
+async function savePayoutNotificationEmail(userId, notificationEmail) {
+  const fresh = await findUserById(userId);
+  if (!fresh) return { status: 404, error: 'Account not found' };
+  fresh.contactEmail = notificationEmail;
+  await replaceUser(fresh);
+
+  const mine = (await readPayouts())
+    .filter(p => String(p.requestedBy) === String(userId) && String(p.status || '').toLowerCase() === 'paid')
+    .sort((a, b) => new Date(b.paidAt || b.createdAt) - new Date(a.paidAt || a.createdAt));
+  let resent = 0;
+  for (const p of mine) {
+    if (p.notifiedEmail) break;
+    const sent = await sendPayoutStatusEmailToRequester(p);
+    if (!sent) break;
+    await updatePayoutRequest(p.id, { notifiedEmail: notificationEmail, notifiedAt: new Date().toISOString() });
+    resent++;
+  }
+  return { user: fresh, resent };
+}
+
+// Gross → fee → net split for a payout request. The rate is stored on each
+// request: new payouts carry 0% because the platform fee (2.5% referred / 20%
+// direct) was already taken from the ticket, while anything requested under the
+// old model keeps showing the rate it was actually made with.
+function payoutFeeSplit(p) {
+  const gross = Math.max(0, Number(p && p.amount) || 0);
+  const rateNum = Number(p && p.feeRate);
+  const rate = Number.isFinite(rateNum) ? rateNum : PAYOUT_FEE_RATE;
+  let fee = Number(p && p.feeAmount);
+  if (!Number.isFinite(fee)) fee = Math.round(gross * rate * 100) / 100;
+  let net = Number(p && p.netAmount);
+  if (!Number.isFinite(net)) net = Math.round((gross - fee) * 100) / 100;
+  return { feeRate: rate, feeAmount: fee, netAmount: net };
+}
+
+function payoutPublic(p) {
+  if (!p) return null;
+  const fee = payoutFeeSplit(p);
+  return {
+    id: p.id,
+    requestedBy: p.requestedBy,
+    requesterName: p.requesterName || '',
+    requesterEmail: p.requesterEmail || '',
+    // 'influencer' = the referrer withdrawing their 20% commission. Older
+    // records have no role stored, so fall back to the requester itself.
+    requesterRole: p.requesterRole || '',
+    // The Influencer Admins allowed to release a referrer's commission: the
+    // owners of the events the referrer's links point at.
+    eventOwnerIds: Array.isArray(p.eventOwnerIds) ? p.eventOwnerIds.map(String) : [],
+    // The real, receivable inbox the requester gave on their account form.
+    requesterContactEmail: p.requesterContactEmail || '',
+    // False means no completion email can be delivered for this payout: neither
+    // the snapshotted contact email nor the requester email is a real inbox.
+    notifiable: !isInternalLoginEmail(p.requesterContactEmail) || !isInternalLoginEmail(p.requesterEmail),
+    // Proof of delivery for the completion email the requester sees.
+    notifiedEmail: p.notifiedEmail || '',
+    notifiedAt: p.notifiedAt || null,
+    amount: Number(p.amount) || 0,
+    feeRate: fee.feeRate,
+    feeAmount: fee.feeAmount,
+    netAmount: fee.netAmount,
+    // The rates this request sits in, so the admin and sub-admin
+    // dashboards can show the whole picture next to the payout itself.
+    commissionRates: COMMISSION_SPLIT,
+    influencerRate: COMMISSION_SPLIT.influencer,
+    eventOwnerRate: COMMISSION_SPLIT.eventOwner,
+    payoutMethod: p.payoutMethod,
+    payoutMethodLabel: (PAYOUT_METHODS[p.payoutMethod] || {}).label || p.payoutMethod,
+    bankName: p.bank ? p.bank.bankName : '',
+    accountNumber: p.bank ? p.bank.accountNumber : '',
+    accountName: p.bank ? p.bank.accountName : '',
+    status: p.status,
+    note: p.note || '',
+    adminNote: p.adminNote || '',
+    createdAt: p.createdAt,
+    reviewedAt: p.reviewedAt || null,
+    paidAt: p.paidAt || null,
+    paymentDueBy: p.paymentDueBy || null,
+    reviewedBy: p.reviewedBy || ''
+  };
+}
+
+async function readPayouts() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM payouts ORDER BY created_at DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'payouts.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writePayouts(payouts) {
+  if (usePg) {
+    const rows = payouts
+      .filter(p => p && p.id)
+      .map(p => [String(p.id), JSON.stringify(p)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO payouts (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM payouts WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM payouts');
+    });
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'payouts.json'), JSON.stringify(payouts, null, 2), 'utf8');
+}
+async function addPayoutRequest(payout) {
+  if (usePg) {
+    await db.query(
+      'INSERT INTO payouts (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [payout.id, JSON.stringify(payout)]
+    );
+    return;
+  }
+  await withJsonWriteLock('payouts', async () => {
+    const payouts = await readPayouts();
+    payouts.unshift(payout);
+    await writePayouts(payouts);
+  });
+}
+async function updatePayoutRequest(id, patch) {
+  if (usePg) {
+    return withDbTransaction(async (client) => {
+      const cur = await client.query('SELECT data FROM payouts WHERE id = $1 FOR UPDATE', [id]);
+      if (!cur.rows.length) return null;
+      const updated = Object.assign({}, cur.rows[0].data, patch);
+      await client.query('UPDATE payouts SET data = $2::jsonb WHERE id = $1', [id, JSON.stringify(updated)]);
+      return updated;
+    });
+  }
+  return withJsonWriteLock('payouts', async () => {
+    const payouts = await readPayouts();
+    const idx = payouts.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    payouts[idx] = Object.assign({}, payouts[idx], patch);
+    await writePayouts(payouts);
+    return payouts[idx];
+  });
+}
+
+async function readCoupons() {
+  if (usePg) {
+    const r = await db.query('SELECT data FROM coupons ORDER BY created_at DESC');
+    return r.rows.map(row => row.data);
+  }
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, 'coupons.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+async function writeCoupons(coupons) {
+  if (usePg) {
+    const rows = coupons
+      .filter(c => c && c.id)
+      .map(c => [String(c.id), JSON.stringify(c)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO coupons (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM coupons WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM coupons');
+    });
+    return;
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'coupons.json'), JSON.stringify(coupons, null, 2), 'utf8');
+}
+async function getCouponByCode(code) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return null;
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.code || '').toUpperCase() === normalized && c.active !== false) || null;
+}
+async function getCouponById(id) {
+  const coupons = await readCoupons();
+  return coupons.find(c => String(c.id) === String(id)) || null;
 }
 
 /* ── Users ── */
@@ -130,10 +681,33 @@ async function readUsers() {
 }
 async function writeUsers(users) {
   if (usePg) {
-    await db.query('DELETE FROM users');
-    for (const u of users) {
-      await db.query('INSERT INTO users (id, email, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET data = $3', [u.id, u.email, JSON.stringify(u)]);
-    }
+    // Upsert all + delete only rows that disappeared, in ONE transaction.
+    // The old DELETE FROM users wiped every account for the whole rewrite:
+    // a login landing in that window failed, and a racing read-modify-write
+    // could permanently drop newly created staff/influencer accounts, which
+    // made their logins report "Invalid email or password" forever.
+    const rows = users
+      .filter(u => u && u.id && u.email)
+      .map(u => [String(u.id), String(u.email), JSON.stringify(u)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 3;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + ', $' + (b + 3) + '::jsonb)');
+          params.push(r[0], r[1], r[2]);
+        });
+        await client.query(
+          'INSERT INTO users (id, email, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM users WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM users');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
@@ -147,9 +721,156 @@ async function findUserById(id) {
   return users.find(u => u.id === id) || null;
 }
 async function addUser(user) {
+  if (usePg) {
+    // Insert only this user's row. The old read-all → rewrite-all path raced
+    // with concurrent logins/registrations and silently dropped the new
+    // account, so freshly created check-in staff and influencers could never
+    // sign in even though creation reported success.
+    await db.query(
+      'INSERT INTO users (id, email, data) VALUES ($1, $2, $3::jsonb) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data',
+      [user.id, user.email, JSON.stringify(user)]
+    );
+    return;
+  }
+  await withJsonWriteLock('users', async () => {
+    const users = await readUsers();
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) users.push(user);
+    else users[idx] = user;
+    await writeUsers(users);
+  });
+}
+// Update one account in place (single-row upsert in PG mode). Never rewrites
+// unrelated accounts, so concurrent logins/registrations cannot be lost.
+async function replaceUser(user) {
+  if (usePg) {
+    await db.query(
+      'INSERT INTO users (id, email, data) VALUES ($1, $2, $3::jsonb) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data',
+      [user.id, user.email, JSON.stringify(user)]
+    );
+    return;
+  }
+  await withJsonWriteLock('users', async () => {
+    const users = await readUsers();
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) users.push(user);
+    else users[idx] = user;
+    await writeUsers(users);
+  });
+}
+// Remove one account by id (single-row delete in PG mode).
+async function deleteUserById(id) {
+  if (usePg) {
+    await db.query('DELETE FROM users WHERE id = $1', [id]);
+    return;
+  }
+  await withJsonWriteLock('users', async () => {
+    const users = await readUsers();
+    await writeUsers(users.filter(u => u.id !== id));
+  });
+}
+
+/* ── Influencer ↔ Influencer Admin relationships ── */
+// One influencer account can have multiple independent IA relationships.
+// Referral codes remain separate and will be attached in Step 4.
+function normalizeInfluencerAssignments(influencer) {
+  if (!influencer || influencer.role !== 'influencer') return [];
+  const existing = Array.isArray(influencer.influencerAssignments) ? influencer.influencerAssignments : [];
+  const out = [];
+  const seen = new Set();
+  for (const a of existing) {
+    const adminId = String(a && (a.influencerAdminId || a.adminId || '')).trim();
+    if (!adminId || seen.has(adminId)) continue;
+    const status = ['pending','accepted','rejected'].includes(String(a.status || '').toLowerCase()) ? String(a.status).toLowerCase() : 'accepted';
+    out.push({
+      id: String(a.id || ('IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase())),
+      influencerAdminId: adminId,
+      status,
+      requestedAt: a.requestedAt || a.createdAt || new Date().toISOString(),
+      acceptedAt: status === 'accepted' ? (a.acceptedAt || a.requestedAt || a.createdAt || new Date().toISOString()) : (a.acceptedAt || null),
+      rejectedAt: status === 'rejected' ? (a.rejectedAt || new Date().toISOString()) : (a.rejectedAt || null),
+      legacy: a.legacy === true
+    });
+    seen.add(adminId);
+  }
+
+  // Migrate the current single-admin ownership fields into one accepted
+  // relationship so existing influencers continue working unchanged.
+  const legacyAdminId = String(
+    influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId ||
+    (typeof influencer.createdBy === 'string' ? influencer.createdBy : (influencer.createdBy && influencer.createdBy.id)) || ''
+  ).trim();
+  if (legacyAdminId && !seen.has(legacyAdminId)) {
+    out.push({
+      id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+      influencerAdminId: legacyAdminId,
+      status: 'accepted',
+      requestedAt: influencer.createdAt || new Date().toISOString(),
+      acceptedAt: influencer.createdAt || new Date().toISOString(),
+      rejectedAt: null,
+      legacy: true
+    });
+  }
+  return out;
+}
+
+function getInfluencerAssignments(influencer) { return normalizeInfluencerAssignments(influencer); }
+function getAcceptedInfluencerAssignments(influencer) { return getInfluencerAssignments(influencer).filter(a => a.status === 'accepted'); }
+function influencerHasAdminAssignment(influencer, influencerAdminId, statuses = ['accepted']) {
+  const adminId = String(influencerAdminId || '').trim();
+  return !!adminId && getInfluencerAssignments(influencer).some(a => a.influencerAdminId === adminId && statuses.includes(a.status));
+}
+
+async function migrateInfluencerAssignments() {
   const users = await readUsers();
-  users.push(user);
-  await writeUsers(users);
+  let changed = false;
+  const migrated = users.map(user => {
+    if (!user || user.role !== 'influencer') return user;
+    const before = Array.isArray(user.influencerAssignments) ? JSON.stringify(user.influencerAssignments) : '';
+    const assignments = normalizeInfluencerAssignments(user);
+    if (before !== JSON.stringify(assignments)) {
+      changed = true;
+      return Object.assign({}, user, { influencerAssignments: assignments });
+    }
+    return user;
+  });
+  if (changed) await writeUsers(migrated);
+  return migrated;
+}
+
+// Step 4 migration: attach existing influencer referral records to their
+// accepted relationship when possible, without changing existing codes.
+async function migrateInfluencerReferralLinks() {
+  const [users, links] = await Promise.all([readUsers(), readReferralLinks()]);
+  let changed = false;
+  for (const link of links) {
+    const influencerId = String(link.influencerId || '').trim();
+    if (!influencerId || link.assignmentId) continue;
+    const influencer = users.find(u => String(u.id || '') === influencerId && u.role === 'influencer');
+    if (!influencer) continue;
+    const accepted = getAcceptedInfluencerAssignments(influencer);
+    const originalAdminId = String(
+      link.influencerAdminId || influencer.assignedInfluencerAdminId || influencer.influencerAdminId ||
+      influencer.ownerInfluencerAdminId ||
+      (typeof influencer.createdBy === 'string' ? influencer.createdBy : (influencer.createdBy && influencer.createdBy.id)) || ''
+    ).trim();
+    const originalAssignment = accepted.find(a => String(a.influencerAdminId || '').trim() === originalAdminId) ||
+      (accepted.length === 1 ? accepted[0] : null);
+    if (originalAssignment) {
+      link.assignmentId = originalAssignment.id;
+      link.influencerAdminId = originalAssignment.influencerAdminId;
+      link.legacyScoped = true;
+      if (!link.ownerRole || link.ownerRole === 'subadmin') link.ownerRole = 'influencer';
+      link.subadminId = null;
+      link.subadminName = null;
+      link.subadminEmail = null;
+      link.influencerName = link.influencerName || influencer.name || '';
+      link.influencerEmail = link.influencerEmail || influencer.email || '';
+      changed = true;
+    }
+  }
+  if (changed) await writeReferralLinks(links);
+  return links;
 }
 
 /* ── Sessions ── */
@@ -167,37 +888,111 @@ async function readSessions() {
 }
 async function writeSessions(sessions) {
   if (usePg) {
-    await db.query('DELETE FROM sessions');
-    for (const [token, userId] of Object.entries(sessions)) {
-      await db.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2)', [token, userId]);
-    }
+    // Same atomic upsert + delete-missing pattern so a rewrite can never
+    // briefly erase live sessions and log everyone out.
+    const entries = Object.entries(sessions);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < entries.length; i += 250) {
+        const chunk = entries.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach(([token, userId], j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + ')');
+          params.push(token, userId);
+        });
+        await client.query(
+          'INSERT INTO sessions (token, user_id) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id',
+          params
+        );
+      }
+      if (entries.length) await client.query('DELETE FROM sessions WHERE NOT (token = ANY($1::text[]))', [entries.map(([t]) => t)]);
+      else await client.query('DELETE FROM sessions');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify(sessions, null, 2), 'utf8');
 }
 async function createSession(token, userId) {
+  if (usePg) {
+    // Do not rewrite the entire sessions table. A full DELETE + INSERT cycle
+    // can race with another login/logout and accidentally remove a live session.
+    await db.query('INSERT INTO sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, created_at = NOW()', [token, userId]);
+    return;
+  }
   const sessions = await readSessions();
   sessions[token] = userId;
   await writeSessions(sessions);
+  // Keep creation times separately so existing JSON session format remains compatible.
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}; } catch (e) {}
+  meta[token] = Date.now();
+  fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
 }
 async function getSessionUser(token) {
   if (!token) return null;
+  if (usePg) {
+    const r = await db.query("SELECT user_id FROM sessions WHERE token = $1 AND created_at > NOW() - INTERVAL '7 days' LIMIT 1", [token]);
+    if (!r.rows.length) {
+      // Expired sessions are removed so a stolen token cannot be reused indefinitely.
+      await db.query('DELETE FROM sessions WHERE token = $1', [token]).catch(() => {});
+      return null;
+    }
+    const user = await findUserById(r.rows[0].user_id);
+    return user && user.archived === true ? null : user;
+  }
   const sessions = await readSessions();
   const userId = sessions[token];
   if (!userId) return null;
-  return await findUserById(userId);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}; } catch (e) {}
+  const createdAt = Number(meta[token] || 0);
+  if (!createdAt || Date.now() - createdAt > SESSION_MAX_AGE_MS) {
+    delete sessions[token];
+    delete meta[token];
+    await writeSessions(sessions);
+    try { fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8'); } catch (e) {}
+    return null;
+  }
+  const user = await findUserById(userId);
+  return user && user.archived === true ? null : user;
 }
 async function deleteSession(token) {
+  if (!token) return;
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE token = $1', [token]);
+    return;
+  }
   const sessions = await readSessions();
   delete sessions[token];
   await writeSessions(sessions);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    delete meta[token];
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  } catch (e) {}
 }
 async function deleteUserSessions(userId) {
+  if (usePg) {
+    await db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    return;
+  }
   const sessions = await readSessions();
+  const removed = [];
   for (const [t, uid] of Object.entries(sessions)) {
-    if (uid === userId) delete sessions[t];
+    if (uid === userId) { delete sessions[t]; removed.push(t); }
   }
   await writeSessions(sessions);
+  const metaPath = path.join(DATA_DIR, 'session-meta.json');
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+    removed.forEach(t => delete meta[t]);
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  } catch (e) {}
 }
 
 /* ── Referral Links (subadmin referral tracking) ── */
@@ -214,29 +1009,85 @@ async function readReferralLinks() {
 }
 async function writeReferralLinks(links) {
   if (usePg) {
-    await db.query('DELETE FROM referral_links');
+    // Keep the PostgreSQL table authoritative without deleting every referral
+    // row on each update. The old DELETE+INSERT approach could erase or race
+    // with another referral update and made statistics unreliable.
     for (const l of links) {
-      await db.query('INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [l.code, JSON.stringify(l)]);
+      await db.query(
+        'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [l.code, JSON.stringify(l)]
+      );
     }
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'referral_links.json'), JSON.stringify(links, null, 2), 'utf8');
 }
+
+async function writeReferralLink(link) {
+  if (!link) return;
+  if (usePg) {
+    await db.query(
+      'INSERT INTO referral_links (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [link.code, JSON.stringify(link)]
+    );
+    return;
+  }
+  const links = await readReferralLinks();
+  const idx = links.findIndex(l => l.code === link.code);
+  if (idx >= 0) links[idx] = link; else links.push(link);
+  await writeReferralLinks(links);
+}
 async function getReferralLinkByCode(code) {
   const links = await readReferralLinks();
   return links.find(l => l.code === code) || null;
 }
+async function getReferralLinkByOwnerId(ownerId) {
+  const links = await readReferralLinks();
+  return links.find(l => l.ownerId === ownerId || l.subadminId === ownerId || l.influencerId === ownerId) || null;
+}
+
+// Backward-compatible helper for existing sub-admin referral records.
 async function getReferralLinkBySubadminId(subadminId) {
   const links = await readReferralLinks();
-  return links.find(l => l.subadminId === subadminId) || null;
+  return links.find(l => l.subadminId === subadminId || l.ownerId === subadminId) || null;
 }
-async function generateReferralLink(subadminId, subadminName, subadminEmail) {
+
+// Backward-compatible helper for influencer referral records.
+async function getReferralLinkByInfluencerId(influencerId) {
   const links = await readReferralLinks();
-  // Check if this subadmin already has a referral link
-  const existing = links.find(l => l.subadminId === subadminId);
+  return links.find(l => l.influencerId === influencerId || l.ownerId === influencerId) || null;
+}
+async function getReferralLinksByInfluencerId(influencerId) {
+  const id = String(influencerId || '').trim();
+  if (!id) return [];
+  const links = await readReferralLinks();
+  return links.filter(l => String(l.influencerId || l.ownerId || '').trim() === id);
+}
+async function getReferralLinkForAssignment(influencerId, assignmentId) {
+  const links = await getReferralLinksByInfluencerId(influencerId);
+  return links.find(l => String(l.assignmentId || '') === String(assignmentId || '')) || null;
+}
+function canonicalReferralUrl(code) {
+  const safeCode = String(code || '').trim().toUpperCase();
+  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events.html?ref=' + encodeURIComponent(safeCode)) : '';
+}
+
+function referralLinkResponse(link) {
+  if (!link) return null;
+  return { ...link, referralUrl: canonicalReferralUrl(link.code) };
+}
+async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 'subadmin', assignmentId = null, influencerAdminId = null) {
+  const links = await readReferralLinks();
+  // Sub-admins keep one stable global referral record. Influencers get one
+  // separate code for each accepted Influencer Admin relationship.
+  const existing = ownerRole === 'influencer' && assignmentId
+    ? links.find(l => String(l.influencerId || l.ownerId || '') === String(ownerId) && String(l.assignmentId || '') === String(assignmentId))
+    : ownerRole === 'influencer'
+      ? links.find(l => String(l.influencerId || l.ownerId || '') === String(ownerId) && !l.assignmentId)
+      : links.find(l => l.ownerId === ownerId || l.subadminId === ownerId);
   if (existing) return existing;
-  
-  // Generate unique code
+
+  // Generate a cryptographically strong unique code.
   let code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
   while (links.find(l => l.code === code)) {
     code = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -244,12 +1095,21 @@ async function generateReferralLink(subadminId, subadminName, subadminEmail) {
   
   const link = {
     code: code,
-    subadminId: subadminId,
-    subadminName: subadminName,
-    subadminEmail: subadminEmail,
+    ownerId: ownerId,
+    ownerRole: ownerRole,
+    subadminId: ownerRole === 'subadmin' ? ownerId : null,
+    influencerId: ownerRole === 'influencer' ? ownerId : null,
+    subadminName: ownerRole === 'subadmin' ? ownerName : null,
+    subadminEmail: ownerRole === 'subadmin' ? ownerEmail : null,
+    influencerName: ownerRole === 'influencer' ? ownerName : null,
+    influencerEmail: ownerRole === 'influencer' ? ownerEmail : null,
+    assignmentId: ownerRole === 'influencer' ? (assignmentId || null) : null,
+    influencerAdminId: ownerRole === 'influencer' ? (influencerAdminId || null) : null,
     createdAt: new Date().toISOString(),
     totalOrders: 0,
-    totalRevenue: 0
+    totalRevenue: 0,
+    uniquePeople: 0,
+    totalTickets: 0
   };
   links.push(link);
   await writeReferralLinks(links);
@@ -262,20 +1122,77 @@ function isReferralOrderCounted(order, referralCode) {
   return status === 'verified';
 }
 
+// Influencer referral codes are scoped to the Influencer Admin who created the
+// influencer. That admin must be authorized for the event (or own the event)
+// before the code can be used. Sub-admin referral links are intentionally not
+// subject to this rule because their referral model is global.
+async function influencerReferralAuthorizedForEvent(referralLink, event) {
+  if (!referralLink || !event) return false;
+
+  const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
+  if (!influencerId) return true; // legacy/sub-admin referral link
+
+  const users = await readUsers();
+  const influencer = users.find(u => String(u.id || '').trim() === influencerId && u.role === 'influencer');
+  if (!influencer) return false;
+
+  // Step 5: relationship-scoped links must still belong to an ACTIVE
+  // accepted relationship. Merely having influencerAdminId on the link is
+  // not enough: a relationship may have been rejected after the link was
+  // created, and that must immediately revoke the referral code.
+  const authorizedIds = new Set(getAuthorizedInfluencerAdminIds(event));
+  const assignment = getAcceptedInfluencerAssignments(influencer).find(a =>
+    String(a.id || '') === String(referralLink.assignmentId || '')
+  );
+  if (!assignment) return false;
+  const adminId = String(assignment.influencerAdminId || '').trim();
+  return !!adminId && authorizedIds.has(adminId);
+}
+
+async function getScopedReferralOrders(referralLink, orders, events, scopedAdminId = null) {
+  if (!referralLink) return [];
+  const verifiedOrders = orders.filter(o => isReferralOrderCounted(o, referralLink.code));
+
+  // Sub-admin/global referral links retain their existing global scope.
+  const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
+  if (!influencerId) return verifiedOrders;
+
+  const users = await readUsers();
+  const influencer = users.find(u => String(u.id || '').trim() === influencerId && u.role === 'influencer');
+  if (!influencer) return [];
+
+  let ownerAdminId = String(scopedAdminId || '').trim();
+  if (!ownerAdminId) ownerAdminId = String(referralLink.influencerAdminId || '').trim();
+  if (referralLink.assignmentId && referralLink.influencerAdminId && ownerAdminId !== String(referralLink.influencerAdminId).trim()) return [];
+  if (!ownerAdminId) return verifiedOrders;
+
+  return verifiedOrders.filter(order => {
+    const event = events.find(ev => eventMatchesOrder(order, ev));
+    if (!event) return false;
+    return getAuthorizedInfluencerAdminIds(event).includes(ownerAdminId);
+  });
+}
+
 async function updateReferralStats(referralCode) {
   if (!referralCode) return;
   const links = await readReferralLinks();
   const link = links.find(l => l.code === referralCode);
   if (!link) return;
   
-  const orders = await readOrders();
-  const referredOrders = orders.filter(o => isReferralOrderCounted(o, referralCode));
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  const referredOrders = await getScopedReferralOrders(link, orders, events);
   
   link.totalOrders = referredOrders.length;
-  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
-  
-  console.log(`updateReferralStats: code=${referralCode} totalOrders=${link.totalOrders} totalRevenue=${link.totalRevenue}`);
-  await writeReferralLinks(links);
+  link.totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+  link.totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+  link.uniquePeople = new Set(
+    referredOrders
+      .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+      .filter(Boolean)
+  ).size;
+
+  console.log(`updateReferralStats: code=${referralCode} orders=${link.totalOrders} tickets=${link.totalTickets} people=${link.uniquePeople} revenue=${link.totalRevenue}`);
+  await writeReferralLink(link);
 }
 
 async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
@@ -294,159 +1211,88 @@ async function refreshReferralStatsForVerifiedOrder(order, previousStatus) {
 }
 
 /* ── Events (admin-managed catalog shown on client pages) ── */
-const DEFAULT_EVENTS = [
-  {
-id: 'arts-cultural-night',
-    name: 'Faculty of Arts Cultural Night',
-    category: 'Arts & Culture',
-    price: 2500,
-    vipPrice: 5000,
-    vvipPrice: 5000,
-    tablePrice: 10000,
-    date: 'March 10, 2025',
-    time: '4:00 PM',
-    venue: 'Arts Theatre',
-    description: 'An evening of drama, poetry, music, and dance performances showcasing the best of the Arts department.',
-    tags: ['💃 Performance', '🎤 Live Music', '🎭 Drama'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '🎭',
-    featured: true,
-    seats: '150 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'engineering-dinner',
-    name: 'Engineering Annual Dinner',
-category: 'Engineering',
-    price: 5000,
-    vipPrice: 10000,
-    vvipPrice: 10000,
-    tablePrice: 25000,
-    date: 'March 15, 2025',
-    time: '5:00 PM',
-    venue: 'Engineering Auditorium',
-    description: 'The flagship engineering social event — awards ceremony, networking with alumni, dinner service, and live entertainment.',
-    tags: ['🏆 Awards', '🍽️ Dinner', '🤝 Networking'],
-    image: 'images/tm-622-screen-02.jpg',
-    icon: '⚙️',
-    featured: true,
-    seats: '80 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'entrepreneurship-summit',
-    name: 'Entrepreneurship Summit',
-category: 'Business',
-    price: 3000,
-    vipPrice: 0,
-    date: 'March 22, 2025',
-    time: '10:00 AM',
-    venue: 'Business School Hall',
-    description: 'Connect with startup founders, investors, and industry leaders. Pitch your business ideas and compete for funding.',
-    tags: ['💡 Pitching', '💰 Funding', '📈 Workshops'],
-    image: 'images/tm-622-screen-03.jpg',
-    icon: '💼',
-    featured: true,
-    seats: '200 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-id: 'music-festival',
-    name: 'Campus Music Festival',
-category: 'Music',
-    price: 4000,
-    vipPrice: 8000,
-    vvipPrice: 8000,
-    tablePrice: 20000,
-    date: 'March 29, 2025',
-    time: '6:00 PM',
-    venue: 'Sports Complex',
-    description: 'Live performances from the best campus bands, guest artists, and DJs. A night of unforgettable music and dancing.',
-    tags: ['🎸 Live Bands', '🎧 DJ Sets', '🍹 Refreshments'],
-    image: 'images/tm-622-screen-04.jpg',
-    icon: '🎵',
-    featured: true,
-    seats: '300 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'law-moot-court',
-    name: 'Faculty of Law Moot Court',
-    category: 'Academic',
-    price: 1500,
-    vipPrice: 0,
-    date: 'April 5, 2025',
-    time: '9:00 AM',
-    venue: 'Faculty of Law',
-    description: 'The annual inter-faculty mock trial competition. Watch future lawyers battle it out in a simulated courtroom.',
-    tags: ['⚖️ Mock Trial', '📜 Legal Debate', '🏅 Competition'],
-    image: 'images/tm-622-screen-05.jpg',
-    icon: '📚',
-    featured: false,
-    seats: '100 seats left',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  },
-  {
-    id: 'sports-day',
-    name: 'Inter-Faculty Sports Day',
-    category: 'Sports',
-    price: 1000,
-    vipPrice: 0,
-    date: 'April 12, 2025',
-    time: '8:00 AM',
-venue: 'Main Stadium',
-    description: 'A day of friendly competition across football, basketball, athletics, and relay races. Cheer your faculty to victory!',
-    tags: ['⚽ Football', '🏀 Basketball', '🏃 Athletics'],
-    image: 'images/tm-622-screen-01.jpg',
-    icon: '⚽',
-    featured: false,
-    seats: 'Unlimited',
-    universityId: 'uni-unn',
-    universityName: 'University of Nigeria, Nsukka',
-    universitySlug: 'unn'
-  }
-];
+const DEFAULT_EVENTS = [];
 
 async function readEvents() {
   if (usePg) {
-    const r = await db.query('SELECT data FROM events ORDER BY data->>\'date\' ASC');
-    const list = r.rows.map(row => row.data);
-    // Auto-seed the default UNN events catalog when the events table is empty
-    // (e.g. first run or an empty PostgreSQL table) so events are never missing.
-    if (list.length === 0) {
-      for (const ev of DEFAULT_EVENTS) {
-        await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
-          [ev.id, JSON.stringify(ev)]);
-      }
-      console.log('Seeded ' + DEFAULT_EVENTS.length + ' default events into PostgreSQL.');
-      return DEFAULT_EVENTS.slice();
-    }
-    return list;
+    const r = await db.query("SELECT data FROM events ORDER BY data->>'date' ASC");
+    return r.rows.map(row => row.data);
   }
   try {
     const raw = fs.readFileSync(path.join(DATA_DIR, 'events.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_EVENTS;
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return DEFAULT_EVENTS;
+    return [];
   }
 }
+
+function getAuthorizedInfluencerAdminIds(ev) {
+  const ids = Array.isArray(ev && ev.authorizedInfluencerAdminIds) ? ev.authorizedInfluencerAdminIds : [];
+  return ids.map(String).filter(Boolean);
+}
+
+function eventIdentifierMatches(event, eventId) {
+  const requestedId = String(eventId || '').trim();
+  if (!requestedId || !event) return false;
+  return [event.id, event._id, event.eventId].some(id => String(id || '').trim() === requestedId);
+}
+
+function eventMatchesOrder(order, ev) {
+  if (!order || !ev) return false;
+  const oid = String(order.eventId || '').trim();
+  const eid = String(ev.id || '').trim();
+  if (oid && eid && oid === eid) return true;
+  return String(order.eventName || '').trim().toLowerCase() === String(ev.name || '').trim().toLowerCase();
+}
+
+async function getOrdersForCurrentSiteEvents() {
+  const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+  // Match orders against the live event catalog using every identifier the
+  // site has historically used.  Do NOT require eventId to match when the
+  // order also carries the event name: existing orders can legitimately have
+  // an older/alternate event id while still belonging to the same event.
+  const eventIds = new Set();
+  const eventNames = new Set();
+  events.forEach(e => {
+    [e && e.id, e && e._id, e && e.eventId].forEach(v => {
+      const id = String(v || '').trim();
+      if (id) eventIds.add(id);
+    });
+    const name = String(e && (e.name || e.eventName) || '').trim().toLowerCase();
+    if (name) eventNames.add(name);
+  });
+  return orders.filter(o => {
+    const id = String(o && (o.eventId || o.event_id || o.eventID) || '').trim();
+    const name = String(o && (o.eventName || o.event_name) || '').trim().toLowerCase();
+    return (id && eventIds.has(id)) || (name && eventNames.has(name));
+  });
+}
+
 async function writeEvents(events) {
   if (usePg) {
-    await db.query('DELETE FROM events');
-    for (const ev of events) {
-      await db.query('INSERT INTO events (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [ev.id, JSON.stringify(ev)]);
-    }
+    const rows = events
+      .filter(ev => ev && ev.id)
+      .map(ev => [String(ev.id), JSON.stringify(ev)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO events (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM events WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM events');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'events.json'), JSON.stringify(events, null, 2), 'utf8');
@@ -689,10 +1535,28 @@ async function readSubscribers() {
 }
 async function writeSubscribers(list) {
   if (usePg) {
-    await db.query('DELETE FROM subscribers');
-    for (const s of list) {
-      await db.query('INSERT INTO subscribers (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [s.id, JSON.stringify(s)]);
-    }
+    const rows = list
+      .filter(s => s && s.id)
+      .map(s => [String(s.id), JSON.stringify(s)]);
+    await withDbTransaction(async (client) => {
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const values = [];
+        const params = [];
+        chunk.forEach((r, j) => {
+          const b = j * 2;
+          values.push('($' + (b + 1) + ', $' + (b + 2) + '::jsonb)');
+          params.push(r[0], r[1]);
+        });
+        await client.query(
+          'INSERT INTO subscribers (id, data) VALUES ' + values.join(', ') +
+          ' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          params
+        );
+      }
+      if (rows.length) await client.query('DELETE FROM subscribers WHERE NOT (id = ANY($1::text[]))', [rows.map(r => r[0])]);
+      else await client.query('DELETE FROM subscribers');
+    });
     return;
   }
   fs.writeFileSync(path.join(DATA_DIR, 'subscribers.json'), JSON.stringify(list, null, 2), 'utf8');
@@ -726,7 +1590,7 @@ const orderLogLimit = 1000;
 function randCode6() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
   let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++) code += chars[crypto.randomInt(chars.length)];
   return code;
 }
 function generateTicketCodes(qty) {
@@ -756,22 +1620,168 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+  return String(crypto.randomInt(100000, 1000000)); // cryptographically secure 6-digit OTP
+}
+function hashResetSecret(value) {
+  return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
+}
+function validateEmail(email) {
+  const value = String(email || '').trim().toLowerCase();
+  if (!value) return 'Email address is required.';
+  if (value.length > 254) return 'Email address is too long.';
+  // Practical application-level email validation; DNS/mailbox existence is not checked here.
+  if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(value)) {
+    return 'Please enter a valid email address.';
+  }
+  return null;
+}
+function validatePhone(phone) {
+  const value = String(phone || '').trim();
+  if (!value) return 'Phone number is required.';
+  if (value.length > 25) return 'Phone number is too long.';
+  // Accept common Nigerian formats: 08012345678 or +2348012345678,
+  // allowing spaces, hyphens and parentheses for readability.
+  const normalized = value.replace(/[\s()-]/g, '');
+  if (!/^(?:0[789][01]\d{8}|\+234[789][01]\d{8})$/.test(normalized)) {
+    return 'Please enter a valid Nigerian phone number.';
+  }
+  return null;
+}
+function validatePassword(password) {
+  const pw = String(password || '');
+  if (pw.length < 8) return 'Password must be at least 8 characters long.';
+  if (pw.length > 128) return 'Password must be 128 characters or fewer.';
+  if (!/[A-Za-z]/.test(pw)) return 'Password must contain at least one letter.';
+  if (!/[0-9]/.test(pw)) return 'Password must contain at least one number.';
+  if (!/[^A-Za-z0-9\s]/.test(pw)) return 'Password must contain at least one symbol.';
+  return null;
 }
 function isAdminAuthorized(req) {
-  const auth = req.headers['authorization'] || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const expected = process.env.ADMIN_PASSWORD !== undefined ? process.env.ADMIN_PASSWORD : defaults.ADMIN_PASSWORD;
-  return !!token && token === expected;
+  const auth = String(req.headers['authorization'] || '');
+  if (!auth.startsWith('Bearer ')) return false;
+
+  const token = auth.slice(7).trim();
+  // Fail closed: never allow the documented/default placeholder to become
+  // a real admin credential if ADMIN_PASSWORD was forgotten in production.
+  const expected = String(process.env.ADMIN_PASSWORD || '').trim();
+  if (!token || !expected || expected === 'CHANGE_ME_STRONG_PASSWORD') return false;
+
+  // Compare secrets in constant time to avoid leaking the password through
+  // timing differences. Buffer lengths must match before timingSafeEqual().
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 // Authorize either the master admin password OR a logged-in sub-admin account.
 // Sub-admins have limited privileges (check-in + add events).
-async function isAdminOrSubadmin(req) {
+async function isAdminOrInfluencerAdmin(req) {
   if (isAdminAuthorized(req)) return { role: 'admin' };
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   const user = await getSessionUser(token);
-  if (user && user.role === 'subadmin') return { role: 'subadmin', user: user };
+  if (user && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role))) return { role: 'influencer_admin', user: Object.assign({}, user, { role: 'influencer_admin' }) };
+  return null;
+}
+
+// Influencer ownership is enforced server-side. Master admin can manage any
+// influencer; an influencer admin can manage only accounts whose createdBy
+// matches the authenticated influencer admin's user id.
+function influencerAdminOwnsInfluencer(authCtx, influencer) {
+  if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !influencer) return false;
+  const adminId = String(authCtx.user.id || '').trim();
+  const hasRelationshipArray = Array.isArray(influencer.influencerAssignments);
+  if (hasRelationshipArray) {
+    // Once the relationship model exists, its explicit status is authoritative.
+    // This prevents a rejected relationship from accidentally retaining access
+    // through one of the old single-admin ownership fields.
+    return influencerHasAdminAssignment(influencer, adminId, ['accepted']);
+  }
+
+  // Legacy fallback for records that predate the relationship migration.
+  const adminEmail = String(authCtx.user.email || '').trim().toLowerCase();
+  const adminName = String(authCtx.user.name || '').trim().toLowerCase();
+  const assigned = influencer.assignedInfluencerAdminId || influencer.influencerAdminId || influencer.ownerInfluencerAdminId;
+  if (assigned && String(assigned) === adminId) return true;
+  const owner = influencer.createdBy;
+  if (owner && typeof owner === 'object') {
+    const oid = String(owner.id || owner.userId || owner.ownerId || owner.influencerAdminId || '').trim();
+    const oemail = String(owner.email || '').trim().toLowerCase();
+    const oname = String(owner.name || '').trim().toLowerCase();
+    if (oid && oid === adminId) return true;
+    if (oemail && adminEmail && oemail === adminEmail) return true;
+    if (oname && adminName && oname === adminName) return true;
+    return false;
+  }
+  const ownerValue = String(owner || '').trim();
+  return ownerValue === adminId || (!!adminEmail && ownerValue.toLowerCase() === adminEmail) || (!!adminName && ownerValue.toLowerCase() === adminName);
+}
+
+function canManageInfluencer(authCtx, influencer) {
+  if (!authCtx || !influencer || influencer.role !== 'influencer') return false;
+  if (authCtx.role === 'admin') return true;
+  return influencerAdminOwnsInfluencer(authCtx, influencer);
+}
+
+// Event ownership/authorization is checked server-side. An Influencer Admin may
+// edit/archive only events they created; authorized events are view-only. Main
+// Admin has unrestricted event access.
+function influencerAdminOwnsEvent(authCtx, event) {
+  if (!authCtx || authCtx.role !== 'influencer_admin' || !authCtx.user || !event) return false;
+  const myId = String(authCtx.user.id || '').trim();
+  const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
+  const directOwnerId = String(event.influencerAdminId || event.ownerInfluencerAdminId || event.createdByInfluencerAdminId || '').trim();
+  if (directOwnerId && directOwnerId === myId) return true;
+  const c = event.createdBy;
+  if (typeof c === 'string') return c.trim() === myId || (!!myEmail && c.trim().toLowerCase() === myEmail);
+  if (c && typeof c === 'object') {
+    const oid = String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim();
+    const oemail = String(c.email || '').trim().toLowerCase();
+    return oid === myId || (!!myEmail && oemail === myEmail);
+  }
+  return false;
+}
+// Events an Influencer Admin may see sales and commission for: explicitly
+// authorized to them, OR created by them. Matching only on
+// authorizedInfluencerAdminIds hid every event created before authorization
+// was recorded, which left the Overview empty ("No events have been
+// authorized to you yet") even though the same event showed up in the
+// Influencer Admin's own Add Events list.
+function influencerAdminVisibleEvents(authCtx, allEvents) {
+  const myId = String((authCtx && authCtx.user && authCtx.user.id) || '').trim();
+  if (!myId) return [];
+  return (allEvents || []).filter(ev =>
+    getAuthorizedInfluencerAdminIds(ev).includes(myId) || influencerAdminOwnsEvent(authCtx, ev)
+  );
+}
+async function isAdminOrSubadmin(req) {
+  // This helper is intentionally limited to management roles. Ordinary
+  // influencers and check-in staff must never inherit admin/sub-admin API
+  // privileges merely because they have a valid login session.
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const user = await getSessionUser(token);
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  if (role === 'subadmin') return { role: 'subadmin', user: user };
+  if (['influencer_admin','influencer-admin','influencerAdmin'].includes(role)) {
+    return { role: 'influencer_admin', user: Object.assign({}, user, { role: 'influencer_admin' }) };
+  }
+  return null;
+}
+
+// Check-in is a separate privilege from management. Keeping it separate
+// prevents check-in staff from inheriting event/account/coupon management
+// access through a shared authorization helper.
+async function isAdminOrCheckinStaff(req) {
+  if (isAdminAuthorized(req)) return { role: 'admin' };
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const user = await getSessionUser(token);
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  if (role === 'checkin_staff' || role === 'subadmin') return { role: role, user: user };
   return null;
 }
 
@@ -840,13 +1850,33 @@ const MIME_TYPES = {
 // SECURITY HARDENING
 // ────────────────────────────────────────────
 // Security headers applied to every response.
-function securityHeaders() {
-  return {
+function securityHeaders(req) {
+  const headers = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "script-src 'self' 'unsafe-inline' https://checkout.flutterwave.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' https://formsubmit.co https://checkout.flutterwave.com https://checkout-v3.flutterwave.com https://api.flutterwave.com https://api.ravepay.co https://ravesandboxapi.flutterwave.com",
+      "frame-src 'self' https://checkout.flutterwave.com https://checkout-v3.flutterwave.com",
+      "manifest-src 'self'",
+      "worker-src 'self' blob:",
+      "upgrade-insecure-requests"
+    ].join('; ')
   };
+  const forwardedProto = req && req.headers ? String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase() : '';
+  const isHttps = Boolean((req && req.socket && req.socket.encrypted) || forwardedProto === 'https');
+  if (isHttps) headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+  return headers;
 }
 
 // Very small in-memory rate limiter for sensitive endpoints (auth).
@@ -874,8 +1904,8 @@ function rateLimit(req, route, limit, windowMs) {
 }
 
 // Apply security headers to a plain header object.
-function withSecurityHeaders(headers) {
-  return Object.assign({}, headers, securityHeaders());
+function withSecurityHeaders(headers, req) {
+  return Object.assign({}, headers, securityHeaders(req));
 }
 
 function sendJson(res, status, obj) {
@@ -886,25 +1916,71 @@ function sendJson(res, status, obj) {
 function readBody(req) {
   return new Promise((resolve) => {
     let body = '';
-    req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
-    req.on('end', () => { resolve(body); });
-    req.on('error', () => { resolve(''); });
+    let tooLarge = false;
+    req.on('data', c => {
+      if (tooLarge) return;
+      body += c;
+      if (body.length > 1e6) {
+        tooLarge = true;
+        resolve(null);
+        req.destroy();
+      }
+    });
+    req.on('end', () => { if (!tooLarge) resolve(body); });
+    req.on('error', () => { if (!tooLarge) resolve(''); });
   });
 }
+
+// Accept only image URLs that cannot execute script in an HTML src attribute.
+// Relative site paths are allowed; remote images must use HTTPS (HTTP is kept
+// available for local/dev compatibility). Only base64 raster image data URLs
+// produced by the admin image resize flow are accepted.
+function isSafeImageUrl(value) {
+  const v = String(value == null ? '' : value).trim();
+  if (!v) return true;
+  if (/^[\x00-\x1F\x7F]/.test(v) || /[\x00-\x1F\x7F]/.test(v)) return false;
+  if (v.startsWith('/')) return !v.startsWith('//');
+  // Admin image uploads are converted in the browser to base64 image data.
+  // Allow those uploads (up to the request-body safety limit) instead of
+  // treating them like short remote image URLs.
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(v)) return v.length <= 850000;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch (e) {
+    return false;
+  }
+}
+
+// Prevent duplicate fulfillment when Flutterwave retries a webhook or an admin
+// verifies the same order at the same time. Persistent ticketIssued/ticketEmailSent
+// flags below remain the source of truth across restarts.
+const paymentVerificationLocks = new Set();
 
 // Verify a transaction reference against Flutterwave (server-side)
 function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
   return new Promise((resolve) => {
     const secretKey = process.env.FLUTTERWAVE_SECRET_KEY !== undefined
-      ? process.env.FLUTTERWAVE_SECRET_KEY
-      : defaults.FLUTTERWAVE_SECRET_KEY;
-    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(txRef);
+      ? String(process.env.FLUTTERWAVE_SECRET_KEY).trim()
+      : String(defaults.FLUTTERWAVE_SECRET_KEY || '').trim();
+    const cleanTxRef = String(txRef || '').trim();
+    const expected = Number(expectedAmount);
+    const expectedCur = String(expectedCurrency || '').trim().toUpperCase();
+
+    // Never call the provider with incomplete verification inputs. A payment
+    // is only eligible for fulfillment when our order has a real reference,
+    // positive amount and expected currency, and the secret key is configured.
+    if (!secretKey || !cleanTxRef || !Number.isFinite(expected) || expected <= 0 || !expectedCur) {
+      return resolve({ success: false, apiSuccess: false, error: 'Incomplete Flutterwave verification configuration' });
+    }
+
+    const apiPath = '/v3/transactions/verify_by_reference?tx_ref=' + encodeURIComponent(cleanTxRef);
     const options = {
       hostname: 'api.flutterwave.com',
       port: 443,
       path: apiPath,
       method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json' }
+      headers: { 'Authorization': 'Bearer ' + secretKey, 'Content-Type': 'application/json', 'Accept': 'application/json' }
     };
     const apiReq = https.request(options, (apiRes) => {
       let data = '';
@@ -913,21 +1989,28 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
         try {
           const json = JSON.parse(data);
           const t = json.data || {};
-          const status = String(t.status || '');
+          const status = String(t.status || '').toLowerCase();
           const amount = parseFloat(t.amount) || 0;
-          const currency = String(t.currency || '');
-          const verified = json.status === 'success' && (status === 'successful' || status === 'completed');
+          const currency = String(t.currency || '').toUpperCase();
+          const returnedTxRef = String(t.tx_ref || t.reference || '').trim();
+          const verified = json.status === 'success' && ['successful', 'succeeded', 'completed'].includes(status);
 
-          // Strong verification: match amount & currency against the order
-          const amountOk = !expectedAmount || Math.abs(amount - expectedAmount) < 1;
-          const currencyOk = !expectedCurrency || currency === expectedCurrency;
+          // Strong verification: Flutterwave must return the exact transaction
+          // reference, exact expected currency, and the expected amount. Do not
+          // treat missing provider fields as a match.
+          const txRefOk = !!returnedTxRef && returnedTxRef === cleanTxRef;
+          const amountOk = Number.isFinite(amount) && Math.abs(amount - expected) < 0.01;
+          const currencyOk = !!currency && currency === expectedCur;
+          const httpOk = Number(apiRes.statusCode || 0) >= 200 && Number(apiRes.statusCode || 0) < 300;
 
           resolve({
-            success: verified && amountOk && currencyOk,
+            success: httpOk && verified && txRefOk && amountOk && currencyOk,
             apiSuccess: verified,
             amount: amount,
             currency: currency,
             status: status,
+            returnedTxRef: returnedTxRef,
+            txRefOk: txRefOk,
             amountOk: amountOk,
             currencyOk: currencyOk
           });
@@ -935,6 +2018,10 @@ function verifyFlutterwave(txRef, expectedAmount, expectedCurrency) {
           resolve({ success: false, apiSuccess: false, error: 'Bad response' });
         }
       });
+    });
+    apiReq.setTimeout(10000, () => {
+      apiReq.destroy();
+      resolve({ success: false, apiSuccess: false, error: 'Flutterwave verification timed out' });
     });
     apiReq.on('error', () => {
       resolve({ success: false, apiSuccess: false, error: 'Network error' });
@@ -1014,6 +2101,26 @@ function postJson(hostname, pathname, headers, body) {
   });
 }
 
+function postForm(hostname, pathname, fields) {
+  return new Promise((resolve) => {
+    const data = new URLSearchParams(fields).toString();
+    const options = {
+      hostname: hostname,
+      port: 443,
+      path: pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(data) }
+    };
+    const req = https.request(options, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, body: body }));
+    });
+    req.on('error', (error) => resolve({ status: 0, body: error.message }));
+    req.end(data);
+  });
+}
+
 function emailFrom() {
   return process.env.EMAIL_FROM !== undefined ? process.env.EMAIL_FROM : defaults.EMAIL_FROM;
 }
@@ -1066,6 +2173,317 @@ async function sendBrevoEmail(to, subject, text, html, toName) {
   }
 }
 
+async function sendContactEmail(data) {
+  const subject = '[Unisocials Contact] ' + data.subject;
+  const text = 'Name: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + (data.phone || '—') + '\nSubject: ' + data.subject + '\n\n' + data.message;
+  const html = '<div style="font-family:Arial,sans-serif;white-space:pre-wrap"><strong>Name:</strong> ' + escapeHtml(data.name) + '<br><strong>Email:</strong> ' + escapeHtml(data.email) + '<br><strong>Phone:</strong> ' + escapeHtml(data.phone || '—') + '<br><strong>Subject:</strong> ' + escapeHtml(data.subject) + '<br><br>' + escapeHtml(data.message).replace(/\n/g, '<br>') + '</div>';
+  const to = adminEmail();
+  const formSubmitKey = String(process.env.FORMSUBMIT_KEY !== undefined ? process.env.FORMSUBMIT_KEY : defaults.FORMSUBMIT_KEY || '').trim();
+  if (formSubmitKey) {
+    const result = await postJson('formsubmit.co', '/ajax/' + encodeURIComponent(formSubmitKey), {
+      'Accept': 'application/json'
+    }, {
+      Name: data.name,
+      Email: data.email,
+      Phone: data.phone || '',
+      Subject: data.subject,
+      Message: data.message,
+      _subject: 'New Contact Form Submission from Unisocials',
+      _captcha: 'false',
+      _template: 'table',
+      _next: siteUrl() + '/thank-you.html'
+    });
+    if (result.status >= 200 && result.status < 400) return { sent: true, configured: true, provider: 'FormSubmit' };
+    console.warn('FormSubmit contact delivery failed (' + result.status + '):', result.body && result.body.slice(0, 200));
+    return { sent: false, configured: true, provider: 'FormSubmit', status: result.status };
+  }
+  return { sent: false, configured: false, provider: '' };
+}
+
+// Domain every self-service Unisocials staff account logs in with: their name,
+// e.g. ada.nwosu@unisocials.com. Both Influencer Admins and check-in staff use
+// it, so the login convention is identical across the two dashboards. The
+// generated password is emailed to the real address they signed up with, never
+// to this address.
+const INFLUENCER_ADMIN_EMAIL_DOMAIN = 'unisocials.com';
+
+// A staff login on our own domain is an internal alias and cannot receive mail,
+// so it must never be used as a notification address. Notifications (payout
+// updates, credentials) always need a real inbox: the address captured on the
+// account-creation form, stored as contactEmail.
+function isInternalLoginEmail(address) {
+  const value = String(address || '').trim().toLowerCase();
+  return !value || value.endsWith('@' + INFLUENCER_ADMIN_EMAIL_DOMAIN);
+}
+
+// "Ada Nwosu" -> "ada.nwosu"; strips anything that is not safe for an email local part.
+function influencerAdminEmailLocalPart(name) {
+  const cleaned = String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9\s._-]/g, '').trim();
+  const parts = cleaned.split(/[\s._-]+/).filter(Boolean);
+  return parts.join('.') || 'influencer.admin';
+}
+
+// Reserve a free <name>@unisocials.com login, auto-suffixed when taken.
+// Returns null only when every variant up to 99 is already in use.
+async function reserveStaffLoginEmail(name) {
+  const localPart = influencerAdminEmailLocalPart(name);
+  let loginEmail = localPart + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
+  if (await findUserByEmail(loginEmail)) {
+    loginEmail = null;
+    for (let n = 2; n <= 99 && !loginEmail; n++) {
+      const candidate = localPart + n + '@' + INFLUENCER_ADMIN_EMAIL_DOMAIN;
+      if (!(await findUserByEmail(candidate))) loginEmail = candidate;
+    }
+  }
+  return loginEmail;
+}
+
+// Build (but do not save) a self-service staff account with a one-time password.
+// Shared by the Influencer Admin and check-in staff signup flows so both mint
+// logins, hash passwords and stamp ids the same way.
+async function buildSelfServiceStaffUser({ name, contactEmail, role, prefix, extra }) {
+  const loginEmail = await reserveStaffLoginEmail(name);
+  if (!loginEmail) return null;
+  const password = generateTemporaryPassword();
+  const user = Object.assign({
+    id: prefix + crypto.randomBytes(4).toString('hex').toUpperCase(),
+    name: name,
+    email: loginEmail,
+    contactEmail: contactEmail,
+    phone: '',
+    passwordHash: hashPassword(password),
+    role: role,
+    selfRegistered: true,
+    mustChangePassword: true,
+    createdAt: new Date().toISOString()
+  }, extra || {});
+  return { user, password };
+}
+
+// A readable one-time password that still satisfies validatePassword.
+function generateTemporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(10);
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
+  return 'Uni-' + out + String(crypto.randomInt(0, 10));
+}
+
+// Email a new self-service Influencer Admin their login email + password at the
+// address they signed up with. Returns true only when it really went out.
+async function sendInfluencerAdminCredentialsEmail(user, password) {
+  const to = String(user.contactEmail || '').trim();
+  if (!to) return false;
+  const subject = 'Your Unisocials Influencer Admin account is ready';
+  const text =
+    'Hi ' + (user.name || 'there') + ',\n\n' +
+    'Your Influencer Admin account has been created and is ready to use.\n\n' +
+    'Login email: ' + user.email + '\n' +
+    'Password: ' + password + '\n\n' +
+    'Sign in here: ' + siteUrl() + '/influencer-admin.html\n\n' +
+    'University: ' + (user.university || '—') + '\n\n' +
+    'Please sign in and change your password straight away, and keep it safe.\n\n' +
+    '— Unisocials';
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
+    '<h2 style="margin:0 0 6px">Welcome to Unisocials 🎉</h2>' +
+    '<p style="margin:0 0 14px;color:#475569">Your Influencer Admin account is ready to use.</p>' +
+    '<table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">' +
+    payoutEmailRow('Name', user.name) +
+    payoutEmailRow('Login email', user.email) +
+    payoutEmailRow('Password', password) +
+    payoutEmailRow('University', user.university || '—') +
+    '</table>' +
+    '<p style="margin:16px 0"><a href="' + escapeHtml(siteUrl() + '/influencer-admin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to your dashboard</a></p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">Please change your password after your first sign in, and keep it safe.</p>' +
+    '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because you requested an Influencer Admin account on Unisocials.</p>' +
+    '</div>';
+  const sent = await sendBrevoEmail(to, subject, text, html, user.name);
+  if (!sent) console.warn('Influencer Admin credentials email not sent to', to, '(no BREVO_API_KEY or delivery failed)');
+  return !!sent;
+}
+
+function payoutEmailRow(label, value) {
+  return '<tr><td style="padding:6px 0;color:#64748b;font-size:13px;width:40%">' + escapeHtml(label) + '</td><td style="padding:6px 0;color:#0f172a;font-size:13px;font-weight:600">' + escapeHtml(String(value == null ? '—' : value)) + '</td></tr>';
+}
+
+// Email a check-in staff member their check-in login email + password at the
+// address they gave. Mirrors sendInfluencerAdminCredentialsEmail but points at
+// the check-in dashboard, which is where this role actually signs in.
+async function sendCheckinStaffCredentialsEmail(user, password) {
+  const to = String(user.contactEmail || '').trim();
+  if (!to) return false;
+  const subject = 'Your Unisocials check-in staff account is ready';
+  const text =
+    'Hi ' + (user.name || 'there') + ',\n\n' +
+    'Your check-in staff account has been created and is ready to use.\n\n' +
+    'Login email: ' + user.email + '\n' +
+    'Password: ' + password + '\n\n' +
+    'Sign in here: ' + siteUrl() + '/checkin.html\n\n' +
+    'You will be able to scan and verify guest tickets at the gate.\n\n' +
+    'Please sign in and change your password straight away, and keep it safe.\n\n' +
+    '— Unisocials';
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
+    '<h2 style="margin:0 0 6px">You&rsquo;re on the gate team 🎟️</h2>' +
+    '<p style="margin:0 0 14px;color:#475569">Your Unisocials check-in staff account is ready to use.</p>' +
+    '<table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">' +
+    payoutEmailRow('Name', user.name) +
+    payoutEmailRow('Login email', user.email) +
+    payoutEmailRow('Password', password) +
+    payoutEmailRow('Event', user.eventName || '—') +
+    '</table>' +
+    '<p style="margin:16px 0"><a href="' + escapeHtml(siteUrl() + '/checkin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to check guests in</a></p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">Please change your password after your first sign in, and keep it safe.</p>' +
+    '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because you were added as check-in staff for an Unisocials event.</p>' +
+    '</div>';
+  const sent = await sendBrevoEmail(to, subject, text, html, user.name);
+  if (!sent) console.warn('Check-in staff credentials email not sent to', to, '(no BREVO_API_KEY or delivery failed)');
+  return !!sent;
+}
+
+// "12 Mar 2026, 14:05" in the email's own timezone (UTC) — payout notices are
+// read days after they are sent, so keep the day and month, not just the time.
+function fmtEmailDate(iso) {
+  const ms = Date.parse(iso || '');
+  if (!Number.isFinite(ms)) return String(iso || '—');
+  return new Date(ms).toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+  }) + ' UTC';
+}
+
+// Email the Main Admin whenever an Influencer Admin requests a payout.
+async function sendPayoutRequestEmailToAdmin(payout) {
+  try {
+    const to = adminEmail();
+    if (!to) return false;
+    const m = PAYOUT_METHODS[payout.payoutMethod] || {};
+    const fee = payoutFeeSplit(payout);
+    const amount = '₦' + Number(payout.amount || 0).toLocaleString();
+    const feeAmount = '₦' + fee.feeAmount.toLocaleString();
+    const netAmount = '₦' + fee.netAmount.toLocaleString();
+    const subject = '💰 Payout Request — ' + netAmount + ' for ' + (payout.requesterName || payout.requesterEmail);
+    const text =
+      'New payout request on Unisocials.\n\n' +
+      'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
+      'Amount requested: ' + amount + '\n' +
+      'Send to them: ' + netAmount + '\n' +
+      'Payment schedule: ' + (m.label || payout.payoutMethod) + '\n' +
+      'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
+      'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
+      'Account name: ' + (payout.bank ? payout.bank.accountName : '') + '\n\n' +
+      'Please review and pay this request within 24 hours in the Admin Dashboard → Payout Requests.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Payout Request 💰</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 14px;color:#475569">An Influencer Admin has requested a commission payout. Please pay within <strong>24 hours</strong>.</p>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
+      payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
+      payoutEmailRow('Amount requested', amount) +
+      payoutEmailRow('Send to them', netAmount) +
+      payoutEmailRow('Payment schedule', m.label || payout.payoutMethod) +
+      payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
+      payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
+      payoutEmailRow('Account name', payout.bank ? payout.bank.accountName : '') +
+      '</table>' +
+      '<p style="font-size:13px;color:#475569">Review it in the Admin Dashboard → Payout Requests.</p>' +
+      '</div></div>';
+    let sent = false;
+    if (brevoApiKey()) sent = !!(await sendBrevoEmail(to, subject, text, html));
+    if (!sent && resendKey()) {
+      const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + resendKey() }, { from: process.env.EMAIL_FROM || defaults.EMAIL_FROM, to: [to], subject: subject, text: text, html: html });
+      sent = r.status >= 200 && r.status < 300;
+    }
+    return sent;
+  } catch (e) {
+    console.warn('Payout request email error:', e.message);
+    return false;
+  }
+}
+
+// The real inbox a payout notification should go to, or '' when the account has
+// no receivable address on file. Priority: the address captured when the payout
+// was requested, then the account's contactEmail, then the requester email only
+// when it is not an internal @unisocials.com login.
+async function payoutRecipientEmail(payout) {
+  if (!payout) return '';
+  const candidates = [payout.requesterContactEmail, payout.requesterEmail];
+  if (payout.requestedBy) {
+    let user = null;
+    try { user = await findUserById(payout.requestedBy); } catch (e) { /* non-fatal */ }
+    if (user && user.contactEmail) candidates.push(user.contactEmail);
+  }
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim().toLowerCase();
+    if (value && !isInternalLoginEmail(value)) return value;
+  }
+  return '';
+}
+
+// Notify the Influencer Admin of a decision on their payout request — including
+// when the payout is marked paid, which is the completion notice they asked for.
+async function sendPayoutStatusEmailToRequester(payout) {
+  try {
+    const to = await payoutRecipientEmail(payout);
+    if (!to) {
+      console.warn('Payout status email skipped for ' + (payout.id || '?') + ': no real email address on file for', payout.requesterName || payout.requesterEmail || 'the requester');
+      return false;
+    }
+    const fee = payoutFeeSplit(payout);
+    const amount = '₦' + Number(payout.amount || 0).toLocaleString();
+    const feeAmount = '₦' + fee.feeAmount.toLocaleString();
+    const netAmount = '₦' + fee.netAmount.toLocaleString();
+    const statusText = String(payout.status || '').toLowerCase();
+    const subject = statusText === 'paid'
+      ? '✅ Payout complete — ' + netAmount + ' has been sent to you (' + payout.id + ')'
+      : statusText === 'approved'
+        ? '✅ Payout approved — ' + netAmount + ' will be sent to you within 24 hours'
+        : '❌ Payout request ' + (payout.id) + ' was rejected';
+    const bankLine = payout.bank ? payout.bank.bankName + ' ••••' + String(payout.bank.accountNumber || '').slice(-4) : '';
+    const text =
+      'Hi ' + (payout.requesterName || 'there') + ',\n\n' +
+      (statusText === 'paid'
+        ? 'Your payout is complete. ' + netAmount + ' has been sent to your bank account (' + bankLine + '). Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        : statusText === 'approved'
+          ? 'Your payout request of ' + amount + ' has been approved: ' + netAmount + ' will be sent to you within 24 hours.'
+          : 'Your payout request of ' + amount + ' was rejected.\n\nReason: ' + (payout.adminNote || 'Not specified') + '\n\nYou can submit a new request at any time.') +
+      '\n\nThank you for growing Unisocials.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:' + (statusText === 'rejected' ? '#B71C1C' : '#1B5E20') + ';color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Payout Update</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 14px">Hi <strong>' + escapeHtml(payout.requesterName || 'there') + '</strong>,</p>' +
+      '<p style="margin:0 0 14px;color:#475569">' +
+      (statusText === 'paid'
+        ? 'Your payout is complete: <strong>' + netAmount + '</strong> has been sent to your bank account (' + escapeHtml(bankLine) + '). Bank transfers usually reflect within minutes; some banks take up to 24 hours.'
+        : statusText === 'approved'
+          ? 'Your payout request of <strong>' + amount + '</strong> has been approved: <strong>' + netAmount + '</strong> will be sent to you within 24 hours.'
+          : 'Your payout request of <strong>' + amount + '</strong> was rejected. Reason: ' + escapeHtml(payout.adminNote || 'Not specified') + ' You can submit a new request at any time.') +
+      '</p>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
+      payoutEmailRow('Request ID', payout.id) +
+      payoutEmailRow('Amount requested', amount) +
+      payoutEmailRow('Sent to you', netAmount) +
+      payoutEmailRow('Bank', bankLine) +
+      (payout.paidAt ? payoutEmailRow('Paid on', fmtEmailDate(payout.paidAt)) : '') +
+      '</table>' +
+      '<p style="margin:0 0 16px"><a href="' + escapeHtml(siteUrl() + '/influencer-admin.html') + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">View your payout history</a></p>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Thank you for growing Unisocials. We use this address for your payout notifications only.</p>' +
+      '</div></div>';
+    let sent = false;
+    if (brevoApiKey()) sent = !!(await sendBrevoEmail(to, subject, text, html, payout.requesterName));
+    if (!sent && resendKey()) {
+      const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + resendKey() }, { from: process.env.EMAIL_FROM || defaults.EMAIL_FROM, to: [to], subject: subject, text: text, html: html });
+      sent = r.status >= 200 && r.status < 300;
+    }
+    return sent;
+  } catch (e) {
+    console.warn('Payout status email error:', e.message);
+    return false;
+  }
+}
+
 // Plain-text digest of the order for the email body
 function orderEmailLines(order) {
   const site = siteUrl();
@@ -1090,7 +2508,8 @@ function orderEmailLines(order) {
       'Quantity: ' + order.qty + '\n' +
       'Total paid: ₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN') + '\n' +
       ticketLines +
-      '\nPlease keep this email safe — it contains your tickets.\n' +
+      '\nNo account needed — these ticket links work straight from your email.\n' +
+      'Please keep this email safe, it is your copy of your tickets.\n' +
       'See you at the event!\n\nUnisocials Team'
   };
 }
@@ -1112,13 +2531,72 @@ function buildBuyerHtml(order) {
     rowHtml('Total paid', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
     '</table>' +
     ticketLinksHtml(order) +
-    '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Please keep this email safe — it contains your tickets.</p>' +
+    '<p style="font-size:13px;color:#475569;margin:20px 0 6px"><strong>No account needed.</strong> The ticket links above open straight from this email — there is nothing to sign up for or sign in to.</p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:0">Please keep this email safe, it is your copy of your tickets.</p>' +
     '</div></div>';
 }
 
-// Send buyer confirmation email. Prefers Brevo (works WITHOUT a domain — you just
-// verify a sender email address in Brevo), falls back to Resend if BREVO_API_KEY
-// isn't set. Best-effort: never throws / never blocks.
+// Send the immediate post-purchase acknowledgement BEFORE admin verification.
+// This email confirms that the purchase/payment submission was received; it does
+// NOT contain tickets. Tickets are sent only after an admin/server verification.
+// Best-effort and non-blocking so the purchase flow is never held up by email.
+async function sendBuyerPurchaseAcknowledgement(order) {
+  try {
+    const email = String(order && order.buyerEmail || '').trim();
+    if (!email) return false;
+    const name = order.buyerName || 'there';
+    const subject = 'Payment received — your Unisocials tickets will be sent shortly';
+    const text =
+      'Hi ' + name + ',\n\n' +
+      'Thank you for your purchase on Unisocials. We have received your payment submission.\n\n' +
+      'Your tickets will be sent to you shortly after your payment is verified. Please keep an eye on your inbox (and your spam/junk folder just in case).\n\n' +
+      'Order ID: ' + order.orderId + '\n' +
+      'Event: ' + order.eventName + '\n' +
+      'Quantity: ' + order.qty + '\n\n' +
+      'Thank you for choosing Unisocials.\n\nUnisocials Team';
+    const html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+      '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Payment Received ✓</div>' +
+      '<div style="padding:24px">' +
+      '<p style="margin:0 0 16px">Hi <strong>' + escapeHtml(name) + '</strong>,</p>' +
+      '<p style="margin:0 0 16px;color:#475569">Thank you for your purchase on Unisocials. We have received your payment submission.</p>' +
+      '<p style="margin:0 0 16px;color:#0f172a;font-weight:600">Your tickets will be sent to you shortly after your payment is verified.</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">' +
+      rowHtml('Order ID', escapeHtml(order.orderId)) +
+      rowHtml('Event', escapeHtml(order.eventName)) +
+      rowHtml('Quantity', String(order.qty)) +
+      '</table>' +
+      '<p style="font-size:12px;color:#64748b;margin:0">Please keep an eye on your inbox and check your spam/junk folder if you do not see the ticket email.</p>' +
+      '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Unisocials Team</p>' +
+      '</div></div>';
+
+    if (brevoApiKey()) {
+      const sent = await sendBrevoEmail(email, subject, text, html, name);
+      if (sent) console.log('Immediate purchase acknowledgement sent via Brevo to', email);
+      return !!sent;
+    }
+    const key = resendKey();
+    if (!key) {
+      console.warn('Buyer acknowledgement not sent: no BREVO_API_KEY or RESEND_API_KEY configured');
+      return false;
+    }
+    const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + key }, {
+      from: emailFrom(), to: [email], subject: subject, text: text, html: html
+    });
+    if (r.status === 200) {
+      console.log('Immediate purchase acknowledgement sent via Resend to', email);
+      return true;
+    }
+    console.warn('Resend purchase acknowledgement failed (' + r.status + '):', r.body && r.body.slice(0, 200));
+    return false;
+  } catch (e) {
+    console.warn('Buyer purchase acknowledgement error:', e.message);
+    return false;
+  }
+}
+
+// Send buyer ticket email. Prefers Brevo and falls back to Resend.
+// Best-effort: never throws / never blocks the payment response.
 async function sendBuyerConfirmation(order) {
   try {
     const email = order.buyerEmail;
@@ -1249,11 +2727,15 @@ function ticketLinksHtml(order) {
   return html;
 }
 
-// Fire buyer + admin emails after an order becomes verified (best-effort, non-blocking).
+// Fire ONLY the ticket-delivery email after an order becomes verified.
+// The pre-verification acknowledgement is sent when the order is first created.
+// This separation guarantees that no ticket links are emailed before verification.
 async function notifyOrderVerified(order) {
   try {
-    sendBuyerConfirmation(order);
     sendAdminAlert(order);
+    setTimeout(function() {
+      try { sendBuyerConfirmation(order); } catch (e) { console.warn('Delayed buyer ticket email error:', e.message); }
+    }, 1500);
   } catch (e) {
     console.warn('notifyOrderVerified error:', e.message);
   }
@@ -1321,9 +2803,14 @@ async function sendNewOrderAlert(order) {
   }
 }
 
-// Fire the new-order alert (best-effort, non-blocking).
+// Fire only the admin alert when an order is created.
+// The buyer's payment-received acknowledgement is sent only after the server
+// verifies the Flutterwave transaction. Actual tickets are sent only from
+// notifyOrderVerified() after the order becomes verified.
 function notifyNewOrder(order) {
-  try { sendNewOrderAlert(order); } catch (e) { console.warn('notifyNewOrder error:', e.message); }
+  try {
+    sendNewOrderAlert(order);
+  } catch (e) { console.warn('notifyNewOrder error:', e.message); }
 }
 
 // ────────────────────────────────────────────
@@ -1443,10 +2930,51 @@ setInterval(function() {
 // HTTP SERVER
 // ────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
+  for (const [key, value] of Object.entries(securityHeaders(req))) res.setHeader(key, value);
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
 
   try {
+    if (pathname === '/api/contact' && req.method === 'POST') {
+      const rl = rateLimit(req, 'contact', 5, 60000);
+      if (!rl.allowed) return sendJson(res, 429, { success: false, error: 'Too many messages. Please try again shortly.' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim();
+      const phone = String(data.phone || '').trim();
+      const subject = String(data.subject || '').trim();
+      const message = String(data.message || '').trim();
+      if (!name || name.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !subject || subject.length > 120 || !message || message.length > 5000) {
+        return sendJson(res, 400, { success: false, error: 'Please complete the form with a valid name, email, subject, and message.' });
+      }
+      const delivery = await sendContactEmail({ name, email, phone, subject, message });
+      if (!delivery.sent) {
+        const error = delivery.configured
+          ? 'Email provider rejected the message. Check the sender verification and API key in Render.'
+          : 'No email provider is configured. Add BREVO_API_KEY or RESEND_API_KEY in Render.';
+        return sendJson(res, 503, { success: false, error: error, provider: delivery.provider || null });
+      }
+      return sendJson(res, 200, { success: true });
+    }
+
+    // Lightweight health/keep-alive endpoint.
+    // Deliberately performs no database queries or external API calls so periodic
+    // uptime checks keep the web service warm without consuming Neon compute.
+    if (pathname === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.writeHead(200, withSecurityHeaders({
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
+      }));
+      if (req.method === 'HEAD') {
+        res.end();
+      } else {
+        res.end(JSON.stringify({ status: 'ok' }));
+      }
+      return;
+    }
+
     // ── Dynamic config.js ──
     if (pathname === '/config.js') {
       const cfg = getConfig();
@@ -1472,8 +3000,11 @@ const server = http.createServer(async (req, res) => {
       const phone = String(data.phone || '').trim();
       const password = String(data.password || '');
 
-      if (!name || !email || !phone || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Please provide name, email, phone and a password of at least 6 characters.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      const phoneError = validatePhone(phone);
+      if (!name || !email || !phone || passwordError || emailError || phoneError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || phoneError || 'Please provide name, email and phone.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) {
@@ -1494,6 +3025,235 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
+// ── PUBLIC: request a self-service Influencer Admin account ──
+// The applicant gives their name, their real email and their university. We mint
+// the login as <name>@unisocials.com, generate a one-time password and email both
+// to the address they signed up with. Instant approval, as requested.
+if (pathname === '/api/influencer-admin-requests' && req.method === 'POST') {
+  const rl = rateLimit(req, 'influencer-admin-request', 5, 60000); // 5/min per IP
+  if (!rl.allowed) {
+    res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+    res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+    return;
+  }
+  const body = await readBody(req);
+  let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+  const name = String(data.name || '').trim().replace(/\s+/g, ' ');
+  const contactEmail = String(data.email || '').trim().toLowerCase();
+  const university = String(data.university || '').trim();
+  if (name.length < 2 || name.length > 80) {
+    return sendJson(res, 400, { success: false, error: 'Please enter your full name.' });
+  }
+  const emailError = validateEmail(contactEmail);
+  if (emailError) return sendJson(res, 400, { success: false, error: emailError });
+  // This address is the account's real inbox: it receives the login details and
+  // every payout update, so it must not be one of our internal @unisocials.com
+  // logins, which can never receive mail.
+  if (isInternalLoginEmail(contactEmail)) {
+    return sendJson(res, 400, { success: false, error: 'Use your real email address (Gmail, Yahoo, Outlook) — we send your login details and payout updates there.' });
+  }
+  if (!university || university.length > 120) {
+    return sendJson(res, 400, { success: false, error: 'Please select your university.' });
+  }
+
+  const users = await readUsers();
+  // One account per real address: otherwise anyone could farm accounts by
+  // re-submitting the same inbox with variations of the same name.
+  const alreadyRegistered = users.find(u => String(u.contactEmail || '').trim().toLowerCase() === contactEmail);
+  if (alreadyRegistered) {
+    return sendJson(res, 409, { success: false, error: 'An Influencer Admin account has already been created for ' + contactEmail + '. Check your inbox for your login details, or reset your password from the sign-in page.' });
+  }
+
+  // <name>@unisocials.com, uniquified if that name is already taken.
+  const built = await buildSelfServiceStaffUser({
+    name, contactEmail, role: 'influencer_admin', prefix: 'IADM-',
+    extra: { university: university }
+  });
+  if (!built) {
+    return sendJson(res, 409, { success: false, error: 'That name is already taken on Unisocials. Please request the account using a slightly different full name.' });
+  }
+  const user = built.user;
+  const password = built.password;
+  const loginEmail = user.email;
+  await addUser(user);
+  // Never let a mail failure leave somebody locked out of an account that exists.
+  const emailSent = await sendInfluencerAdminCredentialsEmail(user, password);
+  return sendJson(res, 200, {
+    success: true,
+    loginEmail: loginEmail,
+    emailSent: emailSent,
+    // The password is only echoed back when the email could not be delivered,
+    // so the applicant can still get in. Change it after the first sign in.
+    credentials: emailSent ? null : { email: loginEmail, password: password },
+    message: emailSent
+      ? 'Your Influencer Admin account is ready — we emailed your login email and password to ' + contactEmail + '.'
+      : 'Your Influencer Admin account is ready. We could not send the email, so save the login details below now.'
+  });
+}
+
+// ── Check-in staff: create + list, for Influencer Admins (and self-service) ──
+// ⚠️ SCOPE: the self-service path lets anyone who knows the site create a gate
+// account. A checkin_staff can only scan tickets (mark a code used) — they get
+// no orders, events, payouts or account access — but that is still gate access.
+// If that is too open, gate the POST behind an Influencer Admin session and keep
+// only the dashboard flow; the rest of this route is unchanged.
+// An Influencer Admin running an event needs staff who can scan tickets at the
+// gate. They get the same <name>@unisocials.com login convention as an Influencer
+// Admin, but the role is checkin_staff, so they sign in at /checkin.html and can
+// do nothing else. The password is emailed to the address they supplied.
+if (pathname === '/api/checkin-staff' && (req.method === 'GET' || req.method === 'POST')) {
+  const authCtx = await isAdminOrInfluencerAdmin(req);
+
+  // ── List: an Influencer Admin sees only the staff they created ──
+  if (req.method === 'GET') {
+    if (!authCtx || !['admin', 'influencer_admin'].includes(authCtx.role)) {
+      return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+    }
+    const users = await readUsers();
+    let staff = users.filter(u => u.role === 'checkin_staff');
+    if (authCtx.role === 'influencer_admin') {
+      const me = String((authCtx.user && authCtx.user.id) || '').trim();
+      const myEmail = String((authCtx.user && authCtx.user.email) || '').trim().toLowerCase();
+      // Never fall back to "see everything": an unscoped list would leak the
+      // main admin's gate teams.
+      staff = staff.filter(u =>
+        String(u.createdById || '').trim() === me ||
+        String(u.createdByEmail || '').trim().toLowerCase() === myEmail
+      );
+    }
+    return sendJson(res, 200, { success: true, staff: staff.map(checkinStaffPublic) });
+  }
+
+  // ── Create ──
+  const rl = rateLimit(req, 'checkin-staff-request', 10, 60000); // 10/min per IP
+  if (!rl.allowed) {
+    res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+    res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+    return;
+  }
+  const body = await readBody(req);
+  let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+  const name = String(data.name || '').trim().replace(/\s+/g, ' ');
+  const contactEmail = String(data.email || '').trim().toLowerCase();
+  const requestedEvent = String(data.eventName || '').trim().slice(0, 120);
+
+  if (name.length < 2 || name.length > 80) {
+    return sendJson(res, 400, { success: false, error: 'Please enter the staff member\u2019s full name.' });
+  }
+  const emailError = validateEmail(contactEmail);
+  if (emailError) return sendJson(res, 400, { success: false, error: emailError });
+
+  // Either an Influencer Admin adds someone from their dashboard, or the person
+  // signs themselves up from the public check-in signup page. Both paths mint
+  // the same <name>@unisocials.com login and email the password to the address
+  // given, so nobody has to hand-carry a password.
+  const createdByAdmin = !!(authCtx && ['admin', 'influencer_admin'].includes(authCtx.role));
+  // isAdminOrInfluencerAdmin returns null both for "no session" and for "a session
+  // that is not allowed here". Resolve the session directly so a signed-in buyer
+  // or check-in staff member is rejected rather than silently treated as anonymous.
+  const callerToken = (req.headers['authorization'] || '').startsWith('Bearer ')
+    ? (req.headers['authorization'] || '').slice(7).trim()
+    : '';
+  const callerUser = callerToken ? await getSessionUser(callerToken) : null;
+  if (callerUser && !createdByAdmin) {
+    return sendJson(res, 401, { success: false, error: 'Sign in as an Influencer Admin to add check-in staff.' });
+  }
+  if (!requestedEvent) {
+    return sendJson(res, 400, { success: false, error: 'Please choose which event this person will work.' });
+  }
+
+  // An Influencer Admin may only staff their OWN events: one they created, or
+  // one they were explicitly authorized to. The dropdown is a convenience, not
+  // the control — an Influencer Admin must not be able to post someone onto
+  // another admin's gate by naming that event.
+  let eventName = requestedEvent;
+  if (authCtx && authCtx.role === 'influencer_admin') {
+    const allEvents = await readEvents();
+    const mine = influencerAdminVisibleEvents(authCtx, allEvents);
+    const target = mine.find(ev => String(ev.name || '').trim().toLowerCase() === requestedEvent.toLowerCase());
+    if (!target) {
+      return sendJson(res, 403, {
+        success: false,
+        error: 'You can only add check-in staff for events you created or were authorised to.'
+      });
+    }
+    // Use the event's own stored name, so case/whitespace variants are recorded
+    // exactly as the event spells it.
+    eventName = String(target.name || '').trim();
+  }
+
+  const users = await readUsers();
+  const alreadyRegistered = users.find(u => String(u.contactEmail || '').trim().toLowerCase() === contactEmail);
+  if (alreadyRegistered) {
+    return sendJson(res, 409, { success: false, error: 'A Unisocials account has already been created for ' + contactEmail + '.' });
+  }
+
+  const built = await buildSelfServiceStaffUser({
+    name, contactEmail, role: 'checkin_staff', prefix: 'CHK-',
+    extra: {
+      eventName: eventName,
+      // Recorded so the creator can list and later revoke only their own staff.
+      // A self-service signup has no creator, so it lands in nobody's list and is
+      // only visible to the Main Admin through Staff Accounts.
+      createdById: createdByAdmin && authCtx.role !== 'admin' ? String((authCtx.user && authCtx.user.id) || '') : '',
+      createdByEmail: createdByAdmin && authCtx.role !== 'admin' ? String((authCtx.user && authCtx.user.email) || '').toLowerCase() : '',
+      createdByRole: createdByAdmin ? authCtx.role : 'self',
+    }
+  });
+  if (!built) {
+    return sendJson(res, 409, { success: false, error: 'That name is already taken on Unisocials. Please add the staff member using a slightly different full name.' });
+  }
+  const user = built.user;
+  const password = built.password;
+  await addUser(user);
+
+  const emailSent = await sendCheckinStaffCredentialsEmail(user, password);
+  return sendJson(res, 200, {
+    success: true,
+    staff: checkinStaffPublic(user),
+    loginEmail: user.email,
+    emailSent: emailSent,
+    // Only echoed back when the email could not be delivered, so nobody who
+    // was genuinely added ends up locked out of an account that exists.
+    credentials: emailSent ? null : { email: user.email, password: password },
+    message: emailSent
+      ? 'Check-in staff account created — we emailed the login details to ' + contactEmail + '.'
+      : 'Check-in staff account created. We could not send the email, so share these login details with them now.'
+  });
+}
+
+// ── Events an Influencer Admin may staff ──
+// The Check-in Staff dropdown must only offer events this Influencer Admin
+// created or was authorised to. The public /api/events list is every event on
+// the site, so using it here would invite them to pick somebody else's event.
+if (pathname === '/api/checkin-staff/events' && req.method === 'GET') {
+  const authCtx = await isAdminOrInfluencerAdmin(req);
+  if (!authCtx || !['admin', 'influencer_admin'].includes(authCtx.role)) {
+    return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  }
+  const allEvents = await readEvents();
+  const scoped = authCtx.role === 'influencer_admin'
+    ? influencerAdminVisibleEvents(authCtx, allEvents)
+    : allEvents.filter(ev => ev.archived !== true);
+  return sendJson(res, 200, {
+    success: true,
+    events: scoped.filter(ev => ev.archived !== true).map(ev => ({ id: ev.id, name: ev.name }))
+  });
+}
+
+// Check-in staff must never see bank details, hashes or the real contact address.
+function checkinStaffPublic(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    loginEmail: user.email,
+    eventName: user.eventName || '',
+    role: 'checkin_staff',
+    createdAt: user.createdAt,
+    archived: user.archived === true
+  };
+}
+
 // ── AUTH: Login (rate-limited) ──
     if (pathname === '/api/auth/login' && req.method === 'POST') {
       const rl = rateLimit(req, 'login', 10, 60000); // 10/min per IP
@@ -1506,17 +3266,341 @@ const user = {
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const email = String(data.email || '').trim().toLowerCase();
-      const password = String(data.password || '');
+      // Trim here too: account creation trims the password, so a password
+      // entered/pasted with a leading/trailing space must still match.
+      const password = String(data.password || '').trim();
       if (!email || !password) {
         return sendJson(res, 400, { success: false, error: 'Please enter your email and password.' });
       }
       const user = await findUserByEmail(email);
+      if (user && user.archived === true) {
+        return sendJson(res, 403, { success: false, error: 'This account has been archived and cannot be used. Please contact an administrator.' });
+      }
       if (!user || !verifyPassword(password, user.passwordHash)) {
         return sendJson(res, 401, { success: false, error: 'Invalid email or password.' });
       }
       const token = generateToken();
       await createSession(token, user.id);
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
+    }
+
+    // ── Influencer Admin: search existing influencer accounts to request ──
+    // This does NOT create a second account. It only lets an Influencer Admin
+    // start a relationship with an influencer who already has a login.
+    if (pathname === '/api/influencer-admin/influencers/search' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const search = String(url.searchParams.get('q') || '').trim().toLowerCase();
+      if (!search || search.length < 2) return sendJson(res, 400, { success: false, error: 'Enter at least 2 characters to search.' });
+      if (search.length > 120) return sendJson(res, 400, { success: false, error: 'Search term is too long.' });
+      const users = await readUsers();
+      const myId = String(authCtx.user.id || '').trim();
+      const matches = users
+        .filter(u => u && u.role === 'influencer' && u.archived !== true)
+        .filter(u => {
+          if (!search) return true;
+          return String(u.name || '').toLowerCase().includes(search) || String(u.email || '').toLowerCase().includes(search);
+        })
+        .slice(0, 25)
+        .map(u => {
+          const assignment = getInfluencerAssignments(u).find(a => a.influencerAdminId === myId) || null;
+          return {
+            id: u.id,
+            name: u.name || '',
+            email: u.email || '',
+            assignmentStatus: assignment ? assignment.status : 'none',
+            assignmentId: assignment ? assignment.id : null
+          };
+        });
+      return sendJson(res, 200, { success: true, influencers: matches });
+    }
+
+    // ── Influencer Admin: request an existing influencer ──
+    if (pathname === '/api/influencer-admin/influencer-requests' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const influencerId = String(data.influencerId || '').trim();
+      if (!influencerId || influencerId.length > 120) return sendJson(res, 400, { success: false, error: 'A valid influencer is required.' });
+      const users = await readUsers();
+      const index = users.findIndex(u => u && u.id === influencerId && u.role === 'influencer');
+      if (index < 0) return sendJson(res, 404, { success: false, error: 'Influencer not found.' });
+      if (users[index].archived === true) return sendJson(res, 409, { success: false, error: 'This influencer account is archived.' });
+
+      const myId = String(authCtx.user.id || '').trim();
+      const influencer = Object.assign({}, users[index]);
+      const assignments = getInfluencerAssignments(influencer);
+      const existing = assignments.find(a => a.influencerAdminId === myId) || null;
+      if (existing && existing.status === 'accepted') return sendJson(res, 409, { success: false, error: 'This influencer already works with your Influencer Admin account.', status: 'accepted' });
+      if (existing && existing.status === 'pending') return sendJson(res, 409, { success: false, error: 'A request for this influencer is already pending.', status: 'pending' });
+
+      const now = new Date().toISOString();
+      const nextAssignments = assignments.filter(a => a.influencerAdminId !== myId);
+      nextAssignments.push({
+        id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+        influencerAdminId: myId,
+        status: 'pending',
+        requestedAt: now,
+        acceptedAt: null,
+        rejectedAt: null,
+        legacy: false
+      });
+      influencer.influencerAssignments = nextAssignments;
+      await replaceUser(influencer);
+      return sendJson(res, 200, { success: true, status: 'pending', influencer: { id: influencer.id, name: influencer.name || '', email: influencer.email || '' } });
+    }
+
+    // ── Influencer: relationship requests ──
+    // An influencer uses the same existing login to review requests from
+    // Influencer Admins. No duplicate account is created and no referral code
+    // is generated at this stage; code generation belongs to Step 4.
+    if (pathname === '/api/influencer/relationship-requests' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const assignments = getInfluencerAssignments(user);
+      const users = await readUsers();
+      const requests = assignments.map(a => {
+        const admin = users.find(u => u && u.id === a.influencerAdminId && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(u.role)));
+        return {
+          id: a.id,
+          influencerAdminId: a.influencerAdminId,
+          status: a.status,
+          requestedAt: a.requestedAt || null,
+          acceptedAt: a.acceptedAt || null,
+          rejectedAt: a.rejectedAt || null,
+          influencerAdmin: admin ? { id: admin.id, name: admin.name || '', email: admin.email || '' } : { id: a.influencerAdminId, name: 'Influencer Admin', email: '' }
+        };
+      }).filter(r => ['pending','accepted','rejected'].includes(r.status));
+      return sendJson(res, 200, { success: true, requests });
+    }
+
+    if (pathname === '/api/influencer/relationship-requests/respond' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const assignmentId = String(data.assignmentId || '').trim();
+      const decision = String(data.decision || '').trim().toLowerCase();
+      if (!assignmentId || assignmentId.length > 120) return sendJson(res, 400, { success: false, error: 'A valid relationship request is required.' });
+      if (!['accept','reject'].includes(decision)) return sendJson(res, 400, { success: false, error: 'Decision must be accept or reject.' });
+
+      const users = await readUsers();
+      const influencerIndex = users.findIndex(u => u && u.id === sessionUser.id && u.role === 'influencer');
+      if (influencerIndex < 0) return sendJson(res, 404, { success: false, error: 'Influencer account not found.' });
+      const influencer = Object.assign({}, users[influencerIndex]);
+      const assignments = getInfluencerAssignments(influencer);
+      const idx = assignments.findIndex(a => a.id === assignmentId);
+      if (idx < 0) return sendJson(res, 404, { success: false, error: 'Relationship request not found.' });
+      if (assignments[idx].status !== 'pending') {
+        return sendJson(res, 409, { success: false, error: 'This relationship request has already been decided.', status: assignments[idx].status });
+      }
+
+      const admin = users.find(u => u && u.id === assignments[idx].influencerAdminId && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(u.role)));
+      if (!admin || admin.archived === true) {
+        return sendJson(res, 409, { success: false, error: 'The Influencer Admin account is no longer available.' });
+      }
+
+      const now = new Date().toISOString();
+      assignments[idx] = Object.assign({}, assignments[idx], {
+        status: decision === 'accept' ? 'accepted' : 'rejected',
+        acceptedAt: decision === 'accept' ? now : null,
+        rejectedAt: decision === 'reject' ? now : null,
+        legacy: false
+      });
+      influencer.influencerAssignments = assignments;
+      await replaceUser(influencer);
+
+      // Acceptance creates the referral portal for this relationship. The
+      // influencer keeps the same account/login; only the referral relationship
+      // gets its own code.
+      let referralLink = null;
+      if (decision === 'accept') {
+        referralLink = await generateReferralLink(
+          influencer.id,
+          influencer.name,
+          influencer.email,
+          'influencer',
+          assignments[idx].id,
+          assignments[idx].influencerAdminId
+        );
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        status: assignments[idx].status,
+        request: {
+          id: assignments[idx].id,
+          influencerAdminId: assignments[idx].influencerAdminId,
+          status: assignments[idx].status,
+          requestedAt: assignments[idx].requestedAt,
+          acceptedAt: assignments[idx].acceptedAt,
+          rejectedAt: assignments[idx].rejectedAt,
+          referralCode: referralLink ? referralLink.code : null,
+          referralUrl: referralLink ? canonicalReferralUrl(referralLink.code) : null
+        }
+      });
+    }
+
+    // ── Influencer Admin: list assigned influencers with relationship-scoped stats ──
+    // This endpoint is deliberately separate from the master/global influencer list.
+    // It returns only influencers with an explicit ACCEPTED relationship to the
+    // authenticated Influencer Admin and calculates stats from that relationship's
+    // referral code plus the admin's authorized/owned events.
+    if (pathname === '/api/influencer-admin/influencers' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success: false, error: 'Influencer Admin access only' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+      const adminId = String(authCtx.user.id || '').trim();
+
+      const influencers = await Promise.all(users
+        .filter(u => u && u.role === 'influencer' && u.archived !== true)
+        .map(async influencer => {
+          const assignment = getAcceptedInfluencerAssignments(influencer)
+            .find(a => String(a.influencerAdminId || '').trim() === adminId) || null;
+          if (!assignment) return null;
+
+          const link = links.find(l => String(l.influencerId || l.ownerId || '').trim() === String(influencer.id)) || null;
+          const referredOrders = link ? await getScopedReferralOrders(link, orders, events, adminId) : [];
+          const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+          const totalTickets = referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+          return {
+            ...publicUser(influencer),
+            assignmentId: assignment.id,
+            relationshipStatus: assignment.status,
+            requestedAt: assignment.requestedAt || null,
+            acceptedAt: assignment.acceptedAt || null,
+            referralCode: link ? link.code : null,
+            referralUrl: link ? canonicalReferralUrl(link.code) : null,
+            referralStats: {
+              totalOrders: referredOrders.length,
+              totalRevenue,
+              totalTickets,
+              uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+            }
+          };
+        })
+      );
+
+      return sendJson(res, 200, { success: true, influencers: influencers.filter(Boolean) });
+    }
+
+    // ── Admin (master only): list influencer accounts ──
+    if (pathname === '/api/admin/influencers' && req.method === 'GET') {
+      // Main Admin, Sub-admin and Influencer Admin can view influencer accounts.
+      // Sub-admins get the global list; Influencer Admins remain scoped to accounts they created.
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const [orders, events] = await Promise.all([readOrders(), readEvents()]);
+      const canViewAll = authCtx.role === 'admin' || authCtx.role === 'subadmin';
+      const influencerUsers = users.filter(u => u.role === 'influencer' && (canViewAll || influencerAdminOwnsInfluencer(authCtx, u)));
+      const influencers = await Promise.all(influencerUsers.map(async u => {
+        const acceptedAssignments = getAcceptedInfluencerAssignments(u);
+        const scopedAssignment = authCtx.role === 'influencer_admin'
+          ? (acceptedAssignments.find(a => String(a.influencerAdminId) === String(authCtx.user.id)) || null)
+          : null;
+        // An influencer can have more than one referral code when they have
+        // accepted multiple Influencer Admin relationships. The old code only
+        // inspected the first matching link, which caused the Main Admin
+        // dashboard to show zero (or incomplete) referral activity when the
+        // used code was a different relationship-scoped code.
+        const influencerLinks = scopedAssignment
+          ? links.filter(l => String(l.influencerId || l.ownerId || '') === String(u.id) && String(l.assignmentId || '') === String(scopedAssignment.id))
+          : links.filter(l => String(l.influencerId || l.ownerId || '') === String(u.id));
+        const referralCodes = new Set(influencerLinks.map(l => String(l.code || '').trim()).filter(Boolean));
+        const referredOrders = Array.from(new Map(
+          orders
+            .filter(o => referralCodes.has(String(o.referralCode || '').trim()))
+            .filter(o => isReferralOrderCounted(o, String(o.referralCode || '').trim()))
+            .map(o => [String(o.orderId || ''), o])
+        ).values());
+        const scopedOrders = authCtx.role === 'influencer_admin'
+          ? (await Promise.all(influencerLinks.map(link => getScopedReferralOrders(link, orders, events))))
+              .flat()
+          : referredOrders;
+        const uniqueOrders = Array.from(new Map(scopedOrders.map(o => [String(o.orderId || ''), o])).values());
+        const totalRevenue = uniqueOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+        const totalTickets = uniqueOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+        return {
+          ...publicUser(u),
+          referralCode: influencerLinks.length === 1 ? influencerLinks[0].code : (influencerLinks[0] ? influencerLinks[0].code : null),
+          referralCodes: influencerLinks.map(l => l.code).filter(Boolean),
+          referralStats: {
+            totalOrders: uniqueOrders.length,
+            totalRevenue,
+            totalTickets,
+            uniquePeople: new Set(uniqueOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          }
+        };
+      }));
+      return sendJson(res, 200, { success: true, influencers });
+    }
+
+    // ── Admin (master only): create influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      const influencer = {
+        id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name, email, phone: '', passwordHash: hashPassword(password), role: 'influencer',
+        createdBy: authCtx.role === 'admin' ? null : authCtx.user.id,
+        assignedInfluencerAdminId: authCtx.role === 'influencer_admin' ? authCtx.user.id : null,
+        influencerAssignments: authCtx.role === 'influencer_admin' ? [{
+          id: 'IA-ASSIGN-' + crypto.randomBytes(6).toString('hex').toUpperCase(),
+          influencerAdminId: authCtx.user.id,
+          status: 'accepted',
+          requestedAt: new Date().toISOString(),
+          acceptedAt: new Date().toISOString(),
+          rejectedAt: null
+        }] : [],
+        createdAt: new Date().toISOString()
+      };
+      await addUser(influencer);
+      const createdAssignment = influencer.influencerAssignments && influencer.influencerAssignments[0];
+      const referralLink = await generateReferralLink(influencer.id, influencer.name, influencer.email, 'influencer', createdAssignment ? createdAssignment.id : null, createdAssignment ? createdAssignment.influencerAdminId : null);
+      return sendJson(res, 200, {
+        success: true,
+        influencer: { ...publicUser(influencer), referralCode: referralLink.code, referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 } }
+      });
+    }
+
+    // ── Admin (master only): remove influencer account ──
+    if (pathname === '/api/admin/influencers' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'influencer') return sendJson(res, 404, { success: false, error: 'Influencer not found' });
+      if (!canManageInfluencer(authCtx, user)) {
+        return sendJson(res, 403, { success: false, error: 'You can only manage influencers you created.' });
+      }
+      await deleteUserById(user.id);
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
     }
 
     // ── Admin (master only): list sub-admin accounts ──
@@ -1526,7 +3610,7 @@ const user = {
       const links = await readReferralLinks();
       const orders = await readOrders();
       const subs = users.filter(u => u.role === 'subadmin').map(u => {
-        const link = links.find(l => l.subadminId === u.id) || null;
+        const link = links.find(l => l.influencerId === u.id || l.ownerId === u.id || l.subadminId === u.id) || null;
         const referredOrders = link ? orders.filter(o => isReferralOrderCounted(o, link.code)) : [];
         const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
@@ -1537,7 +3621,12 @@ const user = {
           referralStats: {
             totalOrders: referredOrders.length,
             totalRevenue: totalRevenue,
-            totalTickets: totalTickets
+            totalTickets: totalTickets,
+            uniquePeople: new Set(
+              referredOrders
+                .map(o => String(o.buyerEmail || '').trim().toLowerCase())
+                .filter(Boolean)
+            ).size
           }
         };
       });
@@ -1553,8 +3642,10 @@ const user = {
       const name = String(data.name || '').trim();
       const email = String(data.email || '').trim().toLowerCase();
       const password = String(data.password || '');
-      if (!name || !email || password.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Name, email and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
       }
       const existing = await findUserByEmail(email);
       if (existing) {
@@ -1576,7 +3667,7 @@ const user = {
         subadmin: {
           ...publicUser(sub),
           referralCode: referralLink.code,
-          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0 }
+          referralStats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0 }
         }
       });
     }
@@ -1590,10 +3681,138 @@ const user = {
       if (!user || user.role !== 'subadmin') {
         return sendJson(res, 404, { success: false, error: 'Sub-admin not found' });
       }
-      const users = await readUsers();
-      await writeUsers(users.filter(u => u.id !== user.id));
+      await deleteUserById(user.id);
       await deleteUserSessions(user.id);
       return sendJson(res, 200, { success: true });
+    }
+
+    // ── Archive/unarchive managed accounts ──
+    if (pathname === '/api/admin/accounts/archive' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res,403,{success:false,error:'Only Admin, Sub-admin, or Influencer Admin can archive accounts'});
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const archived = data.archived !== false;
+      if (!email) return sendJson(res,400,{success:false,error:'Missing email'});
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res,404,{success:false,error:'Account not found'});
+      if (target.role === 'admin') return sendJson(res,403,{success:false,error:'The Main Admin account cannot be archived'});
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx,target)) {
+        return sendJson(res,403,{success:false,error:'You can only archive influencers you created.'});
+      }
+      // Sub-admins can archive/unarchive influencer accounts globally. They cannot
+      // archive other admin/staff accounts; the Main Admin retains full account control.
+      if (authCtx.role === 'subadmin' && target.role !== 'influencer') {
+        return sendJson(res,403,{success:false,error:'Sub-admins can only archive influencer accounts.'});
+      }
+      const updatedUser = Object.assign({}, target, { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await replaceUser(updatedUser);
+      if (archived) await deleteUserSessions(target.id);
+      return sendJson(res,200,{success:true,user:publicUser(updatedUser)});
+    }
+
+    // ── Admin / Sub-admin: dedicated staff accounts (check-in staff / influencer admin) ──
+    // Listing and archiving/restricting is open to sub-admins as well, so gate
+    // staff can be switched off without the main admin. Creating and deleting
+    // accounts stays master-admin only.
+    if (pathname === '/api/admin/staff' && (req.method === 'GET' || req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE')) {
+      const manageCtx = await isAdminOrSubadmin(req);
+      if (req.method === 'GET' || req.method === 'PATCH') {
+        // Listing and archiving is shared with sub-admins.
+        if (!manageCtx || !['admin', 'subadmin'].includes(manageCtx.role)) {
+          return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+        }
+      } else if (!isAdminAuthorized(req)) {
+        // Creating and deleting accounts stays master-admin only.
+        return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      }
+      if (req.method === 'GET') {
+        const users = await readUsers();
+        const staff = users.filter(u => ['checkin_staff','influencer_admin'].includes(u.role)).map(u => publicUser(u));
+        return sendJson(res, 200, { success: true, staff });
+      }
+      if (req.method === 'PATCH') {
+        // Archive = restrict access without deleting the account or its history.
+        const body = await readBody(req); let data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) {}
+        const email = String(data.email || '').trim().toLowerCase();
+        const archived = data.archived === true;
+        if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+        const user = await findUserByEmail(email);
+        if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) {
+          return sendJson(res, 404, { success: false, error: 'Staff account not found' });
+        }
+        user.archived = archived;
+        user.archivedAt = archived ? new Date().toISOString() : null;
+        user.archivedBy = archived ? (manageCtx.role === 'subadmin' ? 'Sub-Admin' : 'Admin') : null;
+        await replaceUser(user);
+        // Kick any live session so the restriction takes effect immediately.
+        if (archived) await deleteUserSessions(user.id);
+        return sendJson(res, 200, { success: true, staff: publicUser(user) });
+      }
+      if (req.method === 'POST') {
+        const body = await readBody(req); let data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) {}
+        const name = String(data.name || '').trim();
+        const email = String(data.email || '').trim().toLowerCase();
+        const contactEmail = String(data.contactEmail || '').trim().toLowerCase();
+        const password = String(data.password || '');
+        const role = String(data.role || '').trim();
+        const passwordError = validatePassword(password);
+        if (!name || !email || passwordError || !['checkin_staff','influencer_admin'].includes(role)) {
+          return sendJson(res, 400, { success: false, error: passwordError || 'Name, email, and a valid role are required.' });
+        }
+        // Optional real inbox: payout completion emails for an Influencer Admin
+        // go here, since the <name>@unisocials.com login cannot receive mail.
+        if (contactEmail) {
+          const contactError = validateEmail(contactEmail);
+          if (contactError) return sendJson(res, 400, { success: false, error: contactError });
+        }
+        if (await findUserByEmail(email)) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+        const user = { id: (role === 'checkin_staff' ? 'CHK-' : 'IADM-') + crypto.randomBytes(4).toString('hex').toUpperCase(), name, email, contactEmail: isInternalLoginEmail(contactEmail) ? '' : contactEmail, phone:'', passwordHash:hashPassword(password), role, createdAt:new Date().toISOString() };
+        await addUser(user);
+        return sendJson(res, 200, { success:true, staff: publicUser(user) });
+      }
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success:false, error:'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || !['checkin_staff','influencer_admin'].includes(user.role)) return sendJson(res,404,{success:false,error:'Staff account not found'});
+      await deleteUserById(user.id); await deleteUserSessions(user.id);
+      return sendJson(res,200,{success:true});
+    }
+
+    // ── ADMIN: Reset password for an account this admin manages ──
+    // Main Admin can reset any non-main-admin account. Influencer Admin can
+    // reset only influencers that were created by that Influencer Admin.
+    if (pathname === '/api/admin/account-password' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      const newPassword = String(data.password || '');
+      const passwordError = validatePassword(newPassword);
+      if (!email || passwordError) {
+        return sendJson(res, 400, { success: false, error: passwordError || 'Email and a new password are required.' });
+      }
+      const target = await findUserByEmail(email);
+      if (!target) return sendJson(res, 404, { success: false, error: 'Account not found.' });
+      if (target.role === 'admin') return sendJson(res, 403, { success: false, error: 'The Main Admin password cannot be changed from this dashboard.' });
+      if (authCtx.role === 'influencer_admin' && !canManageInfluencer(authCtx, target)) {
+        return sendJson(res, 403, { success: false, error: 'You can only reset passwords for influencers you created.' });
+      }
+      target.passwordHash = hashPassword(newPassword);
+      target.otp = null;
+      target.otpExpires = null;
+      target.resetToken = null;
+      target.resetTokenExpires = null;
+      await replaceUser(target);
+      await deleteUserSessions(target.id);
+      return sendJson(res, 200, { success: true, message: 'Password reset successfully. The account must sign in again.' });
     }
 
     // ── AUTH: Logout ──
@@ -1624,9 +3843,9 @@ const user = {
 
       const otp = generateOtp();
       const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-      user.otp = otp;
+      user.otp = hashResetSecret(otp);
       user.otpExpires = otpExpires;
-      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      await replaceUser(user);
 
       // Send OTP via Brevo (fallback: log to console for local testing)
       const subject = 'Your Unisocials password reset OTP';
@@ -1670,31 +3889,44 @@ const user = {
       if (Date.now() > user.otpExpires) {
         return sendJson(res, 400, { success: false, error: 'This OTP has expired. Please request a new one.' });
       }
-      if (String(user.otp) !== String(otp)) {
+      const otpHash = hashResetSecret(otp);
+      const storedOtpHash = String(user.otp || '');
+      // Accept a still-valid legacy plaintext OTP once for compatibility with
+      // resets started before this security update, then replace it with a hash.
+      const otpOk = (storedOtpHash.length === otpHash.length && crypto.timingSafeEqual(Buffer.from(storedOtpHash, 'utf8'), Buffer.from(otpHash, 'utf8'))) ||
+        (storedOtpHash.length === 6 && /^\d{6}$/.test(storedOtpHash) && storedOtpHash === otp);
+      if (!otpOk) {
         return sendJson(res, 400, { success: false, error: 'Invalid OTP. Please check and try again.' });
       }
 
       // Issue a one-time reset token (valid 15 minutes)
       const resetToken = generateToken();
-      user.resetToken = resetToken;
+      user.resetToken = hashResetSecret(resetToken);
       user.resetTokenExpires = Date.now() + 15 * 60 * 1000;
       user.otp = null;
       user.otpExpires = null;
-      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      await replaceUser(user);
 
       return sendJson(res, 200, { success: true, resetToken: resetToken });
     }
 
     // ── AUTH: Reset password (with reset token) ──
     if (pathname === '/api/auth/reset-password' && req.method === 'POST') {
+      const rl = rateLimit(req, 'reset-password', 5, 60000);
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const email = String(data.email || '').trim().toLowerCase();
       const resetToken = String(data.resetToken || '').trim();
       const newPassword = String(data.password || '');
-      if (!email || !resetToken || newPassword.length < 6) {
-        return sendJson(res, 400, { success: false, error: 'Email, reset token, and a password of at least 6 characters are required.' });
+      const passwordError = validatePassword(newPassword);
+      if (!email || !resetToken || passwordError) {
+        return sendJson(res, 400, { success: false, error: passwordError || 'Email and reset token are required.' });
       }
 
       const user = await findUserByEmail(email);
@@ -1704,7 +3936,11 @@ const user = {
       if (Date.now() > user.resetTokenExpires) {
         return sendJson(res, 400, { success: false, error: 'This reset link has expired. Please request a new OTP.' });
       }
-      if (user.resetToken !== resetToken) {
+      const resetTokenHash = hashResetSecret(resetToken);
+      // Accept a still-valid legacy plaintext reset token once for compatibility.
+      const storedResetToken = String(user.resetToken || '');
+      const resetTokenOk = storedResetToken === resetTokenHash || (storedResetToken && storedResetToken === resetToken);
+      if (!resetTokenOk) {
         return sendJson(res, 400, { success: false, error: 'Invalid reset token. Please start over.' });
       }
 
@@ -1713,7 +3949,7 @@ const user = {
       user.resetTokenExpires = null;
       user.otp = null;
       user.otpExpires = null;
-      await writeUsers(await readUsers().then(list => list.map(u => u.id === user.id ? user : u)));
+      await replaceUser(user);
       // Invalidate all existing sessions so the user must log in again
       await deleteUserSessions(user.id);
 
@@ -1742,20 +3978,87 @@ const user = {
       return sendJson(res, 200, { success: true, orders: mine });
     }
 
-    // ── Create order (PENDING until payment is server-verified) ──
+    
+function getTierInventory(event, tier, orders) {
+  const t = String(tier || 'regular').toLowerCase();
+  const names = {regular:'Regular', vip:'Vip', vvip:'Vvip', table:'Table'};
+  const n = names[t] || 'Regular';
+  const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
+  const list = Array.isArray(orders) ? orders : [];
+  let reserved = 0;
+  let sold = 0;
+  const eventId = String(event.id || '');
+  for (const o of list) {
+    if (String(o.eventId || '') !== eventId) continue;
+    if (String(o.ticketTier || 'regular').toLowerCase() !== t) continue;
+    const status = String(o.status || '').toLowerCase();
+    const qty = Math.max(0, parseInt(o.qty) || 0);
+    if (status === 'pending' || status === 'verified') reserved += qty;
+    if (status === 'verified') sold += qty;
+  }
+  return {total, sold, reserved, remaining: total > 0 ? Math.max(0,total-reserved) : 0, soldOut: total > 0 && reserved >= total};
+}
+
+// Build all event/tier inventory in one pass through the orders. The previous
+// public event endpoint scanned the full orders list separately for every
+// event/tier pair, which made event loading grow roughly with events * tiers * orders.
+// This map keeps the exact same pending/verified rules while reducing that work
+// to one order pass plus constant-time lookups while enriching events.
+function buildEventInventoryMap(orders) {
+  const map = new Map();
+  const list = Array.isArray(orders) ? orders : [];
+  for (const o of list) {
+    const eventId = String(o.eventId || '');
+    if (!eventId) continue;
+    const tier = String(o.ticketTier || 'regular').toLowerCase();
+    if (!['regular','vip','vvip','table'].includes(tier)) continue;
+    const status = String(o.status || '').toLowerCase();
+    if (status !== 'pending' && status !== 'verified') continue;
+    const qty = Math.max(0, parseInt(o.qty) || 0);
+    const key = eventId + '|' + tier;
+    let entry = map.get(key);
+    if (!entry) { entry = {sold: 0, reserved: 0}; map.set(key, entry); }
+    entry.reserved += qty;
+    if (status === 'verified') entry.sold += qty;
+  }
+  return map;
+}
+
+function getTierInventoryFromMap(event, tier, inventoryMap) {
+  const t = String(tier || 'regular').toLowerCase();
+  const names = {regular:'Regular', vip:'Vip', vvip:'Vvip', table:'Table'};
+  const n = names[t] || 'Regular';
+  const total = Math.max(0, Number(event[t+'TicketLimit'] ?? event['ticketLimit'+n] ?? 0));
+  const entry = inventoryMap.get(String(event.id || '') + '|' + t) || {sold: 0, reserved: 0};
+  return {
+    total,
+    sold: entry.sold,
+    reserved: entry.reserved,
+    remaining: total > 0 ? Math.max(0, total - entry.reserved) : 0,
+    soldOut: total > 0 && entry.reserved >= total
+  };
+}
+
+// ── Create order (PENDING until payment is server-verified) ──
     if (pathname === '/api/orders' && req.method === 'POST') {
+      const rl = rateLimit(req, 'create-order', 20, 60000); // 20 order attempts/min per IP
+      if (!rl.allowed) {
+        return sendJson(res, 429, { success: false, error: 'Too many order attempts. Please try again later.', retryAfter: rl.retryAfter });
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
 
       const orderId = String(data.orderId || '').trim();
+      const eventId = String(data.eventId || '').trim();
       const eventName = String(data.eventName || '').trim();
       const eventDate = String(data.eventDate || '').trim();
       const eventVenue = String(data.eventVenue || '').trim();
       const eventCategory = String(data.eventCategory || '').trim();
-      const qty = parseInt(data.qty) || 1;
-      const amount = parseFloat(data.amount) || 0;
-      const currency = String(data.currency || 'NGN');
+      const qty = Number.isInteger(Number(data.qty)) ? Number(data.qty) : 1;
+      let amount = Number(data.amount);
+      if (!Number.isFinite(amount)) amount = 0;
+      const currency = String(data.currency || 'NGN').trim().toUpperCase();
       const buyerName = String(data.buyerName || '').trim();
       const buyerEmail = String(data.buyerEmail || '').trim().toLowerCase();
       const buyerPhone = String(data.buyerPhone || '').trim();
@@ -1765,7 +4068,82 @@ const user = {
       const universityId = String(data.universityId || '').trim();
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
-      const referralCode = String(data.referralCode || '').trim();  // Optional referral tracking
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      const couponCode = String(data.couponCode || '').trim().toUpperCase();
+      const paymentMethod = String(data.paymentMethod || '').trim().toLowerCase();
+      if (!['card', 'banktransfer'].includes(paymentMethod)) {
+        return sendJson(res, 400, { success: false, error: 'Please select Credit/Debit Card or Bank Transfer.' });
+      }
+      // Reject malformed/oversized order input before touching storage or payment state.
+      if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || couponCode.length > 100) {
+        return sendJson(res, 400, { success: false, error: 'One or more order fields are too long.' });
+      }
+      if (qty < 1 || qty > 100) {
+        return sendJson(res, 400, { success: false, error: 'Ticket quantity must be between 1 and 100.' });
+      }
+      if (currency !== 'NGN') {
+        return sendJson(res, 400, { success: false, error: 'Only NGN payments are supported.' });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+        return sendJson(res, 400, { success: false, error: 'Please provide a valid email address.' });
+      }
+      let couponDiscount = 0;
+      let baseAmountBeforeCoupon = amount;
+      let referralApplied = false;
+      let referralLink = null;
+      let eventRecord = null;
+
+      // Resolve the event before applying referral pricing so an Influencer
+      // Admin's code cannot be used on an event that admin is not authorized
+      // to manage.
+      if (eventId) {
+        const eventCatalog = await readEvents();
+        eventRecord = eventCatalog.find(e => eventIdentifierMatches(e, eventId));
+        if (!eventRecord) return sendJson(res, 400, { success: false, error: 'Event not found' });
+      }
+
+      if (referralCode) {
+        referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) {
+          return sendJson(res, 400, { success: false, error: 'Invalid referral code. Please check the code and try again.' });
+        }
+        // A relationship-specific referral code must always be evaluated
+        // against a real event. Never allow a caller to omit eventId and
+        // bypass event authorization.
+        if (referralLink.influencerId && !eventRecord) {
+          return sendJson(res, 400, { success: false, error: 'An event is required when using this referral code.' });
+        }
+        if (eventRecord && !(await influencerReferralAuthorizedForEvent(referralLink, eventRecord))) {
+          return sendJson(res, 403, { success: false, error: 'This referral code is not authorized for this event.' });
+        }
+        referralApplied = true;
+      }
+
+      // Server-authoritative pricing: bonus is the default; a valid referral
+      // switches the selected tier back to its original price.
+      if (eventRecord) {
+        const ordersForInventory = await readOrders();
+        const inv = getTierInventory(eventRecord, ticketTier, ordersForInventory);
+        if (inv.total > 0 && Number(qty) > inv.remaining) {
+          return sendJson(res, 409, { success:false, error: inv.remaining > 0 ? ('Only ' + inv.remaining + ' ' + ticketTier + ' ticket(s) remaining.') : (ticketTier.toUpperCase() + ' tickets are sold out.') });
+        }
+        const tierOriginals = { regular: Number(eventRecord.price || 0), vip: Number(eventRecord.vipPrice || 0), vvip: Number(eventRecord.vvipPrice || 0), table: Number(eventRecord.tablePrice || 0) };
+        const tierBonuses = { regular: Number(eventRecord.bonusPrice || 0), vip: Number(eventRecord.bonusVipPrice || 0), vvip: Number(eventRecord.bonusVvipPrice || 0), table: Number(eventRecord.bonusTablePrice || 0) };
+        const originalUnit = tierOriginals[ticketTier] > 0 ? tierOriginals[ticketTier] : tierOriginals.regular;
+        const bonusUnit = tierBonuses[ticketTier] || 0;
+        const payableUnit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
+        amount = payableUnit * qty;
+        baseAmountBeforeCoupon = amount;
+      }
+
+      if (couponCode) {
+        const coupon = await getCouponByCode(couponCode);
+        if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+        couponDiscount = Math.max(0, Number(coupon.amount) || 0);
+        if (couponDiscount <= 0) return sendJson(res, 400, { success: false, error: 'Coupon discount is invalid.' });
+        if (couponDiscount >= baseAmountBeforeCoupon) return sendJson(res, 400, { success: false, error: 'Coupon discount cannot cover the full ticket price.' });
+        amount = Math.max(0, baseAmountBeforeCoupon - couponDiscount);
+      }
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
@@ -1784,6 +4162,7 @@ const user = {
       const order = {
         orderId: orderId,
         status: 'pending',                 // ALWAYS pending until server verification
+        eventId: eventId || null,
         eventName: eventName,
         eventCategory: eventCategory,
         eventDate: eventDate,
@@ -1791,7 +4170,7 @@ const user = {
         qty: qty,
         amount: amount,
         currency: currency,
-        paymentMethod: 'flutterwave',      // Flutterwave is the only method
+        paymentMethod: paymentMethod,      // card or banktransfer; actual payment is handled by Flutterwave
 buyerName: buyerName,
         buyerEmail: buyerEmail,
         buyerPhone: buyerPhone,
@@ -1802,28 +4181,79 @@ buyerFaculty: buyerFaculty,
         universityName: universityName,
         universitySlug: universitySlug,
         referralCode: referralCode || null,  // Track which subadmin referred this order
+        couponCode: couponCode || null,
+        couponDiscount: couponDiscount || 0,
+        amountBeforeCoupon: baseAmountBeforeCoupon,
         userId: user ? user.id : null,
         createdAt: new Date().toISOString(),
         verifiedAt: null,
         notifyAdmin: true,
         seenByAdmin: false,
-        ticketCodes: generateTicketCodes(qty),  // one code per ticket
+        ticketCodes: [],                    // generated only after manual verification
         ticketCode: null
       };
-      order.ticketCode = order.ticketCodes[0].code;
+      // Do not create or access a ticket code while the order is pending.
+      // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
       await addOrder(order);
-      // Update referral stats if this order came from a referral link
-      if (referralCode) {
-        await updateReferralStats(referralCode);
-      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
       return sendJson(res, 200, { success: true, order: order });
     }
 
-    // ── Verify payment (server-authoritative) ──
+    // ── Buyer payment-received acknowledgement (SERVER-VERIFIED) ──
+    // The browser may report that Flutterwave completed checkout, but it is NOT
+    // trusted. We re-query Flutterwave first, then send only the acknowledgement
+    // email. Tickets are still issued only by the verified-order path below.
+    if (pathname === '/api/payment-received' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const txRef = String(data.tx_ref || '').trim();
+      if (!txRef) return sendJson(res, 400, { success: false, error: 'Missing tx_ref' });
+      const order = await getOrder(txRef);
+      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
+      if (order.status === 'rejected') return sendJson(res, 409, { success: false, error: 'Order has been rejected.' });
+
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+      if (!result.success) {
+        return sendJson(res, 400, { success: false, error: 'Payment could not be server-verified', verification: { status: result.status, amountOk: result.amountOk, currencyOk: result.currencyOk, txRefOk: result.txRefOk } });
+      }
+
+      // The browser callback is NOT trusted as proof of payment. The server has
+      // just independently verified the transaction with Flutterwave above, so
+      // this is now safe to fulfill even if the webhook is delayed/unavailable.
+      const latest = await getOrder(txRef);
+      const wasVerified = latest.status === 'verified';
+      let current = latest;
+      if (!wasVerified) {
+        current = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+          paymentReceivedAt: latest.paymentReceivedAt || new Date().toISOString(),
+          paymentReceived: true,
+          flutterwavePaymentVerifiedAt: new Date().toISOString(),
+          flutterwaveTransactionId: result.returnedTxRef || data.id || txRef,
+          flutterwavePaymentObserved: true,
+          flutterwavePaymentObservedAt: new Date().toISOString(),
+          flutterwaveVerificationFailed: false
+        }));
+        if (!wasVerified) {
+          notifyOrderVerified(current);
+          await refreshReferralStatsForVerifiedOrder(current, latest.status);
+        }
+      }
+
+      if (!current.paymentReceivedEmailSent) {
+        const sent = await sendBuyerPurchaseAcknowledgement(current);
+        if (sent) {
+          current = await patchOrder(txRef, { paymentReceivedEmailSent: true, paymentReceivedEmailSentAt: new Date().toISOString() });
+        }
+      }
+      return sendJson(res, 200, { success: true, paymentReceived: true, automaticallyVerified: true, acknowledgementSent: !!current.paymentReceivedEmailSent, order: { orderId: current.orderId, status: current.status } });
+    }
+
+    // ── Verify payment (server-authoritative, ADMIN ONLY) ──
     if (pathname === '/api/verify-payment' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1851,51 +4281,108 @@ buyerFaculty: buyerFaculty,
   return sendJson(res, 400, { success: false, error: 'Payment verification failed' });
 }
 
-    // ── Flutterwave webhook (server-to-server) ──
+    // ── Flutterwave webhook (server-to-server, automatic verification) ──
     if (pathname === '/api/webhook/flutterwave' && req.method === 'POST') {
       const body = await readBody(req);
       let data = {};
-      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      try { data = JSON.parse(body || '{}'); } catch (e) {
+        return sendJson(res, 400, { success: false, error: 'Invalid JSON' });
+      }
 
-      const signature = req.headers['x-flutterwave-signature'] || '';
       const webhookHash = process.env.FLUTTERWAVE_WEBHOOK_HASH !== undefined
         ? process.env.FLUTTERWAVE_WEBHOOK_HASH
         : defaults.FLUTTERWAVE_WEBHOOK_HASH;
-      let validSignature = true;
-      if (webhookHash) {
-        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('hex');
-        validSignature = expected === signature;
+      if (!webhookHash) {
+        console.error('Flutterwave webhook rejected: FLUTTERWAVE_WEBHOOK_HASH is not configured');
+        return sendJson(res, 503, { success: false, error: 'Webhook security is not configured' });
+      }
+
+      // Current Flutterwave webhook signing: HMAC-SHA256(raw body, secret hash),
+      // base64-encoded in the flutterwave-signature header. Keep legacy v3
+      // verif-hash support as a compatibility fallback.
+      const signature = String(req.headers['flutterwave-signature'] || '').trim();
+      const legacySignature = String(req.headers['verif-hash'] || '').trim();
+      let validSignature = false;
+      if (signature) {
+        const expected = crypto.createHmac('sha256', webhookHash).update(body).digest('base64');
+        const a = Buffer.from(expected);
+        const b = Buffer.from(signature);
+        validSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
+      } else if (legacySignature) {
+        const a = Buffer.from(webhookHash);
+        const b = Buffer.from(legacySignature);
+        validSignature = a.length === b.length && crypto.timingSafeEqual(a, b);
       }
       if (!validSignature) {
-        return sendJson(res, 401, { success: false, error: 'Invalid signature' });
+        return sendJson(res, 401, { success: false, error: 'Invalid webhook signature' });
       }
 
-      const txRef = String((data.txRef || (data.data && data.data.tx_ref) || ''));
-      const eventType = String((data.event || data['event.type'] || ''));
-      const status = String((data.data && data.data.status) || '');
-      const webhookAmount = parseFloat((data.data && data.data.amount) || 0);
-      const webhookCurrency = String((data.data && data.data.currency) || '');
-      const isSuccess = eventType === 'charge.completed' && (status === 'successful' || status === 'completed');
+      const payloadData = data.data || {};
+      const txRef = String(payloadData.tx_ref || payloadData.reference || data.txRef || data.tx_ref || '').trim();
+      const eventType = String(data.event || data.type || data['event.type'] || '').trim().toLowerCase();
+      const webhookStatus = String(payloadData.status || '').trim().toLowerCase();
+      const webhookId = String(data.id || data.webhook_id || '').trim();
 
-      if (!txRef) return sendJson(res, 200, { success: false, error: 'Missing tx_ref' });
+      if (!txRef) return sendJson(res, 200, { success: true, ignored: true, reason: 'Missing tx_ref' });
 
       const order = await getOrder(txRef);
-      if (!order) return sendJson(res, 404, { success: false, error: 'Order not found for tx_ref' });
-
-      if (isSuccess && order.status !== 'verified') {
-        // Verify amount/currency from webhook payload too
-        const amountOk = !webhookAmount || Math.abs(webhookAmount - parseFloat(order.amount)) < 1;
-        const currencyOk = !webhookCurrency || webhookCurrency === order.currency;
-        if (amountOk && currencyOk) {
-          const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
-          console.log('Webhook verified order:', txRef);
-          notifyOrderVerified(updated);
-          await refreshReferralStatsForVerifiedOrder(updated, order.status);
-        } else {
-          return sendJson(res, 200, { success: false, error: 'Amount/currency mismatch in webhook' });
-        }
+      if (!order) {
+        // Acknowledge unknown events so Flutterwave does not retry forever.
+        return sendJson(res, 200, { success: true, ignored: true, reason: 'Order not found', tx_ref: txRef });
       }
-      return sendJson(res, 200, { success: true, tx_ref: txRef });
+
+      // Idempotency: Flutterwave may retry the same event.
+      const seenWebhookIds = Array.isArray(order.flutterwaveWebhookIds) ? order.flutterwaveWebhookIds : [];
+      if (webhookId && seenWebhookIds.includes(webhookId)) {
+        return sendJson(res, 200, { success: true, duplicate: true, tx_ref: txRef });
+      }
+      const nextWebhookIds = webhookId ? seenWebhookIds.concat(webhookId).slice(-20) : seenWebhookIds;
+      if (webhookId) await patchOrder(txRef, { flutterwaveWebhookIds: nextWebhookIds, flutterwaveLastWebhookAt: new Date().toISOString() });
+
+      const isChargeCompleted = eventType === 'charge.completed' || eventType === 'charge_completed';
+      const providerReportedSuccess = ['successful', 'succeeded', 'completed'].includes(webhookStatus);
+      if (!isChargeCompleted || !providerReportedSuccess) {
+        return sendJson(res, 200, { success: true, ignored: true, tx_ref: txRef, status: webhookStatus });
+      }
+
+      // Do not trust webhook amount/status/reference. Re-query Flutterwave and
+      // verify against the exact order before issuing any ticket.
+      const result = await verifyFlutterwave(txRef, parseFloat(order.amount), order.currency);
+      if (!result.success) {
+        console.warn('Flutterwave webhook received but verification failed:', txRef, result);
+        await patchOrder(txRef, { flutterwavePaymentObserved: true, flutterwavePaymentObservedAt: new Date().toISOString(), flutterwaveVerificationFailed: true });
+        return sendJson(res, 200, { success: true, verified: false, tx_ref: txRef });
+      }
+
+      if (order.status === 'verified') {
+        return sendJson(res, 200, { success: true, verified: true, alreadyVerified: true, tx_ref: txRef });
+      }
+
+      if (paymentVerificationLocks.has(txRef)) {
+        return sendJson(res, 200, { success: true, verified: true, processing: true, tx_ref: txRef });
+      }
+
+      paymentVerificationLocks.add(txRef);
+      try {
+        const latest = await getOrder(txRef);
+        if (!latest) return sendJson(res, 200, { success: true, ignored: true, reason: 'Order disappeared', tx_ref: txRef });
+        if (latest.status !== 'verified') {
+          const updated = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+            flutterwavePaymentVerifiedAt: new Date().toISOString(),
+            flutterwaveTransactionId: result.returnedTxRef || txRef,
+            flutterwavePaymentObserved: true,
+            flutterwavePaymentObservedAt: new Date().toISOString(),
+            flutterwaveVerificationFailed: false
+          }));
+          notifyOrderVerified(updated);
+          await refreshReferralStatsForVerifiedOrder(updated, latest.status);
+          console.log('Automatically verified Flutterwave payment:', txRef, 'amount:', result.amount, result.currency);
+          return sendJson(res, 200, { success: true, verified: true, automaticallyVerified: true, tx_ref: txRef, order: { orderId: updated.orderId, status: updated.status } });
+        }
+        return sendJson(res, 200, { success: true, verified: true, alreadyVerified: true, tx_ref: txRef });
+      } finally {
+        paymentVerificationLocks.delete(txRef);
+      }
     }
 
 // ── Order status lookup (pending page) ──
@@ -1925,24 +4412,20 @@ buyerFaculty: buyerFaculty,
           currency: order.currency,
           paymentMethod: order.paymentMethod,
           verifiedAt: order.verifiedAt,
-          ticketCodes: order.ticketCodes || [],
-          ticketCode: order.ticketCode || null
+          ticketCodes: order.status === 'verified' ? (order.ticketCodes || []) : [],
+          ticketCode: order.status === 'verified' ? (order.ticketCode || null) : null
         }
       });
     }
 
 // ── Buyer order lookup (Order ID + phone) ──
-    // Allows lookup WITHOUT signing in. The order's basic details (event, date,
-    // venue, qty, amount, status) are returned to anyone who knows the Order ID
-    // and phone. However, the actual ticket codes are ONLY revealed when the
-    // requester is signed in AND owns the order (matched by userId or email).
-    // Viewing a ticket/QR always requires sign-in via /api/ticket.
+    // Allows lookup WITHOUT signing in. Knowing the Order ID AND the phone
+    // number used at checkout is the same proof the emailed ticket link relies
+    // on, so it is enough to see the tickets: a guest who never created an
+    // account can still open everything they paid for. The tickets themselves
+    // are also delivered to the buyer's email, so there is no account to make.
+    // Gate check-in stays separately protected by /api/ticket/scan.
     if (pathname === '/api/orders/lookup' && req.method === 'POST') {
-      const auth = req.headers['authorization'] || '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      let user = null;
-      if (token) user = await getSessionUser(token);
-
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -1954,8 +4437,11 @@ buyerFaculty: buyerFaculty,
       const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID and phone number.' });
 
-      // If signed in, confirm they own this order before revealing ticket codes.
-      const ownsOrder = user && (order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email);
+      // The lookup already proved ownership by matching the Order ID to the
+      // phone number used at checkout, which is the same secret the emailed
+      // ticket link carries. So a guest sees their tickets, and signing in is
+      // never required to view what they paid for.
+      const ownsOrder = true;
 
       const payload = {
         orderId: order.orderId,
@@ -1969,29 +4455,24 @@ buyerFaculty: buyerFaculty,
         paymentMethod: order.paymentMethod,
         verifiedAt: order.verifiedAt,
         // Only include ticket codes when the requester is signed in AND owns the order.
-        ticketCodes: ownsOrder ? (order.ticketCodes || []) : [],
-        ticketCode: ownsOrder ? (order.ticketCode || null) : null,
+        ticketCodes: (ownsOrder && order.status === 'verified') ? (order.ticketCodes || []) : [],
+        ticketCode: (ownsOrder && order.status === 'verified') ? (order.ticketCode || null) : null,
         requiresSignIn: !ownsOrder
       };
       return sendJson(res, 200, { success: true, order: payload });
     }
 
-    // ── Get ticket by orderId + code (protected, per-ticket) ──
-    // Requires login AND ownership of the order.
+    // ── Get ticket by orderId + code ──
+    // A QR ticket is a bearer credential: the orderId + unique ticket code
+    // embedded in the QR are sufficient to display that specific verified ticket.
+    // Gate check-in remains separately protected by /api/ticket/scan.
     if (pathname === '/api/ticket' && req.method === 'GET') {
       const orderId = String(url.searchParams.get('orderId') || '').trim();
       const code = String(url.searchParams.get('code') || '').trim();
       if (!orderId || !code) return sendJson(res, 400, { success: false, error: 'Missing orderId or code' });
 
-      const auth = req.headers['authorization'] || '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      const user = await getSessionUser(token);
-      if (!user) return sendJson(res, 401, { success: false, error: 'Please sign in to view this ticket.' });
-
       const order = await getOrder(orderId);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found' });
-      const ownsOrder = order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email;
-      if (!ownsOrder) return sendJson(res, 403, { success: false, error: 'You do not have access to this ticket.' });
       if (order.status !== 'verified') {
         return sendJson(res, 403, { success: false, error: 'Order not yet verified', status: order.status });
       }
@@ -2029,8 +4510,8 @@ eventName: order.eventName,
 
 // ── Admin/Sub-admin: scan ticket at gate (check-in) ──
     if (pathname === '/api/ticket/scan' && req.method === 'POST') {
-      const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const authCtx = await isAdminOrCheckinStaff(req);
+      if (!authCtx || !['admin','subadmin','checkin_staff'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Check-in staff access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2058,7 +4539,7 @@ const entry = codes[idx];
       entry.used = true;
       entry.usedAt = new Date().toISOString();
       // Record which staff member performed the check-in (for sub-admin audit).
-      if (authCtx.role === 'subadmin' && authCtx.user) {
+      if (authCtx.user && ['subadmin','checkin_staff'].includes(authCtx.role)) {
         entry.checkedInBy = authCtx.user.name || authCtx.user.email;
       } else {
         entry.checkedInBy = 'Admin';
@@ -2072,6 +4553,170 @@ codes[idx] = entry;
       });
     }
 
+    // ── Influencer: relationship-scoped referral portals ──
+    if (pathname === '/api/influencer/referral-portals' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const freshUser = await findUserById(user.id);
+      const assignments = getAcceptedInfluencerAssignments(freshUser || user);
+      const admins = await readUsers();
+      let links = await getReferralLinksByInfluencerId(user.id);
+      const portals = [];
+      for (const assignment of assignments) {
+        let link = links.find(l => String(l.influencerId || l.ownerId || '') === String(user.id) && String(l.assignmentId || '') === String(assignment.id)) || null;
+        if (!link) {
+          link = await generateReferralLink(user.id, user.name, user.email, 'influencer', assignment.id, assignment.influencerAdminId);
+          links.push(link);
+        }
+        const admin = admins.find(a => String(a.id || '') === String(assignment.influencerAdminId) && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(a.role)));
+        await updateReferralStats(link.code);
+        const refreshed = await getReferralLinkByCode(link.code);
+        portals.push({
+          assignmentId: assignment.id,
+          influencerAdminId: assignment.influencerAdminId,
+          influencerAdmin: admin ? { id: admin.id, name: admin.name || '', email: admin.email || '' } : { id: assignment.influencerAdminId, name: 'Influencer Admin', email: '' },
+          link: referralLinkResponse(refreshed || link)
+        });
+      }
+      // Preserve a legacy/global influencer referral link if this account has
+      // one and no accepted relationship can own it.
+      const legacy = links.find(l => !l.assignmentId && (l.influencerId === user.id || l.ownerId === user.id)) || null;
+      if (legacy && !portals.length) {
+        await updateReferralStats(legacy.code);
+        const refreshed = await getReferralLinkByCode(legacy.code);
+        portals.push({ assignmentId: null, influencerAdminId: null, influencerAdmin: { id: null, name: 'General referral', email: '' }, link: referralLinkResponse(refreshed || legacy) });
+      }
+      return sendJson(res, 200, { success: true, portals });
+    }
+
+    // Backward-compatible single-link endpoint. It returns the first portal,
+    // while new dashboard code uses /api/influencer/referral-portals.
+    if (pathname === '/api/influencer/referral-link' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const freshUser = await findUserById(user.id);
+      const assignment = getAcceptedInfluencerAssignments(freshUser || user)[0] || null;
+      let link = assignment
+        ? await getReferralLinkForAssignment(user.id, assignment.id)
+        : await getReferralLinkByInfluencerId(user.id);
+      if (!link) link = await generateReferralLink(user.id, user.name, user.email, 'influencer', assignment ? assignment.id : null, assignment ? assignment.influencerAdminId : null);
+      await updateReferralStats(link.code);
+      link = await getReferralLinkByCode(link.code);
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── Influencer: referral stats ──
+    if (pathname === '/api/influencer/referral-stats' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const assignmentId = String(url.searchParams.get('assignmentId') || '').trim();
+      const freshUser = await findUserById(user.id);
+      const acceptedAssignments = getAcceptedInfluencerAssignments(freshUser || user);
+      const orders = await getOrdersForCurrentSiteEvents();
+      const events = await readEvents();
+      const admins = await readUsers();
+
+      // "all" is an overview across every accepted Influencer Admin relationship.
+      // It intentionally returns no single referral link because each relationship
+      // has its own independent code/link.
+      function commissionForOrder(order) {
+        // Respect an explicitly stored commission amount/rate when the order has one.
+        // Orders without one fall back to the site-wide 20% influencer commission,
+        // so the referral portal never reports a flat zero for real sales.
+        const explicit = Number(order && (order.commissionAmount ?? order.influencerCommission ?? order.referralCommission));
+        if (Number.isFinite(explicit)) return explicit;
+        const rate = Number(order && (order.commissionRate ?? order.influencerCommissionRate));
+        if (Number.isFinite(rate) && rate >= 0) return (Number(order.amount) || 0) * rate;
+        return (Number(order && order.amount) || 0) * INFLUENCER_COMMISSION_RATE;
+      }
+      function buildEventBreakdown(referredOrders, assignmentAdminId) {
+        const allowed = events.filter(ev => {
+          const ids = getAuthorizedInfluencerAdminIds(ev);
+          return ids.includes(String(assignmentAdminId || '')) || influencerAdminOwnsEvent({ role:'influencer_admin', user:{ id:String(assignmentAdminId || '') } }, ev);
+        });
+        return allowed.map(ev => {
+          const rows = referredOrders.filter(o => eventMatchesOrder(o, ev));
+          return {
+            id: ev.id, name: ev.name || ev.eventName || 'Event', date: ev.date || ev.eventDate || null, venue: ev.venue || ev.eventVenue || '',
+            orders: rows.length, tickets: rows.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0),
+            revenue: rows.reduce((n,o)=>n+(Number(o.amount)||0),0),
+            commission: rows.reduce((n,o)=>n+commissionForOrder(o),0)
+          };
+        });
+      }
+      if (assignmentId.toLowerCase() === 'all') {
+        // Build the overview from the same per-relationship scopes used by the
+        // individual portals. This guarantees that All = the sum of each
+        // accepted relationship for orders/tickets/revenue/commission.
+        const allReferredOrders = [];
+        const allPeople = new Set();
+        const eventMap = new Map();
+        const adminBreakdown = [];
+        for (const assignment of acceptedAssignments) {
+          const link = await getReferralLinkForAssignment(user.id, assignment.id);
+          if (!link) continue;
+          const scoped = await getScopedReferralOrders(link, orders, events, assignment.influencerAdminId);
+          const admin = admins.find(a => String(a.id || '') === String(assignment.influencerAdminId || '') && ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(a.role)));
+          const eventRows = buildEventBreakdown(scoped, assignment.influencerAdminId);
+          const adminStats = {
+            assignmentId: assignment.id,
+            influencerAdminId: assignment.influencerAdminId,
+            influencerAdmin: { id: assignment.influencerAdminId, name: admin ? (admin.name || '') : 'Influencer Admin', email: admin ? (admin.email || '') : '' },
+            totalOrders: scoped.length,
+            totalRevenue: scoped.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+            totalTickets: scoped.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+            totalCommission: scoped.reduce((sum, o) => sum + commissionForOrder(o), 0),
+            uniquePeople: new Set(scoped.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          };
+          adminBreakdown.push(adminStats);
+          allReferredOrders.push(...scoped);
+          scoped.forEach(o => { const email = String(o.buyerEmail || '').trim().toLowerCase(); if (email) allPeople.add(email); });
+          for (const ev of eventRows) {
+            const key = String(ev.id || ev.name);
+            const existing = eventMap.get(key);
+            if (!existing) eventMap.set(key, ev);
+            else { existing.orders += ev.orders; existing.tickets += ev.tickets; existing.revenue += ev.revenue; existing.commission += ev.commission; }
+          }
+        }
+        const sumOrders = adminBreakdown.reduce((n, a) => n + a.totalOrders, 0);
+        const sumTickets = adminBreakdown.reduce((n, a) => n + a.totalTickets, 0);
+        const sumRevenue = adminBreakdown.reduce((n, a) => n + a.totalRevenue, 0);
+        const sumCommission = adminBreakdown.reduce((n, a) => n + a.totalCommission, 0);
+        return sendJson(res, 200, { success: true, stats: {
+          totalOrders: sumOrders,
+          totalRevenue: sumRevenue,
+          totalTickets: sumTickets,
+          totalCommission: sumCommission,
+          uniquePeople: allPeople.size,
+          link: null, overview: true,
+          adminBreakdown, events: Array.from(eventMap.values())
+        }});
+      }
+
+      const assignment = assignmentId ? acceptedAssignments.find(a => a.id === assignmentId) : null;
+      if (assignmentId && !assignment) return sendJson(res, 403, { success: false, error: 'You are not assigned to this referral portal.' });
+      let link = assignment ? await getReferralLinkForAssignment(user.id, assignment.id) : await getReferralLinkByInfluencerId(user.id);
+      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const referredOrders = await getScopedReferralOrders(link, orders, events, assignment ? assignment.influencerAdminId : null);
+      const uniquePeople = new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      const totalRevenue = referredOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+      const totalCommission = referredOrders.reduce((sum, o) => sum + commissionForOrder(o), 0);
+      const eventBreakdown = buildEventBreakdown(referredOrders, assignment.influencerAdminId);
+      return sendJson(res, 200, { success: true, stats: {
+        totalOrders: referredOrders.length,
+        totalRevenue,
+        totalTickets: referredOrders.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+        totalCommission,
+        uniquePeople, link: referralLinkResponse(link), events: eventBreakdown
+      }});
+    }
+
     // ── Sub-admin: list the check-ins performed by this sub-admin account ──
     // Returns a summary of every ticket this sub-admin has scanned (checked-in),
     // so they can see their own activity. Requires a logged-in sub-admin session
@@ -2080,8 +4725,8 @@ codes[idx] = entry;
       const auth = req.headers['authorization'] || '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       const user = await getSessionUser(token);
-      if (!user || user.role !== 'subadmin') {
-        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      if (!user || !['subadmin','checkin_staff'].includes(user.role)) {
+        return sendJson(res, 403, { success: false, error: 'Check-in staff access only' });
       }
       const staffName = user.name || user.email;
       const orders = await readOrders();
@@ -2126,7 +4771,100 @@ codes[idx] = entry;
         link = await getReferralLinkBySubadminId(user.id);
       }
       
-      return sendJson(res, 200, { success: true, link: link });
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── Sub-admin: global sales overview (all verified sales, not referral-limited) ──
+    if (pathname === '/api/subadmin/sales-overview' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const orders = await getOrdersForCurrentSiteEvents();
+      const statusOf = o => String(o.status || 'pending').trim().toLowerCase();
+      const pending = orders.filter(o => statusOf(o) === 'pending');
+      const verified = orders.filter(o => statusOf(o) === 'verified');
+      const rejected = orders.filter(o => statusOf(o) === 'rejected');
+      const ticketsSold = verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0);
+      const revenue = verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+      const uniquePeople = new Set(verified.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size;
+      const eventMap = {};
+      verified.forEach(o => {
+        const key = String(o.eventId || o.eventName || 'unknown');
+        if (!eventMap[key]) eventMap[key] = { eventId: o.eventId || null, eventName: o.eventName || 'Unknown Event', tickets: 0, orders: 0, revenue: 0 };
+        eventMap[key].tickets += parseInt(o.qty, 10) || 0;
+        eventMap[key].orders += 1;
+        eventMap[key].revenue += Number(o.amount) || 0;
+      });
+      return sendJson(res, 200, {
+        success: true,
+        sales: {
+          totalOrders: orders.length,
+          pendingOrders: pending.length,
+          verifiedOrders: verified.length,
+          rejectedOrders: rejected.length,
+          totalTickets: ticketsSold,
+          totalRevenue: revenue,
+          uniquePeople,
+          events: Object.values(eventMap).sort((a,b) => b.tickets - a.tickets)
+        }
+      });
+    }
+
+    // ── Sub-admin: list sales/orders (READ-ONLY) ──
+    // Mirrors the main admin's Orders Overview so a sub-admin can see every sale
+    // made on the site. It deliberately exposes NO status-changing capability:
+    // verifying/rejecting a payment stays on /api/admin/orders/status, which
+    // requires the master admin password and is unreachable with a sub-admin
+    // session token.
+    if (pathname === '/api/subadmin/orders' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const orders = await getOrdersForCurrentSiteEvents();
+      return sendJson(res, 200, { success: true, orders: orders });
+    }
+
+    // ── Sub-admin: list payout requests (READ-ONLY) ──
+    // Mirrors the main admin's Payout Requests panel so a sub-admin can see every
+    // payout is released — amounts, the rates, bank details and status.
+    // It deliberately exposes NO payout capability: approving, marking paid and
+    // rejecting all live on /api/admin/payouts (POST), which requires the master
+    // admin password and is unreachable with a sub-admin session token.
+    if (pathname === '/api/subadmin/payouts' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') {
+        return sendJson(res, 403, { success: false, error: 'Sub-admin access only' });
+      }
+      const payouts = await readPayouts();
+      // The sub-admin sees the same totals the main admin does — the
+      // split included — so nothing about a payout is hidden from oversight.
+      const all = payouts.map(payoutPublic);
+      const sum = (rows, key) => Math.round(rows.reduce((n, p) => n + (Number(p[key]) || 0), 0) * 100) / 100;
+      const open = all.filter(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()));
+      return sendJson(res, 200, {
+        success: true,
+        payouts: all,
+        feeRate: PAYOUT_FEE_RATE,
+        commissionRates: COMMISSION_SPLIT,
+        totals: {
+          count: all.length,
+          requested: sum(all, 'amount'),
+          netToInfluencers: sum(all, 'netAmount'),
+          platformFee: sum(all, 'feeAmount'),
+          openCount: open.length,
+          openAmount: sum(open, 'amount'),
+          paidCount: all.filter(p => String(p.status || '').toLowerCase() === 'paid').length
+        },
+        readOnly: true
+      });
     }
 
     // ── Sub-admin: get referral stats ──
@@ -2140,10 +4878,10 @@ codes[idx] = entry;
       
       const link = await getReferralLinkBySubadminId(user.id);
       if (!link) {
-        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, link: null } });
+        return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
       }
       
-      const orders = await readOrders();
+      const orders = await getOrdersForCurrentSiteEvents();
       const referredOrders = orders.filter(o => isReferralOrderCounted(o, link.code));
       const totalTickets = referredOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
       const totalRevenue = referredOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -2181,6 +4919,7 @@ codes[idx] = entry;
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
     }
@@ -2188,6 +4927,7 @@ codes[idx] = entry;
     // ── Admin: unseen count ──
     if (pathname === '/api/admin/unseen-count' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders) });
     }
@@ -2239,17 +4979,166 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, order: updated });
     }
 
+    // ── Coupons: Main Admin + Sub-admin only ──
+    if (pathname === '/api/admin/coupons' && req.method === 'GET') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const coupons = await readCoupons();
+      return sendJson(res, 200, { success: true, coupons });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'POST') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const id = String(data.id || '').trim() || 'cpn-' + Date.now().toString(36);
+      const code = String(data.code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      const amount = Math.max(0, Number(data.amount) || 0);
+      if (!code || code.length < 3) return sendJson(res, 400, { success: false, error: 'Coupon code must be at least 3 characters.' });
+      if (amount <= 0) return sendJson(res, 400, { success: false, error: 'Discount amount must be greater than 0.' });
+      const coupons = await readCoupons();
+      const duplicate = coupons.find(c => String(c.code || '').toUpperCase() === code && String(c.id) !== id);
+      if (duplicate) return sendJson(res, 409, { success: false, error: 'That coupon code already exists.' });
+      const existing = coupons.find(c => String(c.id) === id);
+      const coupon = Object.assign({}, existing || {}, { id, code, amount, active: data.active !== false, updatedAt: new Date().toISOString(), createdBy: existing && existing.createdBy ? existing.createdBy : (authCtx.user ? authCtx.user.id : 'admin') });
+      if (!coupon.createdAt) coupon.createdAt = new Date().toISOString();
+      const next = existing ? coupons.map(c => String(c.id) === id ? coupon : c) : [coupon].concat(coupons);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true, coupon });
+    }
+    if (pathname === '/api/admin/coupons' && req.method === 'DELETE') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || !['admin','subadmin'].includes(authCtx.role)) return sendJson(res, 403, { success: false, error: 'Admin/Sub-admin access only' });
+      const id = String(url.searchParams.get('id') || '').trim();
+      if (!id) return sendJson(res, 400, { success: false, error: 'Missing coupon id' });
+      const coupons = await readCoupons();
+      const next = coupons.filter(c => String(c.id) !== id);
+      await writeCoupons(next);
+      return sendJson(res, 200, { success: true });
+    }
+    if (pathname === '/api/referrals/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      if (!code) return sendJson(res, 400, { success:false, error:'Enter a referral code.' });
+      const link = await getReferralLinkByCode(code);
+      if (!link) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+      return sendJson(res, 200, { success:true, referral:{code:link.code, name:link.subadminName || link.name || ''} });
+    }
+
+    if (pathname === '/api/coupons/validate' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      const eventId = String(data.eventId || '').trim();
+      const tier = String(data.ticketTier || 'regular').toLowerCase();
+      const qty = Math.max(1, parseInt(data.qty) || 1);
+      const coupon = await getCouponByCode(code);
+      if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
+      const events = await readEvents(); const ev = events.find(e => String(e.id) === eventId);
+      if (!ev) return sendJson(res, 400, { success: false, error: 'Event not found.' });
+      const originals = {regular:Number(ev.price||0),vip:Number(ev.vipPrice||0),vvip:Number(ev.vvipPrice||0),table:Number(ev.tablePrice||0)};
+      const bonuses = {regular:Number(ev.bonusPrice||0),vip:Number(ev.bonusVipPrice||0),vvip:Number(ev.bonusVvipPrice||0),table:Number(ev.bonusTablePrice||0)};
+      const originalUnit = originals[tier] > 0 ? originals[tier] : originals.regular;
+      const bonusUnit = bonuses[tier] || 0;
+      const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      let referralApplied = false;
+      if (referralCode) {
+        const referralLink = await getReferralLinkByCode(referralCode);
+        if (!referralLink) return sendJson(res, 400, { success:false, error:'Invalid referral code.' });
+        referralApplied = true;
+      }
+      const unit = referralApplied ? originalUnit : (bonusUnit > 0 ? bonusUnit : originalUnit);
+      const baseTotal = unit * qty; const discount = Number(coupon.amount) || 0;
+      if (discount >= baseTotal) return sendJson(res, 400, { success:false, error:'Coupon discount cannot cover the full ticket price.' });
+      return sendJson(res, 200, { success:true, coupon:{code:coupon.code, amount:discount}, baseTotal, discount, total:baseTotal-discount });
+    }
+
+    // ── Public selected-event lookup (used by Buy Now -> tickets.html) ──
+    // Returns only the requested event and its inventory so the checkout UI can
+    // render the clicked event without waiting for the full university catalog.
+    if (pathname === '/api/event' && req.method === 'GET') {
+      const eventId = String(url.searchParams.get('id') || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Event ID is required.' });
+      const allEvents = await readEvents();
+      const event = allEvents.find(function(e) { return String(e && e.id || '') === eventId; });
+      if (!event || event.archived === true) {
+        return sendJson(res, 404, { success: false, error: 'Event not found.' });
+      }
+      const orders = await readOrders();
+      const inventoryMap = buildEventInventoryMap(orders);
+      const enriched = Object.assign({}, event, { inventory: {
+        regular: getTierInventoryFromMap(event, 'regular', inventoryMap),
+        vip: getTierInventoryFromMap(event, 'vip', inventoryMap),
+        vvip: getTierInventoryFromMap(event, 'vvip', inventoryMap),
+        table: getTierInventoryFromMap(event, 'table', inventoryMap)
+      }});
+      return sendJson(res, 200, { success: true, event: enriched });
+    }
+
     // ── Public events list (used by events.html, tickets.html, index.html) ──
     if (pathname === '/api/events' && req.method === 'GET') {
-      const events = await readEvents();
+      const allEvents = await readEvents();
+      const includeArchived = url.searchParams.get('includeArchived') === '1';
+      let events = allEvents;
+      if (!includeArchived) {
+        events = allEvents.filter(e => e.archived !== true);
+      } else {
+        const authCtx = await isAdminOrSubadmin(req);
+        if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+          // Archived records are never exposed to unauthenticated/public callers.
+          events = allEvents.filter(e => e.archived !== true);
+        } else if (authCtx.role === 'influencer_admin') {
+          // Influencer Admins may see archived events only when they own them.
+          // Explicitly authorized events remain view-only and are not treated as
+          // owned management records.
+          events = allEvents.filter(e => e.archived !== true || influencerAdminOwnsEvent(authCtx, e));
+        }
+      }
       const uniSlug = String(url.searchParams.get('university') || '').trim();
+      const orders = await readOrders();
+      const inventoryMap = buildEventInventoryMap(orders);
+      function enrich(ev) {
+        return Object.assign({}, ev, { inventory: {
+          regular: getTierInventoryFromMap(ev,'regular',inventoryMap),
+          vip: getTierInventoryFromMap(ev,'vip',inventoryMap),
+          vvip: getTierInventoryFromMap(ev,'vvip',inventoryMap),
+          table: getTierInventoryFromMap(ev,'table',inventoryMap)
+        }});
+      }
       if (uniSlug) {
-        const filtered = events.filter(function(e) {
-          return (e.universityId === uniSlug || e.universitySlug === uniSlug);
+        const universities = await readUniversities();
+        const queryKey = uniSlug.toLowerCase();
+        const selectedMatches = universities.filter(function(university) {
+          return [university.id, university.slug, university.name].some(function(value) {
+            return String(value || '').trim().toLowerCase() === queryKey;
+          });
         });
+        // A university name is the user-facing identity. If duplicate catalogue
+        // records share the same name, treat them as one university instead of
+        // arbitrarily selecting one ID. This keeps events consistent for every
+        // university, including older records created with an alternate ID.
+        const selectedUniversity = selectedMatches[0] || null;
+        const universityKeys = new Set();
+        selectedMatches.forEach(function(university) {
+          [university.id, university.slug, university.name].forEach(function(value) {
+            const key = String(value || '').trim().toLowerCase();
+            if (key) universityKeys.add(key);
+          });
+        });
+        if (!selectedMatches.length) universityKeys.add(queryKey);
+        const filtered = events.filter(function(e) {
+          // Treat the university metadata as one identity. If multiple fields
+          // are present, all of them must agree with the selected university.
+          // This prevents stale/conflicting metadata from leaking an event
+          // from another campus into the selected campus view.
+          const fields = [e.universityId, e.universitySlug, e.universityName]
+            .map(function(value) { return String(value || '').trim().toLowerCase(); })
+            .filter(Boolean);
+          return fields.length > 0 && fields.every(function(value) {
+            return universityKeys.has(value);
+          });
+        }).map(enrich);
         return sendJson(res, 200, { success: true, events: filtered });
       }
-      return sendJson(res, 200, { success: true, events: events });
+      return sendJson(res, 200, { success: true, events: events.map(enrich) });
     }
 
     // ── Public site stats (events, tickets sold, faculties) ──
@@ -2262,20 +5151,32 @@ codes[idx] = entry;
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      // Events happening this month (parse the event date string)
+      // Normalize admin-entered dates such as "SEP. 25TH 2026" before counting.
+      function parseEventDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        const native = new Date(raw);
+        if (!isNaN(native)) return native;
+        const normalized = raw
+          .replace(/\b(\d{1,2})(?:ST|ND|RD|TH)\b/ig, '$1')
+          .replace(/\./g, '')
+          .replace(/\s+/g, ' ');
+        const parsed = new Date(normalized);
+        return isNaN(parsed) ? null : parsed;
+      }
+
+      // Events happening this month (including admin-entered ordinal dates)
       let eventsThisMonth = 0;
       events.forEach(function(ev) {
-        if (!ev.date) return;
-        const d = new Date(ev.date);
-        if (isNaN(d)) return;
+        const d = parseEventDate(ev.date);
+        if (!d) return;
         if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) eventsThisMonth++;
       });
 
       // Upcoming events (date >= today)
       const upcomingEvents = events.filter(function(ev) {
-        if (!ev.date) return false;
-        const d = new Date(ev.date);
-        if (isNaN(d)) return false;
+        const d = parseEventDate(ev.date);
+        if (!d) return false;
         return d >= now;
       }).length;
 
@@ -2304,10 +5205,627 @@ codes[idx] = entry;
       });
     }
 
-// ── Admin/Sub-admin: create/update an event ──
+// ── Main Admin: list ALL existing events for management/authorization ──
+    if (pathname === '/api/admin/events' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      return sendJson(res, 200, { success: true, events: await readEvents() });
+    }
+
+    // ── Sub-admin: list events for management/editing ──
+    // The public /api/events endpoint calculates inventory for every event.
+    // Private event management does not need that calculation.
+    if (pathname === '/api/subadmin/events' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'subadmin') return sendJson(res, 401, { success: false, error: 'Sub-admin access only' });
+      return sendJson(res, 200, { success: true, events: await readEvents() });
+    }
+
+    // ── Main Admin: explicitly authorize an existing event to an Influencer Admin ──
+    if (pathname === '/api/admin/events/authorize-influencer' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can authorize events.' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const influencerAdminId = String(data.influencerAdminId || '').trim();
+      const action = String(data.action || 'add').toLowerCase();
+      if (!eventId || !influencerAdminId) return sendJson(res, 400, { success:false, error:'Event and Influencer Admin are required.' });
+      const users = await readUsers();
+      const staff = users.find(u => String(u.id) === influencerAdminId && u.role === 'influencer_admin' && u.archived !== true);
+      if (!staff) return sendJson(res, 404, { success:false, error:'Influencer Admin not found.' });
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res, 404, { success:false, error:'Event not found.' });
+      const ids = getAuthorizedInfluencerAdminIds(events[idx]);
+      if (action === 'remove') {
+        events[idx].authorizedInfluencerAdminIds = ids.filter(id => id !== influencerAdminId);
+      } else {
+        if (!ids.includes(influencerAdminId)) ids.push(influencerAdminId);
+        events[idx].authorizedInfluencerAdminIds = ids;
+      }
+      await writeEvents(events);
+      return sendJson(res, 200, { success:true, event:events[idx] });
+    }
+
+    // ── Influencer Admin: event-specific sales overview ──
+    if (pathname === '/api/influencer-admin/event-overview' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const events = await readEvents();
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+      const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
+      const ownInfluencers = users.filter(u => {
+        if (u.role !== 'influencer' || u.archived === true) return false;
+        return influencerAdminOwnsInfluencer(authCtx, u);
+      });
+      const result = authorizedEvents.map(ev => {
+        const eventOrders = orders.filter(o => eventMatchesOrder(o, ev));
+        const influencerRows = ownInfluencers.map(inf => {
+          const acceptedAssignments = getAcceptedInfluencerAssignments(inf);
+          const assignment = acceptedAssignments.find(a => a.influencerAdminId === String(authCtx.user.id)) || null;
+          const link = assignment
+            ? links.find(l => String(l.influencerId || l.ownerId || '') === String(inf.id) && String(l.assignmentId || '') === String(assignment.id))
+            : links.find(l => l.influencerId === inf.id || l.ownerId === inf.id || l.subadminId === inf.id);
+          const code = link && link.code;
+          const rows = code ? eventOrders.filter(o => {
+            const status = String(o.status || '').toLowerCase();
+            return o.referralCode === code && status !== 'rejected';
+          }) : [];
+          const verified = rows.filter(o => String(o.status || '').toLowerCase() === 'verified');
+          const pending = rows.filter(o => String(o.status || '').toLowerCase() === 'pending');
+          // Influencer Admins need sales visibility, not customers' private contact data.
+          // Never pass buyer email/phone or other unnecessary PII through this dashboard API.
+          const safeRows = rows.map(o => ({
+            orderId: o.orderId,
+            status: o.status,
+            eventId: o.eventId,
+            eventName: o.eventName,
+            eventDate: o.eventDate,
+            eventVenue: o.eventVenue,
+            qty: o.qty,
+            amount: o.amount,
+            currency: o.currency,
+            paymentMethod: o.paymentMethod,
+            ticketTier: o.ticketTier,
+            verifiedAt: o.verifiedAt,
+            createdAt: o.createdAt,
+            referralCode: o.referralCode
+          }));
+          return { influencer: publicUser(inf), referralCode: code || null, orders: safeRows, totalOrders: rows.length, verifiedOrders: verified.length, pendingOrders: pending.length, ticketsSold: verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), pendingTickets: pending.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue: verified.reduce((n,o)=>n+(Number(o.amount)||0),0) };
+        });
+        const visibleOrders = eventOrders.filter(o => String(o.status || '').toLowerCase() !== 'rejected');
+        const verified = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'verified');
+        const pending = visibleOrders.filter(o => String(o.status || '').toLowerCase() === 'pending');
+        // rejectedOrders is deliberately NOT returned: rejected payments are the
+        // Main Admin's decision and must not be surfaced in the Influencer Admin
+        // dashboard.
+        const revenue = verified.reduce((n,o)=>n+(Number(o.amount)||0),0);
+        // Per-event breakdown, splitting referred sales (20% to the influencer,
+        // 2.5% to Unisocials) from direct ones (20% to Unisocials).
+        const referred = verified.filter(o => !!String(o.referralCode || '').trim()).reduce((n,o)=>n+(Number(o.amount)||0),0);
+        const split = commissionTotals(referred, revenue - referred);
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
+      });
+      // commissionRates lets the dashboard show how each sale was split.
+      return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
+    }
+
+    // ── Influencer Admin: their 80% share, minus what is owed to referrers ──
+    // The event owner is credited 97.5% of a referred sale and 80% of a direct
+    // one, but the influencer's 20% is allocated out of that credit — so the
+    // owner always withdraws 80% of the ticket. Sales are classified per order
+    // by whether they carried a referral code.
+    async function influencerAdminPayoutSummary(authCtx) {
+      const [events, orders, payouts] = await Promise.all([readEvents(), readOrders(), readPayouts()]);
+      const authorizedEvents = influencerAdminVisibleEvents(authCtx, events);
+      const nowMs = Date.now();
+      const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+      let referredAmount = 0;
+      let directAmount = 0;
+      let heldReferred = 0;
+      let heldDirect = 0;
+      const heldPayments = [];
+      authorizedEvents.forEach(ev => {
+        orders.forEach(o => {
+          if (!eventMatchesOrder(o, ev) || String(o.status || '').toLowerCase() !== 'verified') return;
+          const amount = Number(o.amount) || 0;
+          const referred = !!String(o.referralCode || '').trim();
+          if (referred) referredAmount += amount; else directAmount += amount;
+          // Every payment made through the site stays on hold for 7 days
+          // from the moment it was paid before it becomes withdrawable.
+          const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+          const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+          if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
+            if (referred) heldReferred += amount; else heldDirect += amount;
+            // What this payment actually earned the owner, so the countdown is
+            // read in withdrawable share rather than gross ticket revenue.
+            heldPayments.push({
+              orderId: o.orderId || '',
+              eventName: o.eventName || '',
+              amount,
+              referred,
+              commissionAmount: commissionSplit(amount, referred).ownerNetAmount,
+              paidAt: new Date(paidMs).toISOString(),
+              unlocksAt: new Date(unlocksMs).toISOString()
+            });
+          }
+        });
+      });
+      const totals = commissionTotals(referredAmount, directAmount);
+      const heldTotals = commissionTotals(heldReferred, heldDirect);
+      const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
+      const balance = payoutBalance(totals.ownerNetAmount, heldTotals.ownerNetAmount, mine);
+      heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
+      return {
+        payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        // Gross ticket money, and how it was split.
+        totalVerifiedRevenue: totals.grossAmount,
+        referredAmount: totals.referredAmount,
+        directAmount: totals.directAmount,
+        // 97.5% of referred sales + 80% of direct sales: what the owner is owed
+        // before the referrers' commission is allocated out of it.
+        ownerCreditAmount: totals.ownerCreditAmount,
+        // 20% of every referred ticket, owed to the influencers.
+        influencerOwed: totals.influencerAmount,
+        // What the owner actually walks away with: 80% of every ticket.
+        ownerNetAmount: totals.ownerNetAmount,
+        platformFee: totals.platformAmount,
+        heldAmount: round2(heldTotals.grossAmount),
+        heldPayments,
+        earned: balance.earned,
+        matured: balance.matured,
+        held: balance.held,
+        totalRequested: balance.committed,
+        availableBalance: balance.availableBalance,
+        commissionRates: COMMISSION_SPLIT,
+        feeRate: PAYOUT_FEE_RATE,
+        holdDays: PAYOUT_HOLD_DAYS,
+        hasOpenRequest: mine.some(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase()))
+      };
+    }
+
+    // Payouts requested by the INFLUENCERS working on this account's events.
+    // Scoped to influencers holding an accepted relationship with this admin, so
+    // an owner only ever sees commission owed on their own events.
+    async function referrerPayoutsForInfluencerAdmin(authCtx) {
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const myId = String(authCtx.user.id || '');
+      const myReferrerIds = new Set();
+      links.forEach(l => {
+        if (String(l.influencerAdminId || '') !== myId) return;
+        const infId = String(l.influencerId || l.ownerId || '').trim();
+        if (infId) myReferrerIds.add(infId);
+      });
+      users.forEach(u => {
+        if (u.role !== 'influencer') return;
+        if (getAcceptedInfluencerAssignments(u).some(a => String(a.influencerAdminId || '') === myId)) {
+          myReferrerIds.add(String(u.id));
+        }
+      });
+      if (!myReferrerIds.size) return [];
+      const payouts = await readPayouts();
+      return payouts
+        .filter(p => myReferrerIds.has(String(p.requestedBy)))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const summary = await influencerAdminPayoutSummary(authCtx);
+      const referrerPayouts = await referrerPayoutsForInfluencerAdmin(authCtx);
+      const openReferrerPayouts = referrerPayouts.filter(p => ['pending','approved'].includes(String(p.status || '').toLowerCase()));
+      const roundOut = v => Math.round((Number(v) || 0) * 100) / 100;
+      // Commission the owner has already released to their referrers no longer
+      // counts as owed, otherwise the dashboard kept demanding money that had
+      // already left and the owner could be left chasing a settled balance.
+      const influencerPaidOut = roundOut(referrerPayouts
+        .filter(p => String(p.status || '').toLowerCase() === 'paid')
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0));
+      const influencerCommitted = roundOut(referrerPayouts
+        .filter(p => ['pending','approved','paid'].includes(String(p.status || '').toLowerCase()))
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0));
+      const contactEmail = isInternalLoginEmail(authCtx.user && authCtx.user.contactEmail) ? '' : String((authCtx.user && authCtx.user.contactEmail) || '').trim().toLowerCase();
+      return sendJson(res, 200, {
+        success: true,
+        payouts: summary.payouts.map(payoutPublic),
+        // Gross ticket money on this account's events, split by whether a
+        // referral link was used.
+        totalVerifiedRevenue: summary.totalVerifiedRevenue,
+        referredAmount: summary.referredAmount,
+        directAmount: summary.directAmount,
+        // Credited, allocated out, and what is actually withdrawable.
+        ownerCreditAmount: summary.ownerCreditAmount,
+        influencerOwed: roundOut(Math.max(0, summary.influencerOwed - influencerPaidOut)),
+        influencerEarned: summary.influencerOwed,
+        influencerPaidOut: influencerPaidOut,
+        influencerCommitted: influencerCommitted,
+        ownerNetAmount: summary.ownerNetAmount,
+        platformFee: summary.platformFee,
+        heldAmount: summary.heldAmount,
+        heldPayments: summary.heldPayments,
+        totalRequested: summary.totalRequested,
+        availableBalance: summary.availableBalance,
+        commissionRates: summary.commissionRates,
+        feeRate: summary.feeRate,
+        holdDays: summary.holdDays,
+        hasOpenRequest: summary.hasOpenRequest,
+        payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
+        savedBankAccount: (authCtx.user && authCtx.user.payoutBankAccount) || null,
+        // Where the "payout complete" notice goes. The @unisocials.com login
+        // cannot receive mail, so this is the only usable address.
+        notificationEmail: contactEmail,
+        notificationEmailOnFile: !!contactEmail,
+        // Read-only visibility of what this account's referrers have asked for.
+        referrerPayouts: referrerPayouts.map(payoutPublic),
+        openReferrerPayoutCount: openReferrerPayouts.length,
+        openReferrerPayoutAmount: roundOut(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0)),
+        openReferrerPayoutAmount: Math.round(openReferrerPayouts.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100
+      });
+    }
+
+    // The event owner withdraws their 80%: 97.5% of a referred sale less the
+    // influencer's 20% allocated out of it, and 80% of a direct sale. The same
+    // request/approve/pay flow and completion email the referrer uses.
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'POST') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const parsed = parsePayoutRequestBody(await readBody(req));
+      if (parsed.error) return sendJson(res, 400, { success:false, error: parsed.error });
+
+      const summary = await influencerAdminPayoutSummary(authCtx);
+      if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
+      if (parsed.amount > summary.availableBalance) {
+        let error = 'payout amount not valid: the amount you requested exceeds your available ' +
+          rateLabel(EVENT_OWNER_RATE) + ' share of ₦' + summary.availableBalance.toLocaleString() + '.';
+        error += ' That is ' + rateLabel(EVENT_OWNER_RATE) + ' of the ₦' + Math.round(summary.matured / EVENT_OWNER_RATE).toLocaleString() +
+          ' in matured verified payments, less ₦' + summary.totalRequested.toLocaleString() + ' already requested.';
+        if (summary.held > 0) {
+          error += ' You also have ₦' + summary.held.toLocaleString() + ' inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
+        }
+        return sendJson(res, 400, { success:false, error });
+      }
+
+      const freshUser = (await findUserById(authCtx.user.id)) || authCtx.user;
+      const payout = await storePayoutRequest(freshUser, parsed);
+      const fee = payoutFeeSplit(payout);
+      // Notify the Main Admin by email so they can verify and pay within 24 hours.
+      const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      return sendJson(res, 200, {
+        success: true,
+        payout: payoutPublic(payout),
+        availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
+        adminEmailSent: !!emailSent,
+        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' will be sent to you, and the Main Admin will pay it within 24 hours of approval. Your referrers\' 20% commission is separate — they request it themselves.'
+      });
+    }
+
+    // Save the real inbox payout notifications go to. An Influencer Admin
+    // created by the Main Admin has no contactEmail, so without this the
+    // "payout complete" notice would have nowhere to go. Saving it here also
+    // re-sends the completion notice for any already-paid payout that never
+    // reached them.
+    if (pathname === '/api/influencer-admin/payouts' && req.method === 'PATCH') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 403, { success:false, error:'Influencer Admin access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const notificationEmail = String(data.notificationEmail || '').trim().toLowerCase();
+      const emailError = validateEmail(notificationEmail);
+      if (emailError) return sendJson(res, 400, { success:false, error: emailError });
+      // The site mints <name>@unisocials.com logins that cannot receive mail.
+      if (isInternalLoginEmail(notificationEmail)) {
+        return sendJson(res, 400, { success:false, error:'Use a real email address you check (Gmail, Yahoo, Outlook). Your @unisocials.com login cannot receive mail.' });
+      }
+      const users = await readUsers();
+      const taken = users.find(u => String(u.id) !== String(authCtx.user.id) && String(u.contactEmail || '').trim().toLowerCase() === notificationEmail);
+      if (taken) return sendJson(res, 409, { success:false, error:'That email is already used by another Unisocials account.' });
+      const saved = await savePayoutNotificationEmail(authCtx.user.id, notificationEmail);
+      if (saved.error) return sendJson(res, saved.status, { success:false, error: saved.error });
+      return sendJson(res, 200, {
+        success: true,
+        notificationEmail: notificationEmail,
+        resentPayoutNotifications: saved.resent,
+        message: 'Payout notifications will be sent to ' + notificationEmail + '.'
+      });
+    }
+
+    // ── Influencer (referrer): withdraw the 20% commission ──
+    // The 20% is earned only on sales that came through this influencer's own
+    // referral link. They ask for it here; the Influencer Admin of the event
+    // approves and pays it. Same records, emails and oversight as every other
+    // payout — only the role allowed to release it differs.
+    // The Influencer Admins who run the events this referrer's links point at.
+    // They are the ones who owe, approve and pay the commission.
+    async function eventOwnerIdsForInfluencer(user) {
+      const ids = new Set();
+      const fresh = (await findUserById(user.id)) || user;
+      getAcceptedInfluencerAssignments(fresh).forEach(a => {
+        const id = String(a.influencerAdminId || '').trim();
+        if (id) ids.add(id);
+      });
+      const links = await getReferralLinksByInfluencerId(user.id);
+      links.forEach(l => {
+        const id = String(l.influencerAdminId || '').trim();
+        if (id) ids.add(id);
+      });
+      return [...ids];
+    }
+
+    async function influencerPayoutSummary(user) {
+      const links = await getReferralLinksByInfluencerId(user.id);
+      const codes = new Set(links.map(l => String(l.code || '').trim()).filter(Boolean));
+      const orders = await getOrdersForCurrentSiteEvents();
+      const payouts = await readPayouts();
+      const nowMs = Date.now();
+      const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+      let referredRevenue = 0;
+      let heldRevenue = 0;
+      const heldPayments = [];
+      orders.forEach(o => {
+        // Only a sale that actually carried this influencer's code counts.
+        if (!codes.has(String(o.referralCode || '').trim())) return;
+        if (String(o.status || '').toLowerCase() !== 'verified') return;
+        const amount = Number(o.amount) || 0;
+        referredRevenue += amount;
+        // The commission is 20% of the FULL ticket, not of the owner's 97.5%.
+        const commission = commissionSplit(amount, true).influencerAmount;
+        const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
+        const unlocksMs = paidMs + PAYOUT_HOLD_MS;
+        if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
+          heldRevenue += amount;
+          heldPayments.push({
+            orderId: o.orderId || '',
+            eventName: o.eventName || '',
+            amount,
+            commissionAmount: commission,
+            paidAt: new Date(paidMs).toISOString(),
+            unlocksAt: new Date(unlocksMs).toISOString()
+          });
+        }
+      });
+      referredRevenue = round2(referredRevenue);
+      heldRevenue = round2(heldRevenue);
+      const mine = payouts.filter(p => String(p.requestedBy) === String(user.id));
+      const earned = round2(referredRevenue * INFLUENCER_COMMISSION_RATE);
+      const held = round2(heldRevenue * INFLUENCER_COMMISSION_RATE);
+      const balance = payoutBalance(earned, held, mine);
+      // For context: of the money their link brought in, 97.5% was credited to
+      // the event owner (who passes on 80% to themselves) and 2.5% to Unisocials.
+      const totals = commissionTotals(referredRevenue, 0);
+      heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
+      return {
+        payouts: mine.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        referredRevenue,
+        heldRevenue,
+        heldPayments,
+        // 20% of the FULL ticket, withdrawn with no further deduction.
+        totalCommission: earned,
+        availableBalance: balance.availableBalance,
+        totalRequested: balance.committed,
+        maturedCommission: balance.matured,
+        commissionRates: COMMISSION_SPLIT,
+        feeRate: PAYOUT_FEE_RATE,
+        holdDays: PAYOUT_HOLD_DAYS,
+        referralCodes: [...codes],
+        hasOpenRequest: mine.some(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase())),
+        eventOwnerShare: totals.ownerCreditAmount,
+        platformShare: totals.platformAmount
+      };
+    }
+
+    if (pathname === '/api/influencer/payouts' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const user = await getSessionUser(token);
+      if (!user || user.role !== 'influencer') return sendJson(res, 403, { success:false, error:'Influencer access only' });
+      const summary = await influencerPayoutSummary(user);
+      const contactEmail = isInternalLoginEmail(user.contactEmail) ? '' : String(user.contactEmail || '').trim().toLowerCase();
+      return sendJson(res, 200, {
+        success: true,
+        payouts: summary.payouts.map(payoutPublic),
+        referredRevenue: summary.referredRevenue,
+        heldRevenue: summary.heldRevenue,
+        heldPayments: summary.heldPayments,
+        totalCommission: summary.totalCommission,
+        maturedCommission: summary.maturedCommission,
+        heldCommission: summary.heldRevenue * INFLUENCER_COMMISSION_RATE,
+        availableBalance: summary.availableBalance,
+        totalRequested: summary.totalRequested,
+        eventOwnerShare: summary.eventOwnerShare,
+        platformShare: summary.platformShare,
+        commissionRates: summary.commissionRates,
+        feeRate: summary.feeRate,
+        holdDays: summary.holdDays,
+        hasOpenRequest: summary.hasOpenRequest,
+        payoutMethods: Object.entries(PAYOUT_METHODS).map(([value, m]) => ({ value, label: m.label, description: m.description })),
+        savedBankAccount: user.payoutBankAccount || null,
+        // Where the "payout complete" notice goes. Influencers sign in with
+        // their own email, so this is usually already on file.
+        notificationEmail: contactEmail,
+        notificationEmailOnFile: !!contactEmail
+      });
+    }
+
+    if (pathname === '/api/influencer/payouts' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success:false, error:'Influencer access only' });
+      const parsed = parsePayoutRequestBody(await readBody(req));
+      if (parsed.error) return sendJson(res, 400, { success:false, error: parsed.error });
+
+      const summary = await influencerPayoutSummary(sessionUser);
+      if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
+      if (parsed.amount > summary.availableBalance) {
+        let error = 'payout amount not valid: the amount you requested exceeds your available commission of ₦' +
+          summary.availableBalance.toLocaleString() + ' (' + rateLabel(INFLUENCER_COMMISSION_RATE) +
+          ' of the ₦' + summary.referredRevenue.toLocaleString() + ' your referral link brought in).';
+        const heldCommission = Math.round(summary.heldRevenue * INFLUENCER_COMMISSION_RATE * 100) / 100;
+        if (heldCommission > 0) {
+          error += ' You also have ₦' + heldCommission.toLocaleString() + ' of commission inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
+        }
+        return sendJson(res, 400, { success:false, error });
+      }
+
+      const freshUser = (await findUserById(sessionUser.id)) || sessionUser;
+      const payout = await storePayoutRequest(freshUser, parsed, {
+        eventOwnerIds: await eventOwnerIdsForInfluencer(freshUser)
+      });
+      const fee = payoutFeeSplit(payout);
+      // Notify the Main Admin by email so they can verify and pay within 24 hours.
+      const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      return sendJson(res, 200, {
+        success: true,
+        payout: payoutPublic(payout),
+        availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
+        adminEmailSent: !!emailSent,
+        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' of commission will be sent to you — ' + rateLabel(INFLUENCER_COMMISSION_RATE) + ' of every sale made through your link, with nothing further deducted. The Influencer Admin of the event has been notified and will pay within 24 hours of approval.'
+      });
+    }
+
+    if (pathname === '/api/influencer/payouts' && req.method === 'PATCH') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success:false, error:'Influencer access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const notificationEmail = String(data.notificationEmail || '').trim().toLowerCase();
+      const emailError = validateEmail(notificationEmail);
+      if (emailError) return sendJson(res, 400, { success:false, error: emailError });
+      const users = await readUsers();
+      const taken = users.find(u => String(u.id) !== String(sessionUser.id) && String(u.contactEmail || '').trim().toLowerCase() === notificationEmail);
+      if (taken) return sendJson(res, 409, { success:false, error:'That email is already used by another Unisocials account.' });
+      const saved = await savePayoutNotificationEmail(sessionUser.id, notificationEmail);
+      if (saved.error) return sendJson(res, saved.status, { success:false, error: saved.error });
+      sessionUser.contactEmail = notificationEmail;
+      return sendJson(res, 200, {
+        success: true,
+        notificationEmail: notificationEmail,
+        resentPayoutNotifications: saved.resent,
+        message: 'Payout notifications will be sent to ' + notificationEmail + '.'
+      });
+    }
+
+
+    // ── Admin: manage payout requests (verify, pay, reject) ──
+    if (pathname === '/api/admin/payouts' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success:false, error:'Admin access only' });
+      const [payouts, orders] = await Promise.all([readPayouts(), readOrders()]);
+      // The site-wide view of what is still counting down before it can be
+      // withdrawn, so the Main Admin sees the hold the owners and referrers see.
+      const heldPayments = collectHeldPayments(orders, null, function (amount, referred) {
+        return commissionSplit(amount, referred).ownerNetAmount;
+      });
+      return sendJson(res, 200, {
+        success: true,
+        payouts: payouts.map(payoutPublic),
+        commissionRates: COMMISSION_SPLIT,
+        feeRate: PAYOUT_FEE_RATE,
+        holdDays: PAYOUT_HOLD_DAYS,
+        heldPayments
+      });
+    }
+
+    if (pathname === '/api/admin/payouts' && req.method === 'POST') {
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const payoutId = String(data.payoutId || '').trim();
+      const action = String(data.action || '').trim().toLowerCase();
+      const adminNote = String(data.adminNote || '').trim().slice(0, 500);
+      if (!payoutId) return sendJson(res, 400, { success:false, error:'Missing payoutId.' });
+      if (!['approve','mark_paid','reject'].includes(action)) return sendJson(res, 400, { success:false, error:'Action must be approve, mark_paid, or reject.' });
+      if (action === 'reject' && !adminNote) return sendJson(res, 400, { success:false, error:'Add a short reason when rejecting a payout request.' });
+
+      const payouts = await readPayouts();
+      const existing = payouts.find(p => p.id === payoutId);
+      if (!existing) return sendJson(res, 404, { success:false, error:'Payout request not found.' });
+
+      // Who may release this payout:
+      //   • the master admin, for everything;
+      //   • the Influencer Admin of the event, for a referrer's commission on
+      //     their own events — that is who owes the money and pays it out.
+      // A sub-admin can see payouts but never release one.
+      let reviewerLabel = 'Admin';
+      if (!isAdminAuthorized(req)) {
+        const ownerCtx = await isAdminOrInfluencerAdmin(req);
+        const ownerId = ownerCtx && ownerCtx.role === 'influencer_admin' ? String(ownerCtx.user.id) : '';
+        const allowedOwners = Array.isArray(existing.eventOwnerIds) ? existing.eventOwnerIds.map(String) : [];
+        if (!ownerId || !allowedOwners.includes(ownerId)) {
+          return sendJson(res, 401, { success:false, error:'Only the Main Admin, or the Influencer Admin of the event this commission belongs to, can pay it.' });
+        }
+        reviewerLabel = (ownerCtx.user.name || 'Event Owner');
+      }
+
+      const currentStatus = String(existing.status || '').toLowerCase();
+      if (currentStatus === 'paid') return sendJson(res, 409, { success:false, error:'This payout has already been paid.' });
+
+      const nowIso = new Date().toISOString();
+      const patch = { reviewedAt: nowIso, reviewedBy: reviewerLabel, adminNote: adminNote || existing.adminNote || '' };
+      if (action === 'approve') {
+        if (currentStatus === 'approved') return sendJson(res, 409, { success:false, error:'This payout is already approved.' });
+        patch.status = 'approved';
+        // The payment promise: approved payouts are paid within 24 hours.
+        patch.paymentDueBy = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      } else if (action === 'mark_paid') {
+        patch.status = 'paid';
+        patch.paidAt = nowIso;
+        if (!patch.paymentDueBy && currentStatus !== 'approved') patch.paymentDueBy = nowIso;
+      } else {
+        patch.status = 'rejected';
+      }
+
+      const updated = await updatePayoutRequest(payoutId, patch);
+      // Email the Influencer Admin the outcome (best-effort, never blocks).
+      // "paid" is the completion notice: the requester hears the money is out.
+      const notifyEmail = await payoutRecipientEmail(Object.assign({}, existing, patch));
+      const emailSent = updated ? await sendPayoutStatusEmailToRequester(Object.assign({}, existing, patch)) : false;
+      if (emailSent) await updatePayoutRequest(payoutId, { notifiedEmail: notifyEmail, notifiedAt: nowIso });
+      const payout = Object.assign({}, existing, patch, emailSent ? { notifiedEmail: notifyEmail } : {});
+      // When nothing receivable is on file, say so instead of silently claiming
+      // the influencer was notified — they can be asked for their real inbox.
+      const emailWarning = notifyEmail ? '' : 'This requester has no real email address on file, so the payout email could not be sent. Ask them to add one in their dashboard → Payouts.';
+      return sendJson(res, 200, { success: true, payout: payoutPublic(payout), emailSent: !!emailSent, emailAddress: notifyEmail, emailSentTo: emailSent ? notifyEmail : '', emailWarning });
+    }
+
+    // ── Influencer Admin: Add Events list ──
+    // Keep the site's original Add Events flow: the Influencer Admin can see
+    // events they created AND existing events explicitly authorized to them.
+    // Authorized events are visible here for context, but are not treated as
+    // newly-created/owned events.
+    if (pathname === '/api/influencer-admin/events' && req.method === 'GET') {
+      const authCtx = await isAdminOrInfluencerAdmin(req);
+      if (!authCtx || authCtx.role !== 'influencer_admin') return sendJson(res, 401, { success:false, error:'Influencer Admin access only' });
+      const myId = String(authCtx.user.id || '').trim();
+      const myEmail = String(authCtx.user.email || '').trim().toLowerCase();
+      const allEvents = await readEvents();
+      const isMine = (ev) => {
+        const c = ev && ev.createdBy;
+        const direct = String(ev?.influencerAdminId || ev?.ownerInfluencerAdminId || ev?.createdByInfluencerAdminId || '').trim();
+        if (direct && direct === myId) return true;
+        if (typeof c === 'string') return c.trim() === myId || c.trim().toLowerCase() === myEmail;
+        if (c && typeof c === 'object') {
+          const oid = String(c.id || c.userId || c.ownerId || c.influencerAdminId || c.assignedInfluencerAdminId || '').trim();
+          const oemail = String(c.email || '').trim().toLowerCase();
+          return oid === myId || (!!myEmail && oemail === myEmail);
+        }
+        return false;
+      };
+      const events = allEvents.filter(ev => isMine(ev) || getAuthorizedInfluencerAdminIds(ev).includes(myId)).map(ev =>
+        Object.assign({}, ev, { visibleToInfluencerAdmin: true, createdByCurrentInfluencerAdmin: isMine(ev), authorizedToCurrentInfluencerAdmin: getAuthorizedInfluencerAdminIds(ev).includes(myId) })
+      );
+      return sendJson(res, 200, { success:true, events });
+    }
+
+    // ── Admin/Sub-admin/Influencer Admin: create/update an event ──
     if (pathname === '/api/admin/events' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) return sendJson(res, 401, { success: false, error: 'Event management access only' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -2322,14 +5840,52 @@ codes[idx] = entry;
         const uni = await findUniversityById(universityId);
         if (uni) uniSlug = uni.slug || uni.id;
       }
+      const existingEvents = await readEvents();
+      const existingEvent = existingEvents.find(e => String(e.id) === id);
+      if (authCtx.role === 'influencer_admin' && existingEvent) {
+        if (!influencerAdminOwnsEvent(authCtx, existingEvent)) return sendJson(res, 403, { success:false, error:'You can only edit events you created.' });
+      }
+      const isInfluencerAdminEdit = authCtx.role === 'influencer_admin' && !!existingEvent;
+      // Auto-authorize the Influencer Admin who created/updates the event to that
+      // event, so it is no longer an un-authorized event they cannot manage.
+      let authorizedAdminIds = getAuthorizedInfluencerAdminIds(existingEvent);
+      if (isInfluencerAdminEdit) {
+        // Editing: keep the admin already authorized, but ensure the current
+        // admin is authorized (idempotent re-authorize).
+        const myId = String(authCtx.user?.id || authCtx.userId || '').trim();
+        if (myId && !authorizedAdminIds.includes(myId)) authorizedAdminIds.push(myId);
+      } else if (authCtx.role === 'influencer_admin') {
+        // Creating: the creator becomes the event's admin automatically.
+        const myId = String(authCtx.user?.id || authCtx.userId || '').trim();
+        const myEmail = String(authCtx.user?.email || '').trim().toLowerCase();
+        if (myId) authorizedAdminIds.push(myId);
+        if (myEmail && !authorizedAdminIds.includes(myEmail)) authorizedAdminIds.push(myEmail);
+      }
+      const imageUrl = String(data.image || '').trim();
+      const isInlineImage = /^data:image\/(?:png|jpe?g|gif|webp);base64,/.test(imageUrl);
+      if ((!isInlineImage && imageUrl.length > 2000) || !isSafeImageUrl(imageUrl)) {
+        return sendJson(res, 400, { success: false, error: 'Please provide a valid event image URL.' });
+      }
+      const rawTags = Array.isArray(data.tags) ? data.tags : [];
+      if (rawTags.length > 20 || rawTags.some(t => String(t == null ? '' : t).length > 80)) {
+        return sendJson(res, 400, { success: false, error: 'Event tags are too long or too many.' });
+      }
       const ev = {
         id: id,
         name: name,
         category: String(data.category || '').trim() || 'General',
         price: parseFloat(data.price) || 0,
+        bonusPrice: parseFloat(data.bonusPrice) || 0,
         vipPrice: parseFloat(data.vipPrice) || 0,
+        bonusVipPrice: parseFloat(data.bonusVipPrice) || 0,
         vvipPrice: parseFloat(data.vvipPrice) || 0,
+        bonusVvipPrice: parseFloat(data.bonusVvipPrice) || 0,
         tablePrice: parseFloat(data.tablePrice) || 0,
+        bonusTablePrice: parseFloat(data.bonusTablePrice) || 0,
+        regularTicketLimit: Math.max(0, parseInt(data.regularTicketLimit) || 0),
+        vipTicketLimit: Math.max(0, parseInt(data.vipTicketLimit) || 0),
+        vvipTicketLimit: Math.max(0, parseInt(data.vvipTicketLimit) || 0),
+        tableTicketLimit: Math.max(0, parseInt(data.tableTicketLimit) || 0),
         includedRegular: String(data.includedRegular || '').trim(),
         includedVip: String(data.includedVip || '').trim(),
         includedVVIP: String(data.includedVVIP || '').trim(),
@@ -2339,28 +5895,55 @@ codes[idx] = entry;
         venue: String(data.venue || '').trim(),
         description: String(data.description || '').trim(),
         tags: data.tags || [],
-        image: String(data.image || '').trim(),
+        image: imageUrl,
         icon: data.icon || '🎟️',
         featured: !!data.featured,
+        archived: isInfluencerAdminEdit ? !!existingEvent.archived : !!data.archived,
+        authorizedInfluencerAdminIds: authorizedAdminIds,
         seats: data.seats || '—',
         universityId: universityId,
         universityName: universityName,
-        universitySlug: uniSlug
+        universitySlug: uniSlug,
+        createdAt: isInfluencerAdminEdit ? (existingEvent.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        createdBy: isInfluencerAdminEdit ? existingEvent.createdBy : { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
       };
             try {
         await addEvent(ev);
         console.log('✓ Event created:', ev.id, '—', ev.name, '(', ev.universityName, ')');
         return sendJson(res, 200, { success: true, event: ev });
       } catch (e) {
-        console.error('✗ Error creating event:', e.message);
-        return sendJson(res, 500, { success: false, error: 'Failed to save event: ' + e.message });
+        console.error('✗ Error creating/updating event:', e);
+        // Never expose database/filesystem/provider error details to clients.
+        return sendJson(res, 500, { success: false, error: 'Failed to save event. Please try again.' });
       }
     }
 
-    // ── Admin/Sub-admin: delete an event ──
-    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+    // ── Archive/unarchive event: admin, sub-admin, or influencer admin ──
+    if (pathname === '/api/admin/events/archive' && req.method === 'POST') {
       const authCtx = await isAdminOrSubadmin(req);
-      if (!authCtx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!authCtx || !['admin','subadmin','influencer_admin'].includes(authCtx.role)) {
+        return sendJson(res, 403, { success:false, error:'Only Admin, Sub-admin, or Influencer Admin can archive events' });
+      }
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
+      const eventId = String(data.eventId || '').trim();
+      const archived = data.archived !== false;
+      if (!eventId) return sendJson(res,400,{success:false,error:'Missing eventId'});
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res,404,{success:false,error:'Event not found'});
+      if (authCtx.role === 'influencer_admin') {
+        if (!influencerAdminOwnsEvent(authCtx, events[idx])) return sendJson(res,403,{success:false,error:'You can only archive events you created.'});
+      }
+      events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
+      await writeEvents(events);
+      return sendJson(res,200,{success:true,event:events[idx]});
+    }
+
+    // ── Main Admin only: delete an event ──
+    // Sub-admins, Influencer Admins, Check-in Staff and Influencers may never delete events.
+    if (pathname === '/api/admin/events' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete events' });
       const eventId = String(url.searchParams.get('eventId') || '').trim();
       if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
       
@@ -2413,7 +5996,7 @@ codes[idx] = entry;
 
     // ── Admin: delete a university ──
 if (pathname === '/api/admin/universities' && req.method === 'DELETE') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can delete universities' });
       const uniId = String(url.searchParams.get('uniId') || url.searchParams.get('universityId') || '').trim();
       if (!uniId) return sendJson(res, 400, { success: false, error: 'Missing uniId' });
       // Capture the university to derive its id/slug so we can remove its events too.
@@ -2511,19 +6094,40 @@ const events = await readEvents();
     // ── Static files ──
     let urlPath = decodeURIComponent(pathname);
     if (urlPath === '/') urlPath = '/index.html';
-    const filePath = path.join(PUBLIC_DIR, urlPath);
+
+    // Canonical referral landing page. Older links may still contain
+    // /referral-events.html; redirect them server-side so existing links,
+    // browser bookmarks, and cached dashboard links all converge on Events.
+    if (urlPath.toLowerCase() === '/referral-events.html') {
+      const ref = String(url.searchParams.get('ref') || '').trim().toUpperCase();
+      const target = '/events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+      res.writeHead(301, {
+        'Location': target,
+        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'text/plain; charset=utf-8'
+      });
+      res.end('Moved permanently to ' + target);
+      return;
+    }
+
+    const filePath = path.resolve(PUBLIC_DIR, '.' + urlPath);
     // Shortlink referral handler: /r/REF-XXXX  (optionally ?to=/path)
     if (urlPath && urlPath.toLowerCase().startsWith('/r/')) {
-      const rawCode = decodeURIComponent(urlPath.slice(3) || '').trim();
-      const code = String(rawCode || '').toUpperCase();
-      const to = String(url.searchParams.get('to') || '/');
-      const safeTo = to && to.startsWith('/') ? to : '/';
-      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", "' + code + '");}catch(e){}window.location.replace("' + safeTo + '");</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTo + '"></noscript></body></html>';
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      let rawCode = '';
+      try { rawCode = decodeURIComponent(urlPath.slice(3) || '').trim(); } catch (e) { rawCode = ''; }
+      const code = String(rawCode || '').toUpperCase().slice(0, 100);
+      const requestedTo = String(url.searchParams.get('to') || '/');
+      const safeTo = requestedTo.startsWith('/') && !requestedTo.startsWith('//') && !/[\x00-\x1F\x7F]/.test(requestedTo)
+        ? requestedTo.slice(0, 500) : '/';
+      const codeJs = JSON.stringify(code);
+      const toJs = JSON.stringify(safeTo);
+      const safeToHtml = safeTo.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Redirecting…</title></head><body><script>try{sessionStorage.setItem("referralCode", ' + codeJs + ');localStorage.setItem("unn_referral_code", ' + codeJs + ');}catch(e){}window.location.replace(' + toJs + ');</script><noscript><meta http-equiv="refresh" content="0;url=' + safeToHtml + '"></noscript></body></html>';
+      res.writeHead(200, withSecurityHeaders({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }));
       res.end(html);
       return;
     }
-    if (!filePath.startsWith(PUBLIC_DIR)) {
+    if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
       res.writeHead(403);
       res.end('Forbidden');
       return;
@@ -2542,15 +6146,44 @@ const events = await readEvents();
             return;
           }
           const ext = path.extname(indexPath).toLowerCase();
-          res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-          fs.createReadStream(indexPath).pipe(res);
+          const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+          const cacheControl = ext === '.html' ? 'no-cache, max-age=0, must-revalidate' : 'public, max-age=3600';
+          const headers = withSecurityHeaders({ 'Content-Type': contentType, 'Cache-Control': cacheControl }, req);
+          const acceptsGzip = /\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''));
+          if (acceptsGzip && ['.html', '.css', '.js', '.json', '.svg', '.txt'].includes(ext)) {
+            headers['Content-Encoding'] = 'gzip';
+            headers['Vary'] = 'Accept-Encoding';
+            res.writeHead(200, headers);
+            fs.createReadStream(indexPath).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+          } else {
+            res.writeHead(200, headers);
+            fs.createReadStream(indexPath).pipe(res);
+          }
         });
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-      fs.createReadStream(filePath).pipe(res);
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const cacheControl = ext === '.html' ? 'no-cache, max-age=0, must-revalidate' : 'public, max-age=3600';
+      const headers = withSecurityHeaders({ 'Content-Type': contentType, 'Cache-Control': cacheControl }, req);
+      const acceptsGzip = /\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''));
+      if (acceptsGzip && ['.html', '.css', '.js', '.json', '.svg', '.txt'].includes(ext)) {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(200, headers);
+        fs.createReadStream(filePath).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+      } else {
+        res.writeHead(200, headers);
+        fs.createReadStream(filePath).pipe(res);
+      }
     });
+  } catch (err) {
+    console.error('Request handler error:', err);
+    if (!res.headersSent) {
+      sendJson(res, 500, { success: false, error: 'Internal server error' });
+    } else {
+      try { res.end(); } catch (e) {}
+    }
   }
 });
 
@@ -2564,15 +6197,71 @@ function publicUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
+    // The real inbox on file, when there is one. Staff dashboards show it so an
+    // account can be given its payout notification address.
+    contactEmail: user.contactEmail || '',
     phone: user.phone,
-    role: user.role || 'buyer',
-    createdAt: user.createdAt
+    role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : (user.role || 'buyer'),
+    createdAt: user.createdAt,
+    archived: user.archived === true
   };
 }
 
-initStorage().then(() => {
-  server.listen(PORT, () => {
-    console.log('Unisocials server running at http://localhost:' + PORT);
+async function removeDemoDataAndKeepSiteCreatedEvents() {
+  // Keep all existing real events. Only remove the known demo Music Festival
+  // event and its demo order. Do NOT classify events as seed/demo merely because
+  // they lack createdBy: existing events such as TikTok Fest must remain visible.
+  const normalize = v => String(v ?? '').trim().toLowerCase();
+  const DEMO_EVENT_IDS = new Set(['campus-music-festival', 'music-festival', 'unn-music-festival']);
+  const DEMO_EVENT_NAMES = new Set(['campus music festival', 'music festival', 'unn music festival']);
+  const DEMO_ORDER_IDS = new Set(['unn-msc60k06-ewot']);
+  try {
+    if (usePg) {
+      await db.query(`
+        DELETE FROM orders
+        WHERE lower(trim(COALESCE(data->>'id',''))) IN (${Array.from(DEMO_ORDER_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'orderId',''))) IN (${Array.from(DEMO_ORDER_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'eventId',''))) IN (${Array.from(DEMO_EVENT_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'eventName',''))) IN (${Array.from(DEMO_EVENT_NAMES).map(x => `'${x}'`).join(',')})
+      `);
+      await db.query(`
+        DELETE FROM events
+        WHERE lower(trim(COALESCE(data->>'id',''))) IN (${Array.from(DEMO_EVENT_IDS).map(x => `'${x}'`).join(',')})
+           OR lower(trim(COALESCE(data->>'name',''))) IN (${Array.from(DEMO_EVENT_NAMES).map(x => `'${x}'`).join(',')})
+      `);
+      return;
+    }
+
+    const events = await readEvents();
+    const keepEvents = events.filter(ev => {
+      const id = normalize(ev && ev.id);
+      const name = normalize(ev && ev.name);
+      return !DEMO_EVENT_IDS.has(id) && !DEMO_EVENT_NAMES.has(name);
+    });
+    if (keepEvents.length !== events.length) await writeEvents(keepEvents);
+
+    const orders = await readOrders();
+    const cleanOrders = orders.filter(o => {
+      const id = normalize(o && (o.orderId || o.id));
+      const eventId = normalize(o && o.eventId);
+      const eventName = normalize(o && o.eventName);
+      return !DEMO_ORDER_IDS.has(id) && !DEMO_EVENT_IDS.has(eventId) && !DEMO_EVENT_NAMES.has(eventName);
+    });
+    if (cleanOrders.length !== orders.length) await writeOrders(cleanOrders);
+  } catch (e) {
+    console.warn('Demo Music Festival cleanup failed:', e.message);
+  }
+}
+
+server.listen(PORT, () => {
+  console.log('Unisocials server running at http://localhost:' + PORT);
+  initStorage().then(async () => {
+    await migrateInfluencerAssignments();
+    await migrateInfluencerReferralLinks();
+    await removeDemoDataAndKeepSiteCreatedEvents();
+    console.log('Unisocials storage initialization complete.');
+  }).catch((err) => {
+    console.error('Storage initialization failed:', err.message);
   });
 });
 

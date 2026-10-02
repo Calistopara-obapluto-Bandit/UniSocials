@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow">
+<title>Influencer Portal — Unisocials</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="templatemo-622-clearwave.css">
+<style>
+body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
+.hidden{display:none!important}
+.influencer-login{padding:56px 0 80px;background:var(--bg)}
+.auth-section .container{max-width:1200px;margin:0 auto;padding:0 20px}
+.influencer-login .influencer-login-card{margin:0 auto}
+
+.influencer-login-card{width:min(100%,440px);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px}
+.influencer-mark{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:1.15rem;margin:0 auto 18px}
+.influencer-kicker{display:block;text-align:center;text-transform:uppercase;letter-spacing:.14em;font-size:.7rem;font-weight:800;color:var(--accent);margin-bottom:10px}
+.influencer-kicker:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:8px}
+.influencer-login-card h1{font-size:1.4rem;font-weight:700;color:var(--text-1);text-align:center;margin:0 0 6px;letter-spacing:0}
+.influencer-subtitle{font-size:.86rem;color:var(--text-3);text-align:center;line-height:1.6;margin:0 0 24px}
+.influencer-form-group{margin-bottom:18px}.influencer-form-group label{display:block;font-size:.76rem;font-weight:700;color:var(--text-2);margin-bottom:8px}.influencer-form-group input{width:100%;box-sizing:border-box;padding:13px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text-1);font:inherit;outline:0}.influencer-form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+.influencer-login-btn{width:100%;border:0;border-radius:100px;padding:13px 20px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}.influencer-login-btn:hover{background:var(--accent-mid);transform:translateY(-1px)}.influencer-login-btn:disabled{opacity:.65;cursor:wait;transform:none}
+.influencer-error{display:none;margin-top:14px;padding:11px 13px;border-radius:10px;background:#fff4f3;border:1px solid #f1d2ce;color:#b71c1c;font-size:.82rem}.influencer-error.show{display:block}
+/* The site nav is position:fixed, and in portal mode it collapses to just the
+   commission dropdown, so the dashboard has to clear the bar itself. Without
+   this the fixed header sat on top of the "Unisocials Influencer" heading. */
+.influencer-dashboard{padding:96px 20px 80px}.influencer-container{max-width:1120px;margin:0 auto}.influencer-dashboard-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:28px}.influencer-overline{font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:var(--accent);margin-bottom:7px}.influencer-dashboard-head h1{font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3rem);margin:0;letter-spacing:-.04em}.influencer-welcome{color:var(--text-3);margin-top:8px}.influencer-user{font-weight:700;color:var(--text-2)}
+.influencer-logout{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}.influencer-logout:hover{background:var(--accent-ghost)}
+.influencer-hero{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:30px;margin-bottom:18px;position:relative;overflow:hidden}.influencer-hero:after{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-120px;top:-130px;background:var(--accent-ghost)}.influencer-hero-content{position:relative;z-index:1;max-width:760px}.influencer-hero h2{font-family:'Playfair Display',serif;font-size:clamp(1.6rem,4vw,2.25rem);margin:0 0 8px}.influencer-hero p{color:var(--text-3);line-height:1.7;margin:0 0 24px}.ref-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:7px}.ref-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ref-code{font-weight:800;letter-spacing:.12em;color:var(--accent);background:var(--accent-ghost);border:1px solid var(--accent-border);padding:11px 14px;border-radius:10px}.copy-icon{width:42px;height:42px;border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:10px;display:grid;place-items:center;cursor:pointer}.copy-icon:hover{background:var(--accent-ghost)}.copy-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ref-link-wrap{margin-top:20px}.ref-link-row{display:flex;gap:8px}.ref-link{flex:1;min-width:0;display:block;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:10px;padding:12px 13px;font:inherit;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box} .ref-link:focus{outline:2px solid var(--accent);outline-offset:2px}.copy-status{min-height:18px;margin-top:10px;margin-top:6px;font-size:.75rem;color:var(--accent);font-weight:700}
+.influencer-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}.influencer-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)}.influencer-stat-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800}.influencer-stat-value{font-size:1.8rem;font-weight:800;margin-top:9px;letter-spacing:-.03em}.accent-value{color:var(--accent)}
+.influencer-notice{padding:16px 18px;background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:14px;color:var(--text-2);font-size:.82rem;line-height:1.65}
+
+/* The Influencer Portal (referrals) and the Influencer Admin dashboard (events,
+   sales, payouts) are separate accounts with separate logins. Name them apart
+   everywhere and give one clear way across, so the two are never confused. */
+.admin-entry{border-top:1px solid var(--border);margin-top:22px;padding-top:20px;text-align:center}
+.admin-entry-title{font-size:.82rem;font-weight:800;color:var(--text-1);margin-bottom:6px}
+.admin-entry p{font-size:.78rem;color:var(--text-3);line-height:1.6;margin:0 0 14px}
+.admin-entry-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid var(--accent-border);background:var(--accent-ghost);color:var(--accent);border-radius:100px;padding:11px 20px;font-size:.82rem;font-weight:800;text-decoration:none;transition:.2s}
+.admin-entry-link:hover{border-color:var(--accent);transform:translateY(-1px)}
+.admin-entry-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:16px 20px;margin-bottom:18px}
+.admin-entry-bar div{min-width:0}
+.admin-entry-bar strong{display:block;font-size:.9rem;color:var(--text-1)}
+.admin-entry-bar span{font-size:.78rem;color:var(--text-3);line-height:1.55}
+@media(max-width:600px){.admin-entry-bar{flex-direction:column;align-items:flex-start}}
+
+/* The Influencer Portal has its OWN account controls. The shared header injects a
+   buyer-session account chip and logout that stay hidden here, because this page
+   signs in with a different token — so the portal supplies its own. */
+.nav-inf-payouts,.nav-inf-logout{font-size:.82rem;font-weight:700;color:var(--text-2);text-decoration:none;border:1.5px solid var(--border);border-radius:100px;padding:9px 16px;white-space:nowrap;transition:color .3s,border-color .3s,background .3s}
+.nav-inf-payouts:hover,.nav-inf-logout:hover{color:var(--accent);border-color:var(--accent-border);background:var(--accent-ghost)}
+.nav-inf-logout{color:var(--text-3)}
+.mobile-inf-link,.mobile-inf-logout{color:var(--accent);font-weight:700}
+.mobile-inf-logout{color:var(--text-1)}
+/* The portal's own account dropdown — Commission Dashboard, Commission Payouts
+   and Log out in one place, instead of the shared site Sign In plus a stray
+   Log out button. */
+.nav-inf-menu{position:relative;display:inline-block}
+.nav-inf-menu-trigger{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:.82rem;font-weight:700;color:var(--text-2);background:var(--surface-2);border:1.5px solid var(--border);border-radius:100px;padding:9px 16px;cursor:pointer;white-space:nowrap;transition:color .3s,border-color .3s,background .3s}
+.nav-inf-menu-trigger:hover,.nav-inf-menu.open .nav-inf-menu-trigger{color:var(--accent);border-color:var(--accent-border);background:var(--accent-ghost)}
+.nav-inf-menu-caret{font-size:.62rem;transition:transform .25s}
+.nav-inf-menu.open .nav-inf-menu-caret{transform:rotate(180deg)}
+.nav-inf-menu-list{position:absolute;right:0;top:calc(100% + 10px);min-width:250px;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg,0 18px 40px rgba(0,0,0,.14));padding:7px;display:none;z-index:60}
+.nav-inf-menu.open .nav-inf-menu-list{display:block}
+.nav-inf-menu-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:9px;padding:10px 12px;font:inherit;font-size:.83rem;font-weight:700;color:var(--text-1);cursor:pointer;text-decoration:none}
+.nav-inf-menu-item:hover{background:var(--accent-ghost);color:var(--accent)}
+.nav-inf-menu-item small{display:block;font-weight:500;font-size:.7rem;color:var(--text-3);margin-top:2px}
+.nav-inf-menu-item.danger{color:#b71c1c;border-top:1px solid var(--border);border-radius:0 0 9px 9px;margin-top:5px;padding-top:12px}
+.nav-inf-menu-item.danger:hover{background:#fff4f3;color:#8e1b1b}
+.nav-inf-menu-item.active{background:var(--accent-ghost);color:var(--accent)}
+.mobile-inf-link.active{color:var(--text-1)}
+.portal-view{padding-bottom:8px}
+/* Signed in, the portal shows one control: the commission dropdown. The public
+   site links and the hamburger have no place on a commission-only account. */
+.nav.is-portal-mode .nav-logo,.nav.is-portal-mode .nav-hamburger{display:none}
+.nav.is-portal-mode .nav-inner{justify-content:flex-end;gap:0}
+.nav.is-portal-mode{padding:0}
+/* Small screens: the shared site stylesheet hides .nav-cta below 768px, which
+   took the commission dropdown with it and left the header empty, because the
+   portal also hides the hamburger. The dropdown is the only navigation a
+   commission-only account has, so it stays visible at every width, and the
+   list stays a panel anchored under the trigger instead of stretching across
+   the whole screen. */
+.nav.is-portal-mode .nav-cta{display:flex;flex:0 0 auto;min-width:0}
+@media(max-width:768px){
+  .nav.is-portal-mode .nav-inner{padding:0 14px}
+  .nav-inf-menu{display:inline-block!important}
+  .nav-inf-menu-trigger{font-size:.78rem;padding:9px 14px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  /* Right-aligned panel that hangs below the trigger and never runs off the
+     screen, with room to breathe rather than sitting flush to the edges. */
+  .nav-inf-menu-list{
+    position:fixed;top:auto;right:12px;left:auto;
+    width:min(290px,calc(100vw - 24px));min-width:0;max-width:calc(100vw - 24px);
+    max-height:min(62vh,calc(100vh - 92px));
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    margin-top:8px;padding:8px;
+    box-shadow:0 18px 40px rgba(0,0,0,.18);
+  }
+  /* Comfortable tap targets for the three destinations. */
+  .nav-inf-menu-item{padding:12px 12px;font-size:.85rem}
+  .nav-inf-menu-item.danger{padding-top:13px;margin-top:6px}
+}
+/* Signed out there is no dropdown to offer and no dashboard to navigate to, so
+   the portal header is not rendered at all on the login screen. The sign-in
+   card carries its own links to the buyer sign-in and the Influencer Admin
+   signup. */
+.nav.is-logged-out{display:none}
+/* Live withdrawal countdown, always present on the payouts screen. */
+.hold-card{background:var(--surface-2);border:1px solid #FFE0B2;border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:16px}
+.hold-card-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+.hold-card-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:#E65100;font-weight:800}
+.hold-card-clock{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.5rem;font-weight:800;color:#E65100;letter-spacing:.02em;line-height:1.2}
+.hold-card-note{font-size:.8rem;color:var(--text-3);line-height:1.6}
+.hold-card-note strong{color:var(--text-1)}
+.payout-receive{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--accent-ghost);border:1px solid var(--accent-border);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.payout-receive-label{font-size:.78rem;font-weight:800;color:var(--text-2)}
+.payout-receive-value{font-size:1.3rem;font-weight:800;color:var(--accent)}
+.payout-receive-value.is-error{color:#b71c1c}
+.payout-receive-note{font-size:.74rem;color:var(--text-3);width:100%}
+.payout-all-btn{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:8px 14px;font:inherit;font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap}
+.payout-all-btn:hover{background:var(--accent-ghost)}
+.payout-all-btn:disabled{opacity:.55;cursor:not-allowed}
+/* What you can actually withdraw, surfaced on the Commission Earned screen so
+   the earned / available / held split is visible without opening Payouts. */
+.earn-summary{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:20px 22px;margin-bottom:16px}
+.earn-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.earn-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+.earn-stat-label{font-size:.64rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);font-weight:800}
+.earn-stat-value{font-size:1.25rem;font-weight:800;color:var(--text-1);margin-top:6px}
+.earn-stat-value.ok{color:#1B5E20}
+.earn-stat-value.held{color:#E65100}
+.earn-summary-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.earn-summary-foot p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6;flex:1 1 260px}
+.earn-summary-foot strong{color:var(--text-1)}
+.earn-clock{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:800;color:#E65100}
+.earn-cta{border:0;background:var(--accent);color:#fff;border-radius:100px;padding:12px 22px;font:inherit;font-size:.85rem;font-weight:800;cursor:pointer;white-space:nowrap}
+.earn-cta:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:640px){.earn-summary-grid{grid-template-columns:1fr}.earn-summary{padding:18px 16px}}
+.portal-events-head-intro{margin-bottom:14px}
+.portal-events-head-intro p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6}
+
+/* ── Payouts: the 20% commission the referrer withdraws ── */
+.payout-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}
+.payout-stat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px}
+.payout-stat-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:800}
+.payout-stat-value{font-size:1.3rem;font-weight:800;margin-top:6px;letter-spacing:-.02em}
+.payout-stat-value.mine{color:var(--accent)}
+.payout-field{margin-bottom:12px}
+.payout-field label{display:block;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:6px}
+.payout-field input,.payout-field select{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-1);font:inherit;outline:0}
+.payout-field input:focus,.payout-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+.payout-btn{width:100%;border:0;border-radius:100px;padding:12px 20px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}
+.payout-btn:hover{background:var(--accent-mid)}
+.payout-btn:disabled{opacity:.6;cursor:wait}
+.payout-btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent-border)}
+.payout-note{font-size:.78rem;line-height:1.65;color:var(--text-2);background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.payout-msg{font-size:.8rem;margin-top:10px;min-height:18px}
+.payout-msg.ok{color:var(--accent)}
+.payout-msg.bad{color:#b71c1c}
+.payout-row{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg);margin-bottom:10px}
+.payout-row-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.payout-status{display:inline-flex;border-radius:100px;padding:4px 10px;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.payout-status.pending{background:#FFF8E1;color:#8D6E00;border:1px solid #FFE082}
+.payout-status.approved{background:#E3F2FD;color:#0D47A1;border:1px solid #BBDEFB}
+.payout-status.paid{background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9}
+.payout-status.rejected{background:#FDECEA;color:#B71C1C;border:1px solid #F5C6CB}
+.payout-row-meta{font-size:.73rem;color:var(--text-3);margin-top:7px;line-height:1.7}
+@media(max-width:600px){.payout-grid{grid-template-columns:1fr 1fr}.payout-stat-value{font-size:1.1rem}}
+@media(max-width:900px){.influencer-stats{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.influencer-login{padding:42px 0 60px}.influencer-dashboard-head{align-items:flex-start;flex-direction:column}.influencer-stats{grid-template-columns:1fr 1fr}.influencer-login-card{padding:30px 24px}.influencer-dashboard{padding-top:78px}}
+@media(max-width:480px){.influencer-login{padding:28px 0 44px}.influencer-login-card{padding:30px 20px}.influencer-stats{gap:10px}.influencer-stat{padding:16px}.influencer-stat-value{font-size:1.45rem}.influencer-hero{padding:22px}.ref-link-row{flex-direction:column}.ref-link{width:100%;box-sizing:border-box}.ref-link-row .copy-icon{width:100%;height:44px}}
+
+.portal-selector{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:18px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px}.portal-selector-copy{min-width:0}.portal-selector-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:5px}.portal-selector-title{font-size:.92rem;font-weight:800;color:var(--text-1)}.portal-select{min-width:250px;max-width:100%;padding:11px 38px 11px 13px;border:1px solid var(--accent-border);border-radius:10px;background:var(--bg);color:var(--text-1);font:inherit;font-weight:700;outline:0}.portal-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}.portal-meta{font-size:.73rem;color:var(--text-3);margin-top:4px}.portal-empty{padding:14px;border:1px dashed var(--border);border-radius:10px;color:var(--text-3);font-size:.8rem;background:var(--bg)}
+@media(max-width:600px){.portal-selector{align-items:stretch;flex-direction:column;padding:16px}.portal-select{width:100%;min-width:0}}
+.portal-events{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;margin-bottom:18px}.portal-events-head{margin-bottom:14px}.portal-events-head h2{font-size:1.05rem;margin:0 0 5px}.portal-events-head p{font-size:.78rem;color:var(--text-3);margin:0;line-height:1.5}.portal-events-list{display:grid;gap:10px}.portal-event{border:1px solid var(--border);border-radius:12px;padding:15px;background:var(--bg)}.portal-event-main{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.portal-event-name{font-weight:800;color:var(--text-1);font-size:.9rem}.portal-event-meta{font-size:.73rem;color:var(--text-3);margin-top:4px}.portal-event-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.portal-event-stat{border:1px solid var(--border);border-radius:9px;padding:9px}.portal-event-stat-label{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:800}.portal-event-stat-value{font-size:.88rem;font-weight:800;margin-top:4px;color:var(--text-1)}.all-overview{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;margin-bottom:18px}.all-overview-head{margin-bottom:14px}.all-overview-head h2{font-size:1.05rem;margin:0 0 5px}.all-overview-head p{font-size:.78rem;color:var(--text-3);margin:0;line-height:1.5}.all-overview-list{display:grid;gap:10px}.all-overview-row{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg)}.all-overview-row-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.all-overview-name{font-weight:800;color:var(--text-1);font-size:.9rem}.all-overview-meta{font-size:.72rem;color:var(--text-3);margin-top:3px}.all-overview-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px}.all-overview-stat{border:1px solid var(--border);border-radius:9px;padding:8px}.all-overview-stat-label{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-weight:800}.all-overview-stat-value{font-size:.84rem;font-weight:800;margin-top:4px;color:var(--text-1)}@media(max-width:600px){.all-overview{padding:18px}.all-overview-stats{grid-template-columns:1fr 1fr}.all-overview-row-head{flex-direction:column}}.relationship-panel{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;margin-bottom:18px}.relationship-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px}.relationship-head h2{font-size:1.05rem;margin:0 0 5px}.relationship-head p{font-size:.78rem;color:var(--text-3);margin:0;line-height:1.5}.relationship-list{display:grid;gap:10px}.relationship-item{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg);display:flex;justify-content:space-between;align-items:center;gap:14px}.relationship-info{min-width:0}.relationship-name{font-weight:800;color:var(--text-1);font-size:.9rem}.relationship-email{font-size:.74rem;color:var(--text-3);margin-top:3px;overflow:hidden;text-overflow:ellipsis}.relationship-status{display:inline-flex;align-items:center;border-radius:100px;padding:5px 10px;font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}.relationship-status.pending{background:#FFF8E1;color:#8D6E00;border:1px solid #FFE082}.relationship-status.accepted{background:var(--accent-ghost);color:var(--accent);border:1px solid var(--accent-border)}.relationship-status.rejected{background:#fff4f3;color:#b71c1c;border:1px solid #f1d2ce}.relationship-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.relationship-btn{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:9px;padding:8px 12px;font:inherit;font-size:.76rem;font-weight:700;cursor:pointer}.relationship-btn.accept{background:var(--accent);border-color:var(--accent);color:#fff}.relationship-btn.reject{color:#b71c1c;border-color:#f1d2ce}.relationship-btn:disabled{opacity:.6;cursor:wait}.relationship-empty{font-size:.8rem;color:var(--text-3);padding:8px 0}
+@media(max-width:600px){.portal-events{padding:18px 16px}.portal-event{padding:13px}.portal-event-main{display:block}.portal-event-name{overflow-wrap:anywhere}.portal-event-stats,.all-overview-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.portal-event-stat,.all-overview-stat{min-width:0;padding:8px}.portal-event-stat-label,.all-overview-stat-label{font-size:.58rem;letter-spacing:.04em;overflow-wrap:anywhere}.portal-event-stat-value,.all-overview-stat-value{font-size:.82rem;overflow-wrap:anywhere}}
+@media(max-width:480px){.relationship-panel{padding:18px}.relationship-item{align-items:flex-start;flex-direction:column}.relationship-status{align-self:flex-start}.portal-events-head h2,.all-overview-head h2{font-size:1rem}.portal-event-stats,.all-overview-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.influencer-container,.portal-selector,.portal-events,.all-overview,.relationship-panel,.influencer-hero,.influencer-stats{min-width:0;max-width:100%}.portal-selector-title,.portal-meta,.influencer-welcome,.ref-code,.relationship-name{overflow-wrap:anywhere;min-width:0}.ref-row,.copy-icon{min-width:0}.portal-event-main>*{min-width:0}.relationship-email{min-width:0}}
+</style>
+</head>
+<body class="influencer-page">
+<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation"><a href="#earned" class="mobile-inf-link" data-view-link="earned">📊 Commission Earned</a><a href="#payouts" class="mobile-inf-link" data-view-link="payouts">💰 Commission Payouts</a><a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a><a href="#" class="mobile-inf-logout" id="mobileInfLogout" style="display:none;">⎋ Log out</a></div><nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation"><div class="nav-inner" data-account-controls="own"><a href="#earned" class="nav-logo" data-view-link="earned">Uni<span>socials</span> · Influencer</a><div class="nav-cta"><div class="nav-inf-menu" id="navInfMenu" style="display:none;"><button type="button" class="nav-inf-menu-trigger" id="navInfMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="navInfMenuList"><span id="navInfMenuLabel">My Commission</span><span class="nav-inf-menu-caret" aria-hidden="true">▾</span></button><div class="nav-inf-menu-list" id="navInfMenuList" role="menu"><button type="button" class="nav-inf-menu-item" id="navInfEarned" data-view-link="earned" role="menuitem">📊 Commission Earned<small>Sales, tickets and your 20%</small></button><button type="button" class="nav-inf-menu-item" id="navInfPayouts" data-view-link="payouts" role="menuitem">💰 Commission Payouts<small>Request and track your withdrawals</small></button><button type="button" class="nav-inf-menu-item danger" id="navInfLogout" role="menuitem">⎋ Log out</button></div></div></div><button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button></div></nav>
+<section id="loginView"><section class="page-header"><div class="container"><div class="section-label reveal">Influencer Portal</div><h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1><p class="section-sub reveal reveal-delay-2">Sign in to manage your Unisocials referral link and track your results.</p></div></section><section class="influencer-login"><div class="auth-section"><div class="container"><div class="influencer-login-card reveal"><div class="influencer-mark">U</div><div class="influencer-kicker">Influencer Portal</div><h1>Sign In</h1><p class="influencer-subtitle">Use your influencer account to access your referral dashboard.</p><div class="influencer-error" id="loginError"></div><form id="loginForm"><div class="influencer-form-group"><label for="email">Email Address</label><input id="email" type="email" placeholder="you@university.edu.ng" autocomplete="username" required></div><div class="influencer-form-group"><label for="password">Password</label><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></div><button class="influencer-login-btn" type="submit" id="loginBtn">Sign In</button></form><p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p><div class="admin-entry"><div class="admin-entry-title">Creating or running events?</div><p>That's a different account: an Influencer Admin creates events, tracks sales and requests commission payouts.</p><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div></div></div></div></section></section>
+<main id="dashboard" class="influencer-dashboard hidden"><div class="influencer-container">
+<div class="influencer-dashboard-head"><div><div class="influencer-overline">Unisocials Influencer</div><h1 id="portalViewTitle">Commission Earned</h1><div class="influencer-welcome">Welcome, <span class="influencer-user" id="userName">—</span></div></div></div>
+<div class="portal-view" id="viewEarned">
+<section class="portal-events-head-intro"><p id="viewEarnedIntro">Your referral link, the sales it has brought in, and the 20% commission you have earned on them.</p></section>
+<section class="earn-summary" aria-label="Commission earned and available">
+<div class="earn-summary-grid">
+<div class="earn-stat"><div class="earn-stat-label">Total commission earned</div><div class="earn-stat-value" id="earnTotal">₦0</div></div>
+<div class="earn-stat"><div class="earn-stat-label">Available to withdraw</div><div class="earn-stat-value ok" id="earnAvailable">₦0</div></div>
+<div class="earn-stat"><div class="earn-stat-label">Still counting down</div><div class="earn-stat-value held" id="earnHeld">₦0</div></div>
+</div>
+<div class="earn-summary-foot">
+<p id="earnHoldNote">Payments you made wait <strong><span id="earnHoldDays">7</span> days</strong> before their commission can be withdrawn.</p>
+<button class="earn-cta" type="button" id="earnWithdrawBtn" disabled>Withdraw ₦0</button>
+</div>
+</section>
+<div class="admin-entry-bar"><div><strong>Run your own events?</strong><span>Influencer Admins get their own dashboard for events, sales, check-in staff and commission payouts.</span></div><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div>
+<section class="portal-selector" id="portalSelector" aria-label="Referral portal selector"><div class="portal-selector-copy"><div class="portal-selector-label">Working for</div><div class="portal-selector-title" id="portalTitle">Loading referral portals…</div><div class="portal-meta" id="portalMeta"></div></div><select class="portal-select" id="portalSelect" aria-label="Select Influencer Admin"></select></section><section class="relationship-panel" id="relationshipPanel"><div class="relationship-head"><div><h2>Influencer Admin requests</h2><p>Review requests to work with you. You keep the same influencer account and login.</p></div></div><div class="relationship-list" id="relationshipList"><div class="relationship-empty">Loading requests...</div></div></section>
+<section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every sale through your link is split <strong>2.5% to Unisocials, 20% commission to you, 77.5% to the event owner</strong>, and the event's Influencer Admin is who pays you.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
+<section class="influencer-stats" id="commissionEarned"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (20%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
+<section class="portal-events" id="portalEvents"><div class="portal-events-head"><div><div class="influencer-overline">Selected portal</div><h2>Events &amp; performance</h2><p id="eventsSubtitle">Events authorised to the selected Influencer Admin.</p></div></div><div class="portal-events-list" id="portalEventsList"><div class="portal-empty">Loading events…</div></div></section>
+<section class="all-overview hidden" id="allOverview"><div class="all-overview-head"><div class="influencer-overline">All relationships</div><h2>Performance by Influencer Admin</h2><p>Each accepted relationship remains separate. The totals above are the combined overview of these individual portals.</p></div><div class="all-overview-list" id="allOverviewList"><div class="portal-empty">Loading relationship totals…</div></div></section>
+</div><!-- /viewEarned -->
+<div class="portal-view hidden" id="viewPayouts">
+<section class="portal-events-head-intro"><p id="viewPayoutsIntro">Request a withdrawal of your commission and track every payout the event's Influencer Admin has released to you.</p></section>
+<div class="hold-card" id="poHoldCard">
+<div class="hold-card-head"><span class="hold-card-label" id="poHoldCardLabel">Next commission unlocks in</span><span class="hold-card-clock" id="poHoldClock">—</span></div>
+<div class="hold-card-note" id="poHoldCardNote">Every verified payment waits <strong id="poHoldCardDays">7 days</strong> after it is paid before its commission can be requested. This countdown ticks down to the moment yours becomes available.</div>
+</div>
+<section class="portal-events" id="payoutSection"><div class="portal-events-head"><div><div class="influencer-overline">Your earnings</div><h2>Commission payouts</h2><p>Every sale made through your referral link is split <strong>2.5% to Unisocials, 20% commission to you, 77.5% to the event owner</strong>. Your 20% is 20% of the <strong>full ticket</strong>, and the event's Influencer Admin is who pays it.</p></div></div>
+<div class="payout-note" id="payoutSplitNote">Loading your commission…</div>
+<div class="payout-grid">
+<div class="payout-stat"><div class="payout-stat-label">Sales through your link</div><div class="payout-stat-value" id="poRevenue">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">Your commission (20%)</div><div class="payout-stat-value mine" id="poCommission">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">On hold — <span id="poHoldDays">7</span> days</div><div class="payout-stat-value" id="poHeld">₦0</div></div>
+<div class="payout-stat"><div class="payout-stat-label">Available to withdraw</div><div class="payout-stat-value mine" id="poAvailable">₦0</div></div>
+</div>
+<div id="poHoldBanner" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:12px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;font-size:.82rem;line-height:1.6"></div>
+<div id="payoutOpenNotice" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:12px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;font-size:.82rem;line-height:1.6"></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+<div><div class="payout-field"><label for="poNotifyEmail">Payout notification email</label><input type="email" id="poNotifyEmail" placeholder="you@gmail.com" autocomplete="email"></div><button class="payout-btn ghost" type="button" id="poSaveEmailBtn">Save email</button><div class="payout-msg" id="poEmailMsg"></div></div>
+<div>
+<div class="payout-field"><label for="poBankName">Bank name</label><input type="text" id="poBankName" placeholder="e.g. GTBank" autocomplete="off"></div>
+<div class="payout-field"><label for="poAccountNumber">Account number</label><input type="text" id="poAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off"></div>
+<div class="payout-field"><label for="poAccountName">Account name</label><input type="text" id="poAccountName" placeholder="As on your bank record" autocomplete="off"></div>
+<div class="payout-field"><label for="poMethod">Payment schedule</label><select id="poMethod"><option value="7_days">Every 7 days</option><option value="14_days">Every 14 days</option><option value="after_event">After event day</option></select></div>
+<div class="payout-field"><label for="poAmount">Amount to withdraw (₦)</label><input type="number" id="poAmount" placeholder="e.g. 15000" min="1" inputmode="numeric"></div>
+<div class="payout-receive"><span class="payout-receive-label">You will receive</span><span class="payout-receive-value" id="poReceive">₦0</span><button class="payout-all-btn" type="button" id="poAllBtn">Withdraw everything</button><span class="payout-receive-note" id="poReceiveNote">Nothing further is deducted — Unisocials already took its 2.5% from the ticket.</span></div>
+<button class="payout-btn" type="button" id="poRequestBtn">Request payout</button><div class="payout-msg" id="poMsg"></div>
+</div>
+</div>
+<div style="margin-top:20px"><div class="influencer-overline">History</div><div id="poHistory"><div class="portal-empty">Loading payout history…</div></div></div>
+</section>
+</div><!-- /viewPayouts -->
+<div class="influencer-notice">Your account is limited to referral performance. You cannot access orders, events, check-in, universities, subscribers, or admin settings.</div></div></main>
+<script src="templatemo-622-clearwave.js"></script>
+<script>
+(function(){
+  var KEY='unn_influencer_token';
+  var loginView=document.getElementById('loginView'), dash=document.getElementById('dashboard');
+  function headers(){return {'Authorization':'Bearer '+(localStorage.getItem(KEY)||'')};}
+  function fmt(n){return '₦'+Number(n||0).toLocaleString();}
+  function showError(msg){var e=document.getElementById('loginError');e.textContent=msg;e.classList.add('show');}
+  // The portal's own account controls. The shared header's chip/logout belong to
+  // the buyer/admin session, so this page shows and drives its own instead.
+  function syncPortalAccountUI(){
+    var signedIn=!!localStorage.getItem(KEY);
+    var menu=document.getElementById('navInfMenu');
+    var mobOut=document.getElementById('mobileInfLogout');
+    var label=document.getElementById('navInfMenuLabel');
+    var nav=document.getElementById('mainNav');
+    if(menu)menu.style.display=signedIn?'inline-block':'none';
+    if(mobOut)mobOut.style.display=signedIn?'block':'none';
+    // Signed in, the header is just the commission dropdown: no public site
+    // links, no logo link and no hamburger on a commission-only account.
+    if(nav){
+      nav.classList.toggle('is-portal-mode',signedIn);
+      nav.classList.toggle('is-logged-out',!signedIn);
+    }
+    // The hamburger menu is the other way into the commission destinations, so
+    // it stays closed while signed out too.
+    var mobileMenu=document.getElementById('mobileMenu');
+    if(mobileMenu){
+      mobileMenu.classList.remove('open');
+      mobileMenu.style.display=signedIn?'':'none';
+    }
+    // Belt and braces: the dropdown cannot be opened without a session.
+    if(menu)menu.setAttribute('aria-hidden',signedIn?'false':'true');
+    var triggerEl=document.getElementById('navInfMenuTrigger');
+    if(triggerEl)triggerEl.setAttribute('tabindex',signedIn?'0':'-1');
+    if(label){
+      var nameEl=document.getElementById('userName');
+      var name=(nameEl&&nameEl.textContent&&nameEl.textContent!=='—')?nameEl.textContent:'';
+      label.textContent=name?name.split(' ')[0]+"'s Commission":'My Commission';
+    }
+  }
+  // ── Views: Commission Earned and Commission Payouts are separate screens ──
+  // These switch views rather than scroll to an anchor, so picking a destination
+  // in the dropdown lands on that page instead of the same long scroll.
+  var PORTAL_VIEWS = {
+    earned: { root: 'viewEarned', title: 'Commission Earned' },
+    payouts: { root: 'viewPayouts', title: 'Commission Payouts' }
+  };
+  var currentView = 'earned';
+  function showView(name, skipHash) {
+    var view = PORTAL_VIEWS[name] ? name : 'earned';
+    currentView = view;
+    Object.keys(PORTAL_VIEWS).forEach(function(k) {
+      var el = document.getElementById(PORTAL_VIEWS[k].root);
+      if (el) el.classList.toggle('hidden', k !== view);
+    });
+    var title = document.getElementById('portalViewTitle');
+    if (title) title.textContent = PORTAL_VIEWS[view].title;
+    // Mark the active destination in both the dropdown and the mobile menu.
+    document.querySelectorAll('[data-view-link]').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-view-link') === view);
+    });
+    var menu = document.getElementById('navInfMenu');
+    if (menu && menu.classList.contains('open')) menu.classList.remove('open');
+    var mobile = document.getElementById('mobileMenu');
+    if (mobile && mobile.classList.contains('open')) mobile.classList.remove('open');
+    if (document.body) document.body.style.overflow = '';
+    if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'auto' });
+    if (!skipHash) {
+      var target = '#' + view;
+      if (window.history && window.history.replaceState) window.history.replaceState(null, '', target);
+    }
+    // The payouts screen owns its own numbers and countdown; load them when
+    // that screen is actually opened rather than only on first sign-in.
+    if (view === 'payouts' && typeof loadPayouts === 'function' && localStorage.getItem(KEY)) loadPayouts();
+  }
+  function viewFromHash() {
+    var h = String(window.location.hash || '').replace(/^#/, '');
+    return PORTAL_VIEWS[h] ? h : 'earned';
+  }
+  window.addEventListener('hashchange', function(){ showView(viewFromHash(), true); });
+
+  function portalLogout(e){
+    if(e)e.preventDefault();
+    var token=localStorage.getItem(KEY);
+    localStorage.removeItem(KEY);
+    if(token)fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+token}}).catch(function(){});
+    var menu=document.getElementById('mobileMenu');
+    if(menu&&menu.classList)menu.classList.remove('open');
+    if(document.body)document.body.style.overflow='';
+    syncPortalAccountUI();
+    location.reload();
+  }
+  function copyText(text){
+    if(!text) return Promise.reject(new Error('Nothing to copy'));
+    if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    var t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();return Promise.resolve();
+  }
+  function showCopied(label){var s=document.getElementById('copyStatus');s.textContent=label+' copied';setTimeout(function(){s.textContent='';},1800);}
+  function renderRelationships(requests){
+    var list=document.getElementById('relationshipList');
+    list.textContent='';
+    if(!Array.isArray(requests)||!requests.length){var empty=document.createElement('div');empty.className='relationship-empty';empty.textContent='No Influencer Admin requests yet.';list.appendChild(empty);return;}
+    requests.forEach(function(item){
+      var row=document.createElement('div');row.className='relationship-item';
+      var info=document.createElement('div');info.className='relationship-info';
+      var name=document.createElement('div');name.className='relationship-name';name.textContent=(item.influencerAdmin&&item.influencerAdmin.name)||'Influencer Admin';info.appendChild(name);
+      if(item.influencerAdmin&&item.influencerAdmin.email){var em=document.createElement('div');em.className='relationship-email';em.textContent=item.influencerAdmin.email;info.appendChild(em);}
+      if(item.status==='pending'){
+        var actions=document.createElement('div');actions.className='relationship-actions';
+        var accept=document.createElement('button');accept.type='button';accept.className='relationship-btn accept';accept.textContent='Accept';accept.onclick=function(){respondToRelationship(item.id,'accept');};
+        var reject=document.createElement('button');reject.type='button';reject.className='relationship-btn reject';reject.textContent='Reject';reject.onclick=function(){respondToRelationship(item.id,'reject');};
+        actions.appendChild(accept);actions.appendChild(reject);info.appendChild(actions);
+      }
+      var status=document.createElement('span');status.className='relationship-status '+(item.status||'pending');status.textContent=item.status||'pending';
+      row.appendChild(info);row.appendChild(status);list.appendChild(row);
+    });
+  }
+  async function loadRelationships(){
+    try{var r=await fetch('/api/influencer/relationship-requests',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load requests');renderRelationships(d.requests||[]);}catch(e){var list=document.getElementById('relationshipList');list.textContent='';var err=document.createElement('div');err.className='relationship-empty';err.textContent='Unable to load requests right now.';list.appendChild(err);}
+  }
+  async function respondToRelationship(id,decision){
+    try{var r=await fetch('/api/influencer/relationship-requests/respond',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},headers()),body:JSON.stringify({assignmentId:id,decision:decision})});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to update request');await loadRelationships();}catch(e){alert(e.message||'Unable to update request');}
+  }
+  var portals=[];var selectedPortalId='';
+  function renderPortalSelector(){
+    var select=document.getElementById('portalSelect'),title=document.getElementById('portalTitle'),meta=document.getElementById('portalMeta');
+    select.textContent='';
+    if(!portals.length){title.textContent='No active referral portal yet';meta.textContent='Accept an Influencer Admin request to receive a dedicated referral code.';select.disabled=true;return;}
+    select.disabled=false;
+    portals.forEach(function(p){var o=document.createElement('option');o.value=p.assignmentId||'legacy';o.textContent=(p.influencerAdmin&&p.influencerAdmin.name)||'General referral';select.appendChild(o);});
+    var allOpt=document.createElement('option');allOpt.value='all';allOpt.textContent='All referral portals';select.appendChild(allOpt);
+    var current=selectedPortalId==='all'?null:(portals.find(function(p){return String(p.assignmentId||'legacy')===String(selectedPortalId||'')})||portals[0]);
+    if(selectedPortalId==='all'){select.value='all';title.textContent='All referral portals';meta.textContent='Combined results across all accepted Influencer Admin relationships';return;}
+    selectedPortalId=current.assignmentId||'legacy';select.value=selectedPortalId;
+    title.textContent=(current.influencerAdmin&&current.influencerAdmin.name)||'General referral';
+    meta.textContent=current.influencerAdmin&&current.influencerAdmin.email?current.influencerAdmin.email:'';
+  }
+  function renderAllOverview(rows){
+    var panel=document.getElementById('allOverview'),list=document.getElementById('allOverviewList');
+    if(!panel||!list)return;
+    if(!Array.isArray(rows)){panel.classList.add('hidden');return;}
+    panel.classList.remove('hidden');list.textContent='';
+    if(!rows.length){var empty=document.createElement('div');empty.className='portal-empty';empty.textContent='No accepted Influencer Admin relationships yet.';list.appendChild(empty);return;}
+    rows.forEach(function(a){
+      var row=document.createElement('article');row.className='all-overview-row';
+      var head=document.createElement('div');head.className='all-overview-row-head';
+      var info=document.createElement('div');var name=document.createElement('div');name.className='all-overview-name';name.textContent=(a.influencerAdmin&&a.influencerAdmin.name)||'Influencer Admin';
+      var meta=document.createElement('div');meta.className='all-overview-meta';meta.textContent=(a.influencerAdmin&&a.influencerAdmin.email)||'';info.appendChild(name);if(meta.textContent)info.appendChild(meta);head.appendChild(info);row.appendChild(head);
+      var stats=document.createElement('div');stats.className='all-overview-stats';
+      [['Orders',a.totalOrders],['Tickets',a.totalTickets],['Revenue',fmt(a.totalRevenue||0)],['Commission',fmt(a.totalCommission||0)]].forEach(function(pair){var box=document.createElement('div');box.className='all-overview-stat';var l=document.createElement('div');l.className='all-overview-stat-label';l.textContent=pair[0];var v=document.createElement('div');v.className='all-overview-stat-value';v.textContent=typeof pair[1]==='number'?Number(pair[1]).toLocaleString():pair[1];box.appendChild(l);box.appendChild(v);stats.appendChild(box);});
+      row.appendChild(stats);list.appendChild(row);
+    });
+  }
+  function applyPortal(link,stats){
+    link=link||{};stats=stats||{};var code=link.code||'';
+    document.getElementById('refCode').textContent=code||'—';
+    var referralUrl=link.referralUrl || (code ? (window.location.origin + '/events.html?ref=' + encodeURIComponent(code)) : '');
+    var refEl=document.getElementById('refLink');refEl.textContent=referralUrl||'Your referral link will appear here...';refEl.href=referralUrl||'#';refEl.classList.toggle('is-empty',!referralUrl);
+    document.getElementById('people').textContent=Number(stats.uniquePeople||0).toLocaleString();
+    document.getElementById('orders').textContent=Number(stats.totalOrders||0).toLocaleString();
+    document.getElementById('tickets').textContent=Number(stats.totalTickets||0).toLocaleString();
+    document.getElementById('revenue').textContent=fmt(stats.totalRevenue||0);
+    document.getElementById('commission').textContent=fmt(stats.totalCommission||0);
+    renderPortalEvents(stats.events||[], stats.overview===true);
+    renderAllOverview(stats.overview===true ? (stats.adminBreakdown||[]) : null);
+  }
+  function renderPortalEvents(events,isAll){
+    var list=document.getElementById('portalEventsList'),sub=document.getElementById('eventsSubtitle');
+    list.textContent='';
+    if(isAll) sub.textContent='Combined event performance across all accepted Influencer Admin relationships.';
+    else sub.textContent='Events authorised to the selected Influencer Admin.';
+    if(!events.length){var e=document.createElement('div');e.className='portal-empty';e.textContent=isAll?'No referral event activity yet.':'No authorised events are available for this referral portal yet.';list.appendChild(e);return;}
+    events.forEach(function(ev){
+      var row=document.createElement('article');row.className='portal-event';
+      var main=document.createElement('div');main.className='portal-event-main';
+      var info=document.createElement('div');var name=document.createElement('div');name.className='portal-event-name';name.textContent=ev.name||'Event';
+      var meta=document.createElement('div');meta.className='portal-event-meta';meta.textContent=[ev.date,ev.venue].filter(Boolean).join(' • ');info.appendChild(name);if(meta.textContent)info.appendChild(meta);main.appendChild(info);row.appendChild(main);
+      var stats=document.createElement('div');stats.className='portal-event-stats';
+      [['Orders',ev.orders],['Tickets',ev.tickets],['Revenue',fmt(ev.revenue||0)],['Commission',fmt(ev.commission||0)]].forEach(function(pair){var box=document.createElement('div');box.className='portal-event-stat';var l=document.createElement('div');l.className='portal-event-stat-label';l.textContent=pair[0];var v=document.createElement('div');v.className='portal-event-stat-value';v.textContent=typeof pair[1]==='number'?Number(pair[1]).toLocaleString():pair[1];box.appendChild(l);box.appendChild(v);stats.appendChild(box);});
+      row.appendChild(stats);list.appendChild(row);
+    });
+  }
+  async function selectPortal(id){
+    selectedPortalId=id||'legacy';if(selectedPortalId==='all'){document.getElementById('portalSelect').value='all';document.getElementById('portalTitle').textContent='All referral portals';document.getElementById('portalMeta').textContent='Combined results across all accepted Influencer Admin relationships';try{var r=await fetch('/api/influencer/referral-stats?assignmentId=all',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral stats');applyPortal(null,d.stats||{});return;}catch(e){applyPortal(null,null);return;}}var portal=portals.find(function(p){return String(p.assignmentId||'legacy')===String(selectedPortalId)})||portals[0];if(!portal)return;
+    selectedPortalId=portal.assignmentId||'legacy';document.getElementById('portalSelect').value=selectedPortalId;
+    document.getElementById('portalTitle').textContent=(portal.influencerAdmin&&portal.influencerAdmin.name)||'General referral';document.getElementById('portalMeta').textContent=(portal.influencerAdmin&&portal.influencerAdmin.email)||'';
+    try{var q=portal.assignmentId?'?assignmentId='+encodeURIComponent(portal.assignmentId):'';var r=await fetch('/api/influencer/referral-stats'+q,{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral stats');applyPortal((d.stats&&d.stats.link)||portal.link,d.stats||{});}catch(e){applyPortal(portal.link,portal.link||{});}
+  }
+  async function loadPortals(){
+    var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
+  }
+  // ── Payouts: request the 20% commission earned through the referral link ──
+  var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7, payoutAvailable=0, payoutEarnedTotal=0;
+  // ── The amount they will receive, worked out for them ──
+  // Unisocials already took its 2.5% from the ticket, so the withdrawal fee is 0
+  // and what they receive is simply the amount requested, capped by what is
+  // actually available.
+  function currentPayoutAmount(){
+    var raw=document.getElementById('poAmount');
+    if(!raw)return 0;
+    var n=Number(raw.value);
+    return isFinite(n)&&n>0?n:0;
+  }
+  // Fill the amount automatically the first time a balance is available, so the
+  // form never sits empty while a perfectly good balance is waiting.
+  function syncPayoutAmountField(){
+    var raw=document.getElementById('poAmount');
+    if(!raw)return;
+    var all=document.getElementById('poAllBtn');
+    var filled=false;
+    if(payoutAvailable>0&&!currentPayoutAmount()){raw.value=String(payoutAvailable);filled=true;}
+    if(all){
+      all.textContent=payoutAvailable>0?'Withdraw everything ('+fmt(payoutAvailable)+')':'Nothing available yet';
+      all.disabled=payoutAvailable<=0;
+    }
+    // Auto-filling the amount must refresh the readout too, or it would show a
+    // stale figure until the user happens to type.
+    if(filled)updatePayoutReceive();
+  }
+  function updatePayoutReceive(){
+    var out=document.getElementById('poReceive'),note=document.getElementById('poReceiveNote');
+    if(!out)return;
+    var asked=currentPayoutAmount();
+    var net=Math.round(Math.max(0,asked)*100)/100;
+    out.textContent=fmt(net);
+    var bad=false;
+    if(note){
+      if(asked<=0){
+        note.textContent='Enter an amount, or use “Withdraw everything” to request your full available balance. Nothing further is deducted — Unisocials already took its '+pct(payoutPlatformRate)+' from the ticket.';
+      }else if(asked>payoutAvailable+0.005){
+        out.classList.add('is-error');bad=true;
+        note.textContent='That is more than your available balance of '+fmt(payoutAvailable)+'. Reduce the amount to '+fmt(payoutAvailable)+' or less.';
+      }else if(net<asked){
+        note.textContent='You asked for '+fmt(asked)+' but only '+fmt(net)+' is available to withdraw.';
+      }else{
+        note.textContent='Nothing further is deducted — Unisocials already took its '+pct(payoutPlatformRate)+' from the ticket, so you receive the full '+fmt(net)+'.';
+      }
+    }
+    if(!bad)out.classList.remove('is-error');
+  }
+  function poMsg(id,text,good){var el=document.getElementById(id);if(!el)return;el.textContent=text;el.className='payout-msg '+(good?'ok':'bad');}
+  function fmtWhen(iso){if(!iso)return '';var d=new Date(iso);if(isNaN(d.getTime()))return String(iso);return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+  // Percentages keep one decimal: Math.round() turned our 20% into "20%".
+  function pct(rate){var v=Math.round((Number(rate)||0)*1000)/10;return (Math.abs(v-Math.round(v))<0.001?String(Math.round(v)):String(v))+'%';}
+  var payoutPlatformRate=0.025;
+  function renderPayoutHold(){
+    if(payoutTimer){clearInterval(payoutTimer);payoutTimer=null;}
+    var el=document.getElementById('poHeld');
+    var now=Date.now();
+    var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
+    if(!left.length){
+      if(el)el.textContent=fmt(0);
+      renderPayoutHoldBanner([]);renderHoldCard([]);renderEarnedSummary();
+      // Keep ticking even with nothing held, so the earned screen stays correct
+      // the moment a hold expires.
+      payoutTimer=setInterval(renderPayoutHold,1000);
+      return;
+    }
+    var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+    var ms=new Date(next.unlocksAt).getTime()-now;
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+    if(el)el.textContent=fmt(total)+' · '+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+    renderPayoutHoldBanner(left);
+    renderHoldCard(left);
+    renderEarnedSummary();
+    // Tick every second so the withdrawal hold visibly counts down.
+    payoutTimer=setInterval(renderPayoutHold,1000);
+  }
+  // The hold countdown is always on screen: it either counts down to the next
+  // unlock, or states the rule plainly when nothing is being held right now.
+  function renderHoldCard(left){
+    var clock=document.getElementById('poHoldClock');
+    var label=document.getElementById('poHoldCardLabel');
+    var note=document.getElementById('poHoldCardNote');
+    if(!clock)return;
+    if(!left.length){
+      clock.textContent='—';
+      if(label)label.textContent='No commission on hold right now';
+      if(note)note.innerHTML='Every verified payment waits <strong>'+payoutHoldDays+' days</strong> after it is paid before its commission can be requested. Anything you can withdraw now is already clear.';
+      return;
+    }
+    var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+    var ms=Math.max(0,new Date(next.unlocksAt).getTime()-Date.now());
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+    clock.textContent=dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+    if(label)label.textContent='Next commission unlocks in';
+    if(note)note.innerHTML='<strong>'+fmt(total)+'</strong> of your commission is still inside the '+payoutHoldDays+'-day hold across '+left.length+' payment'+(left.length===1?'':'s')+'. You can request it the moment this reaches zero.';
+  }
+  // The earned screen shows the same split as the payouts screen, because that is
+// where someone lands first: what they have earned, how much of it they can
+  // withdraw today, and how long the rest is counting down.
+  function renderEarnedSummary(){
+    var total=document.getElementById('earnTotal'),
+        avail=document.getElementById('earnAvailable'),
+        held=document.getElementById('earnHeld'),
+        note=document.getElementById('earnHoldNote'),
+        days=document.getElementById('earnHoldDays'),
+        btn=document.getElementById('earnWithdrawBtn');
+    if(!total)return;
+    var now=Date.now();
+    var left=payoutHeld.filter(function(h){return new Date(h.unlocksAt).getTime()>now;});
+    var heldTotal=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    if(days)days.textContent=String(payoutHoldDays);
+    total.textContent=fmt(payoutEarnedTotal);
+    avail.textContent=fmt(payoutAvailable);
+    held.textContent=left.length?fmt(heldTotal):'₦0';
+    if(note){
+      if(left.length){
+        var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+        var ms=Math.max(0,new Date(next.unlocksAt).getTime()-now);
+        var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+        note.innerHTML='<strong>'+fmt(heldTotal)+'</strong> is still inside the '+payoutHoldDays+'-day hold and unlocks in <span class="earn-clock">'+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s</span>. Everything else is ready to withdraw now.';
+      }else{
+        note.innerHTML=payoutEarnedTotal>0
+          ? 'All of it is ready to withdraw now. Every payment waits <strong>'+payoutHoldDays+' days</strong> before its commission can be requested.'
+          : 'Payments you make through your link wait <strong>'+payoutHoldDays+' days</strong> before their commission can be withdrawn.';
+      }
+    }
+    if(btn){
+      btn.textContent='Withdraw '+fmt(payoutAvailable);
+      btn.disabled=payoutAvailable<=0;
+    }
+  }
+  // A plain-language banner so it is obvious the money is counting down,
+  // not just a number in a corner of the panel.
+  function renderPayoutHoldBanner(left){
+    var el=document.getElementById('poHoldBanner');if(!el)return;
+    if(!left.length){el.style.display='none';return;}
+    var total=left.reduce(function(s,h){return s+(Number(h.commissionAmount!=null?h.commissionAmount:h.amount)||0);},0);
+    var next=left.slice().sort(function(a,b){return new Date(a.unlocksAt)-new Date(b.unlocksAt);})[0];
+    var ms=new Date(next.unlocksAt).getTime()-Date.now();
+    var dd=Math.floor(ms/86400000),hh=Math.floor(ms%86400000/3600000),mm=Math.floor(ms%3600000/60000),ss=Math.floor(ms%60000/1000);
+    el.style.display='block';
+    el.innerHTML='⏳ <strong>'+fmt(total)+'</strong> of your commission is still inside the <strong>'+payoutHoldDays+'-day withdrawal countdown</strong> and cannot be requested yet. It unlocks in <strong>'+dd+'d '+String(hh).padStart(2,'0')+'h '+String(mm).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s</strong>.';
+  }
+  function renderPayoutHistory(rows){
+    var box=document.getElementById('poHistory');if(!box)return;
+    box.textContent='';
+    if(!rows||!rows.length){var e=document.createElement('div');e.className='portal-empty';e.textContent='No payout requests yet. Request one once your commission clears the 7-day countdown.';box.appendChild(e);return;}
+    rows.forEach(function(p){
+      var rate=isFinite(Number(p.feeRate))?Number(p.feeRate):payoutFeeRate;
+      var row=document.createElement('div');row.className='payout-row';
+      var head=document.createElement('div');head.className='payout-row-head';
+      var amt=document.createElement('strong');amt.textContent=fmt(p.netAmount!=null?p.netAmount:p.amount)+' to you';
+      var badge=document.createElement('span');badge.className='payout-status '+String(p.status||'pending').toLowerCase();badge.textContent=p.status||'pending';
+      head.appendChild(amt);head.appendChild(badge);row.appendChild(head);
+      var meta=document.createElement('div');meta.className='payout-row-meta';
+      meta.textContent='Requested '+fmt(p.amount)+(rate>0?' · Unisocials fee '+pct(rate)+' ('+fmt(p.feeAmount||0)+')':'')+' · '+(p.bankName||'')+' ••••'+String(p.accountNumber||'').slice(-4)+' · '+fmtWhen(p.createdAt);
+      row.appendChild(meta);
+      if(p.paidAt){var done=document.createElement('div');done.className='payout-row-meta';done.style.color='#1B5E20';done.textContent='✅ Paid '+fmtWhen(p.paidAt)+(p.notifiedEmail?' · completion email sent to '+p.notifiedEmail:'');row.appendChild(done);}
+      if(p.adminNote){var n=document.createElement('div');n.className='payout-row-meta';n.textContent='Admin note: '+p.adminNote;row.appendChild(n);}
+      box.appendChild(row);
+    });
+  }
+  function setPayoutBusy(on){
+    ['poRequestBtn','poSaveEmailBtn'].forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=on;});
+  }
+  async function loadPayouts(){
+    try{
+      var r=await fetch('/api/influencer/payouts',{headers:headers()});
+      var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Unable to load payouts');
+      if(isFinite(Number(d.feeRate)))payoutFeeRate=Number(d.feeRate);
+      document.getElementById('poRevenue').textContent=fmt(d.referredRevenue||0);
+      document.getElementById('poCommission').textContent=fmt(d.totalCommission||0);
+      document.getElementById('poAvailable').textContent=fmt(d.availableBalance||0);
+      var rates=d.commissionRates||{eventOwner:.8,eventOwnerReferred:.775,influencer:.20,platformReferred:.025,platformDirect:.2};
+      if(isFinite(Number(rates.platformReferred)))payoutPlatformRate=Number(rates.platformReferred);
+      document.getElementById('payoutSplitNote').textContent='On the ₦'+Number(d.referredRevenue||0).toLocaleString()+' your link brought in: ₦'+Number(d.eventOwnerShare||0).toLocaleString()+' ('+pct(rates.eventOwner)+') went to the event owner, ₦'+Number(d.totalCommission||0).toLocaleString()+' ('+pct(rates.influencer)+') is your commission, and ₦'+Number(d.platformShare||0).toLocaleString()+' ('+pct(rates.platform)+') to Unisocials.';
+      var bank=d.savedBankAccount||{};
+      if(bank.bankName)document.getElementById('poBankName').value=bank.bankName;
+      if(bank.accountNumber)document.getElementById('poAccountNumber').value=bank.accountNumber;
+      if(bank.accountName)document.getElementById('poAccountName').value=bank.accountName;
+      var nf=document.getElementById('poNotifyEmail');
+      if(nf&&!nf.value)nf.value=d.notificationEmail||'';
+      var notice=document.getElementById('payoutOpenNotice');
+      var open=(d.payouts||[]).filter(function(p){return ['pending','approved'].indexOf(String(p.status||'').toLowerCase())!==-1;})[0];
+      if(open){notice.style.display='block';notice.innerHTML='⏳ Your request <strong>'+open.id+'</strong> for <strong>'+fmt(open.netAmount!=null?open.netAmount:open.amount)+'</strong> is <strong>'+open.status+'</strong>. '+(open.status==='approved'?'The admin will pay within 24 hours.':'The admin has been notified by email.');}else{notice.style.display='none';}
+      if(isFinite(Number(d.holdDays))){payoutHoldDays=Number(d.holdDays);var hd=document.getElementById('poHoldDays');if(hd)hd.textContent=String(payoutHoldDays);var cd=document.getElementById('poHoldCardDays');if(cd)cd.textContent=String(payoutHoldDays);}
+      payoutHeld=Array.isArray(d.heldPayments)?d.heldPayments:[];
+      renderPayoutHold();
+      renderPayoutHistory(d.payouts||[]);
+      // Show what they would actually receive without making them do the maths.
+      payoutAvailable=Number(d.availableBalance)||0;
+      payoutEarnedTotal=Number(d.totalCommission)||0;
+      syncPayoutAmountField();
+      updatePayoutReceive();
+      renderEarnedSummary();
+    }catch(e){poMsg('poMsg',e.message||'Unable to load payouts',false);}
+  }
+  document.getElementById('poRequestBtn').onclick=async function(){
+    var btn=this;
+    var email=document.getElementById('poNotifyEmail').value.trim();
+    var bankName=document.getElementById('poBankName').value.trim();
+    var accountNumber=document.getElementById('poAccountNumber').value.replace(/[\s-]/g,'');
+    var accountName=document.getElementById('poAccountName').value.trim();
+    var amount=Number(document.getElementById('poAmount').value||0);
+    var payoutMethod=document.getElementById('poMethod').value;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return poMsg('poMsg','Enter a valid notification email so we can tell you when a payout is complete.',false);
+    if(!bankName)return poMsg('poMsg','Enter your bank name.',false);
+    if(!/^\d{10}$/.test(accountNumber))return poMsg('poMsg','Enter a valid 10-digit account number.',false);
+    if(!accountName)return poMsg('poMsg','Enter the bank account name.',false);
+    if(!(amount>0))return poMsg('poMsg','Enter the amount you want to withdraw.',false);
+    setPayoutBusy(true);btn.textContent='Submitting…';
+    try{
+      var r=await fetch('/api/influencer/payouts',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},headers()),body:JSON.stringify({amount:amount,payoutMethod:payoutMethod,bank:{bankName:bankName,accountNumber:accountNumber,accountName:accountName}})});
+      var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Could not submit your request');
+      poMsg('poMsg',d.message||'Payout request submitted.',true);
+      document.getElementById('poAmount').value='';
+      await loadPayouts();
+    }catch(e){poMsg('poMsg',e.message||'Network error',false);}
+    finally{setPayoutBusy(false);btn.textContent='Request payout';}
+  };
+  document.getElementById('poSaveEmailBtn').onclick=async function(){
+    var email=document.getElementById('poNotifyEmail').value.trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return poMsg('poEmailMsg','Enter a valid email address.',false);
+    setPayoutBusy(true);
+    try{
+      var r=await fetch('/api/influencer/payouts',{method:'PATCH',headers:Object.assign({'Content-Type':'application/json'},headers()),body:JSON.stringify({notificationEmail:email})});
+      var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Could not save that email');
+      poMsg('poEmailMsg',d.message||'Saved.',true);
+      await loadPayouts();
+    }catch(e){poMsg('poEmailMsg',e.message||'Network error',false);}
+    finally{setPayoutBusy(false);}
+  };
+
+  async function load(){
+    var token=localStorage.getItem(KEY);if(!token)return false;
+    try{
+      var me=await fetch('/api/auth/me',{headers:headers()});var md=await me.json();
+      if(!md.success||!md.user||md.user.role!=='influencer') throw new Error('invalid');
+      document.getElementById('userName').textContent=md.user.name||md.user.fullName||md.user.email||'Influencer';
+      await loadPortals();
+      await loadRelationships();
+      await loadPayouts();
+      loginView.classList.add('hidden');dash.classList.remove('hidden');syncPortalAccountUI();return true;
+    }catch(e){localStorage.removeItem(KEY);syncPortalAccountUI();return false;}
+  }
+  document.getElementById('portalSelect').addEventListener('change',function(){selectPortal(this.value);});
+  document.getElementById('loginForm').addEventListener('submit',async function(e){
+    e.preventDefault();var btn=document.getElementById('loginBtn');btn.disabled=true;document.getElementById('loginError').classList.remove('show');
+    try{
+      var r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value})});
+      var d=await r.json();if(!d.success)throw new Error(d.error||'Login failed');
+      if(!d.user||d.user.role!=='influencer')throw new Error('This account is not an influencer account.');
+      localStorage.setItem(KEY,d.token);if(!(await load()))throw new Error('Could not load dashboard');
+    }catch(err){showError(err.message||'Login failed');}finally{btn.disabled=false;}
+  });
+  document.getElementById('navInfLogout').onclick=portalLogout;
+  document.getElementById('mobileInfLogout').onclick=portalLogout;
+  // Live "you will receive" as the amount is typed, plus a one-tap full balance.
+  document.getElementById('poAmount').addEventListener('input',updatePayoutReceive);
+  document.getElementById('earnWithdrawBtn').onclick=function(){
+    showView('payouts');
+    syncPayoutAmountField();
+    updatePayoutReceive();
+  };
+  document.getElementById('poAllBtn').onclick=function(){
+    document.getElementById('poAmount').value=String(payoutAvailable);
+    updatePayoutReceive();
+    document.getElementById('poAmount').focus();
+  };
+  // The portal's own dropdown: open/close on the trigger, close on outside click
+  // or Escape, and close after picking a destination.
+  (function(){
+    var menu=document.getElementById('navInfMenu'),trigger=document.getElementById('navInfMenuTrigger');
+    if(!menu||!trigger)return;
+    function setOpen(on){
+      // Only a signed-in session ever opens the commission dropdown.
+      if(on&&!localStorage.getItem(KEY))return;
+      menu.classList.toggle('open',on);
+      trigger.setAttribute('aria-expanded',on?'true':'false');
+    }
+    trigger.addEventListener('click',function(e){e.stopPropagation();setOpen(!menu.classList.contains('open'));});
+    menu.addEventListener('click',function(e){if(e.target.closest('.nav-inf-menu-item')&&!e.target.closest('#navInfLogout'))setOpen(false);});
+    document.addEventListener('click',function(e){if(!menu.contains(e.target))setOpen(false);});
+    document.addEventListener('keydown',function(e){if(e.key==='Escape')setOpen(false);});
+  })();
+
+  // Every dropdown / mobile-menu destination switches view instead of scrolling.
+  document.querySelectorAll('[data-view-link]').forEach(function(el){
+    el.addEventListener('click',function(e){
+      e.preventDefault();
+      showView(el.getAttribute('data-view-link'));
+    });
+  });
+  showView(viewFromHash(), true);
+  syncPortalAccountUI();
+  document.getElementById('copyCodeBtn').onclick=function(){var v=document.getElementById('refCode').textContent;if(v&&v!=='—')copyText(v).then(function(){showCopied('Referral code');});};
+  document.getElementById('copyLinkBtn').onclick=function(){var v=document.getElementById('refLink').href;if(v&&v!=='#')copyText(v).then(function(){showCopied('Referral link');});};
+  load();setInterval(function(){if(localStorage.getItem(KEY))load();},30000);
+})();
+</script></body></html>

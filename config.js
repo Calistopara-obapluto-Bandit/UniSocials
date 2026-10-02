@@ -27,8 +27,6 @@ window.SITE_CONFIG = {
   FLUTTERWAVE_SECRET_KEY: '',
 
   // Flutterwave bank account details (Bank Transfer payment)
-  FLUTTERWAVE_BANK_NAME: 'Flutterwave MfB (formerly ok mfb)',
-  FLUTTERWAVE_ACCOUNT_NUMBER: '9707788756',
 
   // Contact / support email shown in FAQ
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
