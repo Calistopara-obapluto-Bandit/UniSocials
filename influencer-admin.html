@@ -1167,6 +1167,16 @@
     </div>
 
     <div id="payoutFeeNotice" style="display:none;margin-bottom:14px;background:#F1F8E9;border:1px solid #C8E6C9;color:#1B5E20;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
+    <!-- Live hold countdown: the same ticking clock the referrer watches, so
+         the owner can see exactly when their referrers' money becomes
+         claimable instead of only reading a figure in a sentence. -->
+    <div id="payoutHoldCard" style="margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;border-radius:12px;padding:14px 16px;">
+      <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <span style="font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:#E65100;font-weight:800;" id="payoutHoldCardLabel">Next referrer commission unlocks in</span>
+        <span id="payoutHoldCardClock" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.4rem;font-weight:800;color:#E65100;letter-spacing:.02em;line-height:1.2;">—</span>
+      </div>
+      <div id="payoutHoldCardNote" style="font-size:.8rem;color:var(--text-3);line-height:1.6;">Every verified payment waits <strong id="payoutHoldCardDays">7 days</strong> after it is paid before a referrer can request their commission. This clock ticks down to the moment theirs becomes available.</div>
+    </div>
     <div id="payoutHoldNotice" style="display:none;margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
     <div id="payoutOpenNotice" style="display:none;margin-bottom:14px;background:#E3F2FD;border:1px solid #BBDEFB;color:#0D47A1;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
   </div>
@@ -2392,14 +2402,43 @@ fetch('/api/admin/events/notify', {
       // owner can see how much of their referrers' money is not yet claimable.
       function renderPayoutHoldNotice() {
         var el = document.getElementById('payoutHoldNotice');
-        if (!el) return;
         if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
         var now = Date.now();
         var remaining = payoutHeldData.filter(function(h) {
           return new Date(h.unlocksAt).getTime() > now;
         });
+
+        // The always-visible clock card: either counts down to the next unlock,
+        // or states the rule plainly when nothing is being held right now.
+        var clock = document.getElementById('payoutHoldCardClock');
+        var cardLabel = document.getElementById('payoutHoldCardLabel');
+        var cardNote = document.getElementById('payoutHoldCardNote');
+        if (clock) {
+          if (!remaining.length) {
+            clock.textContent = '—';
+            if (cardLabel) cardLabel.textContent = 'No referrer commission on hold right now';
+            if (cardNote) {
+              cardNote.innerHTML = 'Every verified payment waits <strong>' + payoutHoldDays + ' days</strong> after it is paid before a referrer can request their commission. Anything claimable now is already clear.';
+            }
+          } else {
+            var cardTotal = remaining.reduce(function(s, h) { return s + (Number(h.commissionAmount != null ? h.commissionAmount : h.amount) || 0); }, 0);
+            var cardNext = remaining.slice().sort(function(a, b) {
+              return new Date(a.unlocksAt) - new Date(b.unlocksAt);
+            })[0];
+            clock.textContent = fmtCountdown(new Date(cardNext.unlocksAt).getTime() - now);
+            if (cardLabel) cardLabel.textContent = 'Next referrer commission unlocks in';
+            if (cardNote) {
+              cardNote.innerHTML = '<strong>' + fmtN(cardTotal) + '</strong> of your referrers’ commission is still inside the ' + payoutHoldDays + '-day hold across ' + remaining.length + ' payment' + (remaining.length === 1 ? '' : 's') + '. They can request it the moment this reaches zero.';
+            }
+          }
+        }
+
+        if (!el) return;
         if (!remaining.length) {
           el.style.display = 'none';
+          // Keep ticking even with nothing held, so the card stays correct the
+          // moment a hold expires.
+          payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
           return;
         }
         var totalHeld = remaining.reduce(function(s, h) { return s + (Number(h.commissionAmount != null ? h.commissionAmount : h.amount) || 0); }, 0);
@@ -2409,6 +2448,7 @@ fetch('/api/admin/events/notify', {
         var until = new Date(next.unlocksAt).getTime() - now;
         el.innerHTML = '⏳ Your referrers have <strong>' + fmtN(totalHeld) + '</strong> of commission still inside the <strong>' + payoutHoldDays + '-day countdown</strong> before they can request it. Next unlocks in <strong>' + fmtCountdown(until) + '</strong>.';
         el.style.display = 'block';
+        // Tick every second so the hold visibly counts down.
         payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
       }
 
@@ -2433,6 +2473,14 @@ fetch('/api/admin/events/notify', {
               };
             }
             payoutHoldDays = Number(data.holdDays) || 7;
+            // Keep the hold length honest wherever it is written, rather than
+            // hardcoding "7" in the stat label and the card.
+            var holdDaysEl = document.getElementById('payoutHoldCardDays');
+            if (holdDaysEl) holdDaysEl.textContent = String(payoutHoldDays);
+            var holdStatLabel = document.getElementById('payoutHeld');
+            holdStatLabel = holdStatLabel && holdStatLabel.parentNode
+              ? holdStatLabel.parentNode.querySelector('.admin-stat-label') : null;
+            if (holdStatLabel) holdStatLabel.textContent = 'On Hold — ' + payoutHoldDays + '-day countdown';
 
             var refPct = pct(commissionRates.referred);
             var dirPct = pct(commissionRates.direct);
