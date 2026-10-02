@@ -79,6 +79,21 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 .nav.is-portal-mode .nav-logo,.nav.is-portal-mode .nav-hamburger{display:none}
 .nav.is-portal-mode .nav-inner{justify-content:flex-end;gap:0}
 .nav.is-portal-mode{padding:0}
+/* Small screens: the shared site stylesheet hides .nav-cta below 768px, which
+   took the commission dropdown with it and left the header empty, because the
+   portal also hides the hamburger. The dropdown is the only navigation a
+   commission-only account has, so it stays visible at every width and the
+   list drops to a full-width sheet on narrow screens. */
+.nav.is-portal-mode .nav-cta{display:flex;flex:0 0 auto;min-width:0}
+@media(max-width:768px){
+  .nav.is-portal-mode .nav-inner{padding:0 14px}
+  .nav-inf-menu{display:inline-block!important}
+  .nav-inf-menu-trigger{font-size:.78rem;padding:8px 13px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .nav-inf-menu-list{
+    position:fixed;left:10px;right:10px;top:auto;min-width:0;width:auto;
+    max-height:calc(100vh - 84px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  }
+}
 /* Signed out there is no dropdown to offer and no dashboard to navigate to, so
    the portal header is not rendered at all on the login screen. The sign-in
    card carries its own links to the buyer sign-in and the Influencer Admin
@@ -117,8 +132,6 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 @media(max-width:640px){.earn-summary-grid{grid-template-columns:1fr}.earn-summary{padding:18px 16px}}
 .portal-events-head-intro{margin-bottom:14px}
 .portal-events-head-intro p{margin:0;font-size:.8rem;color:var(--text-3);line-height:1.6}
-@media(max-width:1000px){.nav-inf-menu-list{right:auto;left:0}}
-@media(max-width:600px){.nav-inf-menu{display:none}}
 
 /* ── Payouts: the 17.5% commission the referrer withdraws ── */
 .payout-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}
