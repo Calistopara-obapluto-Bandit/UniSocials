@@ -1830,6 +1830,57 @@ function getConfig() {
   return cfg;
 }
 
+// Files that must never be reachable over HTTP. The static handler resolves
+// paths against the project root, so without this list the server shipped its
+// own source, its package manifest, and the runtime data store (orders, users,
+// password hashes, session tokens) to anyone who guessed the URL.
+const BLOCKED_STATIC_NAMES = new Set([
+  'server.js',
+  'build.js',
+  'package.json',
+  'package-lock.json',
+  'render.yaml',
+  'config.js', // served dynamically from getConfig() further up, never from disk
+  'templatemo_622_clearwave.code-workspace'
+]);
+
+const BLOCKED_STATIC_DIRS = new Set([
+  'data',      // orders, users, sessions, payouts — the live datastore
+  'node_modules',
+  '.git'
+]);
+
+const BLOCKED_STATIC_EXTS = new Set([
+  '.env', '.log', '.pid', '.sql', '.py', '.map', '.bak', '.tmp'
+]);
+
+function isBlockedStaticPath(urlPath) {
+  // Normalise to a leading-slash path with no "." / ".." segments so the check
+  // cannot be bypassed with encoded traversal or doubled slashes.
+  let p;
+  try { p = decodeURIComponent(String(urlPath || '')); } catch (e) { return true; }
+  if (p.indexOf('\0') !== -1) return true;
+  const segments = p.split(/[/\\]+/).filter(s => s && s !== '.' && s !== '..');
+  if (segments.some(s => s === '..' || s === '.')) return true;
+  if (!segments.length) return false;
+
+  const lower = segments.map(s => s.toLowerCase());
+
+  // Any dotfile or dot-directory anywhere in the path (.env, .env.local, .git/...).
+  if (lower.some(s => s.startsWith('.'))) return true;
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = lower[i];
+    const ext = path.extname(seg);
+    if (BLOCKED_STATIC_NAMES.has(seg)) return true;
+    if (BLOCKED_STATIC_EXTS.has(ext)) return true;
+    // Directory deny-list applies to any position, so /assets/min/... is refused too.
+    if (i < segments.length - 1 && BLOCKED_STATIC_DIRS.has(seg)) return true;
+    if (BLOCKED_STATIC_DIRS.has(seg) && i === segments.length - 1) return true;
+  }
+  return false;
+}
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -4426,12 +4477,24 @@ buyerFaculty: buyerFaculty,
     // are also delivered to the buyer's email, so there is no account to make.
     // Gate check-in stays separately protected by /api/ticket/scan.
     if (pathname === '/api/orders/lookup' && req.method === 'POST') {
+      // This is the only endpoint that returns another person's order to a
+      // caller who is not logged in, and the Order ID carries a short random
+      // suffix. Without a limit it can be used to enumerate somebody else's
+      // orders (and their ticket codes) by guessing IDs. Keep it tight.
+      const rl = rateLimit(req, 'order-lookup', 10, 60000); // 10 attempts/min per IP
+      if (!rl.allowed) {
+        return sendJson(res, 429, { success: false, error: 'Too many lookup attempts. Please wait a minute and try again.', retryAfter: rl.retryAfter });
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
       const orderId = String(data.orderId || '').trim();
       const phone = String(data.phone || '').trim();
       if (!orderId || !phone) return sendJson(res, 400, { success: false, error: 'Missing orderId or phone' });
+      // Bound the inputs so a lookup cannot be used to scan the whole table.
+      if (orderId.length > 100 || phone.length > 40) {
+        return sendJson(res, 400, { success: false, error: 'Invalid order details.' });
+      }
 
       const orders = await readOrders();
       const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
@@ -6130,6 +6193,16 @@ const events = await readEvents();
     if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
       res.writeHead(403);
       res.end('Forbidden');
+      return;
+    }
+
+    // PUBLIC_DIR is the project root, so without an explicit deny-list the
+    // static handler happily served server.js, package.json and — when it was
+    // present — .env, handing every secret in the deployment to the browser.
+    // Anything that is not part of the built site is refused here.
+    if (isBlockedStaticPath(urlPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
       return;
     }
 

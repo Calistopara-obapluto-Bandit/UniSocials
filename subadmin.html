@@ -1740,7 +1740,6 @@ resultBox.className = 'admin-scan-result show';
           return r.json(); 
         })
         .then(function(data) {
-          console.log('Event creation response:', data);
           if (data && data.success) {
             showToast(editingEventId ? '✅ Event "' + esc(name) + '" updated successfully!' : '✅ Event "' + esc(name) + '" added successfully!');
             // Clear form fields
