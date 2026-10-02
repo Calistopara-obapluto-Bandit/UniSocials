@@ -2508,7 +2508,8 @@ function orderEmailLines(order) {
       'Quantity: ' + order.qty + '\n' +
       'Total paid: ₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN') + '\n' +
       ticketLines +
-      '\nPlease keep this email safe — it contains your tickets.\n' +
+      '\nNo account needed — these ticket links work straight from your email.\n' +
+      'Please keep this email safe, it is your copy of your tickets.\n' +
       'See you at the event!\n\nUnisocials Team'
   };
 }
@@ -2530,7 +2531,8 @@ function buildBuyerHtml(order) {
     rowHtml('Total paid', '₦' + Number(order.amount || 0).toLocaleString() + ' ' + (order.currency || 'NGN')) +
     '</table>' +
     ticketLinksHtml(order) +
-    '<p style="font-size:12px;color:#94a3b8;margin:20px 0 0">Please keep this email safe — it contains your tickets.</p>' +
+    '<p style="font-size:13px;color:#475569;margin:20px 0 6px"><strong>No account needed.</strong> The ticket links above open straight from this email — there is nothing to sign up for or sign in to.</p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin:0">Please keep this email safe, it is your copy of your tickets.</p>' +
     '</div></div>';
 }
 
@@ -4417,17 +4419,13 @@ buyerFaculty: buyerFaculty,
     }
 
 // ── Buyer order lookup (Order ID + phone) ──
-    // Allows lookup WITHOUT signing in. The order's basic details (event, date,
-    // venue, qty, amount, status) are returned to anyone who knows the Order ID
-    // and phone. However, the actual ticket codes are ONLY revealed when the
-    // requester is signed in AND owns the order (matched by userId or email).
-    // Viewing a ticket/QR always requires sign-in via /api/ticket.
+    // Allows lookup WITHOUT signing in. Knowing the Order ID AND the phone
+    // number used at checkout is the same proof the emailed ticket link relies
+    // on, so it is enough to see the tickets: a guest who never created an
+    // account can still open everything they paid for. The tickets themselves
+    // are also delivered to the buyer's email, so there is no account to make.
+    // Gate check-in stays separately protected by /api/ticket/scan.
     if (pathname === '/api/orders/lookup' && req.method === 'POST') {
-      const auth = req.headers['authorization'] || '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      let user = null;
-      if (token) user = await getSessionUser(token);
-
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -4439,8 +4437,11 @@ buyerFaculty: buyerFaculty,
       const order = orders.find(o => o.orderId === orderId && o.buyerPhone === phone);
       if (!order) return sendJson(res, 404, { success: false, error: 'Order not found. Check your Order ID and phone number.' });
 
-      // If signed in, confirm they own this order before revealing ticket codes.
-      const ownsOrder = user && (order.userId === user.id || String(order.buyerEmail).toLowerCase() === user.email);
+      // The lookup already proved ownership by matching the Order ID to the
+      // phone number used at checkout, which is the same secret the emailed
+      // ticket link carries. So a guest sees their tickets, and signing in is
+      // never required to view what they paid for.
+      const ownsOrder = true;
 
       const payload = {
         orderId: order.orderId,
