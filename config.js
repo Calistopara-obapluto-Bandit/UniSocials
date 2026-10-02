@@ -1,40 +1,42 @@
 /*
-Unisocials — Site Configuration
----------------------------------
-These values are used across the site (WhatsApp links, bank details, emails).
-When running under the Node server (server.js), this file is served dynamically
-and values are pulled from environment variables (set in Render dashboard).
+Unisocials — Browser Site Configuration
+--------------------------------------
+This file is a LOCAL FALLBACK ONLY. It must stay in sync with
+BROWSER_CONFIG_KEYS in server.js.
 
-For local development, edit the defaults below directly.
+In production server.js intercepts /config.js and generates it from environment
+variables, so nothing here reaches a live visitor.
+
+Only values the browser genuinely reads belong in this file. Server-side
+settings — API secret keys, the webhook hash, the admin email, the outbound
+sender address, bank account details — must never appear here, in any form,
+even as an empty placeholder: a value that looks like a secret tends to get
+filled in and committed. Keep those in server.js and read them from the
+environment there.
+
+To add a value the frontend needs:
+  1. add it to BROWSER_CONFIG_KEYS in server.js, and
+  2. add it below with a local placeholder,
+so the two stay consistent.
 */
 
 window.SITE_CONFIG = {
   // WhatsApp number shown on the floating chat button (international format, no +)
   WHATSAPP_FLOAT_NUMBER: '2348122104576',
 
-  // WhatsApp number that receives ticket orders & contact form messages
+  // WhatsApp number that receives ticket order messages
   WHATSAPP_ORDER_NUMBER: '2348122104576',
 
-// Flutterwave public key — used for the inline payment checkout.
-  // NOTE: This is served dynamically by server.js from the FLUTTERWAVE_PUBLIC_KEY
-  // environment variable for production. The placeholder below is only a local fallback.
+  // Flutterwave PUBLIC key for the inline checkout. Public by design.
+  // The matching secret key lives only in server.js / the environment.
   FLUTTERWAVE_PUBLIC_KEY: 'FLWPUBK-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X',
 
-  // Flutterwave secret key — NEVER exposed to the browser. Used ONLY server-side
-  // (server.js) to verify transactions so payments can't be faked/tampered with.
-  // Get yours at https://dashboard.flutterwave.com → Settings → API Keys
-  // ⚠️ SECURITY: This must NOT contain a real key. It is provided via env vars only.
-  FLUTTERWAVE_SECRET_KEY: '',
-
-  // Flutterwave bank account details (Bank Transfer payment)
-
-  // Contact / support email shown in FAQ
+  // Contact / support email shown on the FAQ page
   CONTACT_EMAIL: 'support.sbiamautos@gmail.com',
 
-  // FormSubmit.co email endpoint for the contact form (messages land in the contact inbox)
+  // FormSubmit.co endpoint for the contact form (messages land in the contact inbox)
   FORMSUBMIT_KEY: 'support.sbiamautos@gmail.com',
 
-  // Redirect URL after contact form submission
+  // Redirect URL after payment and after contact form submission
   REDIRECT_URL: 'https://unisocials.onrender.com/thank-you.html'
 };
-

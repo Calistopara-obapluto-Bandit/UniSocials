@@ -1820,12 +1820,30 @@ const defaults = {
   RESEND_API_KEY: ''
 };
 
+// The ONLY settings the browser is allowed to read. This is an allow-list on
+// purpose: the previous version blocked anything matching
+// SECRET|PRIVATE|PASSWORD|WEBHOOK|API_KEY|RESEND, which meant every new key
+// added to `defaults` was published to the world by default unless someone
+// remembered to add it to the deny-pattern. That had already leaked the admin's
+// email address, the outbound sender address and the Flutterwave bank account
+// number into /config.js, none of which any page reads.
+//
+// Anything not listed here is invisible to the frontend. If a page needs a new
+// value, add it here deliberately.
+const BROWSER_CONFIG_KEYS = [
+  'WHATSAPP_FLOAT_NUMBER',   // floating chat button + support link on pending orders
+  'WHATSAPP_ORDER_NUMBER',   // WhatsApp order notifications from checkout
+  'CONTACT_EMAIL',           // shown on the FAQ page
+  'FORMSUBMIT_KEY',          // contact form endpoint (public inbox address)
+  'REDIRECT_URL',            // post-payment redirect + FormSubmit next
+  'FLUTTERWAVE_PUBLIC_KEY'   // public by design; the secret key never leaves the server
+];
+
 function getConfig() {
   const cfg = {};
-  for (const [key, val] of Object.entries(defaults)) {
-    // Never expose secret keys, passwords, API keys, or the webhook HMAC hash to the browser
-    if (/SECRET|PRIVATE|PASSWORD|WEBHOOK|API_KEY|RESEND/i.test(key)) continue;
-    cfg[key] = process.env[key] !== undefined ? process.env[key] : val;
+  for (const key of BROWSER_CONFIG_KEYS) {
+    if (!(key in defaults)) continue;
+    cfg[key] = process.env[key] !== undefined ? process.env[key] : defaults[key];
   }
   return cfg;
 }
