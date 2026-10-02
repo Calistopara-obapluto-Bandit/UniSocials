@@ -999,7 +999,7 @@
 <div class="admin-stat-value" id="statOwner80">₦0</div>
 </div>
 <div class="admin-stat verified">
-<div class="admin-stat-label">Owed to Referrers (17.5%)</div>
+<div class="admin-stat-label">Owed to Referrers (20%)</div>
 <div class="admin-stat-value" id="statInfl18">₦0</div>
 </div>
 <div class="admin-stat pending">
@@ -1075,7 +1075,7 @@
 <div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
 <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
 <div class="admin-stat verified"><div class="admin-stat-label">Event Owner (80%)</div><div class="admin-stat-value" id="aesOwner80">₦0</div></div>
-<div class="admin-stat verified"><div class="admin-stat-label">Owed to Referrers (17.5%)</div><div class="admin-stat-value" id="aesInfl18">₦0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label">Owed to Referrers (20%)</div><div class="admin-stat-value" id="aesInfl18">₦0</div></div>
 <div class="admin-stat pending"><div class="admin-stat-label">Unisocials Fee (2.5% / 20%)</div><div class="admin-stat-value" id="aesPlatform2">₦0</div></div>
 </div>
 <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
@@ -1153,7 +1153,7 @@
   <div class="admin-panel-heading">
     <div>
       <h1>💰 Earnings &amp; Referrer Payouts</h1>
-      <p>A sale made through an influencer's link is split <strong>2.5% to Unisocials, 17.5% to the influencer, 80% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. Either way you withdraw <strong>80%</strong> — and you approve and pay your referrers' 17.5% from here.</p>
+      <p>A sale made through an influencer's link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. You approve and pay your referrers' 20% from here.</p>
     </div>
     <button class="admin-refresh-btn" type="button" onclick="loadPayouts()">↻ Refresh</button>
   </div>
@@ -1163,7 +1163,7 @@
       <div class="admin-stat revenue"><div class="admin-stat-label">Your Share (80%)</div><div class="admin-stat-value" id="payoutOwnerShare">₦0</div></div>
       <div class="admin-stat verified"><div class="admin-stat-label">Available to Withdraw</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
       <div class="admin-stat"><div class="admin-stat-label">On Hold — 7-day countdown</div><div class="admin-stat-value" id="payoutHeld">₦0</div></div>
-      <div class="admin-stat pending"><div class="admin-stat-label">Owed to Referrers (17.5%)</div><div class="admin-stat-value" id="payoutReferrerCommission">₦0</div></div>
+      <div class="admin-stat pending"><div class="admin-stat-label">Owed to Referrers (20%)</div><div class="admin-stat-value" id="payoutReferrerCommission">₦0</div></div>
     </div>
 
     <div id="payoutFeeNotice" style="display:none;margin-bottom:14px;background:#F1F8E9;border:1px solid #C8E6C9;color:#1B5E20;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
@@ -1209,7 +1209,7 @@
   </div>
 
   <div class="admin-scan-panel" style="margin-top:16px;">
-    <div class="influencer-section-heading"><div><strong>Referrer commission requests</strong><div>Your referrers' 17.5% of every sale made through their link. <strong>You approve and pay these</strong> — the money is already yours, held for them.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>Referrer commission requests</strong><div>Your referrers' 20% of every sale made through their link. <strong>You approve and pay these</strong> — the money is already yours, held for them.</div></div></div>
     <div id="payoutHistory"></div>
   </div>
 
@@ -1690,15 +1690,17 @@ function fmtN(n) {
 
       var authorizedEventSales = [];
       // Per-sale split served by the event-overview API (fallbacks match the
-      // site-wide rates: 80% owner, 17.5% referrer commission, 2.5% Unisocials on a
+      // site-wide rates: 77.5% owner, 20% referrer commission, 2.5% Unisocials on a
       // referred sale and 20% on a direct one.
       var overviewFeeRate = 0.025;
-      var overviewOwnerRate = 0.80;
-      var overviewInflRate = 0.175;
+      var overviewOwnerRate = 0.775;
+      var overviewInflRate = 0.20;
       function applyOverviewRates(d) {
         if (isFinite(Number(d.feeRate))) overviewFeeRate = Number(d.feeRate);
         if (d.commissionRates) {
-          if (isFinite(Number(d.commissionRates.eventOwner))) overviewOwnerRate = Number(d.commissionRates.eventOwner);
+          // These rows are referred sales, so the owner nets 77.5%, not the 80%
+          // a direct sale pays.
+          if (isFinite(Number(d.commissionRates.eventOwnerReferred))) overviewOwnerRate = Number(d.commissionRates.eventOwnerReferred);
           if (isFinite(Number(d.commissionRates.influencer))) overviewInflRate = Number(d.commissionRates.influencer);
           // A referred sale costs Unisocials 2.5%; a direct one 20%.
           if (isFinite(Number(d.commissionRates.platformReferred))) overviewFeeRate = Number(d.commissionRates.platformReferred);
@@ -1728,7 +1730,7 @@ function fmtN(n) {
         if(!box)return;
         var rows=data.influencers||[];
         if(!rows.length){box.innerHTML='<div style="color:var(--text-3);padding:14px;">No influencers are assigned to this Influencer Admin yet.</div>';return;}
-        box.innerHTML=rows.map(function(r){var rv=Number(r.revenue||0);return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+rv.toLocaleString()+'</strong><br><small style="color:#1B5E20;">17.5% commission ₦'+Math.round(rv*overviewInflRate).toLocaleString()+'</small><small style="color:#E65100;"> · Unisocials ₦'+Math.round(rv*overviewFeeRate).toLocaleString()+'</small></div></div>';}).join('');
+        box.innerHTML=rows.map(function(r){var rv=Number(r.revenue||0);return '<div style="display:grid;grid-template-columns:2fr repeat(3,minmax(90px,1fr));gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border);min-width:620px;"><div><strong>'+esc(r.influencer.name||r.influencer.email)+'</strong><div style="font-size:.72rem;color:var(--text-3);">'+esc(r.influencer.email||'')+'</div></div><div><small>Tickets Sold</small><br><strong>'+r.ticketsSold+'</strong></div><div><small>Total Orders</small><br><strong>'+r.totalOrders+'</strong></div><div><small>Pending</small><br><strong>'+r.pendingOrders+'</strong></div><div><small>Revenue</small><br><strong>₦'+rv.toLocaleString()+'</strong><br><small style="color:#1B5E20;">20% commission ₦'+Math.round(rv*overviewInflRate).toLocaleString()+'</small><small style="color:#E65100;"> · Unisocials ₦'+Math.round(rv*overviewFeeRate).toLocaleString()+'</small></div></div>';}).join('');
       };
       var aesSel=document.getElementById('authorizedEventSelect'); if(aesSel) aesSel.addEventListener('change',function(){renderAuthorizedEventSales(this.value);});
 
@@ -1751,13 +1753,13 @@ function fmtN(n) {
             
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
             // Split of verified ticket revenue: the event owner keeps 80%,
-            // 17.5% of a referred sale goes to the referrers, and Unisocialss retains 2.5%.
+            // 20% of a referred sale goes to the referrers, and Unisocials retains 2.5%.
             var s80=document.getElementById('statOwner80'); if(s80) s80.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.eventOwnerShare)||0);},0)).toLocaleString();
             var s18=document.getElementById('statInfl18'); if(s18) s18.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.influencerCommission)||0);},0)).toLocaleString();
             var s2=document.getElementById('statPlatform2'); if(s2) s2.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.platformShare)||0);},0)).toLocaleString();
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet. Events you create are added automatically.</div>'; }
-              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner 80%: <strong>₦'+(ev.eventOwnerShare!=null?Math.round(ev.eventOwnerShare):Math.round(er*overviewOwnerRate)).toLocaleString()+'</strong> · 💰 Owed to referrers 17.5%: <strong style="color:#1B5E20;">₦'+(ev.influencerCommission!=null?Math.round(ev.influencerCommission):Math.round(er*overviewInflRate)).toLocaleString()+'</strong> · 🛡 Unisocials: <strong style="color:#E65100;">₦'+(ev.platformShare!=null?Math.round(ev.platformShare):Math.round(er*overviewFeeRate)).toLocaleString()+'</strong></div></div>'; }).join(''); }
+              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner 77.5%: <strong>₦'+(ev.eventOwnerShare!=null?Math.round(ev.eventOwnerShare):Math.round(er*overviewOwnerRate)).toLocaleString()+'</strong> · 💰 Owed to referrers 20%: <strong style="color:#1B5E20;">₦'+(ev.influencerCommission!=null?Math.round(ev.influencerCommission):Math.round(er*overviewInflRate)).toLocaleString()+'</strong> · 🛡 Unisocials: <strong style="color:#E65100;">₦'+(ev.platformShare!=null?Math.round(ev.platformShare):Math.round(er*overviewFeeRate)).toLocaleString()+'</strong></div></div>'; }).join(''); }
             }
             if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
           })
@@ -2369,10 +2371,10 @@ fetch('/api/admin/events/notify', {
       }
 
       // This account keeps the 80% of every verified payment on its events.
-      // The event owner's own 80% is withdrawable; the referrers' 17.5% is tracked
+      // The event owner's own share is withdrawable; the referrers' 20% is tracked
       // here too, because this account is the one who approves and pays it.
       var payoutFeeRate = 0;
-      var commissionRates = { eventOwner: 0.80, influencer: 0.175, platform: 0.025 };
+      var commissionRates = { eventOwner: 0.80, eventOwnerReferred: 0.775, influencer: 0.20, platform: 0.025 };
       var payoutHoldDays = 7;
       var payoutHeldData = [];
       var payoutHoldTimer = null;
@@ -2382,7 +2384,7 @@ fetch('/api/admin/events/notify', {
       }
 
       // d / hh / mm / ss countdown used by the referrer-hold banner.
-      // Percentages keep one decimal: Math.round() turned our 17.5% into "18%".
+      // Percentages keep one decimal: Math.round() rounded away small differences.
       function pct(rate) {
         var v = Math.round((Number(rate) || 0) * 1000) / 10;
         return (Math.abs(v - Math.round(v)) < 0.001 ? String(Math.round(v)) : String(v)) + '%';
@@ -2462,6 +2464,10 @@ fetch('/api/admin/events/notify', {
             set('payoutOwnerShare', data.ownerNetAmount);
             set('payoutAvailable', data.availableBalance);
             set('payoutHeld', data.heldPayments ? data.heldPayments.reduce(function(s,h){ return s + (Number(h.commissionAmount)||0); }, 0) : 0);
+            // The countdown card reads from this, so it has to be fed the
+            // held payments before it renders - otherwise the clock never
+            // leaves its placeholder.
+            payoutHeldData = Array.isArray(data.heldPayments) ? data.heldPayments : [];
             set('payoutReferrerCommission', data.influencerOwed);
 
             if (isFinite(Number(data.feeRate))) payoutFeeRate = Number(data.feeRate);
@@ -2469,7 +2475,7 @@ fetch('/api/admin/events/notify', {
               commissionRates = {
                 referred: Number(data.commissionRates.platformReferred) || 0.025,
                 direct: Number(data.commissionRates.platformDirect) || 0.20,
-                influencer: Number(data.commissionRates.influencer) || 0.175
+                influencer: Number(data.commissionRates.influencer) || 0.20
               };
             }
             payoutHoldDays = Number(data.holdDays) || 7;

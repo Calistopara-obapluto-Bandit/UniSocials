@@ -243,25 +243,30 @@ const PAYOUT_METHODS = {
 
 // ── How a verified ticket payment is split ──
 // A sale made through an influencer's referral link:
-//   2.5% → Unisocials      (the platform fee, instead of the usual 20%)
-//   17.5% → the influencer (17.5% of the FULL ticket, not of the remainder)
-//   80%   → the event owner
+//   2.5%  → Unisocials      (the platform fee, instead of the usual 20%)
+//   20%   → the influencer (20% of the FULL ticket, not of the remainder)
+//   77.5% → the event owner
 // A sale with no link used:
 //   20% → Unisocials
 //   80% → the event owner
 // Both branches total 100%. The event owner is credited 97.5% of a referred
-// sale and 80% of a direct one, but always withdraws 80% because the
-// influencer's 17.5% is allocated out of their credit. The event's Influencer
-// Admin is the one who pays that commission to their referrer.
+// sale and 80% of a direct one, and withdraws what is left after the
+// influencer's 20% is allocated out of their credit — 77.5% referred, 80%
+// direct. The event's Influencer Admin is the one who pays that commission to
+// their referrer.
 const PLATFORM_FEE_REFERRED = 0.025;
 const PLATFORM_FEE_DIRECT = 0.20;
-const INFLUENCER_COMMISSION_RATE = 0.175;
+const INFLUENCER_COMMISSION_RATE = 0.20;
+// A direct sale still pays the owner 80%. On a referred sale the owner nets
+// 77.5% (97.5% credited less the influencer's 20%), which falls out of
+// commissionSplit rather than being stored separately.
 const EVENT_OWNER_RATE = 0.80;
+const EVENT_OWNER_RATE_REFERRED = 1 - PLATFORM_FEE_REFERRED - INFLUENCER_COMMISSION_RATE;
 // What the event owner is CREDITED with before any referrer allocation:
 // 97.5% of a referred sale, 80% of a direct one.
 const OWNER_CREDIT_REFERRED = 1 - PLATFORM_FEE_REFERRED;
 const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
-// Neither the owner's 80% nor the influencer's 17.5% is deducted again at
+// Neither the owner's share nor the influencer's 20% is deducted again at
 // payout: both platform fees are already taken from the ticket itself.
 const PAYOUT_FEE_RATE = 0;
 // Payments made through the site mature for 7 days before they can be
@@ -270,7 +275,7 @@ const PAYOUT_HOLD_DAYS = 7;
 const PAYOUT_HOLD_MS = PAYOUT_HOLD_DAYS * 24 * 60 * 60 * 1000;
 
 // Split one payment. `referred` decides which platform fee applies, and the
-// influencer's share is always 17.5% of the FULL amount. The platform fee is
+// influencer's share is always 20% of the FULL amount. The platform fee is
 // taken off the top, then the influencer's commission is allocated out of what
 // the owner was credited, so the parts always add back up to the gross.
 function commissionSplit(amount, referred) {
@@ -293,7 +298,7 @@ function commissionSplit(amount, referred) {
 }
 
 // Aggregate referred and direct payments into one split.
-// Render a rate as a percentage label. Math.round() turned the referrer's 17.5%
+// Render a rate as a percentage label. Rounding kept hiding small halves.
 // into "18%", so keep one decimal and drop it when the rate is a whole number.
 function rateLabel(rate) {
   const pct = (Number(rate) || 0) * 100;
@@ -316,9 +321,12 @@ function commissionTotals(referredAmount, directAmount) {
   };
 }
 
-// The headline rates, for the dashboards and the emails.
+// The headline rates, for the dashboards and the emails. The owner's rate
+// depends on whether a referral link was used, so both are published rather
+// than a single figure that would be wrong half the time.
 const COMMISSION_SPLIT = {
   eventOwner: EVENT_OWNER_RATE,
+  eventOwnerReferred: EVENT_OWNER_RATE_REFERRED,
   influencer: INFLUENCER_COMMISSION_RATE,
   platformReferred: PLATFORM_FEE_REFERRED,
   platformDirect: PLATFORM_FEE_DIRECT,
@@ -358,9 +366,10 @@ function collectHeldPayments(orders, matches, shareOf) {
 }
 
 // ── Payout requests: who may withdraw what ──
-// The event owner withdraws their 80% (97.5% credited, less the 17.5% allocated
+// The event owner withdraws their 77.5% on a referred sale (97.5% credited,
 // to the referrer). The INFLUENCER who owns the referral code withdraws their
-// own 17.5% of the full ticket. Both are separate requests paid from the same
+// less the 20% allocated to the referrer) and 80% on a direct one. The referrer
+// withdraws their own 20% of the full ticket. Both are separate requests paid from the same
 // verified payment, and neither is deducted twice.
 
 // Validate a payout request body. Shared by the referrer and the legacy
@@ -496,7 +505,7 @@ function payoutPublic(p) {
     requestedBy: p.requestedBy,
     requesterName: p.requesterName || '',
     requesterEmail: p.requesterEmail || '',
-    // 'influencer' = the referrer withdrawing their 17.5% commission. Older
+    // 'influencer' = the referrer withdrawing their 20% commission. Older
     // records have no role stored, so fall back to the requester itself.
     requesterRole: p.requesterRole || '',
     // The Influencer Admins allowed to release a referrer's commission: the
@@ -4617,7 +4626,7 @@ codes[idx] = entry;
       // has its own independent code/link.
       function commissionForOrder(order) {
         // Respect an explicitly stored commission amount/rate when the order has one.
-        // Orders without one fall back to the site-wide 17.5% influencer commission,
+        // Orders without one fall back to the site-wide 20% influencer commission,
         // so the referral portal never reports a flat zero for real sales.
         const explicit = Number(order && (order.commissionAmount ?? order.influencerCommission ?? order.referralCommission));
         if (Number.isFinite(explicit)) return explicit;
@@ -5293,7 +5302,7 @@ codes[idx] = entry;
         // Main Admin's decision and must not be surfaced in the Influencer Admin
         // dashboard.
         const revenue = verified.reduce((n,o)=>n+(Number(o.amount)||0),0);
-        // Per-event breakdown, splitting referred sales (17.5% to the influencer,
+        // Per-event breakdown, splitting referred sales (20% to the influencer,
         // 2.5% to Unisocials) from direct ones (20% to Unisocials).
         const referred = verified.filter(o => !!String(o.referralCode || '').trim()).reduce((n,o)=>n+(Number(o.amount)||0),0);
         const split = commissionTotals(referred, revenue - referred);
@@ -5305,7 +5314,7 @@ codes[idx] = entry;
 
     // ── Influencer Admin: their 80% share, minus what is owed to referrers ──
     // The event owner is credited 97.5% of a referred sale and 80% of a direct
-    // one, but the influencer's 17.5% is allocated out of that credit — so the
+    // one, but the influencer's 20% is allocated out of that credit — so the
     // owner always withdraws 80% of the ticket. Sales are classified per order
     // by whether they carried a referral code.
     async function influencerAdminPayoutSummary(authCtx) {
@@ -5358,7 +5367,7 @@ codes[idx] = entry;
         // 97.5% of referred sales + 80% of direct sales: what the owner is owed
         // before the referrers' commission is allocated out of it.
         ownerCreditAmount: totals.ownerCreditAmount,
-        // 17.5% of every referred ticket, owed to the influencers.
+        // 20% of every referred ticket, owed to the influencers.
         influencerOwed: totals.influencerAmount,
         // What the owner actually walks away with: 80% of every ticket.
         ownerNetAmount: totals.ownerNetAmount,
@@ -5459,7 +5468,7 @@ codes[idx] = entry;
     }
 
     // The event owner withdraws their 80%: 97.5% of a referred sale less the
-    // influencer's 17.5% allocated out of it, and 80% of a direct sale. The same
+    // influencer's 20% allocated out of it, and 80% of a direct sale. The same
     // request/approve/pay flow and completion email the referrer uses.
     if (pathname === '/api/influencer-admin/payouts' && req.method === 'POST') {
       const authCtx = await isAdminOrInfluencerAdmin(req);
@@ -5490,7 +5499,7 @@ codes[idx] = entry;
         payout: payoutPublic(payout),
         availableBalance: Math.max(0, summary.availableBalance - parsed.amount),
         adminEmailSent: !!emailSent,
-        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' will be sent to you, and the Main Admin will pay it within 24 hours of approval. Your referrers\' 17.5% commission is separate — they request it themselves.'
+        message: 'Payout request submitted: ₦' + fee.netAmount.toLocaleString() + ' will be sent to you, and the Main Admin will pay it within 24 hours of approval. Your referrers\' 20% commission is separate — they request it themselves.'
       });
     }
 
@@ -5524,8 +5533,8 @@ codes[idx] = entry;
       });
     }
 
-    // ── Influencer (referrer): withdraw the 17.5% commission ──
-    // The 17.5% is earned only on sales that came through this influencer's own
+    // ── Influencer (referrer): withdraw the 20% commission ──
+    // The 20% is earned only on sales that came through this influencer's own
     // referral link. They ask for it here; the Influencer Admin of the event
     // approves and pays it. Same records, emails and oversight as every other
     // payout — only the role allowed to release it differs.
@@ -5562,7 +5571,7 @@ codes[idx] = entry;
         if (String(o.status || '').toLowerCase() !== 'verified') return;
         const amount = Number(o.amount) || 0;
         referredRevenue += amount;
-        // The commission is 17.5% of the FULL ticket, not of the owner's 97.5%.
+        // The commission is 20% of the FULL ticket, not of the owner's 97.5%.
         const commission = commissionSplit(amount, true).influencerAmount;
         const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
         const unlocksMs = paidMs + PAYOUT_HOLD_MS;
@@ -5593,7 +5602,7 @@ codes[idx] = entry;
         referredRevenue,
         heldRevenue,
         heldPayments,
-        // 17.5% of the FULL ticket, withdrawn with no further deduction.
+        // 20% of the FULL ticket, withdrawn with no further deduction.
         totalCommission: earned,
         availableBalance: balance.availableBalance,
         totalRequested: balance.committed,
