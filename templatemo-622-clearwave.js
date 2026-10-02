@@ -372,20 +372,23 @@ window.UNUniversity = {
     });
   }
 
-// The nav item labelled "Tickets" means two different things depending on the
-  // visitor. For a buyer with an account it is the marketplace where you pick an
-  // event and buy seats. For a visitor with no account it is "find the ticket I
-  // already bought" — the order lookup, which needs nothing but an Order ID and
-  // the phone number used to pay. A guest landing on the marketplace was dropped
-  // on a checkout page they cannot use yet, so guests get the lookup instead.
-  // The original target is remembered on the link so signing in or out restores
-  // it without needing a page reload.
+// "Tickets" is one word for two different jobs. Signed in, it is the
+  // marketplace where you pick an event and buy seats. Signed out, a buyer has
+  // no account, no dashboard, and nothing to browse — what they want is "where
+  // is the ticket I already paid for", which is the standalone lookup page. So
+  // guests get their own page instead of being dropped on a checkout page they
+  // cannot use. The original target is remembered on the link so signing in or
+  // out restores it without a reload.
   function syncTicketNavLinks() {
     var loggedIn = !!getToken();
-    document.querySelectorAll('.nav-links a, .mobile-menu a, .footer-links a').forEach(function(link) {
+    document.querySelectorAll('.nav-links a, .mobile-menu a, .footer-links a, [data-ticket-hub]').forEach(function(link) {
       var href = link.getAttribute('href') || '';
       var guestHref = link.getAttribute('data-guest-href');
+      var isHub = link.hasAttribute('data-ticket-hub');
       var isMarketplace = (href === 'tickets.html' || href === '/tickets.html') && !guestHref;
+      // A "hub" CTA (hero, checkout success) normally goes to the dashboard.
+      // For a guest the dashboard is a dead end, so it goes to the lookup too.
+      var isDashboardCta = isHub && (href === 'my-tickets.html' || href === '/my-tickets.html') && !guestHref;
       var isGuestSwap = !!guestHref && href === guestHref;
 
       if (loggedIn) {
@@ -394,10 +397,10 @@ window.UNUniversity = {
           link.removeAttribute('data-guest-href');
           link.removeAttribute('title');
         }
-      } else if (isMarketplace) {
-        link.setAttribute('data-guest-href', 'my-tickets.html');
-        link.setAttribute('href', 'my-tickets.html');
-        link.setAttribute('title', 'Look up a ticket you already bought');
+      } else if (isMarketplace || isDashboardCta) {
+        link.setAttribute('data-guest-href', 'lookup.html');
+        link.setAttribute('href', 'lookup.html');
+        link.setAttribute('title', 'Find a ticket you already bought');
       }
     });
   }
@@ -416,7 +419,7 @@ window.UNNAuth.renderNavAccount = renderNavAccount;
     clearAuth();
     renderNavAccount();
     syncMobileMenuLogout();
-    if (window.location.pathname.endsWith('my-tickets.html')) window.location.reload();
+    if (window.location.pathname.endsWith('my-tickets.html')) window.location.replace('login.html');
   };
 
   // Inject + sync a "Log out" link inside the mobile menu on every page.

@@ -8,49 +8,82 @@
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Tickets — Unisocials</title>
+  <title>Look Up Your Ticket — Unisocials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
   <style>
-    /* This page is the signed-in dashboard only. Guests who land here are sent
-       straight to lookup.html, which is the account-free way to open a ticket. */
-    .orders-section { padding: 24px 0 80px; }
-    .order-card {
+    /* This page is the guest destination: one card, one job — find the ticket
+       for an order you already paid for, without creating an account. */
+    .lookup-section { padding: 24px 0 80px; }
+    .lookup-card {
+      max-width: 720px;
+      margin: 0 auto;
       background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px 24px;
-      margin-bottom: 14px;
-      box-shadow: var(--shadow-sm);
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-md);
     }
-    .order-card-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 8px;
-    }
-    .order-card-top .order-id { font-family: monospace; font-weight: 700; color: var(--accent); font-size: 0.85rem; }
-    .order-card-title { font-weight: 700; color: var(--text-1); font-size: 1rem; margin-bottom: 4px; }
-    .order-card-meta { font-size: 0.82rem; color: var(--text-3); }
-    .order-codes { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-    .order-code-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
+    .lookup-card h2 { font-size: 1.3rem; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+    .lookup-card > p { font-size: 0.88rem; color: var(--text-3); margin-bottom: 24px; line-height: 1.6; }
+    .lookup-result {
+      margin-top: 24px;
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
+      border-radius: var(--radius);
+      padding: 20px;
+      display: none;
     }
-    .order-code-row code { font-family: monospace; font-weight: 700; color: var(--accent); }
+    .lookup-result.show { display: block; }
+    .lookup-order-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 0.88rem;
+    }
+    .lookup-order-row:last-child { border-bottom: none; }
+    .lookup-order-row span { color: var(--text-3); }
+    .lookup-order-row strong { color: var(--text-1); text-align: right; }
+    .lookup-badge {
+      display: inline-block;
+      padding: 3px 14px;
+      border-radius: 100px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .lookup-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+    .lookup-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
+    .lookup-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
+    .lookup-error {
+      display: none;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      color: #B71C1C;
+      font-size: 0.85rem;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-top: 16px;
+    }
+    .lookup-error.show { display: block; }
+    .lookup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .lookup-hint {
+      max-width: 720px;
+      margin: 0 auto 20px;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: 0.85rem;
+      color: var(--text-2);
+    }
+    .lookup-hint a { color: var(--accent); text-decoration: underline; }
+
     .ticket-state {
       display: inline-flex;
       align-items: center;
@@ -68,54 +101,10 @@
     .order-code-row.used { opacity: 0.65; }
     .order-code-row.used code { color: var(--text-3); text-decoration: line-through; }
 
-    .lookup-badge {
-      display: inline-block;
-      padding: 3px 14px;
-      border-radius: 100px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .lookup-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
-    .lookup-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
-    .lookup-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
-
-    .dashboard-empty {
-      max-width: 720px;
-      margin: 0 auto;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 40px 36px;
-      text-align: center;
-      box-shadow: var(--shadow-md);
-    }
-    .dashboard-empty h2 { font-size: 1.3rem; font-weight: 700; color: var(--text-1); margin-bottom: 8px; }
-    .dashboard-empty p { font-size: 0.88rem; color: var(--text-3); margin-bottom: 20px; line-height: 1.6; }
-
-    .lookup-error {
-      display: none;
-      background: #FDECEA;
-      border: 1px solid #F5C6CB;
-      color: #B71C1C;
-      font-size: 0.85rem;
-      padding: 12px 16px;
-      border-radius: 10px;
-      margin-top: 16px;
-    }
-    .lookup-error.show { display: block; }
-
-    /* Small-screen guards: buyer names, emails and ticket codes are user-supplied
-       and can be long enough to push the card wider than the viewport. */
-    @media (max-width: 600px) {
-      .order-card, .order-card-top, .order-card-meta, .order-codes, .order-code-row {
-        min-width: 0; max-width: 100%;
-      }
-      .order-card { padding: 16px 14px; }
-      .order-card-title, .order-card-meta { overflow-wrap: anywhere; }
-      .order-code-row { flex-wrap: wrap; }
-      .order-code-row code { word-break: break-all; min-width: 0; }
+    @media (max-width: 480px) {
+      .lookup-card { padding: 28px 20px; }
+      .lookup-actions .btn-primary, .lookup-actions .btn-cta-ghost { width: 100%; }
+      .lookup-order-row { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -156,19 +145,36 @@
 
   <section class="page-header">
     <div class="container">
-      <div class="section-label reveal">My Tickets</div>
-      <h1 class="section-title reveal reveal-delay-1">Your <em>orders</em></h1>
-      <p class="section-sub reveal reveal-delay-2">Every order on your account, in one place. Bought something with a different phone number? <a href="lookup.html" style="color:var(--accent);text-decoration:underline;">Look up that order</a>.</p>
+      <div class="section-label reveal">Order Lookup</div>
+      <h1 class="section-title reveal reveal-delay-1">Find your <em>ticket</em></h1>
+      <p class="section-sub reveal reveal-delay-2" id="pageSub">Already bought a ticket? Enter your Order ID and the phone number you paid with — no account, no sign-in.</p>
     </div>
   </section>
 
-  <section class="orders-section" id="ordersSection">
+  <section class="lookup-section" id="lookupSection">
     <div class="container">
-      <div id="ordersHeader" style="display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px;max-width:720px;margin-left:auto;margin-right:auto;" data-logged-in-header>
-        <h2 style="font-size:1.3rem;font-weight:700;color:var(--text-1);">🎟 My Orders</h2>
-        <button class="btn-cta-ghost" onclick="UNNAuth.logout()" style="display:inline-flex;padding:10px 24px;font-size:0.85rem;cursor:pointer;">Log Out</button>
+      <div class="lookup-hint" id="lookupHint">
+        <strong>No account needed.</strong> Your tickets are emailed to you the moment payment is confirmed — just open that email. <a href="login.html">Signing in</a> is optional, only to see every order in one place.
       </div>
-      <div id="ordersList"></div>
+      <div class="lookup-card reveal">
+        <h2 id="lookupHeading">🔍 Look Up Your Order</h2>
+        <p id="lookupBlurb">Enter your Order ID and the phone number you used to buy the ticket. No sign-up, no sign-in.</p>
+
+        <div class="form-group">
+          <label for="lookupOrderId">Order ID</label>
+          <input type="text" id="lookupOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="lookupPhone">Phone Number</label>
+          <input type="tel" id="lookupPhone" placeholder="0812 345 6789" autocomplete="tel" />
+        </div>
+
+        <button class="btn-submit" id="lookupBtn" onclick="lookupOrder()">Find My Ticket</button>
+
+        <div class="lookup-error" id="lookupError"></div>
+
+        <div class="lookup-result" id="lookupResult"></div>
+      </div>
     </div>
   </section>
 
@@ -184,7 +190,6 @@
           <div class="footer-links">
             <a href="events.html">Events</a>
             <a href="tickets.html">Tickets</a>
-            <a href="lookup.html">Find My Ticket</a>
             <a href="about.html">About Us</a>
             <a href="contact.html">Contact</a>
             <a href="faq.html">FAQ</a>
@@ -266,48 +271,83 @@
       return links;
     }
 
-    // This is the account dashboard, so a signed-out visitor has nothing to see.
-    // Send them to the standalone lookup page rather than showing an empty list,
-    // so there is exactly one obvious place to go depending on whether you
-    // have an account.
-    var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
-    if (!token) {
-      window.location.replace('lookup.html');
-    } else {
-      var ordersHeader = document.querySelector('[data-logged-in-header]');
-      if (ordersHeader) ordersHeader.style.display = 'flex';
+window.lookupOrder = function() {
+      var orderId = document.getElementById('lookupOrderId').value.trim();
+      var phone = document.getElementById('lookupPhone').value.trim();
+      var errBox = document.getElementById('lookupError');
+      var resultBox = document.getElementById('lookupResult');
+      var btn = document.getElementById('lookupBtn');
 
-      fetch('/api/auth/orders', {
-        headers: window.UNNAuth.authHeaders()
+      errBox.classList.remove('show');
+      resultBox.classList.remove('show');
+
+      if (!orderId || !phone) {
+        errBox.textContent = 'Please enter both your Order ID and phone number.';
+        errBox.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Searching\u2026';
+
+      fetch('/api/orders/lookup', {
+        method: 'POST',
+        headers: window.UNNAuth.authHeaders(),
+        body: JSON.stringify({ orderId: orderId, phone: phone })
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        var list = document.getElementById('ordersList');
-        if (!list) return;
-        var orders = (data && data.success && data.orders) || [];
-        if (!orders.length) {
-          list.innerHTML = '<div class="dashboard-empty"><h2>No tickets yet</h2><p>You haven\u2019t bought any tickets on this account. Browse events and grab yours today!</p>' +
-            '<a href="events.html" class="btn-primary" style="display:inline-flex;padding:12px 28px;">Browse Events</a></div>';
-          return;
-        }
-        var html = '';
-        orders.forEach(function(o) {
-          html += '<div class="order-card">' +
-            '<div class="order-card-top">' +
-              '<span class="order-id">' + esc(o.orderId) + '</span>' + orderStatusBadge(o.status) +
-            '</div>' +
-            '<div class="order-card-title">' + esc(o.eventName || '\u2014') + '</div>' +
-            '<div class="order-card-meta">' + (o.eventDate ? '\uD83D\uDCC5 ' + esc(o.eventDate) : '') + (o.eventVenue ? ' &middot; \uD83D\uDCCD ' + esc(o.eventVenue) : '') + ' &middot; ' + fmtN(o.amount) + '</div>' +
-            '<div class="order-codes">' + ticketLinks(o) + '</div>' +
+        if (data && data.success && data.order) {
+          var o = data.order;
+          // Your Order ID plus the phone number you paid with is all the proof
+          // needed, so a guest never has to sign up or sign in to see their
+          // tickets — the same links that were emailed to you.
+          var codesHtml = ticketLinks(o);
+          resultBox.innerHTML =
+            '<div style="text-align:center;margin-bottom:14px;">' + orderStatusBadge(o.status) + '</div>' +
+            '<div class="lookup-order-row"><span>Order ID</span><strong>' + esc(o.orderId) + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Event</span><strong>' + esc(o.eventName || '\u2014') + '</strong></div>' +
+            (o.eventDate ? '<div class="lookup-order-row"><span>Date</span><strong>' + esc(o.eventDate) + '</strong></div>' : '') +
+            (o.eventVenue ? '<div class="lookup-order-row"><span>Venue</span><strong>' + esc(o.eventVenue) + '</strong></div>' : '') +
+            '<div class="lookup-order-row"><span>Quantity</span><strong>' + o.qty + ' ticket' + (o.qty > 1 ? 's' : '') + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Total</span><strong>' + fmtN(o.amount) + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Payment</span><strong>Flutterwave</strong></div>' +
+            (o.status === 'verified' ? '<div class="lookup-order-row"><span>Verified</span><strong>' + fmtDate(o.verifiedAt) + '</strong></div>' : '') +
+            '<div class="lookup-actions">' + codesHtml +
+            '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="events.html">Browse Events</a>' +
             '</div>';
-        });
-        list.innerHTML = html;
+          resultBox.classList.add('show');
+        } else {
+          errBox.textContent = (data && data.error) || 'Order not found. Check your details and try again.';
+          errBox.classList.add('show');
+        }
       })
       .catch(function() {
-        var list = document.getElementById('ordersList');
-        if (list) list.innerHTML = '<div class="lookup-error show">Could not load your orders. Please try again.</div>';
+        errBox.textContent = 'Cannot reach server. Please try again.';
+        errBox.classList.add('show');
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Find My Ticket';
       });
-    }
+    };
+
+    // This page is for guests, but a signed-in buyer can still land here (an old
+    // bookmark, a shared link, an order bought on another number). Point them at
+    // their dashboard instead of making them re-enter details they already have.
+    (function initSignedIn() {
+      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
+      if (!token) return;
+
+      var pageSub = document.getElementById('pageSub');
+      var hint = document.getElementById('lookupHint');
+      if (pageSub) {
+        pageSub.textContent = 'You\u2019re signed in \u2014 every order on your account is on your dashboard. You can still look up a single order here.';
+      }
+      if (hint) {
+        hint.innerHTML = '<strong>Signed in.</strong> Every order on your account is already listed on your dashboard. <a href="my-tickets.html">Go to My Tickets \u2192</a>';
+      }
+    })();
   </script>
 </body>
 </html>
