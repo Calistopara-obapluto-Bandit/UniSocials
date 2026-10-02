@@ -1930,28 +1930,85 @@ function securityHeaders(req) {
   return headers;
 }
 
+// Hard ceiling on a single order's value. Quantity is already capped at 100
+// per order; this bounds the money side of that product so no single checkout
+// can create an arbitrarily large receivable, and so a tampered event price
+// cannot turn into an unbounded payout obligation.
+const MAX_ORDER_AMOUNT = 5000000; // ₦5,000,000
+
+// How many times larger the shared per-route ceiling is than the per-client
+// limit. High enough that ordinary traffic never reaches it, low enough that
+// address rotation cannot be used to bypass a limit.
+const ROUTE_LIMIT_MULTIPLIER = 20;
+
+// The client address a rate-limit bucket should be keyed on.
+//
+// X-Forwarded-For is a comma-separated chain where each proxy APPENDS the peer
+// it received from, so the LAST entry is the one written by our own edge and is
+// the only one we can trust. The first entry is whatever the caller sent, which
+// is why taking it let an attacker mint a fresh bucket per request by sending a
+// different header value — that defeated every limit in the app, including
+// login, OTP verification and the order lookup.
+//
+// Falls back to the socket address when the header is absent or unparseable.
+function rateLimitClientIp(req) {
+  const raw = String(req.headers['x-forwarded-for'] || '');
+  // An overlong chain is rejected outright rather than truncated: cutting it
+  // mid-list would leave an attacker-supplied entry sitting in last position.
+  if (raw && raw.length <= 512) {
+    const hops = raw.split(',').map(h => h.trim()).filter(Boolean);
+    if (hops.length) {
+      const last = hops[hops.length - 1];
+      // Only accept something that actually looks like an address, so a garbage
+      // header cannot collapse every caller into one shared "unknown" bucket.
+      if (/^[0-9a-f:.]{2,45}$/i.test(last)) return last;
+    }
+  }
+  const sock = String((req.socket && req.socket.remoteAddress) || '').trim();
+  return sock || 'unknown';
+}
+
 // Very small in-memory rate limiter for sensitive endpoints (auth).
-// Keyed by IP + route. Returns true if the request is allowed.
+//
+// Two limits apply to every call, and both must pass:
+//
+//   1. Per client  — the usual limit, keyed on the resolved client address.
+//   2. Per route   — a global ceiling shared by everyone. Rotating the
+//      X-Forwarded-For header can mint a fresh per-client bucket, but it
+//      cannot mint a fresh route bucket, so a caller that changes its claimed
+//      address on every request still runs out of attempts.
+//
+// The route ceiling is deliberately several times the per-client limit so it
+// only bites on sustained abuse from many addresses, not on normal traffic.
 const rateBuckets = new Map();
-function rateLimit(req, route, limit, windowMs) {
-  const ip = req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : (req.socket && req.socket.remoteAddress) || 'unknown';
-  const key = ip + '|' + route;
-  const now = Date.now();
-  const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + windowMs };
+const routeRateBuckets = new Map();
+function bumpBucket(store, key, now, windowMs) {
+  const bucket = store.get(key) || { count: 0, resetAt: now + windowMs };
   if (now > bucket.resetAt) {
     bucket.count = 0;
     bucket.resetAt = now + windowMs;
   }
   bucket.count++;
-  rateBuckets.set(key, bucket);
-  // Guard against unbounded growth
-  if (rateBuckets.size > 10000) {
-    const cutoff = Date.now() - 15 * 60 * 1000;
-    for (const [k, b] of rateBuckets) {
-      if (b.resetAt < cutoff) rateBuckets.delete(k);
-    }
+  store.set(key, bucket);
+  return bucket;
+}
+function pruneBuckets(store) {
+  if (store.size <= 10000) return;
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [k, b] of store) {
+    if (b.resetAt < cutoff) store.delete(k);
   }
-  return { allowed: bucket.count <= limit, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+}
+function rateLimit(req, route, limit, windowMs) {
+  const now = Date.now();
+  const client = bumpBucket(rateBuckets, rateLimitClientIp(req) + '|' + route, now, windowMs);
+  const global = bumpBucket(routeRateBuckets, route, now, windowMs);
+  pruneBuckets(rateBuckets);
+  pruneBuckets(routeRateBuckets);
+  return {
+    allowed: client.count <= limit && global.count <= limit * ROUTE_LIMIT_MULTIPLIER,
+    retryAfter: Math.ceil((Math.max(client.resetAt, global.resetAt) - now) / 1000)
+  };
 }
 
 // Apply security headers to a plain header object.
@@ -2305,7 +2362,6 @@ async function buildSelfServiceStaffUser({ name, contactEmail, role, prefix, ext
     passwordHash: hashPassword(password),
     role: role,
     selfRegistered: true,
-    mustChangePassword: true,
     createdAt: new Date().toISOString()
   }, extra || {});
   return { user, password };
@@ -4198,6 +4254,19 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
 
       if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
+      }
+
+      // The client is never trusted with the money. A request that does not
+      // resolve to a real catalogue event leaves `amount` as whatever the caller
+      // sent, which let anyone create a ₦1 "order" for any event name and have
+      // it flow into revenue reports, commission splits and payout balances.
+      // Price must always come from a real event record.
+      if (!eventRecord) {
+        return sendJson(res, 400, { success: false, error: 'A valid event is required to price this order.' });
+      }
+
+      if (amount > MAX_ORDER_AMOUNT) {
+        return sendJson(res, 400, { success: false, error: 'This order total is above the maximum allowed. Please reduce the quantity.' });
       }
 
       const existing = await getOrder(orderId);
