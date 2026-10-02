@@ -360,6 +360,10 @@ window.UNUniversity = {
       if (hamburger) inner.insertBefore(cluster, hamburger);
       else inner.appendChild(cluster);
     });
+
+    // Keep the shared "Tickets" link pointing at the right destination for the
+    // current sign-in state (marketplace vs. order lookup).
+    syncTicketNavLinks();
   }
 
   function esc(s) {
@@ -368,7 +372,38 @@ window.UNUniversity = {
     });
   }
 
+// The nav item labelled "Tickets" means two different things depending on the
+  // visitor. For a buyer with an account it is the marketplace where you pick an
+  // event and buy seats. For a visitor with no account it is "find the ticket I
+  // already bought" — the order lookup, which needs nothing but an Order ID and
+  // the phone number used to pay. A guest landing on the marketplace was dropped
+  // on a checkout page they cannot use yet, so guests get the lookup instead.
+  // The original target is remembered on the link so signing in or out restores
+  // it without needing a page reload.
+  function syncTicketNavLinks() {
+    var loggedIn = !!getToken();
+    document.querySelectorAll('.nav-links a, .mobile-menu a, .footer-links a').forEach(function(link) {
+      var href = link.getAttribute('href') || '';
+      var guestHref = link.getAttribute('data-guest-href');
+      var isMarketplace = (href === 'tickets.html' || href === '/tickets.html') && !guestHref;
+      var isGuestSwap = !!guestHref && href === guestHref;
+
+      if (loggedIn) {
+        if (isGuestSwap) {
+          link.setAttribute('href', 'tickets.html');
+          link.removeAttribute('data-guest-href');
+          link.removeAttribute('title');
+        }
+      } else if (isMarketplace) {
+        link.setAttribute('data-guest-href', 'my-tickets.html');
+        link.setAttribute('href', 'my-tickets.html');
+        link.setAttribute('title', 'Look up a ticket you already bought');
+      }
+    });
+  }
+
 window.UNNAuth.renderNavAccount = renderNavAccount;
+  window.UNNAuth.syncTicketNavLinks = syncTicketNavLinks;
   window.UNNAuth.logout = function(e) {
     if (e) e.preventDefault();
     var token = getToken();
