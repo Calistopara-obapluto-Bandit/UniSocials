@@ -6277,7 +6277,58 @@ const events = await readEvents();
       res.end(html);
       return;
     }
-    if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
+    // ── React app ──
+// The migration runs both versions at once: a route listed here is served from
+// the Vite build in dist/, and everything else falls through to the original
+// .html file below. That way no existing URL or link breaks while the remaining
+// pages are ported. Add a route to this set only once its React page is built
+// and verified.
+const REACT_ROUTES = new Set(['/lookup', '/my-tickets']);
+const REACT_DIST = path.join(__dirname, 'dist');
+const reactIndexHtml = path.join(REACT_DIST, 'index.html');
+const REACT_BUILT = fs.existsSync(reactIndexHtml);
+
+// The built bundle lives in dist/assets, but index.html references it as
+// /assets/... so it resolves against the site root. Serve that prefix from the
+// build output, falling back to the repo's own assets/ directory (which holds
+// images, the QR libraries and the legacy minified bundle).
+if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
+  const fromDist = path.resolve(REACT_DIST, '.' + urlPath);
+  if (fromDist.startsWith(REACT_DIST + path.sep) && fs.existsSync(fromDist) && fs.statSync(fromDist).isFile()) {
+        const extD = path.extname(fromDist).toLowerCase();
+        res.writeHead(200, withSecurityHeaders({
+          'Content-Type': MIME_TYPES[extD] || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }, req));
+        fs.createReadStream(fromDist).pipe(res);
+        return;
+      }
+    }
+
+if (REACT_BUILT && REACT_ROUTES.has(urlPath.toLowerCase())) {
+      const assetPath = path.resolve(REACT_DIST, '.' + urlPath);
+      // Hashed assets under /assets are served straight off disk by the static
+      // handler, so only the SPA entry document needs handling here.
+      if (assetPath !== REACT_DIST && assetPath.startsWith(REACT_DIST + path.sep) &&
+          fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
+        const extA = path.extname(assetPath).toLowerCase();
+        res.writeHead(200, withSecurityHeaders({
+          'Content-Type': MIME_TYPES[extA] || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }, req));
+        fs.createReadStream(assetPath).pipe(res);
+        return;
+      }
+      // Any client-side route under the SPA falls back to the entry document.
+      res.writeHead(200, withSecurityHeaders({
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, max-age=0, must-revalidate'
+      }, req));
+      fs.createReadStream(reactIndexHtml).pipe(res);
+      return;
+    }
+
+if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
       res.writeHead(403);
       res.end('Forbidden');
       return;
