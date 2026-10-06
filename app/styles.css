@@ -157,9 +157,7 @@
 .reveal-delay-1 { animation-delay: 0.1s; }
 .reveal-delay-2 { animation-delay: 0.2s; }
 .reveal-delay-3 { animation-delay: 0.3s; }
-.reveal-delay-4 { animation-delay: 0.4s; }
-
-/* ── Small screens ─────────────────────────────────────────────────────────
+.reveal-delay-4 { animation-delay: 0.4s; }/* ── Small screens ─────────────────────────────────────────────────────────
    Buyer names, emails and ticket codes are user-supplied and can be long
    enough to push a card wider than the viewport. */
 @media (max-width: 600px) {
@@ -174,4 +172,73 @@
   .order-card-title, .order-card-meta { overflow-wrap: anywhere; }
   .order-code-row { flex-wrap: wrap; }
   .order-code-row code { word-break: break-all; min-width: 0; }
+
+  .uni-picker-bar { flex-wrap: wrap; }
+  .uni-picker-bar select { flex: 1 1 100%; }
+  .events-month-summary { min-width: 0; }
+  .month-chip { max-width: 100%; }
+  .month-chip .month-name { overflow-wrap: anywhere; min-width: 0; }
+}
+
+/* ── Events page (ported from events.html <style> so the React version looks
+   identical to the legacy page). These classes already exist in
+   templatemo-622-clearwave.css; this block is only for the small extras the
+   events page uses that are not part of the shared base stylesheet. */
+
+.uni-picker-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.uni-picker-label { font-size: 0.9rem; color: var(--text-3); white-space: nowrap; }
+.uni-picker-bar select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+}
+.uni-picker-bar select:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-ghost); }
+
+.events-month-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+.month-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.month-chip .month-name { color: var(--text-1); font-weight: 700; text-transform: capitalize; }
+.month-chip .month-count { color: var(--accent); font-weight: 700; }
+
+.event-card-footer-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.event-card-capacity {
+  font-size: 0.72rem;
+  color: var(--text-3);
 }

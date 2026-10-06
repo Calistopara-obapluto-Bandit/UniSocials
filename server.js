@@ -6289,7 +6289,7 @@ const events = await readEvents();
 // is invisible during normal operation and the migration is reversible by
 // removing the build.
 const REACT_CANONICAL_ROUTES = new Set(['/checkout', '/thank-you']);
-const REACT_SPA_ROUTES = new Set(['/lookup', '/my-tickets', '/checkout', '/thank-you']);
+const REACT_SPA_ROUTES = new Set(['/lookup', '/my-tickets', '/checkout', '/thank-you', '/events']);
 const REACT_DIST = path.join(__dirname, 'dist');
 const reactIndexHtml = path.join(REACT_DIST, 'index.html');
 const REACT_BUILT = fs.existsSync(reactIndexHtml);
@@ -6336,6 +6336,7 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
     const legacyToCanonical = new Map([
       ['/thank-you.html', '/thank-you'],
       ['/checkout.html', '/checkout'],
+      ['/events.html', '/events'],
     ]);
     const canonicalPath = (REACT_BUILT && legacyToCanonical.has(urlPath.toLowerCase()))
       ? legacyToCanonical.get(urlPath.toLowerCase())
