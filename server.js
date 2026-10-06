@@ -6278,15 +6278,34 @@ const events = await readEvents();
       return;
     }
     // ── React app ──
-// The migration runs both versions at once: a route listed here is served from
-// the Vite build in dist/, and everything else falls through to the original
-// .html file below. That way no existing URL or link breaks while the remaining
-// pages are ported. Add a route to this set only once its React page is built
-// and verified.
-const REACT_ROUTES = new Set(['/lookup', '/my-tickets']);
+// The migration ships both versions at once: a route listed here is served from
+// the Vite build in dist/ when it exists, and everything else falls through to
+// the original .html file below. That keeps every existing URL and link working
+// while the remaining pages are ported.
+//
+// The checkout and thank-you paths are treated as canonical from the React build
+// whenever it is present. The legacy .html pages for those routes stay on disk
+// untouched and only get served when the React build is absent, so the fallback
+// is invisible during normal operation and the migration is reversible by
+// removing the build.
+const REACT_CANONICAL_ROUTES = new Set(['/checkout', '/thank-you']);
+const REACT_SPA_ROUTES = new Set(['/lookup', '/my-tickets', '/checkout', '/thank-you']);
 const REACT_DIST = path.join(__dirname, 'dist');
 const reactIndexHtml = path.join(REACT_DIST, 'index.html');
 const REACT_BUILT = fs.existsSync(reactIndexHtml);
+
+// Canonical post-payment destination for Flutterwave and for the React checkout.
+// When the React build is present this points at the SPA path; otherwise it keeps
+// pointing at the legacy .html page so the server redirect URL is always valid.
+function thankYouUrl() {
+  if (REACT_BUILT) return '/thank-you';
+  return '/thank-you.html';
+}
+
+function defaultThankYouUrl() {
+  const siteUrl = (process.env.SITE_URL || 'https://unisocials.onrender.com').replace(/\/$/, '');
+  return siteUrl + thankYouUrl();
+}
 
 // The built bundle lives in dist/assets, but index.html references it as
 // /assets/... so it resolves against the site root. Serve that prefix from the
@@ -6305,7 +6324,19 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
       }
     }
 
-if (REACT_BUILT && REACT_ROUTES.has(urlPath.toLowerCase())) {
+    // Legacy short-links for the migrated pages must resolve to the React
+    // canonical route when the build is present, so Flutterwave return URLs,
+    // bookmarks, and old .html links all reach the React page instead of the
+    // legacy static file.
+    const legacyToCanonical = new Map([
+      ['/thank-you.html', '/thank-you'],
+      ['/checkout.html', '/checkout'],
+    ]);
+    const canonicalPath = (REACT_BUILT && legacyToCanonical.has(urlPath.toLowerCase()))
+      ? legacyToCanonical.get(urlPath.toLowerCase())
+      : urlPath;
+
+    if (REACT_BUILT && REACT_SPA_ROUTES.has(canonicalPath.toLowerCase())) {
       const assetPath = path.resolve(REACT_DIST, '.' + urlPath);
       // Hashed assets under /assets are served straight off disk by the static
       // handler, so only the SPA entry document needs handling here.

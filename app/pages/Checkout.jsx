@@ -371,7 +371,7 @@ export default function Checkout() {
       amount: orderTotal,
       currency: 'NGN',
       payment_options: paymentMethod === 'banktransfer' ? 'banktransfer' : 'card',
-      redirect_url: window.SITE_CONFIG?.REDIRECT_URL || 'https://unisocials.onrender.com/thank-you.html',
+      redirect_url: window.SITE_CONFIG?.REDIRECT_URL || window.SITE_CONFIG?.SITE_URL + '/thank-you.html',
       customer: {
         email: email || 'customer@example.com',
         name: name || 'Unisocial Customer',
@@ -395,10 +395,10 @@ export default function Checkout() {
               if (data && data.success) {
                 sendOrderToWhatsApp(orderId, eventName, qty, paidTotal, 'Flutterwave — awaiting verification', name, email, phone);
               }
-              window.location.href = '/thank-you.html?orderId=' + encodeURIComponent(orderId);
+              window.location.href = '/thank-you?orderId=' + encodeURIComponent(orderId);
             })
             .catch(() => {
-              window.location.href = '/thank-you.html?orderId=' + encodeURIComponent(orderId);
+              window.location.href = '/thank-you?orderId=' + encodeURIComponent(orderId);
             });
         } else {
           alert('Payment was not completed. You can try again.');

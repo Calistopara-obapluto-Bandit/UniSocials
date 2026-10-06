@@ -2,10 +2,13 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Lookup from './pages/Lookup.jsx';
 import MyTickets from './pages/MyTickets.jsx';
 import Checkout from './pages/Checkout.jsx';
+import ThankYou from './pages/ThankYou.jsx';
 
-// Phase 1 of the migration ships two routes. Everything else is still served as
-// the original server-rendered .html file by server.js, so no existing URL or
-// link breaks while the remaining pages are ported.
+// Phase 1 and Phase 2 ship the account-free flow (lookup, my-tickets) and the
+// checkout/thank-you flow. server.js is the one that decides which version of
+// each URL is canonical: the React build when it exists, otherwise the legacy
+// .html page. The React routes here are only used for client-side links inside
+// the built app and for server.js's SPA entry serving.
 export default function App() {
   return (
     <Routes>
@@ -13,6 +16,7 @@ export default function App() {
       <Route path="/lookup" element={<Lookup />} />
       <Route path="/my-tickets" element={<MyTickets />} />
       <Route path="/checkout" element={<Checkout />} />
+      <Route path="/thank-you" element={<ThankYou />} />
       <Route path="*" element={<Navigate to="/lookup" replace />} />
     </Routes>
   );
