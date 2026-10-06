@@ -2317,7 +2317,7 @@ async function sendContactEmail(data) {
       _subject: 'New Contact Form Submission from Unisocials',
       _captcha: 'false',
       _template: 'table',
-      _next: siteUrl() + '/thank-you.html'
+      _next: defaultThankYouUrl()
     });
     if (result.status >= 200 && result.status < 400) return { sent: true, configured: true, provider: 'FormSubmit' };
     console.warn('FormSubmit contact delivery failed (' + result.status + '):', result.body && result.body.slice(0, 200));
@@ -6297,6 +6297,11 @@ const REACT_BUILT = fs.existsSync(reactIndexHtml);
 // Canonical post-payment destination for Flutterwave and for the React checkout.
 // When the React build is present this points at the SPA path; otherwise it keeps
 // pointing at the legacy .html page so the server redirect URL is always valid.
+//
+// Note: the legacy .html form is still valid while the React build exists because
+// server.js aliases /thank-you.html -> /thank-you (and /checkout.html -> /checkout).
+// Once the React build is the only post-payment destination you care to support,
+// you can simplify thankYouUrl() to always return '/thank-you'.
 function thankYouUrl() {
   if (REACT_BUILT) return '/thank-you';
   return '/thank-you.html';
