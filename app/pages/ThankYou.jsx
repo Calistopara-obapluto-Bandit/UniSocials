@@ -190,15 +190,22 @@ export default function ThankYou() {
                   </div>
                 )}
               </div>
-            )}
-
-            <div className="success-actions">
-              <a href="/events.html" className="btn-cta-primary">
-                Browse Events
-                <span>→</span>
-              </a>
-              <a href="/events.html" className="btn-cta-ghost">View Events</a>
-            </div>
+            )}              {order && (
+                <div className="success-actions" style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid var(--border)' }}>
+                  <a href="/my-tickets" className="btn-cta-primary" data-ticket-hub>
+                    🎟 View My Tickets
+                    <span>→</span>
+                  </a>
+                  <a href="/events.html" className="btn-cta-ghost">Browse More Events</a>
+                </div>
+              )}
+              <div className="success-actions">
+                <a href="/events.html" className="btn-cta-primary">
+                  Browse Events
+                  <span>→</span>
+                </a>
+                <a href="/events.html" className="btn-cta-ghost">View Events</a>
+              </div>
           </div>
         </div>
       </section>
@@ -221,7 +228,82 @@ export default function ThankYou() {
         </div>
       </section>
 
+      {!order && checkoutData?.buyerPhone && checkoutData?.orderId && (
+        <section className="lookup-section" style={{ padding: '40px 0 80px' }}>
+          <div className="container">
+            <div className="lookup-card reveal" style={{ maxWidth: '640px', margin: '0 auto', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '32px 30px', boxShadow: 'var(--shadow-md)' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-1)', marginBottom: '6px' }}>Can't see your tickets yet?</h2>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-3)', marginBottom: '22px', lineHeight: '1.6' }}>
+                If your payment was just confirmed, your order may still be processing. Try looking it up directly — no account needed.
+              </p>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-3)', marginBottom: '6px' }}>Order ID</label>
+                <input type="text" id="thankYouLookupOrderId" placeholder="UNI-XXXX-XXXX" autoComplete="off" style={{ width: '100%', padding: '11px 13px', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg)', color: 'var(--text-1)', fontSize: '0.92rem' }} />
+              </div>
+              <div className="form-group" style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-3)', marginBottom: '6px' }}>Phone Number</label>
+                <input type="tel" id="thankYouLookupPhone" placeholder="0812 345 6789" autoComplete="tel" style={{ width: '100%', padding: '11px 13px', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg)', color: 'var(--text-1)', fontSize: '0.92rem' }} />
+              </div>
+              <button className="btn-submit" id="thankYouLookupBtn" style={{ width: '100%', justifyContent: 'center' }}>Find My Ticket</button>
+              <div className="lookup-error" id="thankYouLookupError" style={{ display: 'none', marginTop: '14px', background: '#FDECEA', border: '1px solid #F5C6CB', color: '#B71C1C', padding: '11px 14px', borderRadius: '10px', fontSize: '0.85rem' }} />
+            </div>
+          </div>
+        </section>
+      )}
+
       <Footer />
     </>
   );
+}
+
+function thankYouLookupOrder() {
+  const orderId = document.getElementById('thankYouLookupOrderId');
+  const phone = document.getElementById('thankYouLookupPhone');
+  const btn = document.getElementById('thankYouLookupBtn');
+  const errBox = document.getElementById('thankYouLookupError');
+  const orderIdVal = (orderId && orderId.value || '').trim();
+  const phoneVal = (phone && phone.value || '').trim();
+
+  errBox.style.display = 'none';
+
+  if (!orderIdVal || !phoneVal) {
+    errBox.textContent = 'Please enter both your Order ID and phone number.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  fetch('/api/orders/lookup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId: orderIdVal, phone: phoneVal }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data || !data.success || !data.order) {
+        errBox.textContent = (data && data.error) || 'Order not found. Check your details and try again.';
+        errBox.style.display = 'block';
+        return;
+      }
+      const firstCode = (data.order.ticketCodes && data.order.ticketCodes[0] && data.order.ticketCodes[0].code) || '';
+      window.location.href = '/ticket.html?orderId=' + encodeURIComponent(data.order.orderId) +
+        '&code=' + encodeURIComponent(firstCode);
+    })
+    .catch(() => {
+      errBox.textContent = 'Cannot reach server. Please try again.';
+      errBox.style.display = 'block';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = 'Find My Ticket';
+    });
+}
+
+if (typeof window !== 'undefined') {
+  try {
+    const btn = document.getElementById('thankYouLookupBtn');
+    if (btn) btn.addEventListener('click', thankYouLookupOrder);
+  } catch (e) {}
 }
