@@ -266,6 +266,21 @@ const EVENT_OWNER_RATE_REFERRED = 1 - PLATFORM_FEE_REFERRED - INFLUENCER_COMMISS
 // 97.5% of a referred sale, 80% of a direct one.
 const OWNER_CREDIT_REFERRED = 1 - PLATFORM_FEE_REFERRED;
 const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
+// ── Per-event reduced platform split (Main Admin authorization required) ──
+// An event the Main Admin authorizes gets a cheaper platform fee on DIRECT
+// sales: 15% → Unisocials, 85% → the event owner. Referred sales keep the
+// 2.5% / 20% / 77.5% split on every event, authorized or not. Which plan a
+// sale earns is stamped on the order when its payment is verified, so
+// authorizing (or revoking) a plan later never re-splits money already earned.
+const COMMISSION_PLAN_STANDARD = 'standard';
+const COMMISSION_PLAN_REDUCED_15 = 'reduced_15';
+const PLATFORM_FEE_DIRECT_REDUCED_15 = 0.15;
+const EVENT_OWNER_RATE_REDUCED_15 = 1 - PLATFORM_FEE_DIRECT_REDUCED_15;
+function orderCommissionPlan(order) {
+  return order && String(order.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_15
+    ? COMMISSION_PLAN_REDUCED_15
+    : COMMISSION_PLAN_STANDARD;
+}
 // Neither the owner's share nor the influencer's 20% is deducted again at
 // payout: both platform fees are already taken from the ticket itself.
 const PAYOUT_FEE_RATE = 0;
@@ -278,16 +293,22 @@ const PAYOUT_HOLD_MS = PAYOUT_HOLD_DAYS * 24 * 60 * 60 * 1000;
 // influencer's share is always 20% of the FULL amount. The platform fee is
 // taken off the top, then the influencer's commission is allocated out of what
 // the owner was credited, so the parts always add back up to the gross.
-function commissionSplit(amount, referred) {
+function commissionSplit(amount, referred, plan) {
   const gross = Math.max(0, Number(amount) || 0);
   const round2 = n => Math.round(n * 100) / 100;
   const isReferred = referred === true;
-  const platformRate = isReferred ? PLATFORM_FEE_REFERRED : PLATFORM_FEE_DIRECT;
+  // The reduced 15% plan only touches direct sales; referred sales keep
+  // 2.5% / 20% / 77.5% everywhere, authorized event or not.
+  const useReduced = !isReferred && String(plan || '') === COMMISSION_PLAN_REDUCED_15;
+  const platformRate = isReferred
+    ? PLATFORM_FEE_REFERRED
+    : (useReduced ? PLATFORM_FEE_DIRECT_REDUCED_15 : PLATFORM_FEE_DIRECT);
   const influencerAmount = isReferred ? round2(gross * INFLUENCER_COMMISSION_RATE) : 0;
   const platformAmount = round2(gross * platformRate);
   const ownerCreditAmount = round2(gross - platformAmount);
   return {
     referred: isReferred,
+    plan: isReferred ? COMMISSION_PLAN_STANDARD : (useReduced ? COMMISSION_PLAN_REDUCED_15 : COMMISSION_PLAN_STANDARD),
     platformRate,
     influencerRate: INFLUENCER_COMMISSION_RATE,
     ownerCreditAmount,
@@ -306,18 +327,23 @@ function rateLabel(rate) {
   return (Math.abs(rounded - Math.round(rounded)) < 0.001 ? String(Math.round(rounded)) : String(rounded)) + '%';
 }
 
-function commissionTotals(referredAmount, directAmount) {
+function commissionTotals(referredAmount, directAmount, reducedDirectAmount) {
   const referred = commissionSplit(referredAmount, true);
   const direct = commissionSplit(directAmount, false);
+  // Direct sales on events authorized for the reduced plan are their own
+  // bucket so every published total (owner net, platform fee, credit) adds up.
+  const reducedDirect = commissionSplit(reducedDirectAmount || 0, false, COMMISSION_PLAN_REDUCED_15);
   const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const reducedGross = round2(reducedDirectAmount || 0);
   return {
     referredAmount: round2(referredAmount),
     directAmount: round2(directAmount),
-    grossAmount: round2(referredAmount + directAmount),
-    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount),
-    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount),
-    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount),
-    platformAmount: round2(referred.platformAmount + direct.platformAmount)
+    reducedDirectAmount: reducedGross,
+    grossAmount: round2(referredAmount + directAmount + reducedGross),
+    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount + reducedDirect.ownerCreditAmount),
+    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount + reducedDirect.influencerAmount),
+    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount + reducedDirect.ownerNetAmount),
+    platformAmount: round2(referred.platformAmount + direct.platformAmount + reducedDirect.platformAmount)
   };
 }
 
@@ -327,9 +353,11 @@ function commissionTotals(referredAmount, directAmount) {
 const COMMISSION_SPLIT = {
   eventOwner: EVENT_OWNER_RATE,
   eventOwnerReferred: EVENT_OWNER_RATE_REFERRED,
+  eventOwnerReduced15: EVENT_OWNER_RATE_REDUCED_15,
   influencer: INFLUENCER_COMMISSION_RATE,
   platformReferred: PLATFORM_FEE_REFERRED,
   platformDirect: PLATFORM_FEE_DIRECT,
+  platformReduced15: PLATFORM_FEE_DIRECT_REDUCED_15,
   ownerCreditReferred: OWNER_CREDIT_REFERRED,
   ownerCreditDirect: OWNER_CREDIT_DIRECT
 };
@@ -341,6 +369,8 @@ function collectHeldPayments(orders, matches, shareOf) {
   const nowMs = Date.now();
   const isMine = matches || function () { return true; };
   const share = shareOf || function (amount) { return amount; };
+  // Plans are stamped per order at verification, so the share callback gets
+  // the whole order and can read orderCommissionPlan(o).
   const held = [];
   (orders || []).forEach(o => {
     if (String(o.status || '').toLowerCase() !== 'verified') return;
@@ -356,7 +386,7 @@ function collectHeldPayments(orders, matches, shareOf) {
       eventName: o.eventName || '',
       amount,
       referred,
-      commissionAmount: Math.round((Number(share(amount, referred)) || 0) * 100) / 100,
+      commissionAmount: Math.round((Number(share(amount, referred, orderCommissionPlan(o))) || 0) * 100) / 100,
       paidAt: new Date(paidMs).toISOString(),
       unlocksAt: new Date(unlocksMs).toISOString()
     });
@@ -2199,6 +2229,24 @@ function verifyOrderTicketData(order) {
   order.ticketIssuedAt = new Date().toISOString();
   order.notifyAdmin = true;
   order.seenByAdmin = false;
+  return order;
+}
+
+// Stamp the commission plan an order earns AT VERIFICATION TIME.
+// A "sale" is the moment the payment is verified, so an event authorized for
+// the reduced 15% plan only affects sales verified AFTER that authorization.
+// The stamp is written once and never recomputed, so authorizing or revoking a
+// plan later can never retroactively re-split money that was already earned.
+// Orders verified before this field existed carry no stamp → standard split.
+async function stampOrderCommissionPlan(order) {
+  if (!order) return order;
+  // Already stamped (re-verification, webhook replay): never restamp.
+  if (order.commissionPlan) return order;
+  const events = await readEvents();
+  const ev = events.find(e => eventMatchesOrder(order, e));
+  order.commissionPlan = (ev && String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_15)
+    ? COMMISSION_PLAN_REDUCED_15
+    : COMMISSION_PLAN_STANDARD;
   return order;
 }
 
@@ -4368,7 +4416,7 @@ buyerFaculty: buyerFaculty,
       const wasVerified = latest.status === 'verified';
       let current = latest;
       if (!wasVerified) {
-        current = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+        current = await patchOrder(txRef, Object.assign(verifyOrderTicketData(await stampOrderCommissionPlan(Object.assign({}, latest))), {
           paymentReceivedAt: latest.paymentReceivedAt || new Date().toISOString(),
           paymentReceived: true,
           flutterwavePaymentVerifiedAt: new Date().toISOString(),
@@ -4408,7 +4456,7 @@ buyerFaculty: buyerFaculty,
 
   if (result.success) {
   const wasVerified = order.status === 'verified';
-  const updated = await patchOrder(txRef, verifyOrderTicketData(Object.assign({}, order)));
+  const updated = await patchOrder(txRef, verifyOrderTicketData(await stampOrderCommissionPlan(Object.assign({}, order))));
   console.log('Verified order:', txRef, 'amount:', result.amount, result.currency);
   
   if (!wasVerified) {
@@ -4508,7 +4556,7 @@ buyerFaculty: buyerFaculty,
         const latest = await getOrder(txRef);
         if (!latest) return sendJson(res, 200, { success: true, ignored: true, reason: 'Order disappeared', tx_ref: txRef });
         if (latest.status !== 'verified') {
-          const updated = await patchOrder(txRef, Object.assign(verifyOrderTicketData(Object.assign({}, latest)), {
+          const updated = await patchOrder(txRef, Object.assign(verifyOrderTicketData(await stampOrderCommissionPlan(Object.assign({}, latest))), {
             flutterwavePaymentVerifiedAt: new Date().toISOString(),
             flutterwaveTransactionId: result.returnedTxRef || txRef,
             flutterwavePaymentObserved: true,
@@ -5121,7 +5169,7 @@ codes[idx] = entry;
 
       if (newStatus === 'verified') {
         const wasVerified = order.status === 'verified';
-        const updated = await patchOrder(orderId, verifyOrderTicketData(Object.assign({}, order)));
+        const updated = await patchOrder(orderId, verifyOrderTicketData(await stampOrderCommissionPlan(Object.assign({}, order))));
         if (!wasVerified) {
           notifyOrderVerified(updated);
           await refreshReferralStatsForVerifiedOrder(updated, order.status);
@@ -5567,10 +5615,12 @@ codes[idx] = entry;
         // dashboard.
         const revenue = verified.reduce((n,o)=>n+(Number(o.amount)||0),0);
         // Per-event breakdown, splitting referred sales (20% to the influencer,
-        // 2.5% to Unisocials) from direct ones (20% to Unisocials).
+        // 2.5% to Unisocials) from direct ones (20% to Unisocials, or 15% on
+        // events authorized for the reduced plan — read from each order's stamp).
         const referred = verified.filter(o => !!String(o.referralCode || '').trim()).reduce((n,o)=>n+(Number(o.amount)||0),0);
-        const split = commissionTotals(referred, revenue - referred);
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
+        const directReduced = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_15).reduce((n,o)=>n+(Number(o.amount)||0),0);
+        const split = commissionTotals(referred, revenue - referred - directReduced, directReduced);
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, reducedDirectAmount:split.reducedDirectAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
       });
       // commissionRates lets the dashboard show how each sale was split.
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
@@ -5590,19 +5640,26 @@ codes[idx] = entry;
       let directAmount = 0;
       let heldReferred = 0;
       let heldDirect = 0;
+      let reducedDirectAmount = 0;
+      let heldReducedDirect = 0;
       const heldPayments = [];
       authorizedEvents.forEach(ev => {
         orders.forEach(o => {
           if (!eventMatchesOrder(o, ev) || String(o.status || '').toLowerCase() !== 'verified') return;
           const amount = Number(o.amount) || 0;
           const referred = !!String(o.referralCode || '').trim();
-          if (referred) referredAmount += amount; else directAmount += amount;
+          const plan = orderCommissionPlan(o);
+          if (referred) referredAmount += amount;
+          else if (plan === COMMISSION_PLAN_REDUCED_15) reducedDirectAmount += amount;
+          else directAmount += amount;
           // Every payment made through the site stays on hold for 7 days
           // from the moment it was paid before it becomes withdrawable.
           const paidMs = Date.parse(o.paymentReceivedAt || o.verifiedAt || o.createdAt || '');
           const unlocksMs = paidMs + PAYOUT_HOLD_MS;
           if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
-            if (referred) heldReferred += amount; else heldDirect += amount;
+            if (referred) heldReferred += amount;
+            else if (plan === COMMISSION_PLAN_REDUCED_15) heldReducedDirect += amount;
+            else heldDirect += amount;
             // What this payment actually earned the owner, so the countdown is
             // read in withdrawable share rather than gross ticket revenue.
             heldPayments.push({
@@ -5610,15 +5667,15 @@ codes[idx] = entry;
               eventName: o.eventName || '',
               amount,
               referred,
-              commissionAmount: commissionSplit(amount, referred).ownerNetAmount,
+              commissionAmount: commissionSplit(amount, referred, plan).ownerNetAmount,
               paidAt: new Date(paidMs).toISOString(),
               unlocksAt: new Date(unlocksMs).toISOString()
             });
           }
         });
       });
-      const totals = commissionTotals(referredAmount, directAmount);
-      const heldTotals = commissionTotals(heldReferred, heldDirect);
+      const totals = commissionTotals(referredAmount, directAmount, reducedDirectAmount);
+      const heldTotals = commissionTotals(heldReferred, heldDirect, heldReducedDirect);
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
       const balance = payoutBalance(totals.ownerNetAmount, heldTotals.ownerNetAmount, mine);
       heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
@@ -5628,12 +5685,15 @@ codes[idx] = entry;
         totalVerifiedRevenue: totals.grossAmount,
         referredAmount: totals.referredAmount,
         directAmount: totals.directAmount,
-        // 97.5% of referred sales + 80% of direct sales: what the owner is owed
-        // before the referrers' commission is allocated out of it.
+        // Direct sales on events authorized for the reduced 15% plan.
+        reducedDirectAmount: totals.reducedDirectAmount,
+        // 97.5% of referred sales + 80%/85% of direct sales: what the owner is
+        // owed before the referrers' commission is allocated out of it.
         ownerCreditAmount: totals.ownerCreditAmount,
         // 20% of every referred ticket, owed to the influencers.
         influencerOwed: totals.influencerAmount,
-        // What the owner actually walks away with: 80% of every ticket.
+        // What the owner actually walks away with: 77.5% referred, 80% direct,
+        // 85% direct on reduced-plan events.
         ownerNetAmount: totals.ownerNetAmount,
         platformFee: totals.platformAmount,
         heldAmount: round2(heldTotals.grossAmount),
@@ -5697,10 +5757,12 @@ codes[idx] = entry;
         success: true,
         payouts: summary.payouts.map(payoutPublic),
         // Gross ticket money on this account's events, split by whether a
-        // referral link was used.
+        // referral link was used, and by the plan stamped on each order.
         totalVerifiedRevenue: summary.totalVerifiedRevenue,
         referredAmount: summary.referredAmount,
         directAmount: summary.directAmount,
+        // Direct sales on events authorized for the reduced 15% platform split.
+        reducedDirectAmount: summary.reducedDirectAmount,
         // Credited, allocated out, and what is actually withdrawable.
         ownerCreditAmount: summary.ownerCreditAmount,
         influencerOwed: roundOut(Math.max(0, summary.influencerOwed - influencerPaidOut)),
@@ -5743,10 +5805,10 @@ codes[idx] = entry;
       const summary = await influencerAdminPayoutSummary(authCtx);
       if (summary.hasOpenRequest) return sendJson(res, 409, { success:false, error:'You already have a payout request awaiting payment. Please wait for it to be completed.' });
       if (parsed.amount > summary.availableBalance) {
-        let error = 'payout amount not valid: the amount you requested exceeds your available ' +
-          rateLabel(EVENT_OWNER_RATE) + ' share of ₦' + summary.availableBalance.toLocaleString() + '.';
-        error += ' That is ' + rateLabel(EVENT_OWNER_RATE) + ' of the ₦' + Math.round(summary.matured / EVENT_OWNER_RATE).toLocaleString() +
-          ' in matured verified payments, less ₦' + summary.totalRequested.toLocaleString() + ' already requested.';
+        // The balance can mix 77.5%, 80% and 85% shares (referred, standard
+        // direct, reduced-plan direct), so quote the balance itself rather
+        // than reconstructing it from a single flat rate.
+        let error = 'payout amount not valid: the amount you requested exceeds your available share of ₦' + summary.availableBalance.toLocaleString() + '.';
         if (summary.held > 0) {
           error += ' You also have ₦' + summary.held.toLocaleString() + ' inside the ' + PAYOUT_HOLD_DAYS + '-day countdown that unlocks automatically.';
         }
@@ -5982,8 +6044,8 @@ codes[idx] = entry;
       const [payouts, orders] = await Promise.all([readPayouts(), readOrders()]);
       // The site-wide view of what is still counting down before it can be
       // withdrawn, so the Main Admin sees the hold the owners and referrers see.
-      const heldPayments = collectHeldPayments(orders, null, function (amount, referred) {
-        return commissionSplit(amount, referred).ownerNetAmount;
+      const heldPayments = collectHeldPayments(orders, null, function (amount, referred, plan) {
+        return commissionSplit(amount, referred, plan).ownerNetAmount;
       });
       return sendJson(res, 200, {
         success: true,
@@ -6167,6 +6229,11 @@ codes[idx] = entry;
         universityId: universityId,
         universityName: universityName,
         universitySlug: uniSlug,
+        // The commission plan is Main-Admin-only: event edits (by anyone) must
+        // never change it implicitly, so carry the existing value over untouched.
+        commissionPlan: existingEvent ? (existingEvent.commissionPlan || COMMISSION_PLAN_STANDARD) : COMMISSION_PLAN_STANDARD,
+        commissionPlanChangedAt: existingEvent ? (existingEvent.commissionPlanChangedAt || null) : null,
+        commissionPlanChangedBy: existingEvent ? (existingEvent.commissionPlanChangedBy || null) : null,
         createdAt: isInfluencerAdminEdit ? (existingEvent.createdAt || new Date().toISOString()) : new Date().toISOString(),
         createdBy: isInfluencerAdminEdit ? existingEvent.createdBy : { role: authCtx.role, id: authCtx.user?.id || authCtx.id || null, name: authCtx.user?.name || authCtx.name || null, email: authCtx.user?.email || authCtx.email || null }
       };
@@ -6201,6 +6268,46 @@ codes[idx] = entry;
       events[idx] = Object.assign({}, events[idx], { archived: archived, archivedAt: archived ? new Date().toISOString() : null, archivedBy: archived ? authCtx.role : null });
       await writeEvents(events);
       return sendJson(res,200,{success:true,event:events[idx]});
+    }
+
+    // ── Main Admin only: authorize (or revoke) the reduced 15% platform split
+    // for one event. Authorized events split DIRECT sales 15% Unisocials /
+    // 85% owner instead of the standard 20/80. Referred sales keep
+    // 2.5/20/77.5 everywhere. Only sales verified AFTER this authorization
+    // get the new rate — the plan is stamped onto each order at verification
+    // time, so past earnings are never retroactively re-split.
+    if (pathname === '/api/admin/events/commission-plan' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can change an event\'s commission plan' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const eventId = String(data.eventId || '').trim();
+      const plan = String(data.plan || '').trim();
+      if (!eventId) return sendJson(res, 400, { success: false, error: 'Missing eventId' });
+      if (![COMMISSION_PLAN_STANDARD, COMMISSION_PLAN_REDUCED_15].includes(plan)) {
+        return sendJson(res, 400, { success: false, error: 'Plan must be "' + COMMISSION_PLAN_STANDARD + '" or "' + COMMISSION_PLAN_REDUCED_15 + '".' });
+      }
+      const events = await readEvents();
+      const idx = events.findIndex(e => String(e.id) === eventId);
+      if (idx < 0) return sendJson(res, 404, { success: false, error: 'Event not found' });
+      const now = new Date().toISOString();
+      const prevPlan = String(events[idx].commissionPlan || COMMISSION_PLAN_STANDARD).trim() || COMMISSION_PLAN_STANDARD;
+      events[idx] = Object.assign({}, events[idx], {
+        commissionPlan: plan,
+        // Audit trail: who flipped the plan and when. Existing verified orders
+        // keep the plan stamped on them; only future verifications are affected.
+        commissionPlanChangedAt: now,
+        commissionPlanChangedBy: 'admin'
+      });
+      await writeEvents(events);
+      console.log('✓ Commission plan for', eventId, ':', prevPlan, '→', plan, '(only sales verified from now on)');
+      return sendJson(res, 200, {
+        success: true,
+        event: events[idx],
+        message: plan === COMMISSION_PLAN_REDUCED_15
+          ? 'Reduced split authorized: direct sales on this event now split 15% Unisocials / 85% owner. Sales already verified keep their original split. Referred sales are unchanged (2.5/20/77.5).'
+          : 'Standard split restored for future sales: 20% Unisocials / 80% owner. Sales already verified keep their original split.'
+      });
     }
 
     // ── Main Admin only: delete an event ──

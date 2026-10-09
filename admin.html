@@ -1986,6 +1986,8 @@ fetch('/api/ticket/scan', {
               var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
               var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
               var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
+              var planReduced = String(ev.commissionPlan || 'standard') === 'reduced_15';
+              var planHtml = '<span data-plan-badge="' + esc(id) + '" style="font-size:0.72rem;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid ' + (planReduced ? 'var(--accent-border)' : 'var(--border)') + ';color:' + (planReduced ? 'var(--accent)' : 'var(--text-3)') + ';background:' + (planReduced ? 'var(--accent-ghost)' : 'transparent') + ';">' + (planReduced ? '💰 15% split' : '20% split') + '</span>';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
                 '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(safeImg(ev.image)) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
@@ -1997,8 +1999,10 @@ fetch('/api/ticket/scan', {
                 tableHtml +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
+                planHtml +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<button type="button" class="admin-ticket-copy" data-toggle-plan-event="' + esc(id) + '" data-plan-current="' + (planReduced ? 'reduced_15' : 'standard') + '" title="' + (planReduced ? 'Revoke the reduced 15% split (future sales go back to 20/80)' : 'Authorize the reduced 15% split for this event (future direct sales: 15% Unisocials / 85% owner)') + '">' + (planReduced ? '💰' : '💵') + '</button>' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
                 '<button type="button" class="admin-ticket-copy" data-direct-archive-event="' + esc(id) + '" data-archived="' + (ev.archived ? '1' : '0') + '" title="' + (ev.archived ? 'Unarchive event' : 'Archive event') + '">' + (ev.archived ? '📦' : '🗃️') + '</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
@@ -2007,6 +2011,26 @@ fetch('/api/ticket/scan', {
                 '</div>';
             });
             container.innerHTML = html;
+            container.querySelectorAll('[data-toggle-plan-event]').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                var eventId = btn.getAttribute('data-toggle-plan-event') || '';
+                var current = btn.getAttribute('data-plan-current') || 'standard';
+                var next = current === 'reduced_15' ? 'standard' : 'reduced_15';
+                if(!eventId) return;
+                var confirmMsg = next === 'reduced_15'
+                  ? 'Authorize the reduced 15% split for this event?\n\nFuture DIRECT sales will split 15% Unisocials / 85% you. Referred sales stay 2.5/20/77.5. Sales already verified keep their current split.'
+                  : 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% you. Sales already verified keep their current split.';
+                if(!confirm(confirmMsg)) return;
+                btn.disabled = true;
+                fetch('/api/admin/events/commission-plan',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,plan:next}),credentials:'same-origin'})
+                  .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+                  .then(function(x){
+                    if(x.ok && x.data && x.data.success){ showToast(x.data.message || (next === 'reduced_15' ? 'Reduced 15% split authorized.' : 'Standard 20% split restored.')); loadManagedEvents(); }
+                    else showToast((x.data && x.data.error) || 'Could not change the commission plan', true);
+                  }).catch(function(){ showToast('Network error changing the commission plan', true); })
+                  .finally(function(){ btn.disabled = false; });
+              });
+            });
             container.querySelectorAll('[data-direct-archive-event]').forEach(function(btn){
               btn.addEventListener('click', function(){
                 var eventId=btn.getAttribute('data-direct-archive-event')||'';
