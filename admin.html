@@ -1217,7 +1217,7 @@
           <div class="admin-panel-heading">
             <div>
               <h1>💰 Payout Requests</h1>
-              <p>Every payout on the site. A sale through an influencer's link is split <strong>2.5% to Unisocials, 17.5% to the influencer, 80% to the event owner</strong>; a sale with no link is <strong>20% / 80%</strong>. Requests are paid in full — the platform fee was already taken from the ticket. Referrer commission is normally paid by the Influencer Admin of the event; you can still verify, release or reject any payout here. Approved payouts are promised within 24 hours.</p>
+              <p>Every payout on the site. A sale through an influencer's link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to the event owner</strong>; a sale with no link is <strong>20% / 80%</strong> — or <strong>15% / 85%</strong> on events authorized for the reduced 15% split. Requests are paid in full — the platform fee was already taken from the ticket. Referrer commission is normally paid by the Influencer Admin of the event; you can still verify, release or reject any payout here. Approved payouts are promised within 24 hours.</p>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="admin-refresh-btn" type="button" onclick="loadPayoutRequests()">↻ Refresh</button>
@@ -3077,7 +3077,7 @@ fetch('/api/admin/events/notify', {
               }
               html += '<div class="admin-scan-panel" style="margin-bottom:12px;' + (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
                 '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (17.5%)</span>' : '') + '</strong>' +
+                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (20%)</span>' : '') + '</strong>' +
                 payoutBadgeHtml(p.status) +
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +

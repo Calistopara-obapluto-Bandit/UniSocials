@@ -1196,7 +1196,7 @@
       <div class="form-group"><label for="payoutAccountName">Account Name</label><input type="text" id="payoutAccountName" placeholder="As it appears on your bank record" autocomplete="off" /></div>
     </div>
 
-    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div>Request any part of your 80%. Nothing further is deducted — the Unisocials fee was already taken from the ticket.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>3. Amount &amp; request</strong><div id="payoutRequestStepText">Request any part of your 80%. Nothing further is deducted — the Unisocials fee was already taken from the ticket.</div></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
       <div class="form-group"><label for="payoutMethod">Payment schedule</label><select id="payoutMethod"><option value="7_days">Every 7 days</option><option value="14_days">Every 14 days</option><option value="after_event">After event day</option></select></div>
       <div class="form-group"><label for="payoutAmount">Amount (₦)</label><input type="number" id="payoutAmount" placeholder="e.g. 25000" min="1" /></div>
@@ -2521,6 +2521,8 @@ fetch('/api/admin/events/notify', {
             }
             var ownHistTxt = document.getElementById('payoutOwnHistoryText');
             if (ownHistTxt) ownHistTxt.textContent = 'Your own ' + sharePctText + ' requests and their status.';
+            var reqStep = document.getElementById('payoutRequestStepText');
+            if (reqStep) reqStep.textContent = 'Request any part of your ' + sharePctText + '. Nothing further is deducted — the Unisocials fee was already taken from the ticket.';
 
             var refPct = pct(commissionRates.referred);
             var dirPct = pct(commissionRates.direct);
@@ -2604,7 +2606,7 @@ fetch('/api/admin/events/notify', {
             if (own) {
               var mine = data.payouts || [];
               if (!mine.length) {
-                own.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">You have not requested a payout of your 80% yet.</div>';
+                own.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:.85rem;">You have not requested a payout yet.</div>';
               } else {
                 own.innerHTML = mine.map(function(p) {
                   return '<div class="payout-card">' +
