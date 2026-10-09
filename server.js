@@ -5222,7 +5222,11 @@ codes[idx] = entry;
     // ── Admin: detailed customer record by email, with their order history ──
     if (pathname.startsWith('/api/admin/customers/') && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const email = String(url.pathname.slice('/api/admin/customers/'.length) || '').trim().toLowerCase();
+      // The browser sends this email percent-encoded (e.g. ada%40example.com).
+      // url.pathname keeps the encoding, so decode before matching the account.
+      let rawEmail = String(url.pathname.slice('/api/admin/customers/'.length) || '').trim();
+      try { rawEmail = decodeURIComponent(rawEmail); } catch (e) { /* keep raw value on malformed input */ }
+      const email = rawEmail.toLowerCase();
       if (!email) return sendJson(res, 400, { success: false, error: 'Email is required' });
 
       const user = await findUserByEmail(email);

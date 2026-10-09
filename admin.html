@@ -3054,13 +3054,24 @@ fetch('/api/admin/events/notify', {
           .catch(function(){showToast('Network error removing account',true);});
       };
 
+      // Emails of the customers currently listed, indexed to match the rendered
+      // rows, so the "View orders" expander can fetch the right detail record.
+      var customerEmails = [];
+
       window.loadCustomers = function() {
         var countEl = document.getElementById('customerCount');
         if (countEl) countEl.textContent = 'Loading…';
         var listEl = document.getElementById('customersList');
         if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">Loading customers…</div>';
         fetch('/api/admin/customers', { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
-          .then(function(r) { return r.json(); })
+          .then(function(r) {
+            // Surface auth failures instead of rendering them as an empty list:
+            // a 401 used to look exactly like "no customers yet".
+            if (r.status === 401) {
+              var err = new Error('unauthorized'); err.unauthorized = true; throw err;
+            }
+            return r.json();
+          })
           .then(function(data) {
             var list = (data && data.success && data.customers) || [];
             var totalCount = data && data.totalCount != null ? data.totalCount : 0;
@@ -3069,12 +3080,11 @@ fetch('/api/admin/events/notify', {
             if (!listEl) return;
             if (!list.length) { listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">No customer accounts yet.</div>'; return; }
             var html = '';
-            var linkBase = window.location.pathname;
-            list.forEach(function(c) {
+            customerEmails = [];
+            list.forEach(function(c, i) {
               var acct = c && c.account ? c.account : null;
               var email = acct && acct.email ? acct.email : '—';
-              var encodedEmail = encodeURIComponent(String(email || ''));
-              var detailUrl = linkBase + 'api/admin/customers/' + encodedEmail;
+              customerEmails[i] = String(email || '');
               var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '—');
               var summary = c && c.summary ? c.summary : null;
               var orderLine = summary && summary.totalOrders > 0
@@ -3089,13 +3099,105 @@ fetch('/api/admin/events/notify', {
                   '<div style="margin-top:6px;">' + orderLine + '</div>' +
                 '</div>' +
                 '<div style="text-align:right;">' +
-                  '<a class="btn-cta-ghost" href="' + esc(detailUrl) + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;">View orders →</a>' +
+                  '<button type="button" class="btn-cta-ghost" data-customer-index="' + i + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;cursor:pointer;background:none;">View orders →</button>' +
                 '</div>' +
-              '</div>';
+              '</div>' +
+              '<div data-customer-detail="' + i + '" style="display:none;padding:10px 0 16px;border-bottom:1px solid var(--border);"></div>';
             });
             listEl.innerHTML = html;
+            var detailBtns = listEl.querySelectorAll('[data-customer-index]');
+            for (var d = 0; d < detailBtns.length; d++) {
+              detailBtns[d].addEventListener('click', function() {
+                toggleCustomerDetail(parseInt(this.getAttribute('data-customer-index'), 10), this);
+              });
+            }
           })
-          .catch(function() { if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Could not load customers.</div>'; });
+          .catch(function(err) {
+            if (countEl) countEl.textContent = '';
+            if (!listEl) return;
+            if (err && err.unauthorized) {
+              listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Your admin session is invalid or expired. Log in again to view customers.</div>';
+            } else {
+              listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Could not load customers.</div>';
+            }
+          });
+      };
+
+      // Expand a customer's order history inline in the Customers tab.
+      // The old "View orders" link navigated to the raw API URL, which left the
+      // dashboard and showed unfriendly JSON; fetching + rendering here keeps the
+      // admin inside the tab where the details belong.
+      window.toggleCustomerDetail = function(index, btn) {
+        var email = customerEmails && customerEmails[index];
+        var panel = document.querySelector('[data-customer-detail="' + index + '"]');
+        if (!email || !panel) return;
+
+        if (panel.style.display !== 'none' && panel.getAttribute('data-loaded') === '1') {
+          panel.style.display = 'none';
+          if (btn) btn.textContent = 'View orders →';
+          return;
+        }
+
+        if (btn) btn.textContent = 'Loading…';
+        panel.style.display = 'block';
+        panel.innerHTML = '<div style="font-size:.82rem;color:var(--text-3);padding:6px 0;">Loading orders…</div>';
+
+        fetch('/api/admin/customers/' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
+          .then(function(r) {
+            if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; }
+            return r.json();
+          })
+          .then(function(data) {
+            if (!data || !data.success) {
+              panel.innerHTML = '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">' + esc((data && data.error) || 'Could not load this customer.') + '</div>';
+              if (btn) btn.textContent = 'View orders →';
+              return;
+            }
+            var orders = data.orders || [];
+            var totals = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--text-2);margin-bottom:10px;">' +
+              '<span><strong>' + (data.totalOrders || 0) + '</strong> order' + ((data.totalOrders || 0) !== 1 ? 's' : '') + '</span>' +
+              '<span><strong>' + (data.totalVerifiedOrders || 0) + '</strong> verified</span>' +
+              '<span><strong>' + (data.totalTickets || 0) + '</strong> tickets</span>' +
+              '<span>Spent <strong>₦' + fmtN(data.totalSpent || 0) + '</strong></span>' +
+              '</div>';
+            if (!orders.length) {
+              panel.innerHTML = totals + '<div style="font-size:.82rem;color:var(--text-3);">No orders for this customer yet.</div>';
+              if (btn) btn.textContent = 'Hide orders';
+              panel.setAttribute('data-loaded', '1');
+              return;
+            }
+            var rows = orders.map(function(o) {
+              var status = String(o.status || '').toLowerCase();
+              var statusColor = status === 'verified' ? 'var(--accent)' : (status === 'pending' ? '#B7791F' : 'var(--text-3)');
+              var tickets = Array.isArray(o.ticketCodes) ? o.ticketCodes : [];
+              return '<div style="padding:10px 0;border-top:1px solid var(--border);">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+                  '<strong style="font-size:.85rem;">' + esc(o.eventName || 'Event') + '</strong>' +
+                  '<span style="font-size:.78rem;color:' + statusColor + ';font-weight:600;text-transform:capitalize;">' + esc(o.status || 'unknown') + '</span>' +
+                '</div>' +
+                '<div style="font-size:.76rem;color:var(--text-3);margin-top:4px;">' +
+                  'Order <span style="font-family:monospace;">' + esc(o.orderId || '—') + '</span>' +
+                  ' · ' + (parseInt(o.qty, 10) || 0) + ' ticket' + ((parseInt(o.qty, 10) || 0) !== 1 ? 's' : '') +
+                  ' · ₦' + fmtN(o.amount || 0) +
+                  (o.eventDate ? ' · ' + esc(o.eventDate) : '') +
+                  (o.eventVenue ? ' · ' + esc(o.eventVenue) : '') +
+                '</div>' +
+                (o.buyerPhone ? '<div style="font-size:.74rem;color:var(--text-3);margin-top:2px;">Phone: ' + esc(o.buyerPhone) + '</div>' : '') +
+                (tickets.length ? '<div style="font-size:.74rem;color:var(--text-2);margin-top:4px;">Tickets: ' + tickets.map(function(t) {
+                  return '<span style="font-family:monospace;">' + esc(t && t.code ? t.code : t) + '</span>' + (t && t.used ? ' <span style="color:#B7791F;">(used)</span>' : '');
+                }).join(', ') + '</div>' : '') +
+                '</div>';
+            }).join('');
+            panel.innerHTML = totals + rows;
+            if (btn) btn.textContent = 'Hide orders';
+            panel.setAttribute('data-loaded', '1');
+          })
+          .catch(function(err) {
+            panel.innerHTML = err && err.unauthorized
+              ? '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">Your admin session is invalid or expired. Log in again.</div>'
+              : '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">Could not load orders. Check your connection and try again.</div>';
+            if (btn) btn.textContent = 'View orders →';
+          });
       };
 
       window.resetManagedPassword = function(email) {
