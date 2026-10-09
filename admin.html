@@ -894,6 +894,7 @@
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
           <button class="admin-tab" data-tab="event-authorizations">🔐 Authorize Events</button>
           <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
+          <button class="admin-tab" data-tab="customers">👥 Customers</button>
           <button class="admin-tab" data-tab="payouts">💰 Payout Requests</button>
           <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
@@ -1272,6 +1273,36 @@
               <span style="font-size:.75rem;color:var(--text-3);align-self:center;" id="staffCount"></span>
             </div>
             <div class="admin-ticket-codes" id="staffList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── CUSTOMER ACCOUNTS ── -->
+        <div class="admin-panel" id="panel-customers">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>👥 Customers</h1>
+              <p>Registered buyers and everyone who has bought tickets. Passwords are never shown.</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="admin-refresh-btn" onclick="loadCustomers()">↻ Refresh</button>
+              <span style="font-size:.78rem;color:var(--text-3);" id="customerCount">Loading…</span>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+              <div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><strong id="customerNameTemplate" style="font-size:.95rem;">—</strong></div>
+                  <div style="font-size:.82rem;color:var(--text-3);" id="customerEmailTemplate">—</div>
+                  <div style="font-size:.78rem;color:var(--text-3);" id="customerPhoneTemplate">No phone</div>
+                  <div style="font-size:.74rem;color:var(--text-2);" id="customerAccountTemplate">Member since —</div>
+                </div>
+                <div style="text-align:right;">
+                  <a class="btn-cta-ghost" href="#" id="customerDetailLinkTemplate" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;">View orders →</a>
+                </div>
+              </div>
+            </div>
+            <div id="customersList" style="margin-top:14px;"></div>
           </div>
         </div>
       </div>
@@ -2638,6 +2669,7 @@ fetch('/api/admin/events/notify', {
           panel.classList.toggle('active', panel.id === 'panel-' + tabName);
         });
         if (tabName === 'event-authorizations') loadEventAuthorizations();
+        else if (tabName === 'customers') loadCustomers();
       };
 
       // ── Influencer Manager (master admin only) ──
@@ -3022,6 +3054,50 @@ fetch('/api/admin/events/notify', {
           .catch(function(){showToast('Network error removing account',true);});
       };
 
+      window.loadCustomers = function() {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = 'Loading…';
+        var listEl = document.getElementById('customersList');
+        if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">Loading customers…</div>';
+        fetch('/api/admin/customers', { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.customers) || [];
+            var totalCount = data && data.totalCount != null ? data.totalCount : 0;
+            var withOrders = data && data.customersWithOrders != null ? data.customersWithOrders : 0;
+            if (countEl) countEl.textContent = totalCount + ' customer' + (totalCount !== 1 ? 's' : '') + ' · ' + withOrders + ' with orders';
+            if (!listEl) return;
+            if (!list.length) { listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">No customer accounts yet.</div>'; return; }
+            var html = '';
+            var linkBase = window.location.pathname;
+            list.forEach(function(c) {
+              var acct = c && c.account ? c.account : null;
+              var email = acct && acct.email ? acct.email : '—';
+              var encodedEmail = encodeURIComponent(String(email || ''));
+              var detailUrl = linkBase + 'api/admin/customers/' + encodedEmail;
+              var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '—');
+              var summary = c && c.summary ? c.summary : null;
+              var orderLine = summary && summary.totalOrders > 0
+                ? '<span style="font-size:.74rem;color:var(--accent);font-weight:600;">' + summary.totalOrders + ' order' + (summary.totalOrders !== 1 ? 's' : '') + ' · ₦' + fmtN(summary.totalSpent) + '</span>'
+                : '<span style="font-size:.74rem;color:var(--text-3);">No orders yet</span>';
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">' +
+                '<div style="display:flex;flex-direction:column;gap:4px;">' +
+                  '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong></div>' +
+                  '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
+                  '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
+                  '<div style="font-size:.74rem;color:var(--text-2);">Member since ' + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
+                  '<div style="margin-top:6px;">' + orderLine + '</div>' +
+                '</div>' +
+                '<div style="text-align:right;">' +
+                  '<a class="btn-cta-ghost" href="' + esc(detailUrl) + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;">View orders →</a>' +
+                '</div>' +
+              '</div>';
+            });
+            listEl.innerHTML = html;
+          })
+          .catch(function() { if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Could not load customers.</div>'; });
+      };
+
       window.resetManagedPassword = function(email) {
         if (!email) return;
         var first = prompt('Enter a new password for ' + email + ' (8+ chars, letter, number & symbol):');
@@ -3050,6 +3126,7 @@ fetch('/api/admin/events/notify', {
         loadCoupons();
         loadInfluencers();
         loadEventAuthorizations();
+        loadCustomers();
       };
 
       var editingCouponId = '';
