@@ -2506,16 +2506,24 @@ fetch('/api/admin/events/notify', {
 
             // The share write-ups must track the authorized plan: direct sales
             // on reduced-plan events pay the owner 85% (Unisocials keeps 15%).
+            // Actual reduced sales take precedence; otherwise the plan mix of
+            // this account's events decides, so authorizing the 15% split
+            // changes the write-up right away instead of waiting for the
+            // first new sale to verify.
             var dirAmt = Number(data.directAmount) || 0;
             var redAmt = Number(data.reducedDirectAmount) || 0;
-            var sharePctText = redAmt <= 0 ? '80%' : (redAmt >= dirAmt - 0.005 ? '85%' : '80–85%');
+            var planRed = Number(data.reducedPlanEvents) || 0;
+            var planStd = Number(data.standardPlanEvents) || 0;
+            var anyReduced = redAmt > 0 || planRed > 0;
+            var allReduced = (redAmt > 0 && redAmt >= dirAmt - 0.005) || (redAmt <= 0 && planRed > 0 && planStd <= 0);
+            var sharePctText = !anyReduced ? '80%' : (allReduced ? '85%' : '80–85%');
             var pLbl = document.getElementById('payoutOwnerLabel');
             if (pLbl) pLbl.textContent = 'Your Share (' + sharePctText + ' direct)';
             var expl = document.getElementById('payoutShareExplainer');
             if (expl) {
-              expl.innerHTML = redAmt <= 0
+              expl.innerHTML = !anyReduced
                 ? 'A sale made through an influencer\'s link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. You approve and pay your referrers\' 20% from here.'
-                : (redAmt >= dirAmt - 0.005
+                : (allReduced
                   ? 'A sale made through an influencer\'s link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. Direct sales on your 15%-authorized events are <strong>15% to Unisocials, 85% to you</strong>. You approve and pay your referrers\' 20% from here.'
                   : 'A sale made through an influencer\'s link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong> — or <strong>15% to Unisocials, 85% to you</strong> on events authorized for the reduced 15% split. You approve and pay your referrers\' 20% from here.');
             }
@@ -2531,7 +2539,7 @@ fetch('/api/admin/events/notify', {
             if (notice) {
               notice.innerHTML = '🔗 Link used: <strong style="color:#1B5E20;">' + refPct + ' Unisocials</strong> · <strong>' + inflPct + ' to the influencer</strong> · <strong>' + pct(1 - commissionRates.referred - commissionRates.influencer) + ' to you</strong>' +
                 ' &nbsp;|&nbsp; No link: <strong style="color:#E65100;">' + dirPct + ' Unisocials</strong> · <strong>' + pct(1 - commissionRates.direct) + ' to you</strong>' +
-                (redAmt > 0 ? ' &nbsp;|&nbsp; Reduced 15% split: <strong style="color:#E65100;">15% Unisocials</strong> · <strong>85% to you</strong>' : '') +
+                (anyReduced ? ' &nbsp;|&nbsp; Reduced 15% split: <strong style="color:#E65100;">15% Unisocials</strong> · <strong>85% to you</strong>' : '') +
                 '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct' + (redAmt > 0 ? ' — ' + fmtN(redAmt) + ' of it at the 15% split' : '') + ') you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unisocials retained <strong>' + fmtN(data.platformFee) + '</strong>.';
               if (Number(data.influencerPaidOut) > 0) {
                 notice.innerHTML += ' You have already paid your referrers <strong style="color:#1B5E20;">' + fmtN(data.influencerPaidOut) + '</strong> of their ' + fmtN(data.influencerEarned) + ' earned.';

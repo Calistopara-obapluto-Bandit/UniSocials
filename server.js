@@ -5676,6 +5676,11 @@ codes[idx] = entry;
       });
       const totals = commissionTotals(referredAmount, directAmount, reducedDirectAmount);
       const heldTotals = commissionTotals(heldReferred, heldDirect, heldReducedDirect);
+      // Plan mix of this account's events, so the dashboard can describe the
+      // current split rules the moment a plan is authorized — not only after
+      // the first reduced-plan sale has actually verified.
+      const reducedPlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_15).length;
+      const standardPlanEvents = authorizedEvents.length - reducedPlanEvents;
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
       const balance = payoutBalance(totals.ownerNetAmount, heldTotals.ownerNetAmount, mine);
       heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
@@ -5687,6 +5692,10 @@ codes[idx] = entry;
         directAmount: totals.directAmount,
         // Direct sales on events authorized for the reduced 15% plan.
         reducedDirectAmount: totals.reducedDirectAmount,
+        // How many of this account's events are on each plan (drives the
+        // dashboard write-ups before any new sale has verified).
+        reducedPlanEvents: reducedPlanEvents,
+        standardPlanEvents: standardPlanEvents,
         // 97.5% of referred sales + 80%/85% of direct sales: what the owner is
         // owed before the referrers' commission is allocated out of it.
         ownerCreditAmount: totals.ownerCreditAmount,
@@ -5763,6 +5772,10 @@ codes[idx] = entry;
         directAmount: summary.directAmount,
         // Direct sales on events authorized for the reduced 15% platform split.
         reducedDirectAmount: summary.reducedDirectAmount,
+        // Plan mix of this account's events — drives the dashboard write-ups
+        // right after authorization, before any new sale has verified.
+        reducedPlanEvents: summary.reducedPlanEvents,
+        standardPlanEvents: summary.standardPlanEvents,
         // Credited, allocated out, and what is actually withdrawable.
         ownerCreditAmount: summary.ownerCreditAmount,
         influencerOwed: roundOut(Math.max(0, summary.influencerOwed - influencerPaidOut)),
