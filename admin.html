@@ -1203,6 +1203,13 @@
             </div>
             <div id="eventAuthorizationsList"></div>
           </div>
+          <div class="admin-scan-panel" style="margin-top:16px;">
+            <div class="admin-panel-heading" style="margin-bottom:8px;">
+              <div><h2 style="font-size:1rem;">💰 Reduced 15% Commission Split</h2><p>Authorize the reduced platform fee for an event: future <strong>direct</strong> sales split 15% Unisocials / 85% event owner instead of the standard 20/80. Referred sales always stay 2.5% / 20% / 77.5%. Only sales verified from the moment you authorize earn the new rate — sales already verified keep their original split.</p></div>
+              <button class="admin-refresh-btn" type="button" onclick="loadCommissionPlanList()">↻ Refresh</button>
+            </div>
+            <div id="commissionPlanList"></div>
+          </div>
         </div>
 
         <!-- ── PAYOUT REQUESTS PANEL ── -->
@@ -2692,7 +2699,7 @@ fetch('/api/admin/events/notify', {
         document.querySelectorAll('.admin-panel').forEach(function(panel) {
           panel.classList.toggle('active', panel.id === 'panel-' + tabName);
         });
-        if (tabName === 'event-authorizations') loadEventAuthorizations();
+        if (tabName === 'event-authorizations') { loadEventAuthorizations(); loadCommissionPlanList(); }
         else if (tabName === 'customers') loadCustomers();
       };
 
@@ -2722,6 +2729,60 @@ fetch('/api/admin/events/notify', {
       window.removeEventAuthorization = function(eventId,influencerAdminId) {
         if(!confirm('Remove this event authorization?'))return;
         fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'remove'})}).then(function(r){return r.json();}).then(function(d){if(!d.success)throw new Error(d.error||'Could not remove authorization');showToast('Authorization removed.');loadEventAuthorizations();}).catch(function(e){showToast(e.message,true);});
+      };
+
+      // ── Reduced 15% commission split, per event (Main Admin only) ──
+      // Lists every event with its current split and lets the Main Admin
+      // authorize or revoke the reduced 15/85 plan for future sales.
+      window.loadCommissionPlanList = function() {
+        var box = document.getElementById('commissionPlanList');
+        if (box) box.innerHTML = '<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">Loading events…</div>';
+        fetch('/api/admin/events', {headers: authHeaders(), credentials:'same-origin'})
+          .then(function(r) { if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; } return r.json(); })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            if (!box) return;
+            if (!events.length) { box.innerHTML = '<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">No events yet. Add an event in the Events tab first.</div>'; return; }
+            var html = '';
+            events.forEach(function(ev) {
+              var id = String(ev.id || ev._id || '');
+              var reduced = String(ev.commissionPlan || 'standard') === 'reduced_15';
+              html += '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">' +
+                '<span style="display:flex;flex-direction:column;gap:2px;">' +
+                  '<strong>' + esc(ev.name || id) + '</strong>' +
+                  '<small style="color:var(--text-3);">' + (reduced ? '💰 15% Unisocials / 85% owner (direct sales)' : 'Standard: 20% Unisocials / 80% owner') + '</small>' +
+                '</span>' +
+                '<button type="button" class="admin-filter-btn" data-plan-event="' + esc(id) + '" data-plan-current="' + (reduced ? 'reduced_15' : 'standard') + '">' + (reduced ? 'Revoke — use standard 20%' : 'Authorize 15% split') + '</button>' +
+              '</div>';
+            });
+            box.innerHTML = html;
+            box.querySelectorAll('[data-plan-event]').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                var eventId = btn.getAttribute('data-plan-event') || '';
+                var current = btn.getAttribute('data-plan-current') || 'standard';
+                var next = current === 'reduced_15' ? 'standard' : 'reduced_15';
+                if (!eventId) return;
+                var confirmMsg = next === 'reduced_15'
+                  ? 'Authorize the reduced 15% split for this event?\n\nFuture DIRECT sales will split 15% Unisocials / 85% owner. Referred sales stay 2.5/20/77.5. Sales already verified keep their current split.'
+                  : 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% owner. Sales already verified keep their current split.';
+                if (!confirm(confirmMsg)) return;
+                btn.disabled = true;
+                fetch('/api/admin/events/commission-plan', {method:'POST', headers:authHeaders(), body:JSON.stringify({eventId:eventId, plan:next}), credentials:'same-origin'})
+                  .then(function(r) { return r.json().then(function(d) { return {ok:r.ok, data:d}; }); })
+                  .then(function(x) {
+                    if (x.ok && x.data && x.data.success) { showToast(x.data.message || (next === 'reduced_15' ? 'Reduced 15% split authorized.' : 'Standard 20% split restored.')); loadCommissionPlanList(); }
+                    else showToast((x.data && x.data.error) || 'Could not change the commission plan', true);
+                  }).catch(function() { showToast('Network error changing the commission plan', true); })
+                  .finally(function() { btn.disabled = false; });
+              });
+            });
+          })
+          .catch(function(err) {
+            if (!box) return;
+            box.innerHTML = err && err.unauthorized
+              ? '<div style="color:#B71C1C;font-size:.85rem;padding:12px 0;">Your admin session is invalid or expired. Log in again.</div>'
+              : '<div style="color:#B71C1C;font-size:.85rem;padding:12px 0;">Unable to load commission plans.</div>';
+          });
       };
 
       window.loadInfluencers = function() {
