@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { esc, fmtN } from '../lib/utils.jsx';
+import { subscribeToEvent } from '../lib/notify.js';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -57,6 +58,77 @@ function monthSummary(events) {
   );
 }
 
+function NotifyButton({ event }) {
+  const btnRef = useRef(null);
+  const [status, setStatus] = useState('idle');
+
+  const handleClick = useCallback(async (e) => {
+    e.preventDefault();
+    const email = prompt('Enter your email to get notified about events at this campus:');
+    if (!email) return;
+
+    setStatus('loading');
+    try {
+      const result = await subscribeToEvent({
+        email,
+        universityId: event.universityId || '',
+        universityName: event.universityName || '',
+        eventId: event.id || ''
+      });
+
+      const btn = btnRef.current;
+      if (!btn) return;
+
+      if (result.ok) {
+        btn.textContent = '✅ Subscribed!';
+        btn.disabled = true;
+        setStatus('subscribed');
+        setTimeout(() => {
+          btn.textContent = '🔔 Notify me';
+          btn.disabled = false;
+          setStatus('idle');
+        }, 2500);
+      } else {
+        btn.textContent = '⚠️ Error';
+        setStatus('error');
+        setTimeout(() => {
+          btn.textContent = '🔔 Notify me';
+          btn.disabled = false;
+          setStatus('idle');
+        }, 2000);
+      }
+    } catch (err) {
+      const btn = btnRef.current;
+      if (!btn) return;
+      btn.textContent = '⚠️ Error';
+      setStatus('error');
+      setTimeout(() => {
+        btn.textContent = '🔔 Notify me';
+        btn.disabled = false;
+        setStatus('idle');
+      }, 2000);
+    }
+  }, [event]);
+
+  return (
+    <button
+      type="button"
+      ref={btnRef}
+      className="btn-notify"
+      onClick={handleClick}
+      dataEvent={esc(event.id || '')}
+      dataUni={esc(event.universityId || '')}
+      dataUniName={esc(event.universityName || '')}
+      disabled={status === 'loading' || status === 'subscribed'}
+    >
+      {status === 'subscribed' ? '✅ Subscribed!' :
+       status === 'error' ? '⚠️ Error' :
+       status === 'loading' ? 'Submitting…' :
+       '🔔 Notify me'}
+    </button>
+  );
+}
+
 function eventCard(ev, index, referralCode) {
   const delay = (index % 3) === 0 ? '' : ' reveal-delay-' + (index % 3);
   const tagsHtml = (ev.tags && ev.tags.length) ? (
@@ -107,32 +179,13 @@ function eventCard(ev, index, referralCode) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
           <a href={ticketsHref} className="btn-buy">Get Tickets</a>
-          <button
-            type="button"
-            className="btn-notify"
-            onClick={e => notifyMe(e, ev)}
-            dataEvent={esc(ev.id || '')}
-            dataUni={esc(ev.universityId || '')}
-            dataUniName={esc(uniName)}
-          >
-            🔔 Notify me
-          </button>
+          <NotifyButton
+            event={ev}
+          />
         </div>
       </div>
     </div>
   );
-}
-
-function notifyMe(e, ev) {
-  e.preventDefault();
-  const email = prompt('Enter your email to get notified about events at this campus:');
-  if (!email) return;
-  const uniId = ev.universityId || '';
-  const uniName = ev.universityName || '';
-  const eventId = ev.id || '';
-  if (typeof window !== 'undefined' && window.UNNotify && window.UNNotify.subscribe) {
-    window.UNNotify.subscribe(email, uniId, uniName, eventId, e.currentTarget).catch(() => {});
-  }
 }
 
 export default function Events() {
@@ -264,9 +317,9 @@ export default function Events() {
     if (!universities) return;
     const selectEl = document.getElementById('universityFilter');
     if (!selectEl) return;
+
     const result = populateUniversityFilter(universities);
     selectEl.innerHTML = result.html;
-
     const findSelected = () => result.list.find(u => String(u.slug || u.id) === String(selectEl.value)) || null;
 
     const selectUniversity = (selected) => {
@@ -298,10 +351,6 @@ export default function Events() {
 
     selectEl.onchange = () => selectUniversity(findSelected());
 
-    if (typeof window !== 'undefined' && window.UNUniversitySearch) {
-      window.UNUniversitySearch(selectEl);
-    }
-
     const searchWrap = selectEl.parentElement && selectEl.parentElement.querySelector('.uni-search-wrap');
     if (searchWrap) {
       const input = searchWrap.querySelector('.uni-search-input');
@@ -325,16 +374,6 @@ export default function Events() {
       }
     }
   }, [universities, userSelectedUniversity, loadEvents, populateUniversityFilter, rebuildCategoryFilter]);
-
-  useEffect(() => {
-    const initialUni = (typeof window !== 'undefined' && window.UNUniversity && window.UNUniversity.getUniversity) ? window.UNUniversity.getUniversity() : null;
-    setUniversity(initialUni || null);
-
-    const selectEl = document.getElementById('universityFilter');
-    if (selectEl) {
-      selectEl.addEventListener('change', () => setUserSelectedUniversity(true), true);
-    }
-  }, []);
 
   useEffect(() => {
     if (!universities) return;
@@ -380,7 +419,6 @@ export default function Events() {
       out = out.filter(ev => (ev.category || '').toLowerCase() === category.toLowerCase());
     }
     if (price !== 'all') {
-      const p = Number(ev => ev.price || 0);
       out = out.filter(ev => {
         const priceNum = Number(ev.price || 0);
         if (price === 'low') return priceNum < 2000;
@@ -399,16 +437,6 @@ export default function Events() {
         <span className="wa-tooltip">Chat with us</span>
       </a>
 
-      <div className="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
-        <a href="/index.html">Home</a>
-        <a href="/events.html">Events</a>
-        <a href="/tickets.html">Tickets</a>
-        <a href="/about.html">About</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/influencer-admin-signup.html" className="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
-        <a href="/events.html" className="mobile-cta btn-primary">Get Tickets</a>
-      </div>
-
       <nav className="nav" id="mainNav" role="navigation" aria-label="Main navigation">
         <div className="nav-inner">
           <a href="/index.html" className="nav-logo">Uni<span>socials</span></a>
@@ -426,9 +454,6 @@ export default function Events() {
             </a>
             <a href="/events.html" className="btn-primary">Get Tickets</a>
           </div>
-          <button className="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
-            <span></span><span></span><span></span>
-          </button>
         </div>
       </nav>
 
@@ -515,12 +540,26 @@ export default function Events() {
                 <p style={{ color: 'var(--text-3)' }}>No events available for this campus yet. Check back soon!</p>
               </div>
             )}
-            {filteredEvents.map((ev, i) => eventCard(ev, i, referralCode))}
+            {filteredEvents.map((ev, i) => (
+              <div key={ev.id || i}>{eventCard(ev, i, referralCode)}</div>
+            ))}
             {filteredEvents.length === 0 && events && events.length > 0 && (
               <div id="noResults" className="no-results" style={{ display: 'block' }}>
                 <span>😕</span>
                 <p>No events match your search criteria.</p>
-                <button className="btn-outline-lg" onClick={() => { setSearch(''); setCategory('all'); setPrice('all'); setSelectedUniValue(''); }}>
+                <button
+                  className="btn-outline-lg"
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setCategory('all');
+                    setPrice('all');
+                    setSelectedUniValue('');
+                    if (typeof window !== 'undefined' && window.resetFilters) {
+                      window.resetFilters();
+                    }
+                  }}
+                >
                   Clear Filters
                 </button>
               </div>

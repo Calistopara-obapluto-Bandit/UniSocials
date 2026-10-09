@@ -1069,7 +1069,10 @@ async function getReferralLinkForAssignment(influencerId, assignmentId) {
 }
 function canonicalReferralUrl(code) {
   const safeCode = String(code || '').trim().toUpperCase();
-  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events.html?ref=' + encodeURIComponent(safeCode)) : '';
+  // The React /events route is now the canonical events experience when the React
+  // build exists. Keep the query-string (ref=...) intact, but point referral links
+  // at the React route path instead of the legacy .html page.
+  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events?ref=' + encodeURIComponent(safeCode)) : '';
 }
 
 function referralLinkResponse(link) {
@@ -5165,6 +5168,112 @@ codes[idx] = entry;
       await writeCoupons(next);
       return sendJson(res, 200, { success: true });
     }
+
+    // ── Admin: customer/account directory, excluding password material ──
+    // The admin dashboard needs the buyers who register and buy tickets to appear
+    // with their full non-credential info: name, email, phone, faculty, university
+    // context, signup date and recent order activity. Passwords and one-time secrets
+    // are never returned, even for internal lookups.
+    if (pathname === '/api/admin/customers' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const orders = await readOrders();
+
+      // Build a compact per-account purchase summary so the admin list can show
+      // signup activity without sending every raw user field to the client.
+      const orderSummaryByEmail = new Map();
+      orders.forEach(o => {
+        if (!o || !o.buyerEmail) return;
+        const key = String(o.buyerEmail).toLowerCase();
+        if (!orderSummaryByEmail.has(key)) {
+          orderSummaryByEmail.set(key, { totalOrders: 0, totalVerifiedOrders: 0, totalTickets: 0, totalSpent: 0, lastOrderAt: null });
+        }
+        const s = orderSummaryByEmail.get(key);
+        s.totalOrders += 1;
+        if (String(o.status || '').toLowerCase() === 'verified') s.totalVerifiedOrders += 1;
+        s.totalTickets += Math.max(0, parseInt(o.qty, 10) || 0);
+        s.totalSpent += Math.max(0, Number(o.amount) || 0);
+        const orderAt = o.verifiedAt || o.createdAt || null;
+        if (orderAt && (!s.lastOrderAt || orderAt > s.lastOrderAt)) s.lastOrderAt = orderAt;
+      });
+
+      const customers = users
+        .map(user => ({
+          account: adminUser(user),
+          summary: orderSummaryByEmail.get(String(user.email || '').toLowerCase()) || null
+        }))
+        .filter(entry => entry.account !== null)
+        // Order the directory for an admin table: most recent account activity first.
+        .sort((a, b) => {
+          const byA = a.summary && a.summary.lastOrderAt ? a.summary.lastOrderAt : (a.account.createdAt || '');
+          const byB = b.summary && b.summary.lastOrderAt ? b.summary.lastOrderAt : (b.account.createdAt || '');
+          return String(byB).localeCompare(String(byA));
+        });
+
+      return sendJson(res, 200, {
+        success: true,
+        customers,
+        totalCount: customers.length,
+        // For context only: how many customer accounts have actually placed orders.
+        customersWithOrders: customers.filter(c => c.summary && c.summary.totalOrders > 0).length
+      });
+    }
+
+    // ── Admin: detailed customer record by email, with their order history ──
+    if (pathname.startsWith('/api/admin/customers/') && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.pathname.slice('/api/admin/customers/'.length) || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Email is required' });
+
+      const user = await findUserByEmail(email);
+      if (!user) return sendJson(res, 404, { success: false, error: 'Customer not found' });
+
+      const orders = await readOrders();
+      const customerOrders = orders
+        .filter(o => o && String(o.buyerEmail || '').toLowerCase() === email)
+        .map(order => ({
+          orderId: order.orderId,
+          status: order.status,
+          eventId: order.eventId || null,
+          eventName: order.eventName || '',
+          eventDate: order.eventDate || null,
+          eventVenue: order.eventVenue || '',
+          eventCategory: order.eventCategory || '',
+          qty: order.qty,
+          amount: order.amount,
+          currency: order.currency,
+          paymentMethod: order.paymentMethod || '',
+          buyerName: order.buyerName || '',
+          buyerPhone: order.buyerPhone || '',
+          buyerFaculty: order.buyerFaculty || '',
+          ticketTier: order.ticketTier || '',
+          included: order.included || '',
+          universityId: order.universityId || '',
+          universityName: order.universityName || '',
+          universitySlug: order.universitySlug || '',
+          referralCode: order.referralCode || null,
+          couponCode: order.couponCode || null,
+          couponDiscount: order.couponDiscount || 0,
+          amountBeforeCoupon: order.amountBeforeCoupon || 0,
+          verifiedAt: order.verifiedAt || null,
+          createdAt: order.createdAt || null,
+          paymentReceivedAt: order.paymentReceivedAt || null,
+          ticketCodes: order.status === 'verified' ? (order.ticketCodes || []) : [],
+          ticketCode: order.status === 'verified' ? (order.ticketCode || null) : null,
+          seenByAdmin: !!order.seenByAdmin
+        }))
+        .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+      return sendJson(res, 200, {
+        success: true,
+        customer: adminUser(user),
+        orders: customerOrders,
+        totalOrders: customerOrders.length,
+        totalVerifiedOrders: customerOrders.filter(o => o.status === 'verified').length,
+        totalTickets: customerOrders.reduce((n, o) => n + Math.max(0, parseInt(o.qty, 10) || 0), 0),
+        totalSpent: Math.round(customerOrders.reduce((n, o) => n + Math.max(0, Number(o.amount) || 0), 0) * 100) / 100
+      });
+    }
     if (pathname === '/api/referrals/validate' && req.method === 'POST') {
       const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch(e) {}
       const code = String(data.code || '').trim().toUpperCase();
@@ -6283,12 +6392,12 @@ const events = await readEvents();
 // the original .html file below. That keeps every existing URL and link working
 // while the remaining pages are ported.
 //
-// The checkout and thank-you paths are treated as canonical from the React build
-// whenever it is present. The legacy .html pages for those routes stay on disk
-// untouched and only get served when the React build is absent, so the fallback
-// is invisible during normal operation and the migration is reversible by
-// removing the build.
-const REACT_CANONICAL_ROUTES = new Set(['/checkout', '/thank-you']);
+// The checkout, thank-you and events paths are treated as canonical from the
+// React build whenever it is present. The legacy .html pages for those routes
+// stay on disk untouched and only get served when the React build is absent, so
+// the fallback is invisible during normal operation and the migration is
+// reversible by removing the build.
+const REACT_CANONICAL_ROUTES = new Set(['/checkout', '/thank-you', '/events']);
 const REACT_SPA_ROUTES = new Set(['/lookup', '/my-tickets', '/checkout', '/thank-you', '/events']);
 const REACT_DIST = path.join(__dirname, 'dist');
 const reactIndexHtml = path.join(REACT_DIST, 'index.html');
@@ -6338,7 +6447,7 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
       ['/checkout.html', '/checkout'],
       ['/events.html', '/events'],
     ]);
-    const canonicalPath = (REACT_BUILT && legacyToCanonical.has(urlPath.toLowerCase()))
+    const canonicalPath = legacyToCanonical.has(urlPath.toLowerCase())
       ? legacyToCanonical.get(urlPath.toLowerCase())
       : urlPath;
 
@@ -6441,18 +6550,64 @@ process.on('uncaughtException', (err) => {
 });
 
 function publicUser(user) {
+  if (!user) return null;
+  const role = String(user.role || '').trim();
   return {
     id: user.id,
-    name: user.name,
-    email: user.email,
+    name: user.name || user.email.split('@')[0] || '—',
+    email: user.email || '',
     // The real inbox on file, when there is one. Staff dashboards show it so an
     // account can be given its payout notification address.
-    contactEmail: user.contactEmail || '',
-    phone: user.phone,
-    role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(String(user.role)) ? 'influencer_admin' : (user.role || 'buyer'),
-    createdAt: user.createdAt,
-    archived: user.archived === true
+    contactEmail: isInternalLoginEmail(user.contactEmail) ? '' : (user.contactEmail || '').trim().toLowerCase(),
+    phone: user.phone || '',
+    role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(role) ? 'influencer_admin' : role || 'buyer',
+    createdAt: user.createdAt || null,
+    archived: user.archived === true,
+    // Public shape intentionally excludes any credential or one-time-secret fields.
   };
+}
+
+function adminUser(user) {
+  if (!user) return null;
+  const role = String(user.role || '').trim();
+  return {
+    id: user.id,
+    name: user.name || user.email.split('@')[0] || '—',
+    email: user.email || '',
+    phone: user.phone || '',
+    role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(role) ? 'influencer_admin' : role || 'buyer',
+    createdAt: user.createdAt || null,
+    archived: user.archived === true,
+    // The account the payout/mail notifications are sent to, when there is one.
+    contactEmail: isInternalLoginEmail(user.contactEmail) ? '' : (user.contactEmail || '').trim().toLowerCase(),
+    // Admin-facing account metadata only; credential fields are never included.
+    university: reconcileAccountUniversity(user),
+    lastOrderAt: user.lastOrderAt || null,
+    totalOrders: Number(user.totalOrders || 0),
+    totalVerifiedOrders: Number(user.totalVerifiedOrders || 0),
+    totalTickets: Number(user.totalTickets || 0),
+    totalSpent: Number(user.totalSpent || 0),
+    // Business-sensitive but not credential material. Kept off publicUser().
+    lastLoginAt: user.lastLoginAt || null,
+    loginEmail: user.loginEmail || '',
+    employeeNote: user.employeeNote || '',
+    createdBy: typeof user.createdBy === 'object' && user.createdBy ? adminUser(user.createdBy) : (typeof user.createdBy === 'string' ? user.createdBy : null),
+    createdByEmail: typeof user.createdBy === 'object' ? (user.createdBy.email || '').trim().toLowerCase() : (typeof user.createdBy === 'string' ? user.createdBy : ''),
+    createdById: typeof user.createdBy === 'object' ? (user.createdBy.id || '') : (typeof user.createdBy === 'string' ? user.createdBy : '')
+  };
+}
+
+// Reconcile university context from the account itself first, then fall back to
+// what the user's recent verified orders say. The user object stores universityId,
+// universityName and universitySlug directly when known.
+function reconcileAccountUniversity(user) {
+  const id = String(user.universityId || '').trim();
+  const name = String(user.universityName || '').trim();
+  const slug = String(user.universitySlug || '').trim();
+  if (id || name || slug) {
+    return { id, name, slug };
+  }
+  return null;
 }
 
 async function removeDemoDataAndKeepSiteCreatedEvents() {
