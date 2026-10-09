@@ -995,7 +995,7 @@
 <div class="admin-stat-value" id="statRevenue">₦0</div>
 </div>
 <div class="admin-stat verified">
-<div class="admin-stat-label">Event Owner (80%)</div>
+<div class="admin-stat-label" id="statOwnerLabel">Event Owner (80% direct)</div>
 <div class="admin-stat-value" id="statOwner80">₦0</div>
 </div>
 <div class="admin-stat verified">
@@ -1003,7 +1003,7 @@
 <div class="admin-stat-value" id="statInfl18">₦0</div>
 </div>
 <div class="admin-stat pending">
-<div class="admin-stat-label">Unisocials Fee (2.5% / 20%)</div>
+<div class="admin-stat-label" id="statFeeLabel">Unisocials Fee (2.5% / 20%)</div>
 <div class="admin-stat-value" id="statPlatform2">₦0</div>
 </div>
 </div>
@@ -1074,9 +1074,9 @@
 <div class="admin-stat"><div class="admin-stat-label">Orders</div><div class="admin-stat-value" id="aesOrders">0</div></div>
 <div class="admin-stat verified"><div class="admin-stat-label">Tickets Sold</div><div class="admin-stat-value" id="aesTickets">0</div></div>
 <div class="admin-stat revenue"><div class="admin-stat-label">Verified Revenue</div><div class="admin-stat-value" id="aesRevenue">₦0</div></div>
-<div class="admin-stat verified"><div class="admin-stat-label">Event Owner (80%)</div><div class="admin-stat-value" id="aesOwner80">₦0</div></div>
+<div class="admin-stat verified"><div class="admin-stat-label" id="aesOwnerLabel">Event Owner (80% direct)</div><div class="admin-stat-value" id="aesOwner80">₦0</div></div>
 <div class="admin-stat verified"><div class="admin-stat-label">Owed to Referrers (20%)</div><div class="admin-stat-value" id="aesInfl18">₦0</div></div>
-<div class="admin-stat pending"><div class="admin-stat-label">Unisocials Fee (2.5% / 20%)</div><div class="admin-stat-value" id="aesPlatform2">₦0</div></div>
+<div class="admin-stat pending"><div class="admin-stat-label" id="aesFeeLabel">Unisocials Fee (2.5% / 20%)</div><div class="admin-stat-value" id="aesPlatform2">₦0</div></div>
 </div>
 <div class="admin-scan-panel" style="margin-top:16px;overflow:auto;">
 <h3 style="margin-bottom:10px;">Influencer Sales for This Event</h3>
@@ -1153,14 +1153,14 @@
   <div class="admin-panel-heading">
     <div>
       <h1>💰 Earnings &amp; Referrer Payouts</h1>
-      <p>A sale made through an influencer's link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. You approve and pay your referrers' 20% from here.</p>
+      <p id="payoutShareExplainer">A sale made through an influencer's link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. You approve and pay your referrers' 20% from here.</p>
     </div>
     <button class="admin-refresh-btn" type="button" onclick="loadPayouts()">↻ Refresh</button>
   </div>
 
   <div class="admin-scan-panel">
     <div class="payout-balance-grid">
-      <div class="admin-stat revenue"><div class="admin-stat-label">Your Share (80%)</div><div class="admin-stat-value" id="payoutOwnerShare">₦0</div></div>
+      <div class="admin-stat revenue"><div class="admin-stat-label" id="payoutOwnerLabel">Your Share (80% direct)</div><div class="admin-stat-value" id="payoutOwnerShare">₦0</div></div>
       <div class="admin-stat verified"><div class="admin-stat-label">Available to Withdraw</div><div class="admin-stat-value" id="payoutAvailable">₦0</div></div>
       <div class="admin-stat"><div class="admin-stat-label">On Hold — 7-day countdown</div><div class="admin-stat-value" id="payoutHeld">₦0</div></div>
       <div class="admin-stat pending"><div class="admin-stat-label">Owed to Referrers (20%)</div><div class="admin-stat-value" id="payoutReferrerCommission">₦0</div></div>
@@ -1214,7 +1214,7 @@
   </div>
 
   <div class="admin-scan-panel" style="margin-top:16px;">
-    <div class="influencer-section-heading"><div><strong>Your payout history</strong><div>Your own 80% requests and their status.</div></div></div>
+    <div class="influencer-section-heading"><div><strong>Your payout history</strong><div id="payoutOwnHistoryText">Your own 80% requests and their status.</div></div></div>
     <div id="payoutOwnHistory"></div>
   </div>
 </div>
@@ -1723,9 +1723,15 @@ function fmtN(n) {
         document.getElementById('aesTickets').textContent=String(data.ticketsSold||0);
         var rev = Number(data.revenue||0);
         document.getElementById('aesRevenue').textContent='₦'+rev.toLocaleString();
-        var aes80=document.getElementById('aesOwner80'); if(aes80) aes80.textContent='₦'+Math.round(rev*overviewOwnerRate).toLocaleString();
-        var aes18=document.getElementById('aesInfl18'); if(aes18) aes18.textContent='₦'+Math.round(rev*overviewInflRate).toLocaleString();
-        var aes2=document.getElementById('aesPlatform2'); if(aes2) aes2.textContent='₦'+Math.round(rev*overviewFeeRate).toLocaleString();
+        // Amounts come from the server's per-event split, so an event on the
+        // reduced 15% plan (85% to the owner) is never flattened to a rate.
+        var aes80=document.getElementById('aesOwner80'); if(aes80) aes80.textContent='₦'+Math.round(data.eventOwnerShare!=null?data.eventOwnerShare:rev*overviewOwnerRate).toLocaleString();
+        var aes18=document.getElementById('aesInfl18'); if(aes18) aes18.textContent='₦'+Math.round(data.influencerCommission!=null?data.influencerCommission:rev*overviewInflRate).toLocaleString();
+        var aes2=document.getElementById('aesPlatform2'); if(aes2) aes2.textContent='₦'+Math.round(data.platformShare!=null?data.platformShare:rev*overviewFeeRate).toLocaleString();
+        // The write-ups follow the event's authorized plan.
+        var aesPlan15=!!(data.event&&data.event.commissionPlan==='reduced_15');
+        var aesOL=document.getElementById('aesOwnerLabel'); if(aesOL) aesOL.textContent=aesPlan15?'Event Owner (85% direct)':'Event Owner (80% direct)';
+        var aesFL=document.getElementById('aesFeeLabel'); if(aesFL) aesFL.textContent=aesPlan15?'Unisocials Fee (2.5% / 15%)':'Unisocials Fee (2.5% / 20%)';
         var box=document.getElementById('aesInfluencers');
         if(!box)return;
         var rows=data.influencers||[];
@@ -1752,14 +1758,24 @@ function fmtN(n) {
             var sp=document.getElementById('statPending'); if(sp) sp.textContent=totals.pending;
             
             var sr=document.getElementById('statRevenue'); if(sr) sr.textContent='₦'+totals.revenue.toLocaleString();
-            // Split of verified ticket revenue: the event owner keeps 80%,
-            // 20% of a referred sale goes to the referrers, and Unisocials retains 2.5%.
+            // Split of verified ticket revenue: the event owner keeps 80% of
+            // direct sales (85% on events authorized for the reduced 15% split),
+            // 20% of a referred sale goes to the referrers, and Unisocials
+            // retains 2.5% referred / 15–20% direct.
             var s80=document.getElementById('statOwner80'); if(s80) s80.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.eventOwnerShare)||0);},0)).toLocaleString();
             var s18=document.getElementById('statInfl18'); if(s18) s18.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.influencerCommission)||0);},0)).toLocaleString();
             var s2=document.getElementById('statPlatform2'); if(s2) s2.textContent='₦'+Math.round(rows.reduce(function(a,ev){return a+(Number(ev.platformShare)||0);},0)).toLocaleString();
+            // The stat write-ups must track the authorized plan mix, so an
+            // owner whose events moved to the 15% split sees it immediately.
+            var hasReduced=rows.some(function(ev){return ev.event&&ev.event.commissionPlan==='reduced_15';});
+            var hasStandard=rows.some(function(ev){return !ev.event||ev.event.commissionPlan!=='reduced_15';});
+            var soLbl=document.getElementById('statOwnerLabel');
+            if(soLbl) soLbl.textContent=hasReduced?(hasStandard?'Event Owner (80–85% direct)':'Event Owner (85% direct)'):'Event Owner (80% direct)';
+            var sfLbl=document.getElementById('statFeeLabel');
+            if(sfLbl) sfLbl.textContent=hasReduced?(hasStandard?'Unisocials Fee (2.5% / 15–20%)':'Unisocials Fee (2.5% / 15%)'):'Unisocials Fee (2.5% / 20%)';
             if (box) {
               if (!rows.length) { box.innerHTML='<div style="padding:14px;color:var(--text-3);">No events have been authorized to you yet. Events you create are added automatically.</div>'; }
-              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner 77.5%: <strong>₦'+(ev.eventOwnerShare!=null?Math.round(ev.eventOwnerShare):Math.round(er*overviewOwnerRate)).toLocaleString()+'</strong> · 💰 Owed to referrers 20%: <strong style="color:#1B5E20;">₦'+(ev.influencerCommission!=null?Math.round(ev.influencerCommission):Math.round(er*overviewInflRate)).toLocaleString()+'</strong> · 🛡 Unisocials: <strong style="color:#E65100;">₦'+(ev.platformShare!=null?Math.round(ev.platformShare):Math.round(er*overviewFeeRate)).toLocaleString()+'</strong></div></div>'; }).join(''); }
+              else { box.innerHTML=rows.map(function(ev){ var er=Number(ev.revenue||0); var plan15=!!(ev.event&&ev.event.commissionPlan==='reduced_15'); return '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);"><strong>'+esc(ev.event.name||'Event')+'</strong><div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:7px;font-size:.85rem;"><span>🧾 '+Number(ev.totalOrders||0)+' total orders</span><span>⏳ '+Number(ev.pendingOrders||0)+' pending</span><span>✅ '+Number(ev.verifiedOrders||0)+' verified</span><span>🎟 '+Number(ev.ticketsSold||0)+' tickets</span><span>₦'+er.toLocaleString()+'</span></div><div style="margin-top:6px;font-size:.78rem;color:var(--text-3);">🏛 Event owner '+(plan15?'85% direct':'80% direct / 77.5% referred')+': <strong>₦'+(ev.eventOwnerShare!=null?Math.round(ev.eventOwnerShare):Math.round(er*overviewOwnerRate)).toLocaleString()+'</strong> · 💰 Owed to referrers 20%: <strong style="color:#1B5E20;">₦'+(ev.influencerCommission!=null?Math.round(ev.influencerCommission):Math.round(er*overviewInflRate)).toLocaleString()+'</strong> · 🛡 Unisocials: <strong style="color:#E65100;">₦'+(ev.platformShare!=null?Math.round(ev.platformShare):Math.round(er*overviewFeeRate)).toLocaleString()+'</strong></div></div>'; }).join(''); }
             }
             if(last) last.textContent='Last updated: '+new Date().toLocaleTimeString();
           })
@@ -2488,6 +2504,24 @@ fetch('/api/admin/events/notify', {
               ? holdStatLabel.parentNode.querySelector('.admin-stat-label') : null;
             if (holdStatLabel) holdStatLabel.textContent = 'On Hold — ' + payoutHoldDays + '-day countdown';
 
+            // The share write-ups must track the authorized plan: direct sales
+            // on reduced-plan events pay the owner 85% (Unisocials keeps 15%).
+            var dirAmt = Number(data.directAmount) || 0;
+            var redAmt = Number(data.reducedDirectAmount) || 0;
+            var sharePctText = redAmt <= 0 ? '80%' : (redAmt >= dirAmt - 0.005 ? '85%' : '80–85%');
+            var pLbl = document.getElementById('payoutOwnerLabel');
+            if (pLbl) pLbl.textContent = 'Your Share (' + sharePctText + ' direct)';
+            var expl = document.getElementById('payoutShareExplainer');
+            if (expl) {
+              expl.innerHTML = redAmt <= 0
+                ? 'A sale made through an influencer\'s link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong>. You approve and pay your referrers\' 20% from here.'
+                : (redAmt >= dirAmt - 0.005
+                  ? 'A sale made through an influencer\'s link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. Direct sales on your 15%-authorized events are <strong>15% to Unisocials, 85% to you</strong>. You approve and pay your referrers\' 20% from here.'
+                  : 'A sale made through an influencer\'s link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to you</strong>. A sale with no link is <strong>20% to Unisocials, 80% to you</strong> — or <strong>15% to Unisocials, 85% to you</strong> on events authorized for the reduced 15% split. You approve and pay your referrers\' 20% from here.');
+            }
+            var ownHistTxt = document.getElementById('payoutOwnHistoryText');
+            if (ownHistTxt) ownHistTxt.textContent = 'Your own ' + sharePctText + ' requests and their status.';
+
             var refPct = pct(commissionRates.referred);
             var dirPct = pct(commissionRates.direct);
             var inflPct = pct(commissionRates.influencer);
@@ -2495,7 +2529,8 @@ fetch('/api/admin/events/notify', {
             if (notice) {
               notice.innerHTML = '🔗 Link used: <strong style="color:#1B5E20;">' + refPct + ' Unisocials</strong> · <strong>' + inflPct + ' to the influencer</strong> · <strong>' + pct(1 - commissionRates.referred - commissionRates.influencer) + ' to you</strong>' +
                 ' &nbsp;|&nbsp; No link: <strong style="color:#E65100;">' + dirPct + ' Unisocials</strong> · <strong>' + pct(1 - commissionRates.direct) + ' to you</strong>' +
-                '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct) you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unisocials retained <strong>' + fmtN(data.platformFee) + '</strong>.';
+                (redAmt > 0 ? ' &nbsp;|&nbsp; Reduced 15% split: <strong style="color:#E65100;">15% Unisocials</strong> · <strong>85% to you</strong>' : '') +
+                '<br>On <strong>' + fmtN(data.totalVerifiedRevenue) + '</strong> of verified payments (' + fmtN(data.referredAmount) + ' referred, ' + fmtN(data.directAmount) + ' direct' + (redAmt > 0 ? ' — ' + fmtN(redAmt) + ' of it at the 15% split' : '') + ') you were credited <strong>' + fmtN(data.ownerCreditAmount) + '</strong>, owe your referrers <strong style="color:#E65100;">' + fmtN(data.influencerOwed) + '</strong>, and withdraw <strong style="color:#1B5E20;">' + fmtN(data.ownerNetAmount) + '</strong>. Unisocials retained <strong>' + fmtN(data.platformFee) + '</strong>.';
               if (Number(data.influencerPaidOut) > 0) {
                 notice.innerHTML += ' You have already paid your referrers <strong style="color:#1B5E20;">' + fmtN(data.influencerPaidOut) + '</strong> of their ' + fmtN(data.influencerEarned) + ' earned.';
               }
