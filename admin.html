@@ -1976,7 +1976,8 @@ fetch('/api/ticket/scan', {
               var vipValue = parseFloat(ev.vipPrice || 0) || 0, bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
               var vvipValue = parseFloat(ev.vvipPrice || 0) || 0, bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
               var bonusValue = parseFloat(ev.bonusPrice || 0) || 0, tableValue = parseFloat(ev.tablePrice || 0) || 0, bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
-              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>';
+              var regValue = parseFloat(ev.price || 0) || 0;
+              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : (regValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>' : '<strong style="font-size:0.75rem;color:var(--accent);">FREE</strong>');
               var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
               var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
               var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
@@ -3159,15 +3160,18 @@ fetch('/api/admin/events/notify', {
               customerEmails[i] = String(email || '');
               var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '—');
               var summary = c && c.summary ? c.summary : null;
+              // Buyers who never created an account (guest checkout) are still
+              // listed — flag them so the admin can tell them apart from accounts.
+              var isGuest = !!(c && c.guest);
               var orderLine = summary && summary.totalOrders > 0
                 ? '<span style="font-size:.74rem;color:var(--accent);font-weight:600;">' + summary.totalOrders + ' order' + (summary.totalOrders !== 1 ? 's' : '') + ' · ' + fmtN(summary.totalSpent) + '</span>'
                 : '<span style="font-size:.74rem;color:var(--text-3);">No orders yet</span>';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">' +
                 '<div style="display:flex;flex-direction:column;gap:4px;">' +
-                  '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong></div>' +
+                  '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong>' + (isGuest ? '<span style="font-size:.68rem;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;">Guest buyer</span>' : '') + '</div>' +
                   '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
                   '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
-                  '<div style="font-size:.74rem;color:var(--text-2);">Member since ' + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
+                  '<div style="font-size:.74rem;color:var(--text-2);">' + (isGuest ? 'First ticket purchase ' : 'Member since ') + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
                   '<div style="margin-top:6px;">' + orderLine + '</div>' +
                 '</div>' +
                 '<div style="text-align:right;">' +

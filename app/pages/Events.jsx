@@ -140,12 +140,14 @@ function eventCard(ev, index, referralCode) {
   const uniName = ev.universityName || '';
   const price = Number(ev.price || 0);
   const bonus = Number(ev.bonusPrice || 0);
+  // Free events (₦0 across the tier) show "FREE" instead of "₦0".
+  const isFree = !(price > 0) && !(bonus > 0);
   const unitPrice = (bonus > 0 && bonus < price) ? (
     <>
       <span style={{ textDecoration: 'line-through', opacity: 0.55, marginRight: 6 }}>{fmtN(price)}</span>
       <strong>{fmtN(bonus)}</strong>
     </>
-  ) : fmtN(price);
+  ) : (isFree ? <strong>FREE</strong> : fmtN(price));
 
   const ticketsHref = '/tickets.html?event=' + encodeURIComponent(ev.id || '') +
     ((ev.universitySlug || ev.universityId) ? '&university=' + encodeURIComponent(ev.universitySlug || ev.universityId) : '') +
@@ -174,7 +176,7 @@ function eventCard(ev, index, referralCode) {
       </div>
       <div className="event-card-footer">
         <div className="event-card-footer-left">
-          <div className="event-card-price">{unitPrice} <small>/ ticket</small></div>
+          <div className="event-card-price">{unitPrice}{isFree ? null : <small> / ticket</small>}</div>
           <div className="event-card-capacity">🎟 {esc(ev.seats || '—')}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>

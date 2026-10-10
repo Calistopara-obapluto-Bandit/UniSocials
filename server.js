@@ -4246,8 +4246,10 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
-      const paymentMethod = String(data.paymentMethod || '').trim().toLowerCase();
-      if (!['card', 'banktransfer'].includes(paymentMethod)) {
+      // 'free' is accepted here only as a known value: a free event (server-
+      // priced at exactly ₦0) is decided AFTER pricing below, never by the client.
+      let paymentMethod = String(data.paymentMethod || '').trim().toLowerCase();
+      if (!['card', 'banktransfer', 'free'].includes(paymentMethod)) {
         return sendJson(res, 400, { success: false, error: 'Please select Credit/Debit Card or Bank Transfer.' });
       }
       // Reject malformed/oversized order input before touching storage or payment state.
@@ -4312,7 +4314,9 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
         baseAmountBeforeCoupon = amount;
       }
 
-      if (couponCode) {
+      // A ₦0 order (free event) carries no coupon discount — there is nothing
+      // to discount — so skip coupon resolution entirely for it.
+      if (couponCode && amount > 0) {
         const coupon = await getCouponByCode(couponCode);
         if (!coupon) return sendJson(res, 400, { success: false, error: 'Invalid or inactive coupon code.' });
         couponDiscount = Math.max(0, Number(coupon.amount) || 0);
@@ -4321,7 +4325,17 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
         amount = Math.max(0, baseAmountBeforeCoupon - couponDiscount);
       }
 
-      if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount <= 0) {
+      // Free events price out at exactly ₦0 server-side. Those orders skip the
+      // payment gateway and are fulfilled instantly (see below); every paid
+      // order still needs a real gateway method. `amount` is always the
+      // server-computed catalogue price, never the client's number.
+      const isFreeOrder = Number(amount) === 0;
+      if (isFreeOrder) {
+        paymentMethod = 'free';
+      } else if (paymentMethod === 'free' || !['card', 'banktransfer'].includes(paymentMethod)) {
+        return sendJson(res, 400, { success: false, error: 'Please select Credit/Debit Card or Bank Transfer.' });
+      }
+      if (!orderId || !eventName || !buyerName || !buyerEmail || !buyerPhone || amount < 0) {
         return sendJson(res, 400, { success: false, error: 'Missing required order fields' });
       }
 
@@ -4384,6 +4398,16 @@ buyerFaculty: buyerFaculty,
       // Do not create or access a ticket code while the order is pending.
       // Ticket codes are generated only by verifyOrderTicketData() after admin verification.
       await addOrder(order);
+      if (isFreeOrder) {
+        // No money moves on a free event, so there is nothing to verify later:
+        // stamp the commission plan, generate the ticket codes and mark the
+        // order verified in the same request, exactly like a gateway-verified
+        // payment would. Nothing is left pending for the admin to confirm.
+        const verifiedOrder = await patchOrder(orderId, verifyOrderTicketData(await stampOrderCommissionPlan(Object.assign({}, order))));
+        notifyOrderVerified(verifiedOrder);
+        await refreshReferralStatsForVerifiedOrder(verifiedOrder, 'pending');
+        return sendJson(res, 200, { success: true, order: verifiedOrder, freeOrder: true });
+      }
       // Notify the admin the moment a new order is placed so they can watch for
       // the payment and verify it (e.g. bank transfer / manual confirmation).
       notifyNewOrder(order);
@@ -5229,12 +5253,14 @@ codes[idx] = entry;
 
       // Build a compact per-account purchase summary so the admin list can show
       // signup activity without sending every raw user field to the client.
+      // The latest order also carries the buyer's contact details, which is how
+      // guest buyers (no account) still appear with a name and phone number.
       const orderSummaryByEmail = new Map();
       orders.forEach(o => {
         if (!o || !o.buyerEmail) return;
         const key = String(o.buyerEmail).toLowerCase();
         if (!orderSummaryByEmail.has(key)) {
-          orderSummaryByEmail.set(key, { totalOrders: 0, totalVerifiedOrders: 0, totalTickets: 0, totalSpent: 0, lastOrderAt: null });
+          orderSummaryByEmail.set(key, { totalOrders: 0, totalVerifiedOrders: 0, totalTickets: 0, totalSpent: 0, lastOrderAt: null, lastBuyerName: '', lastBuyerPhone: '', lastBuyerFaculty: '', firstOrderAt: null });
         }
         const s = orderSummaryByEmail.get(key);
         s.totalOrders += 1;
@@ -5242,15 +5268,51 @@ codes[idx] = entry;
         s.totalTickets += Math.max(0, parseInt(o.qty, 10) || 0);
         s.totalSpent += Math.max(0, Number(o.amount) || 0);
         const orderAt = o.verifiedAt || o.createdAt || null;
-        if (orderAt && (!s.lastOrderAt || orderAt > s.lastOrderAt)) s.lastOrderAt = orderAt;
+        if (orderAt && (!s.lastOrderAt || orderAt > s.lastOrderAt)) {
+          s.lastOrderAt = orderAt;
+          s.lastBuyerName = String(o.buyerName || '').trim();
+          s.lastBuyerPhone = String(o.buyerPhone || '').trim();
+          s.lastBuyerFaculty = String(o.buyerFaculty || '').trim();
+        }
+        if (o.createdAt && (!s.firstOrderAt || o.createdAt < s.firstOrderAt)) s.firstOrderAt = o.createdAt;
       });
 
+      const accountEmails = new Set();
       const customers = users
         .map(user => ({
           account: adminUser(user),
           summary: orderSummaryByEmail.get(String(user.email || '').toLowerCase()) || null
         }))
-        .filter(entry => entry.account !== null)
+        .filter(entry => entry.account !== null);
+      customers.forEach(entry => {
+        const key = String(entry.account.email || '').toLowerCase();
+        if (key) accountEmails.add(key);
+      });
+
+      // Ticket buyers who never created an account are still customers. Guest
+      // checkout (buying without registering) is a first-class flow, so every
+      // order email that has no matching account is appended to the directory
+      // with the contact details captured on their orders. Without this the
+      // Customers tab silently hid everyone who ever bought as a guest.
+      const guestCustomers = [];
+      orderSummaryByEmail.forEach((summary, email) => {
+        if (accountEmails.has(email)) return;
+        guestCustomers.push({
+          guest: true,
+          account: {
+            id: null,
+            name: summary.lastBuyerName || email.split('@')[0] || '—',
+            email: email,
+            phone: summary.lastBuyerPhone || '',
+            role: 'guest',
+            createdAt: summary.firstOrderAt || null,
+            archived: false
+          },
+          summary: summary
+        });
+      });
+
+      const allCustomers = customers.concat(guestCustomers)
         // Order the directory for an admin table: most recent account activity first.
         .sort((a, b) => {
           const byA = a.summary && a.summary.lastOrderAt ? a.summary.lastOrderAt : (a.account.createdAt || '');
@@ -5260,10 +5322,10 @@ codes[idx] = entry;
 
       return sendJson(res, 200, {
         success: true,
-        customers,
-        totalCount: customers.length,
-        // For context only: how many customer accounts have actually placed orders.
-        customersWithOrders: customers.filter(c => c.summary && c.summary.totalOrders > 0).length
+        customers: allCustomers,
+        totalCount: allCustomers.length,
+        // For context only: how many customer entries have actually placed orders.
+        customersWithOrders: allCustomers.filter(c => c.summary && c.summary.totalOrders > 0).length
       });
     }
 
@@ -5278,7 +5340,6 @@ codes[idx] = entry;
       if (!email) return sendJson(res, 400, { success: false, error: 'Email is required' });
 
       const user = await findUserByEmail(email);
-      if (!user) return sendJson(res, 404, { success: false, error: 'Customer not found' });
 
       const orders = await readOrders();
       const customerOrders = orders
@@ -5316,9 +5377,28 @@ codes[idx] = entry;
         }))
         .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
+      // Registered account, or a guest buyer whose orders carry the details.
+      // Only a lookup with neither an account nor any orders is a real 404 —
+      // otherwise past ticket buyers with no account showed as "not found".
+      let customer = user ? adminUser(user) : null;
+      if (!customer && customerOrders.length) {
+        const latest = customerOrders[0] || {};
+        const earliest = customerOrders[customerOrders.length - 1] || {};
+        customer = {
+          id: null,
+          name: latest.buyerName || email.split('@')[0] || '—',
+          email: email,
+          phone: latest.buyerPhone || '',
+          role: 'guest',
+          createdAt: earliest.createdAt || null,
+          archived: false
+        };
+      }
+      if (!customer) return sendJson(res, 404, { success: false, error: 'Customer not found' });
+
       return sendJson(res, 200, {
         success: true,
-        customer: adminUser(user),
+        customer: customer,
         orders: customerOrders,
         totalOrders: customerOrders.length,
         totalVerifiedOrders: customerOrders.filter(o => o.status === 'verified').length,

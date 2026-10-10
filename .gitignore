@@ -67,3 +67,6 @@ htmlcov/
 Thumbs.db
 *.swp
 *.swo
+
+# Runtime JSON data store (events/orders/users/…) — never commit live data
+data/*.json

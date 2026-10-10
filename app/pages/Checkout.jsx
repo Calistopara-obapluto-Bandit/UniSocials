@@ -209,9 +209,11 @@ export default function Checkout() {
     );
     const unitPriceNode = document.getElementById('summaryUnitPrice');
     if (unitPriceNode) {
+      // Free events price out at ₦0 — say "FREE" instead of "₦0".
+      const payableLabel = payable > 0 ? '₦' + payable.toLocaleString() : 'FREE';
       unitPriceNode.innerHTML = (!referralApplied && original > payable && payable > 0)
-        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
-        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
+        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong><small class="referral-price-note">✨ Bonus price</small>'
+        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong>');
     }
     renderCouponTotal();
   }
@@ -221,10 +223,12 @@ export default function Checkout() {
     const unitPriceNode = document.getElementById('summaryUnitPrice');
     if (unitPriceNode && referralApplied && checkoutData) {
       const original = Number(checkoutData.originalEventPrice || 0);
-      unitPriceNode.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">₦' + Number(checkoutData.eventPrice || 0).toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>';
+      const refPrice = Number(checkoutData.eventPrice || 0);
+      unitPriceNode.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">' + (refPrice > 0 ? '₦' + refPrice.toLocaleString() : 'FREE') + '</strong><small class="referral-price-note">🎁 Referral price</small>';
     }
     const totalNodes = ['summaryTotal', 'placeOrderTotal', 'mobileBarTotal'].map(id => document.getElementById(id)).filter(Boolean);
-    totalNodes.forEach(node => { if (node) node.textContent = '₦' + total.toLocaleString(); });
+    const totalLabel = total > 0 ? '₦' + total.toLocaleString() : 'FREE';
+    totalNodes.forEach(node => { if (node) node.textContent = totalLabel; });
 
     const box = document.getElementById('couponSummary');
     if (box && appliedCoupon) {
@@ -409,7 +413,12 @@ export default function Checkout() {
   }
 
   async function placeOrder(paymentMethod) {
-    const method = paymentMethod === 'banktransfer' ? 'banktransfer' : 'card';
+    // A free event (₦0 total) never opens Flutterwave: the server recognises
+    // the ₦0 server-priced order, issues the tickets immediately, and we jump
+    // straight to the thank-you page with the ticket codes.
+    const total = computedTotal();
+    const isFreeOrder = !(total > 0);
+    const method = isFreeOrder ? 'free' : (paymentMethod === 'banktransfer' ? 'banktransfer' : 'card');
     const selectedEventId = checkoutData && (checkoutData.eventId || checkoutData.eventValue);
     if (!checkoutData || !selectedEventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
       alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
@@ -423,17 +432,22 @@ export default function Checkout() {
     const name = checkoutData.buyerName;
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
-    const total = computedTotal();
 
     const selectedBtn = method === 'banktransfer'
       ? document.getElementById('bankTransferBtn')
       : document.getElementById('cardPaymentBtn');
-    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = 'Opening Flutterwave…'; }
+    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = isFreeOrder ? 'Issuing your free ticket…' : 'Opening Flutterwave…'; }
 
     createOrderViaApi(orderId, total, method, function (success, ticketCodes, serverAmount, errorMessage) {
       if (!success) {
-        alert((errorMessage || 'Could not create your order. Please try again.') + '\n\nPayment method: ' + (method === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card'));
+        const methodNote = isFreeOrder ? '' : '\n\nPayment method: ' + (method === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card');
+        alert((errorMessage || 'Could not create your order. Please try again.') + methodNote);
         if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = method === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'; }
+        return;
+      }
+      if (isFreeOrder) {
+        // Tickets were issued in the same request — no gateway to run.
+        window.location.href = '/thank-you?orderId=' + encodeURIComponent(orderId);
         return;
       }
       const paymentAmount = serverAmount > 0 ? serverAmount : total;
