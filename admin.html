@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-build="2026-10-10-1">
 <head>
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
@@ -3435,6 +3435,29 @@ fetch('/api/admin/events/notify', {
       } else {
         showLoggedOut();
       }
+
+// ── Stale-page guard ──────────────────────────────────────────────────────
+      // admin.html is served no-cache, but a browser tab that has stayed open
+      // since before an update keeps running the OLD scripts until reloaded —
+      // which looks exactly like "the dashboard shows nothing". When the user
+      // switches back to this tab (or on a slow interval), compare the served
+      // build marker against the one this page was loaded from and reload once
+      // if they differ. After the reload the markers match, so this cannot loop.
+      var BUILD_MARKER = document.documentElement.getAttribute('data-build') || '';
+      function checkPageFreshness() {
+        if (!BUILD_MARKER) return;
+        fetch('/admin.html', { cache: 'no-store' })
+          .then(function(r) { return r.text(); })
+          .then(function(text) {
+            var m = text.match(/data-build="([^"]+)"/);
+            if (m && m[1] !== BUILD_MARKER) window.location.reload();
+          })
+          .catch(function() { /* offline or transient — keep running */ });
+      }
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') checkPageFreshness();
+      });
+      setInterval(checkPageFreshness, 10 * 60 * 1000);
     })();
   </script>
 <script id="archive-controls-ui">
