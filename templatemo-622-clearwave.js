@@ -972,7 +972,7 @@ const tier = getSelectedTier();
       ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + originalPrice.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong><small style="display:block;color:var(--text-3);font-size:.72em;margin-top:3px;">Bonus price</small>'
       : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payablePrice.toLocaleString() + '</strong>';
   }
-  if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
+  if (summaryTotal) summaryTotal.textContent = fmtTotalText(total);
 
   // Always refresh checkout pricing from the server so the checkout page uses
   // the event's current original + bonus price, even if the ticket page was
@@ -1091,9 +1091,10 @@ const tier = getSelectedTier();
   if (referralInput) referralInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); applyReferralCode(); } });
 
   function renderCouponTotal() {
-    if (summaryTotal) summaryTotal.textContent = '\u20A6' + total.toLocaleString();
-    if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
-    if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
+    if (summaryTotal) summaryTotal.textContent = fmtTotalText(total);
+    if (placeOrderTotal) placeOrderTotal.textContent = fmtTotalText(total);
+    if (mobileBarTotal) mobileBarTotal.textContent = fmtTotalText(total);
+    applyFreeCheckoutUi();
     const box=document.getElementById('couponSummary'), baseEl=document.getElementById('couponBaseTotal'), discEl=document.getElementById('couponDiscountTotal'), finalEl=document.getElementById('couponFinalTotal');
     if (box && appliedCoupon) { box.style.display='block'; if(baseEl)baseEl.textContent='\u20A6'+baseTotal.toLocaleString(); if(discEl)discEl.textContent='−\u20A6'+Number(appliedCoupon.amount||0).toLocaleString(); if(finalEl)finalEl.textContent='\u20A6'+total.toLocaleString(); }
     else if(box) box.style.display='none';
@@ -1126,14 +1127,45 @@ const tier = getSelectedTier();
     if (savedRef) { refInput.value = savedRef.toUpperCase(); }
   }
 
-  if (mobileBarTotal) mobileBarTotal.textContent = '\u20A6' + total.toLocaleString();
-  if (placeOrderTotal) placeOrderTotal.textContent = '\u20A6' + total.toLocaleString();
+  if (mobileBarTotal) mobileBarTotal.textContent = fmtTotalText(total);
+  if (placeOrderTotal) placeOrderTotal.textContent = fmtTotalText(total);
+
+  function fmtTotalText(value) {
+    return Number(value || 0) > 0 ? '\u20A6' + Number(value || 0).toLocaleString() : 'Free';
+  }
+
+  // FREE EVENTS: when the priced total is ₦0 the checkout swaps the two
+  // Flutterwave buttons for a single "Get My Free Ticket" button. Nothing else
+  // changes — the buyer details, order, QR tickets and emails all still run.
+  function applyFreeCheckoutUi() {
+    const isFree = Number(total) <= 0;
+    const cardBtn = document.getElementById('cardPaymentBtn');
+    const bankBtn = document.getElementById('bankTransferBtn');
+    const freeBtn = document.getElementById('freeTicketBtn');
+    const title = document.getElementById('paymentActionsTitle');
+    const note = document.getElementById('paymentNote');
+    const mobileBtn = document.getElementById('mobilePlaceOrderBtn');
+    if (isFree) {
+      if (cardBtn) cardBtn.style.display = 'none';
+      if (bankBtn) bankBtn.style.display = 'none';
+      if (freeBtn) freeBtn.style.display = 'inline-flex';
+      if (title) title.textContent = 'Claim your free ticket';
+      if (note) note.innerHTML = '🎉 This event is <strong>free</strong>. Your QR tickets are issued the moment you claim them — same tickets, same check-in, nothing to pay.';
+      if (mobileBtn) mobileBtn.textContent = '🎉 Get Free Ticket';
+    } else {
+      if (freeBtn) freeBtn.style.display = 'none';
+      if (cardBtn) cardBtn.style.display = '';
+      if (bankBtn) bankBtn.style.display = '';
+      if (mobileBtn) mobileBtn.textContent = '🛒 Place Order';
+    }
+  }
 
   function updatePaymentNote() {
     const note = document.getElementById('paymentNote');
-    if (note) {
+    if (Number(total) > 0 && note) {
       note.innerHTML = '🔒 You\'ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. After payment, you will receive a confirmation email while your order awaits manual verification. Tickets are sent after verification.';
     }
+    applyFreeCheckoutUi();
   }
 
   function generateOrderId() {
@@ -1336,7 +1368,8 @@ email: email || 'customer@example.com',
   }
 
   window.placeOrder = function(paymentMethod) {
-    paymentMethod = paymentMethod === 'banktransfer' ? 'banktransfer' : 'card';
+    const isFree = Number(total) <= 0;
+    paymentMethod = isFree ? 'free' : (paymentMethod === 'banktransfer' ? 'banktransfer' : 'card');
     const selectedEventId = checkoutData && (checkoutData.eventId || checkoutData.eventValue);
     if (!checkoutData || !selectedEventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
       alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
@@ -1351,15 +1384,28 @@ email: email || 'customer@example.com',
     const phone = checkoutData.buyerPhone;
 
     const placeBtn = document.getElementById('placeOrderBtn');
-    const selectedLabel = paymentMethod === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card';
-    const selectedBtn = paymentMethod === 'banktransfer' ? document.getElementById('bankTransferBtn') : document.getElementById('cardPaymentBtn');
-    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = 'Opening Flutterwave…'; }
+    const selectedLabel = isFree ? 'Free ticket' : (paymentMethod === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card');
+    const selectedBtn = isFree
+      ? document.getElementById('freeTicketBtn')
+      : (paymentMethod === 'banktransfer' ? document.getElementById('bankTransferBtn') : document.getElementById('cardPaymentBtn'));
+    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = isFree ? '🎉 Issuing your free ticket…' : 'Opening Flutterwave…'; }
 
-    // 1) Create the pending order server-side FIRST. This is silent to the buyer.
-    createOrderViaApi(orderId, total, paymentMethod, function(success, ticketCodes, serverAmount, errorMessage) {
+    // 1) Create the order server-side FIRST. This is silent to the buyer.
+    //    Free events are created with paymentMethod 'free' and ₦0; the server
+    //    verifies them on the spot and returns the QR ticket codes.
+    createOrderViaApi(orderId, isFree ? 0 : total, paymentMethod, function(success, ticketCodes, serverAmount, errorMessage) {
       if (!success) {
         alert((errorMessage || 'Could not create your order. Please try again.') + '\n\nPayment method: ' + selectedLabel);
-        if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = paymentMethod === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'; }
+        if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = isFree ? '🎉 Get My Free Ticket' : (paymentMethod === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'); }
+        return;
+      }
+      if (isFree) {
+        // No Flutterwave step: the tickets already exist. Store the order id so
+        // the thank-you page can show them straight away.
+        try {
+          sessionStorage.setItem('checkoutData', JSON.stringify(Object.assign({}, checkoutData, { orderId: orderId, ticketCodes: ticketCodes || [] })));
+        } catch (e) {}
+        window.location.href = 'thank-you.html?orderId=' + encodeURIComponent(orderId);
         return;
       }
       // 2) Open Flutterwave immediately with ONLY the selected payment method.

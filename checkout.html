@@ -193,8 +193,12 @@
 
         <!-- PAYMENT ACTIONS -->
         <div class="checkout-card reveal reveal-delay-3">
-          <h3 class="checkout-card-title">Choose how you want to pay</h3>
+          <h3 class="checkout-card-title" id="paymentActionsTitle">Choose how you want to pay</h3>
           <div style="display:flex;flex-direction:column;gap:12px;">
+            <!-- Shown instead of the two payment buttons when the event is free. -->
+            <button type="button" class="btn-submit btn-submit-lg" onclick="placeOrder('free')" id="freeTicketBtn" style="display:none;">
+              🎉 Get My Free Ticket
+            </button>
             <button type="button" class="btn-submit btn-submit-lg" onclick="placeOrder('card')" id="cardPaymentBtn">
               💳 Click to proceed to checkout
             </button>

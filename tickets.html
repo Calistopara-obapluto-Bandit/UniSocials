@@ -507,9 +507,11 @@ function setSelectedTier(tier) {
           var t = el.getAttribute('data-tier-price');
           var p = t === 'vip' ? vip : (t === 'vvip' ? vvip : (t === 'table' ? table : reg));
           var bp = t === 'vip' ? bonusVip : (t === 'vvip' ? bonusVvip : (t === 'table' ? bonusTable : bonusReg));
-          if (p > 0 && bp > 0) {
+          if (!(p > 0)) {
+            el.innerHTML = '<strong style="color:var(--accent);">\uD83C\uDF89 Free</strong><small style="display:block;font-size:.68em;opacity:.72;">Free event</small>';
+          } else if (bp > 0) {
             el.innerHTML = '<span style="text-decoration:line-through;opacity:.55;margin-right:6px;">' + fmtN(p) + '</span><strong>' + fmtN(bp) + '</strong><small style="display:block;font-size:.68em;opacity:.72;">Bonus price</small>';
-          } else { el.textContent = p > 0 ? fmtN(p) : '—'; }
+          } else { el.textContent = fmtN(p); }
         });
 
         var vipEl = document.getElementById('vipOption');

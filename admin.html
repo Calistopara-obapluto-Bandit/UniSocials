@@ -3167,7 +3167,7 @@ fetch('/api/admin/events/notify', {
                   '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong></div>' +
                   '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
                   '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
-                  '<div style="font-size:.74rem;color:var(--text-2);">Member since ' + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
+                  '<div style="font-size:.74rem;color:var(--text-2);">' + (c.hasAccount === false ? '🛒 Guest checkout \u2014 customer since ' : 'Member since ') + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
                   '<div style="margin-top:6px;">' + orderLine + '</div>' +
                 '</div>' +
                 '<div style="text-align:right;">' +
@@ -3231,6 +3231,7 @@ fetch('/api/admin/events/notify', {
               '<span><strong>' + (data.totalVerifiedOrders || 0) + '</strong> verified</span>' +
               '<span><strong>' + (data.totalTickets || 0) + '</strong> tickets</span>' +
               '<span>Spent <strong>' + fmtN(data.totalSpent || 0) + '</strong></span>' +
+              (data.customer && data.customer.hasAccount === false ? '<span style="color:var(--text-3);">🛒 Guest checkout (no account)</span>' : '') +
               '</div>';
             if (!orders.length) {
               panel.innerHTML = totals + '<div style="font-size:.82rem;color:var(--text-3);">No orders for this customer yet.</div>';
@@ -3250,7 +3251,7 @@ fetch('/api/admin/events/notify', {
                 '<div style="font-size:.76rem;color:var(--text-3);margin-top:4px;">' +
                   'Order <span style="font-family:monospace;">' + esc(o.orderId || '—') + '</span>' +
                   ' · ' + (parseInt(o.qty, 10) || 0) + ' ticket' + ((parseInt(o.qty, 10) || 0) !== 1 ? 's' : '') +
-                  ' · ₦' + fmtN(o.amount || 0) +
+                  ' · ' + fmtN(o.amount || 0) +
                   (o.eventDate ? ' · ' + esc(o.eventDate) : '') +
                   (o.eventVenue ? ' · ' + esc(o.eventVenue) : '') +
                 '</div>' +

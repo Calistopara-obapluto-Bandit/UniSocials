@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Nav from '../components/Nav.jsx';
 import Footer from '../components/Footer.jsx';
+import { api } from '../lib/api.js';
 import { esc, fmtN, fmtDate } from '../lib/utils.jsx';
 
 /*
@@ -16,6 +17,18 @@ export default function ThankYou() {
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState(null);
   const [checking, setChecking] = useState(true);
+  // The checkout (React or legacy) writes the order details to sessionStorage
+  // under this key. Read it once at component scope so the fallback copy below
+  // can use it — referencing it only inside the effect made the whole page
+  // crash with "checkoutData is not defined".
+  const [checkoutInfo, setCheckoutInfo] = useState(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('checkoutData');
+      if (raw) setCheckoutInfo(JSON.parse(raw));
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,40 +96,16 @@ export default function ThankYou() {
     return () => { cancelled = true; };
   }, []);
 
-  const eventName = order?.eventName || (() => {
-    try {
-      const raw = sessionStorage.getItem('checkoutData');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed && parsed.eventName ? parsed.eventName : null;
-      }
-    } catch (e) {}
-    return null;
-  })();
-
-  const buyerEmail = order?.buyerEmail || (() => {
-    try {
-      const raw = sessionStorage.getItem('checkoutData');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed && parsed.buyerEmail ? parsed.buyerEmail : null;
-      }
-    } catch (e) {}
-    return null;
-  })();
-
-  const totalPaid = order?.amount || (() => {
-    try {
-      const raw = sessionStorage.getItem('checkoutData');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed && parsed.eventPrice ? Number(parsed.eventPrice) : 0;
-      }
-    } catch (e) {}
-    return 0;
-  })();
-
+  const eventName = order?.eventName || checkoutInfo?.eventName || null;
+  const buyerEmail = order?.buyerEmail || checkoutInfo?.buyerEmail || null;
+  const totalPaid = order
+    ? Number(order.amount || 0)
+    : (checkoutInfo && checkoutInfo.eventPrice ? Number(checkoutInfo.eventPrice) : 0);
   const ticketCodes = order?.ticketCodes || [];
+  // A verified order (free tickets are verified the moment they are claimed;
+  // paid ones once payment is confirmed) already carries the buyer's QR codes.
+  const ticketsReady = !!order && String(order.status || '').toLowerCase() === 'verified';
+  const isFreeTicket = !!order && (order.freeTicket === true || Number(order.amount || 0) <= 0) && ticketsReady;
 
   return (
     <>
@@ -124,19 +113,29 @@ export default function ThankYou() {
 
       <section className="page-header">
         <div className="container">
-          <div className="section-label reveal">Payment Received</div>
+          <div className="section-label reveal">{ticketsReady ? (isFreeTicket ? 'Free Ticket Claimed' : 'Payment Confirmed') : 'Payment Received'}</div>
           <h1 className="section-title reveal reveal-delay-1">Thank <em>you!</em></h1>
-          <p className="section-sub reveal reveal-delay-2">Thank you for your purchase. Your order is awaiting verification.</p>
+          <p className="section-sub reveal reveal-delay-2">
+            {ticketsReady
+              ? (isFreeTicket
+                  ? 'Your free tickets are ready — open them below or scan them at the gate.'
+                  : 'Your payment is confirmed and your tickets are ready below.')
+              : 'Thank you for your purchase. Your order is awaiting verification.'}
+          </p>
         </div>
       </section>
 
       <section className="success-section">
         <div className="container">
           <div className="success-card reveal">
-            <div className="success-icon">✅</div>
-            <h2>Your tickets will be sent shortly</h2>
+            <div className="success-icon">{ticketsReady ? '🎟️' : '✅'}</div>
+            <h2>{ticketsReady ? 'Your tickets are ready 🎉' : 'Your tickets will be sent shortly'}</h2>
             <p>
-              We have received your payment. You will receive a confirmation email now, and your actual ticket(s) will be sent to your email after your payment is verified. Please check your inbox and spam or junk folder.
+              {ticketsReady
+                ? (isFreeTicket
+                    ? 'This event is free, so your QR tickets were issued instantly. They work at the gate exactly like paid tickets — no payment needed.'
+                    : 'Your payment has been confirmed and your QR tickets have been issued. They are ready to use at the gate.')
+                : 'We have received your payment. You will receive a confirmation email now, and your actual ticket(s) will be sent to your email after your payment is verified. Please check your inbox and spam or junk folder.'}
             </p>
 
             {orderId && (
@@ -157,10 +156,15 @@ export default function ThankYou() {
                     <strong style={{ color: 'var(--accent)' }}>{esc(buyerEmail)}</strong>
                   </div>
                 )}
-                {totalPaid > 0 && (
+                {totalPaid > 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginTop: '10px' }}>
                     <span style={{ color: 'var(--text-3)' }}>Total Paid</span>
                     <strong>{fmtN(totalPaid)}</strong>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    <span style={{ color: 'var(--text-3)' }}>Total</span>
+                    <strong style={{ color: 'var(--accent)' }}>🎉 Free</strong>
                   </div>
                 )}
                 {ticketCodes.length > 0 && (
@@ -228,7 +232,7 @@ export default function ThankYou() {
         </div>
       </section>
 
-      {!order && checkoutData?.buyerPhone && checkoutData?.orderId && (
+      {!order && checkoutInfo?.buyerPhone && checkoutInfo?.orderId && (
         <section className="lookup-section" style={{ padding: '40px 0 80px' }}>
           <div className="container">
             <div className="lookup-card reveal" style={{ maxWidth: '640px', margin: '0 auto', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '32px 30px', boxShadow: 'var(--shadow-md)' }}>

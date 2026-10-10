@@ -131,21 +131,26 @@ function NotifyButton({ event }) {
 
 function eventCard(ev, index, referralCode) {
   const delay = (index % 3) === 0 ? '' : ' reveal-delay-' + (index % 3);
-  const tagsHtml = (ev.tags && ev.tags.length) ? (
-    <div className="event-card-tags">
-      {ev.tags.map(t => <span key={t} className="event-tag">{esc(t)}</span>)}
-    </div>
-  ) : null;
+  const tagsHtml = null; // rendered below via tagsHtmlFree (adds the free-entry chip when the event is free)
   const dateLine = (ev.date || '') + (ev.time ? ' · ' + ev.time : '');
   const uniName = ev.universityName || '';
   const price = Number(ev.price || 0);
   const bonus = Number(ev.bonusPrice || 0);
-  const unitPrice = (bonus > 0 && bonus < price) ? (
+  const isFree = price <= 0;
+  const unitPrice = isFree ? (
+    <strong style={{ color: 'var(--accent)' }}>Free</strong>
+  ) : (bonus > 0 && bonus < price) ? (
     <>
       <span style={{ textDecoration: 'line-through', opacity: 0.55, marginRight: 6 }}>{fmtN(price)}</span>
       <strong>{fmtN(bonus)}</strong>
     </>
   ) : fmtN(price);
+  const allTags = isFree ? [].concat(ev.tags || [], ['🎉 Free entry']) : (ev.tags || []);
+  const tagsHtmlFree = allTags.length ? (
+    <div className="event-card-tags">
+      {allTags.map(t => <span key={t} className="event-tag">{esc(t)}</span>)}
+    </div>
+  ) : null;
 
   const ticketsHref = '/tickets.html?event=' + encodeURIComponent(ev.id || '') +
     ((ev.universitySlug || ev.universityId) ? '&university=' + encodeURIComponent(ev.universitySlug || ev.universityId) : '') +
@@ -170,7 +175,7 @@ function eventCard(ev, index, referralCode) {
         <h3 className="event-card-title">{esc(ev.name)}</h3>
         {uniName ? <div className="event-card-uni">{esc(uniName)}</div> : null}
         <p className="event-card-desc">{esc(ev.description || '')}</p>
-        {tagsHtml}
+        {tagsHtmlFree}
       </div>
       <div className="event-card-footer">
         <div className="event-card-footer-left">
