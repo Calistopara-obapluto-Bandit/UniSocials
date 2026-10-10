@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Order Status — Unisocials</title>
@@ -107,6 +112,17 @@
       .pending-card { padding: 32px 20px; }
       .pending-progress { gap: 8px; }
     }
+    /* Small-screen guards: buyer names, emails and ticket codes are user-supplied
+       and can be long enough to push the card wider than the viewport. */
+    @media (max-width: 600px) {
+      .pending-card, .pending-info, .pending-info div, .ticket-codes, .ticket-codes .tc-row {
+        min-width: 0; max-width: 100%;
+      }
+      .pending-info div { flex-wrap: wrap; }
+      .pending-info div strong { overflow-wrap: anywhere; word-break: break-word; }
+      .ticket-codes .tc-row { flex-wrap: wrap; }
+      .ticket-codes .tc-row code { word-break: break-all; min-width: 0; }
+    }
   </style>
 </head>
 <body>
@@ -117,6 +133,7 @@
     <a href="tickets.html">Tickets</a>
 <a href="about.html">About</a>
     <a href="contact.html">Contact</a>
+    <a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
   </div>
 
@@ -132,6 +149,9 @@
       </ul>
       <div class="nav-cta">
         <span class="nav-account-slot"></span>
+        <a href="influencer-admin-signup.html" class="iaf-link" title="Create or sign in to an Influencer Admin account">
+          <span aria-hidden="true">👤</span> Create or sign up
+        </a>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -177,14 +197,14 @@
             💡 If you've already paid, you'll be redirected automatically once the payment is confirmed. This page refreshes every few seconds.
           </p>
           <p style="font-size:0.82rem;color:var(--text-3);margin-top:14px;margin-bottom:0;">
-            <a href="my-tickets.html" style="color:var(--accent);text-decoration:underline;">Check my tickets →</a> &nbsp;|&nbsp;
+            <a href="lookup.html" style="color:var(--accent);text-decoration:underline;">Check my tickets →</a> &nbsp;|&nbsp;
             <a href="events.html" style="color:var(--accent);text-decoration:underline;">Browse more events →</a>
           </p>
         </div>
         <div id="verifiedActions" style="display:none;">
           <div class="ticket-codes" id="verifiedTicketCodes"></div>
-          <a href="my-tickets.html" class="btn-cta-primary" style="font-size:0.85rem;padding:12px 28px;margin-right:8px;">
-            🎟 View My Tickets
+          <a href="lookup.html" class="btn-cta-primary" style="font-size:0.85rem;padding:12px 28px;margin-right:8px;">
+            🎟 Find My Ticket
           </a>
           <a href="events.html" class="btn-cta-ghost" style="display:inline-flex;margin-top:8px;">
             Browse More Events →
@@ -223,10 +243,10 @@
         <div>
           <div class="footer-col-label">Follow Us</div>
           <div class="footer-links">
-            <a href="#">Instagram</a>
-            <a href="#">Twitter / X</a>
-            <a href="#">TikTok</a>
-            <a href="#">WhatsApp Channel</a>
+            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
+            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
+            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
           </div>
         </div>
       </div>

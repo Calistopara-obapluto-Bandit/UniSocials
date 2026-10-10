@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Ticket — Unisocials</title>
@@ -138,9 +143,15 @@
     .ticket-error h2 { font-size: 1.4rem; font-weight: 700; color: var(--text-1); margin-bottom: 10px; }
     .ticket-error p { font-size: 0.9rem; color: var(--text-3); margin-bottom: 24px; line-height: 1.6; }
     @media (max-width: 480px) {
-      .ticket-header, .ticket-body { padding: 24px 20px; }
-      .ticket-detail { font-size: 0.82rem; }
+      .ticket-header, .ticket-body { padding: 24px 16px; }
+      .ticket-detail { font-size: 0.82rem; gap: 8px; }
+      .ticket-detail strong { min-width: 0; max-width: 62%; overflow-wrap: anywhere; word-break: break-word; line-height: 1.45; }
       .ticket-actions .btn-primary, .ticket-actions .btn-cta-ghost { width: 100%; }
+    }
+    @media (max-width: 360px) {
+      .ticket-header, .ticket-body { padding-left: 12px; padding-right: 12px; }
+      .ticket-detail { grid-template-columns: 1fr; gap: 3px; }
+      .ticket-detail strong { max-width: 100%; }
     }
     /* Print-only ticket: hide everything except the ticket card */
     @media print {
@@ -162,6 +173,13 @@
       .ticket-qr canvas, .ticket-qr img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "y4hhcy2o3a");
+  </script>
 </head>
 <body>
 
@@ -171,6 +189,7 @@
     <a href="tickets.html">Tickets</a>
 <a href="about.html">About</a>
     <a href="contact.html">Contact</a>
+    <a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
     <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
   </div>
 
@@ -186,6 +205,9 @@
       </ul>
       <div class="nav-cta">
         <span class="nav-account-slot"></span>
+        <a href="influencer-admin-signup.html" class="iaf-link" title="Create or sign in to an Influencer Admin account">
+          <span aria-hidden="true">👤</span> Create or sign up
+        </a>
         <a href="events.html" class="btn-primary">Get Tickets</a>
       </div>
       <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -208,7 +230,7 @@
         <span>🔒</span>
         <h2 id="ticketErrorTitle">Ticket not found</h2>
         <p id="ticketErrorMsg">This ticket link is invalid or has expired. Please check your link or look up your order.</p>
-        <a href="my-tickets.html" class="btn-primary" style="display:inline-flex;padding:12px 28px;">Find My Ticket</a>
+        <a href="lookup.html" class="btn-primary" style="display:inline-flex;padding:12px 28px;">Find My Ticket</a>
       </div>
 
       <div class="ticket-card reveal" id="ticketCard" style="display:none;">
@@ -277,7 +299,7 @@
 
           <div class="ticket-actions">
             <button class="btn-primary" style="display:inline-flex;gap:8px;padding:12px 28px;" onclick="window.print()">🖨 Print Ticket</button>
-            <a href="my-tickets.html" class="btn-cta-ghost" style="display:inline-flex;">My Tickets</a>
+            <a href="lookup.html" class="btn-cta-ghost" style="display:inline-flex;">Find My Ticket</a>
           </div>
 
           <div class="ticket-note">
@@ -317,10 +339,10 @@
         <div>
           <div class="footer-col-label">Follow Us</div>
           <div class="footer-links">
-            <a href="#">Instagram</a>
-            <a href="#">Twitter / X</a>
-            <a href="#">TikTok</a>
-            <a href="#">WhatsApp Channel</a>
+            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
+            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
+            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
           </div>
         </div>
       </div>
@@ -363,15 +385,6 @@ var ticketUniversity = document.getElementById('ticketUniversity');
       var ticketQrWrap = document.getElementById('ticketQrWrap');
       var ticketUsedBanner = document.getElementById('ticketUsedBanner');
       var ticketUsedAt = document.getElementById('ticketUsedAt');
-
-      // Require sign-in to view a ticket. If not logged in, send them to the
-      // login page and return them here with the same link after signing in.
-      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
-      if (!token) {
-        var next = window.location.pathname + window.location.search;
-        window.location.href = 'login.html?next=' + encodeURIComponent(next);
-        return;
-      }
 
       function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
@@ -472,9 +485,7 @@ if (ticketUniversity) ticketUniversity.textContent = t.universityName || '\u2014
         return;
       }
 
-      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code), {
-          headers: window.UNNAuth.authHeaders()
-        })
+      fetch('/api/ticket?orderId=' + encodeURIComponent(orderId) + '&code=' + encodeURIComponent(code))
         .then(function(res) { return res.json(); })
         .then(function(data) {
           if (data && data.success && data.ticket) {

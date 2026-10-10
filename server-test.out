@@ -1,0 +1,3 @@
+Unisocials server running at http://localhost:3104
+Storage: JSON files in ./data (set DATABASE_URL to use PostgreSQL).
+Unisocials storage initialization complete.

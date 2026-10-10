@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
@@ -10,11 +15,11 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="templatemo-622-clearwave.css" />
   <style>
-    .admin-body { padding-top: 90px; }
+    .admin-body { padding-top: 0; }
     .admin-topbar {
       background: var(--text-1);
       color: #fff;
-      padding: 14px 0;
+      padding: 10px 0;
     }
     .admin-topbar-inner {
       max-width: 1160px;
@@ -23,7 +28,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 10px;
     }
     .admin-topbar .nav-logo { color: #fff; font-size: 1.1rem; }
     .admin-topbar .nav-logo span { color: var(--accent-light); }
@@ -195,9 +200,9 @@
     .admin-tabs-inner {
       max-width: 1160px;
       margin: 0 auto;
-      padding: 0 32px;
+      padding: 0 24px;
       display: flex;
-      gap: 4px;
+      gap: 2px;
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -612,6 +617,85 @@
       .admin-stats { grid-template-columns: 1fr; }
       .admin-topbar-inner { flex-direction: column; align-items: flex-start; }
     }
+    /* ── Tight mobile admin layout ── */
+    @media (max-width: 600px) {
+      .admin-topbar { padding: 10px 0; }
+      .admin-topbar-inner { padding: 0 12px; gap: 8px; }
+      .admin-topbar .nav-logo { font-size: .95rem; }
+      .admin-topbar-actions { gap: 6px; min-width: 0; }
+      .admin-topbar-status { font-size: .68rem; gap: 5px; }
+      .admin-topbar-status .pulse { width: 6px; height: 6px; }
+      .admin-notif { font-size: .66rem; padding: 4px 8px; }
+      .admin-logout { font-size: .68rem; padding: 6px 10px; }
+
+      .admin-tabs { top: 0; }
+      .admin-tabs-inner { padding: 0 8px; gap: 0; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+      .admin-tab { flex: 0 0 auto; min-height: 44px; padding: 10px 9px; font-size: .72rem; gap: 4px; }
+      .admin-tab.active { border-bottom-width: 2px; }
+
+      .admin-dash { padding: 16px 0 36px; }
+      .admin-panel-heading { gap: 8px; margin-bottom: 12px; }
+      .admin-panel-heading h1 { font-size: 1.1rem; }
+      .admin-panel-heading p { font-size: .74rem; line-height: 1.4; }
+      .admin-scan-panel { padding: 12px; margin-bottom: 12px; border-radius: 10px; }
+
+      /* Sub-admin list: keep names/emails compact and prevent overflow. */
+      #subAdminsList { overflow: hidden; }
+      #subAdminsList .admin-ticket-code {
+        grid-template-columns: minmax(0,1fr) auto !important;
+        gap: 6px !important;
+        padding: 9px 0 !important;
+        min-width: 0;
+      }
+      #subAdminsList .admin-ticket-code > div:first-child { min-width: 0; }
+      #subAdminsList .admin-ticket-code strong {
+        display: inline-block;
+        max-width: 100%;
+        min-width: 0;
+        font-size: .82rem !important;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      #subAdminsList .admin-ticket-code span {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      #subAdminsList .admin-ticket-code > div:last-child {
+        flex: 0 0 auto;
+      }
+      #subAdminsList .admin-ticket-copy { width: 28px; height: 28px; font-size: .72rem; }
+      #subAdminsList .admin-ticket-code-label { font-size: .68rem; }
+
+      .admin-refresh-btn, .btn-submit {
+        min-height: 38px;
+        max-width: 100%;
+        font-size: .76rem;
+        padding: 8px 11px;
+      }
+      .form-group label { font-size: .72rem; }
+      .form-group input, .form-group select, .form-group textarea {
+        max-width: 100%;
+        box-sizing: border-box;
+        font-size: .82rem;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .admin-topbar-inner { padding: 0 9px; }
+      .admin-topbar-actions { gap: 4px; }
+      .admin-topbar-status { display: none; }
+      .admin-topbar .nav-logo { font-size: .88rem; }
+      .admin-notif { font-size: .62rem; padding: 4px 7px; }
+      .admin-logout { font-size: .64rem; padding: 5px 8px; }
+      .admin-tabs-inner { padding: 0 5px; }
+      .admin-tab { padding: 9px 7px; font-size: .68rem; }
+      #subAdminsList .admin-ticket-code { grid-template-columns: minmax(0,1fr) auto !important; }
+      #subAdminsList .admin-ticket-code strong { font-size: .78rem !important; }
+      #subAdminsList .admin-ticket-copy { width: 26px; height: 26px; }
+    }
+
     @media print {
       .admin-topbar, .admin-toolbar, .admin-order-actions { display: none !important; }
       .admin-dash { display: block !important; padding: 0; }
@@ -652,7 +736,104 @@
       padding: 8px 12px;
       text-align: center;
     }
-  </style>
+  
+    /* Tight dashboard header spacing */
+    .admin-body { padding-top: 0 !important; }
+    .admin-topbar { padding: 10px 0; }
+    .admin-topbar-inner { gap: 10px; }
+    .admin-tabs-inner { gap: 2px; }
+    .admin-tab { padding-top: 11px; padding-bottom: 11px; }
+    @media (max-width: 600px) {
+      .admin-topbar { padding: 8px 0; }
+      .admin-topbar-inner { padding-left: 10px; padding-right: 10px; gap: 6px; }
+      .admin-tabs-inner { padding-left: 6px; padding-right: 6px; gap: 0; }
+      .admin-tab { padding: 9px 8px; min-height: 40px; }
+    }
+</style>
+<style id="responsive-dashboard-chrome">
+  /* Signed-in name chip in the top bar. */
+  .admin-user-name { display:inline-flex; align-items:center; padding:7px 11px; border:1px solid rgba(255,255,255,.18); border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Small screens: the tab strip collapses into a styled menu that matches the
+     dashboard chrome, so every tab stays reachable without sideways scrolling. */
+  .admin-tab-menu {
+    display: none; position: sticky; top: 0; z-index: 50;
+    background: var(--surface-2, #fff); border-bottom: 1px solid var(--border, #e2e8f0);
+    max-width: 1160px; margin: 0 auto; padding: 8px 12px;
+  }
+  .admin-tab-toggle {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: var(--surface, #fff); border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 10px 14px; font-size: .84rem; font-weight: 700;
+    color: var(--text-1, #0f172a); cursor: pointer; transition: border-color .25s, color .25s;
+    min-height: 44px; /* comfortable tap target on a phone */
+  }
+  .admin-tab-toggle:hover, .admin-tab-menu.open .admin-tab-toggle { border-color: var(--accent); color: var(--accent); }
+  .admin-tab-toggle-icon { font-size: 1rem; line-height: 1; }
+  .admin-tab-toggle-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-tab-caret { font-size: .7rem; opacity: .6; transition: transform .2s; }
+  .admin-tab-menu.open .admin-tab-caret { transform: rotate(180deg); }
+  .admin-tab-list {
+    position: absolute; left: 12px; right: 12px; top: calc(100% - 2px); z-index: 60;
+    background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 14px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, .16); padding: 6px;
+    /* Bounded to the viewport so the 11-tab admin list never runs off-screen. */
+    max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .admin-tab-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: transparent; border: none; border-radius: 10px; padding: 10px 12px;
+    font-size: .84rem; font-weight: 600; color: var(--text-2); cursor: pointer;
+  }
+  .admin-tab-item:hover { background: var(--surface-2, #f8fafc); color: var(--text-1); }
+  .admin-tab-item[aria-selected="true"] { background: var(--accent-ghost, rgba(15,118,110,.08)); color: var(--accent); font-weight: 700; }
+  @media (max-width: 760px) {
+    .admin-tabs-inner { display: none; }
+    .admin-tab-menu { display: block; }
+  }
+  @media (max-width: 420px) {
+    .admin-tab-menu { padding: 7px 10px; }
+    .admin-tab-toggle { padding: 9px 12px; font-size: .82rem; min-height: 40px; }
+    .admin-tab-item { padding: 9px 10px; font-size: .82rem; }
+  }
+</style>
+<style id="small-screen-guards">
+  /* Shared small-screen hardening. The rules above shape the chrome for wider
+     viewports, so anything that can still push this dashboard sideways on a
+     phone is neutralised here rather than per-panel. */
+  @media (max-width: 600px) {
+    /* Top bar: the logo ellipsis instead of shoving the actions off-screen. */
+    .admin-topbar-inner { min-width: 0; }
+    .admin-topbar .nav-logo {
+      min-width: 0; flex: 1 1 auto;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .admin-topbar-actions { flex: 0 0 auto; min-width: 0; }
+    .admin-user-name { max-width: 92px; padding: 5px 8px; font-size: .68rem; }
+    .admin-topbar-status { display: none !important; }
+
+    /* Scan row: stack outright instead of leaning on the 260px min-widths. */
+    .admin-scan-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+    .admin-scan-inputs .form-group { min-width: 0; width: 100%; }
+    .admin-scan-inputs > button { width: 100% !important; }
+
+    /* Filter dropdowns must be free to shrink below their desktop hint. */
+    .admin-cat-filter, .admin-cat-filters > *, .admin-toolbar > *, .admin-filters > * {
+      min-width: 0; max-width: 100%; flex: 1 1 100%;
+    }
+    .admin-toolbar, .admin-filters, .admin-cat-filters { min-width: 0; }
+
+    /* Long buyer emails, referral codes and bank details wrap rather than scroll. */
+    .admin-panel, .admin-order, .admin-order-meta, .admin-stat,
+    .admin-toolbar, .admin-filters, .admin-cat-filters {
+      min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+    }
+    .admin-ticket-code code { word-break: break-all; }
+  }
+  @media (max-width: 400px) {
+    .admin-user-name { max-width: 74px; }
+  }
+</style>
 </head>
 <body>
 
@@ -661,6 +842,7 @@
     <div class="admin-topbar-inner">
       <a href="index.html" class="nav-logo">Uni<span>socials</span> · Admin</a>
       <div class="admin-topbar-actions">
+        <span class="admin-user-name" id="adminUserName" style="display:none;"></span>
         <span class="admin-topbar-status" id="connStatus" style="display:none;">
           <span class="pulse"></span> <span id="connStatusText">Connected</span>
         </span>
@@ -668,7 +850,7 @@
           🔔 <span id="notifCount">0</span> new
         </span>
         <a href="index.html" class="admin-logout" style="display:none;" id="viewSiteBtn">← View Site</a>
-        <button class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
+        <button type="button" class="admin-logout" id="logoutBtn" style="display:none;">Log Out</button>
       </div>
     </div>
   </div>
@@ -709,7 +891,21 @@
           <button class="admin-tab" data-tab="universities">🏛 Universities</button>
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
           <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
+          <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
+          <button class="admin-tab" data-tab="event-authorizations">🔐 Authorize Events</button>
+          <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
+          <button class="admin-tab" data-tab="customers">👥 Customers</button>
+          <button class="admin-tab" data-tab="payouts">💰 Payout Requests</button>
+          <button class="admin-tab" data-tab="coupons">🏷️ Coupons</button>
         </div>
+      </div>
+      <div class="admin-tab-menu" id="adminTabMenu">
+        <button class="admin-tab-toggle" id="adminTabToggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="adminTabList">
+          <span class="admin-tab-toggle-icon" id="adminTabToggleIcon" aria-hidden="true">📊</span>
+          <span class="admin-tab-toggle-label" id="adminTabToggleLabel">Overview</span>
+          <span class="admin-tab-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="admin-tab-list" id="adminTabList" role="listbox" aria-label="Dashboard sections" hidden></div>
       </div>
 
       <div class="container">
@@ -806,6 +1002,27 @@
           </div>
         </div>
 
+        <!-- ── COUPONS PANEL ── -->
+        <div class="admin-panel" id="panel-coupons">
+          <div class="admin-panel-heading">
+            <div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons. Example: ₦4,000 ticket − ₦400 coupon = ₦3,600 to pay.</p></div>
+            <button type="button" class="admin-refresh-btn" onclick="loadCoupons()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="couponCodeAdmin">Coupon Code</label><input type="text" id="couponCodeAdmin" placeholder="SAVE400" maxlength="40" autocomplete="off" /></div>
+              <div class="form-group"><label for="couponAmountAdmin">Discount Amount (₦)</label><input type="number" id="couponAmountAdmin" placeholder="400" min="1" step="1" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button type="button" class="btn-submit" style="width:auto;white-space:nowrap;" onclick="saveCoupon()" id="couponSaveBtn">➕ Create Coupon</button>
+              <button type="button" class="admin-refresh-btn" onclick="cancelCouponEdit()" id="couponCancelBtn" style="display:none;">✕ Cancel Edit</button>
+              <span id="couponCount" style="font-size:.75rem;color:var(--text-3);"></span>
+            </div>
+            <div id="couponLoadMessage" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:.82rem;"></div>
+            <div class="admin-ticket-codes" id="couponsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
         <!-- ── EVENTS PANEL ── -->
         <div class="admin-panel" id="panel-events">
           <div class="admin-panel-heading">
@@ -823,10 +1040,14 @@
               <div class="form-group"><label for="evCategory">Category</label><select id="evCategory">
                 <option value="General">General</option>
               </select></div>
-              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div>
-              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div>
-              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div>
-              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div>
+              <div class="form-group"><label for="evPrice">Regular Price (₦)</label><input type="number" id="evPrice" placeholder="3000" min="0" /></div><div class="form-group"><label for="evBonusPrice">Regular Bonus Price (₦)</label><input type="number" id="evBonusPrice" placeholder="e.g. 3600" min="0" /></div>
+              <div class="form-group"><label for="evVIPPrice">VIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVIPPrice" placeholder="e.g. 8000" min="0" /></div><div class="form-group"><label for="evBonusVIPPrice">VIP Bonus Price (₦)</label><input type="number" id="evBonusVIPPrice" placeholder="e.g. 7200" min="0" /></div>
+              <div class="form-group"><label for="evVVIPPrice">VVIP Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evVVIPPrice" placeholder="e.g. 10000" min="0" /></div><div class="form-group"><label for="evBonusVVIPPrice">VVIP Bonus Price (₦)</label><input type="number" id="evBonusVVIPPrice" placeholder="e.g. 9000" min="0" /></div>
+              <div class="form-group"><label for="evTablePrice">Table Price (₦) <span style="opacity:0.6;">— optional</span></label><input type="number" id="evTablePrice" placeholder="e.g. 50000" min="0" /></div><div class="form-group"><label for="evBonusTablePrice">Table Bonus Price (₦)</label><input type="number" id="evBonusTablePrice" placeholder="e.g. 45000" min="0" /></div>
+              <div class="form-group"><label for="evRegularTicketLimit">Regular Tickets Available</label><input type="number" id="evRegularTicketLimit" placeholder="e.g. 1000" min="0" step="1" /></div>
+              <div class="form-group"><label for="evVipTicketLimit">VIP Tickets Available</label><input type="number" id="evVipTicketLimit" placeholder="e.g. 200" min="0" step="1" /></div>
+              <div class="form-group"><label for="evVvipTicketLimit">VVIP Tickets Available</label><input type="number" id="evVvipTicketLimit" placeholder="e.g. 100" min="0" step="1" /></div>
+              <div class="form-group"><label for="evTableTicketLimit">Table Tickets Available</label><input type="number" id="evTableTicketLimit" placeholder="e.g. 20" min="0" step="1" /></div>
               <div class="form-group"><label for="evDate">Date</label><input type="text" id="evDate" placeholder="May 20, 2025" /></div>
               <div class="form-group"><label for="evTime">Time</label><input type="text" id="evTime" placeholder="6:00 PM" /></div>
               <div class="form-group"><label for="evVenue">Venue</label><input type="text" id="evVenue" placeholder="e.g. Enugu Sports Field" /></div>
@@ -845,8 +1066,9 @@
               <div class="form-group" style="grid-column:1/-1;"><label for="evIncludedTable">What's Included — Table (comma separated)</label><input type="text" id="evIncludedTable" placeholder="Reserved table for 8, Waitress service, Bottled beverage" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()">➕ Add Event</button>
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addEventItem()" id="eventSubmitBtn">➕ Add Event</button>
               <button class="admin-refresh-btn" onclick="loadManagedEvents()">↻ Refresh Events</button>
+              <button type="button" class="admin-refresh-btn" id="eventCancelEditBtn" onclick="cancelEditEvent()" style="display:none;">✕ Cancel Edit</button>
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="eventsManageCount"></span>
             </div>
             <div class="admin-ticket-codes" id="managedEventsList" style="margin-top:14px;"></div>
@@ -911,7 +1133,7 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
               <div class="form-group"><label for="subName">Full Name</label><input type="text" id="subName" placeholder="e.g. Gate Staff" /></div>
               <div class="form-group"><label for="subEmail">Email</label><input type="email" id="subEmail" placeholder="staff@unisocials.com" /></div>
-              <div class="form-group"><label for="subPassword">Password</label><input type="password" id="subPassword" placeholder="At least 6 characters" /></div>
+              <div class="form-group"><label for="subPassword">Password</label><input type="password" id="subPassword" placeholder="8+ chars, letter, number & symbol" /></div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
               <button class="btn-submit" style="white-space:nowrap;" onclick="addSubAdmin()">➕ Create Sub-Admin</button>
@@ -919,6 +1141,162 @@
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="subAdminCount"></span>
             </div>
             <div class="admin-ticket-codes" id="subAdminsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── INFLUENCERS PANEL (master admin only) ── -->
+        <div class="admin-panel" id="panel-influencers">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>📣 Influencers</h1>
+              <p>Create influencer login accounts and assign specific existing events to Influencer Admins.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel" style="margin-bottom:16px;border:2px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div><h2 style="font-size:1.05rem;margin:0 0 4px;">🔐 Event Authorization</h2><p style="margin:0;color:var(--text-3);font-size:.84rem;">Choose the exact existing event and the exact Influencer Admin who should oversee its ticket sales.</p></div>
+              <button class="btn-submit" type="button" onclick="openAdminTab('event-authorizations');loadEventAuthorizations();">🔐 Authorize Event</button>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="infName">Full Name</label><input type="text" id="infName" placeholder="e.g. John Influencer" /></div>
+              <div class="form-group"><label for="infEmail">Login Email</label><input type="email" id="infEmail" placeholder="influencer@example.com" /></div>
+              <div class="form-group"><label for="infPassword">Password</label><input type="password" id="infPassword" placeholder="8+ chars, letter, number & symbol" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addInfluencer()">➕ Create Influencer</button>
+              <button class="admin-refresh-btn" onclick="loadInfluencers()">↻ Refresh</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="influencerCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="influencersList" style="margin-top:14px;"></div>
+          </div>
+
+        </div>
+
+        <!-- ── EVENT AUTHORIZATION PANEL (MAIN ADMIN ONLY) ── -->
+        <div class="admin-panel" id="panel-event-authorizations">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🔐 Authorize Events</h1>
+              <p>Assign a specific existing event to a specific Influencer Admin. This controls which event sales that Influencer Admin can oversee.</p>
+            </div>
+            <button class="admin-refresh-btn" type="button" onclick="loadEventAuthorizations()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel" style="border:2px solid var(--border);">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;align-items:end;">
+              <div class="form-group">
+                <label for="authEventSelect">Existing Event</label>
+                <select id="authEventSelect"><option value="">Loading events…</option></select>
+              </div>
+              <div class="form-group">
+                <label for="authInfluencerAdminSelect">Influencer Admin</label>
+                <select id="authInfluencerAdminSelect"><option value="">Loading Influencer Admins…</option></select>
+              </div>
+              <button id="authorizeEventBtn" class="btn-submit" type="button" onclick="authorizeInfluencerEvent()">🔐 Authorize Event</button>
+            </div>
+            <div id="eventAuthorizationStatus" style="margin-top:10px;color:var(--text-3);font-size:.85rem;">Select an existing event and an Influencer Admin, then authorize.</div>
+          </div>
+          <div class="admin-scan-panel" style="margin-top:16px;">
+            <div class="admin-panel-heading" style="margin-bottom:8px;">
+              <div><h2 style="font-size:1rem;">Current Event Authorizations</h2><p>These are the assignments currently saved for existing events.</p></div>
+            </div>
+            <div id="eventAuthorizationsList"></div>
+          </div>
+          <div class="admin-scan-panel" style="margin-top:16px;">
+            <div class="admin-panel-heading" style="margin-bottom:8px;">
+              <div><h2 style="font-size:1rem;">💰 Reduced 15% Commission Split</h2><p>Authorize the reduced platform fee for an event: future <strong>direct</strong> sales split 15% Unisocials / 85% event owner instead of the standard 20/80. Referred sales always stay 2.5% / 20% / 77.5%. Only sales verified from the moment you authorize earn the new rate — sales already verified keep their original split.</p></div>
+              <button class="admin-refresh-btn" type="button" onclick="loadCommissionPlanList()">↻ Refresh</button>
+            </div>
+            <div id="commissionPlanList"></div>
+          </div>
+        </div>
+
+        <!-- ── PAYOUT REQUESTS PANEL ── -->
+        <div class="admin-panel" id="panel-payouts">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>💰 Payout Requests</h1>
+              <p>Every payout on the site. A sale through an influencer's link is split <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to the event owner</strong>; a sale with no link is <strong>20% / 80%</strong> — or <strong>15% / 85%</strong> on events authorized for the reduced 15% split. Requests are paid in full — the platform fee was already taken from the ticket. Referrer commission is normally paid by the Influencer Admin of the event; you can still verify, release or reject any payout here. Approved payouts are promised within 24 hours.</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="admin-refresh-btn" type="button" onclick="loadPayoutRequests()">↻ Refresh</button>
+              <button class="admin-print-btn" type="button" onclick="window.print()">🖨 Print</button>
+            </div>
+          </div>
+          <div class="admin-stats">
+            <div class="admin-stat pending"><div class="admin-stat-label">Pending Review</div><div class="admin-stat-value" id="payoutAdminPending">0</div></div>
+            <div class="admin-stat"><div class="admin-stat-label">Approved (pay within 24h)</div><div class="admin-stat-value" id="payoutAdminApproved">0</div></div>
+            <div class="admin-stat verified"><div class="admin-stat-label">Paid Out</div><div class="admin-stat-value" id="payoutAdminPaid">₦0</div></div>
+            <div class="admin-stat revenue"><div class="admin-stat-label">Platform Fee Retained</div><div class="admin-stat-value" id="payoutAdminFees">₦0</div></div>
+          </div>
+          <div id="payoutHoldNotice" style="display:none;margin-bottom:14px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;border-radius:10px;padding:12px 16px;font-size:.84rem;line-height:1.7;"></div>
+          <div class="admin-toolbar">
+            <div class="admin-filters">
+              <button class="admin-filter-btn active" data-payout-filter="all" onclick="setPayoutFilter('all')">All</button>
+              <button class="admin-filter-btn" data-payout-filter="pending" onclick="setPayoutFilter('pending')">⏳ Pending</button>
+              <button class="admin-filter-btn" data-payout-filter="approved" onclick="setPayoutFilter('approved')">✅ Approved</button>
+              <button class="admin-filter-btn" data-payout-filter="paid" onclick="setPayoutFilter('paid')">💸 Paid</button>
+              <button class="admin-filter-btn" data-payout-filter="rejected" onclick="setPayoutFilter('rejected')">❌ Rejected</button>
+            </div>
+          </div>
+          <div class="admin-cat-filters">
+            <div class="admin-cat-filter">
+              <label for="payoutRequesterFilterSel">👤 Filter by Influencer Admin</label>
+              <select id="payoutRequesterFilterSel" onchange="setPayoutRequesterFilter(this.value)">
+                <option value="">All Influencer Admins</option>
+              </select>
+            </div>
+            <div class="admin-cat-filter">
+              <label for="payoutScheduleFilterSel">📅 Filter by Schedule</label>
+              <select id="payoutScheduleFilterSel" onchange="setPayoutScheduleFilter(this.value)">
+                <option value="">All Schedules</option>
+              </select>
+            </div>
+            <button class="admin-cat-clear" onclick="clearPayoutFilters()">✕ Clear Filters</button>
+          </div>
+          <div id="payoutAdminList"></div>
+        </div>
+
+        <!-- ── DEDICATED STAFF ACCOUNTS ── -->
+        <div class="admin-panel" id="panel-staff">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>👥 Dedicated Staff Accounts</h1>
+              <p>Create separate login accounts for Check-in Staff and Influencer Admins. Each account only gets its assigned dashboard. Use 📦 to <strong>archive</strong> an account — it is signed out and blocked from signing in, but its history is kept. ♻️ restores it.</p>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="staffRole">Account Type</label><select id="staffRole"><option value="checkin_staff">Check-in Staff</option><option value="influencer_admin">Influencer Admin</option></select></div>
+              <div class="form-group"><label for="staffName">Full Name</label><input type="text" id="staffName" placeholder="e.g. Event Staff" /></div>
+              <div class="form-group"><label for="staffEmail">Login Email</label><input type="email" id="staffEmail" placeholder="staff@unisocials.com" /></div>
+              <div class="form-group"><label for="staffContactEmail">Real Email <span style="opacity:.6;">— optional</span></label><input type="email" id="staffContactEmail" placeholder="e.g. ada@gmail.com" /><p style="margin:6px 0 0;font-size:.72rem;color:var(--text-3);">Where they receive their <strong>payout complete</strong> email. A <code>@unisocials.com</code> login cannot receive mail.</p></div>
+              <div class="form-group"><label for="staffPassword">Password</label><input type="password" id="staffPassword" placeholder="8+ chars, letter, number & symbol" /></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" onclick="addStaffAccount()">➕ Create Account</button>
+              <button class="admin-refresh-btn" onclick="loadStaffAccounts()">↻ Refresh</button>
+              <span style="font-size:.75rem;color:var(--text-3);align-self:center;" id="staffCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="staffList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── CUSTOMER ACCOUNTS ── -->
+        <div class="admin-panel" id="panel-customers">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>👥 Customers</h1>
+              <p>Registered buyers and everyone who has bought tickets. Passwords are never shown.</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="admin-refresh-btn" onclick="loadCustomers()">↻ Refresh</button>
+              <span style="font-size:.78rem;color:var(--text-3);" id="customerCount">Loading…</span>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div id="customersList" style="margin-top:14px;"></div>
           </div>
         </div>
       </div>
@@ -950,7 +1328,12 @@ var loginScreen = document.getElementById('loginScreen');
       var notifBadge = document.getElementById('notifBadge');
       var notifCount = document.getElementById('notifCount');
 
-function fmtN(n) {
+function safeImg(value) {
+        var v = String(value == null ? '' : value).trim();
+        if (!v || /^(?:https?:\/\/|\/[^\/]|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*)$/.test(v)) return v;
+        return '';
+      }
+      function fmtN(n) {
         return '\u20A6' + Number(n || 0).toLocaleString();
       }
       function fmtDate(iso) {
@@ -1010,6 +1393,15 @@ function fmtN(n) {
       }
 
       function showLoggedIn() {
+        // Show who is signed in. The master admin logs in with a password, so the
+        // stored profile name is used when present and "Main Admin" otherwise.
+        var nameEl = document.getElementById('adminUserName');
+        if (nameEl) {
+          var u = null;
+          try { var raw = localStorage.getItem('unn_admin_user'); u = raw ? JSON.parse(raw) : null; } catch (e) {}
+          nameEl.textContent = (u && (u.name || u.fullName || u.email)) ? (u.name || u.fullName || u.email) : 'Main Admin';
+          nameEl.style.display = 'inline-flex';
+        }
         loginScreen.style.display = 'none';
         dashboard.classList.add('visible');
         logoutBtn.style.display = 'inline-block';
@@ -1024,6 +1416,7 @@ function fmtN(n) {
         viewSiteBtn.style.display = 'none';
         connStatus.style.display = 'none';
         if (notifBadge) notifBadge.style.display = 'none';
+        var nameEl = document.getElementById('adminUserName'); if (nameEl) nameEl.style.display = 'none';
       }
 
       // Mark new orders as seen
@@ -1135,9 +1528,15 @@ function fmtN(n) {
         });
       };
 
-      logoutBtn.addEventListener('click', function() {
+      logoutBtn.addEventListener('click', function(e) {
+        if (e) e.preventDefault();
+        var token = getToken();
+        // Clear locally immediately. Logout must work even when the network is slow/offline.
         clearToken();
+        try { sessionStorage.removeItem('unn_admin_user'); localStorage.removeItem('unn_admin_user'); } catch (_) {}
         showLoggedOut();
+        logoutBtn.disabled = false;
+        if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, keepalive:true }).catch(function() {});
         if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
       });
 
@@ -1214,7 +1613,7 @@ function fmtN(n) {
 
       // Update order status (exposed)
       window.updateOrderStatus = function(orderId, status) {
-        var btn = event && event.target;
+        var btn = document.getElementById('eventSubmitBtn');
         if (btn) btn.disabled = true;
 
         fetch('/api/admin/orders/status', {
@@ -1487,7 +1886,7 @@ fetch('/api/ticket/scan', {
       }
 
       function resizeImageFile(file, maxSize) {
-        maxSize = maxSize || 1280;
+        maxSize = maxSize || 1024;
         return new Promise(function(resolve, reject) {
           var img = new Image();
           var url = URL.createObjectURL(file);
@@ -1502,7 +1901,26 @@ fetch('/api/ticket/scan', {
               var ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, width, height);
               URL.revokeObjectURL(url);
-              resolve(canvas.toDataURL('image/jpeg', 0.84));
+
+              // Keep the inline image comfortably below the server request-body limit.
+              var quality = 0.78;
+              var dataUrl = canvas.toDataURL('image/jpeg', quality);
+              while (dataUrl.length > 800000 && quality > 0.45) {
+                quality -= 0.05;
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+              }
+              if (dataUrl.length > 800000) {
+                var smaller = Math.max(640, Math.round(maxSize * 0.75));
+                var scale = smaller / Math.max(width, height);
+                var w2 = Math.max(1, Math.round(width * scale));
+                var h2 = Math.max(1, Math.round(height * scale));
+                canvas.width = w2;
+                canvas.height = h2;
+                ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w2, h2);
+                dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+              }
+              resolve(dataUrl);
             } catch (err) {
               URL.revokeObjectURL(url);
               reject(err);
@@ -1540,7 +1958,7 @@ fetch('/api/ticket/scan', {
 
 // ── Events Manager ──
       window.loadManagedEvents = function() {
-        fetch('/api/events')
+        fetch('/api/admin/events',{headers:authHeaders(),credentials:'same-origin'})
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var events = (data && data.success && data.events) || [];
@@ -1555,39 +1973,126 @@ fetch('/api/ticket/scan', {
             var html = '<div class="admin-ticket-codes-label">📋 Saved Events (' + events.length + ')</div>';
             events.forEach(function(ev) {
               var id = (ev.id || ev._id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-              var vipValue = parseFloat(ev.vipPrice || 0) || 0;
-              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0;
-              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ₦' + vipValue.toLocaleString() + '</span>' : '';
-              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ₦' + vvipValue.toLocaleString() + '</span>' : '';
+              var vipValue = parseFloat(ev.vipPrice || 0) || 0, bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
+              var vvipValue = parseFloat(ev.vvipPrice || 0) || 0, bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
+              var bonusValue = parseFloat(ev.bonusPrice || 0) || 0, tableValue = parseFloat(ev.tablePrice || 0) || 0, bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
+              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>';
+              var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
+              var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
+              var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
+              var planReduced = String(ev.commissionPlan || 'standard') === 'reduced_15';
+              var planHtml = '<span data-plan-badge="' + esc(id) + '" style="font-size:0.72rem;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid ' + (planReduced ? 'var(--accent-border)' : 'var(--border)') + ';color:' + (planReduced ? 'var(--accent)' : 'var(--text-3)') + ';background:' + (planReduced ? 'var(--accent-ghost)' : 'transparent') + ';">' + (planReduced ? '💰 15% split' : '20% split') + '</span>';
               html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;">' +
                 '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
-                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(ev.image) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
+                '<span style="width:46px;height:46px;border-radius:12px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-ghost);border:1px solid var(--accent-border);flex-shrink:0;">' + (ev.image ? '<img src="' + esc(safeImg(ev.image)) + '" alt="' + esc(ev.name || 'Event image') + '" style="width:100%;height:100%;object-fit:cover;display:block;" />' : esc(ev.icon || '🎤')) + '</span>' +
                 '<strong>' + esc(ev.name) + '</strong>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.category) + '</span>' +
-                '<span style="font-size:0.75rem;color:var(--text-3);">₦' + (ev.price || 0).toLocaleString() + '</span>' +
+                priceHtml +
                 vipHtml +
                 vvipHtml +
+                tableHtml +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.date || '') + '</span>' +
                 '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(ev.universityName || '') + '</span>' +
+                planHtml +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<button type="button" class="admin-ticket-copy" data-toggle-plan-event="' + esc(id) + '" data-plan-current="' + (planReduced ? 'reduced_15' : 'standard') + '" title="' + (planReduced ? 'Revoke the reduced 15% split (future sales go back to 20/80)' : 'Authorize the reduced 15% split for this event (future direct sales: 15% Unisocials / 85% owner)') + '">' + (planReduced ? '💰' : '💵') + '</button>' +
+                '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
+                '<button type="button" class="admin-ticket-copy" data-direct-archive-event="' + esc(id) + '" data-archived="' + (ev.archived ? '1' : '0') + '" title="' + (ev.archived ? 'Unarchive event' : 'Archive event') + '">' + (ev.archived ? '📦' : '🗃️') + '</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
                 '<button class="admin-ticket-copy" onclick="deleteManagedEvent(\'' + esc(id) + '\')" title="Delete event" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
                 '</div>' +
                 '</div>';
             });
             container.innerHTML = html;
+            container.querySelectorAll('[data-toggle-plan-event]').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                var eventId = btn.getAttribute('data-toggle-plan-event') || '';
+                var current = btn.getAttribute('data-plan-current') || 'standard';
+                var next = current === 'reduced_15' ? 'standard' : 'reduced_15';
+                if(!eventId) return;
+                var confirmMsg = next === 'reduced_15'
+                  ? 'Authorize the reduced 15% split for this event?\n\nFuture DIRECT sales will split 15% Unisocials / 85% you. Referred sales stay 2.5/20/77.5. Sales already verified keep their current split.'
+                  : 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% you. Sales already verified keep their current split.';
+                if(!confirm(confirmMsg)) return;
+                btn.disabled = true;
+                fetch('/api/admin/events/commission-plan',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,plan:next}),credentials:'same-origin'})
+                  .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+                  .then(function(x){
+                    if(x.ok && x.data && x.data.success){ showToast(x.data.message || (next === 'reduced_15' ? 'Reduced 15% split authorized.' : 'Standard 20% split restored.')); loadManagedEvents(); }
+                    else showToast((x.data && x.data.error) || 'Could not change the commission plan', true);
+                  }).catch(function(){ showToast('Network error changing the commission plan', true); })
+                  .finally(function(){ btn.disabled = false; });
+              });
+            });
+            container.querySelectorAll('[data-direct-archive-event]').forEach(function(btn){
+              btn.addEventListener('click', function(){
+                var eventId=btn.getAttribute('data-direct-archive-event')||'';
+                var archived=btn.getAttribute('data-archived')==='1';
+                if(!eventId) return;
+                if(!confirm((archived?'Unarchive':'Archive')+' this event?')) return;
+                btn.disabled=true;
+                fetch('/api/admin/events/archive',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,archived:!archived}),credentials:'same-origin'})
+                  .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+                  .then(function(x){
+                    if(x.ok&&x.data&&x.data.success){showToast(archived?'Event unarchived':'Event archived');loadManagedEvents();}
+                    else showToast((x.data&&x.data.error)||'Could not change event status',true);
+                  }).catch(function(){showToast('Network error changing event status',true);})
+                  .finally(function(){btn.disabled=false;});
+              });
+            });
           })
           .catch(function() {});
+      };
+
+      var editingEventId = '';
+
+      window.cancelEditEvent = function() {
+        editingEventId = '';
+        var btn=document.getElementById('eventSubmitBtn'); if(btn) btn.textContent='➕ Add Event';
+        var cancel=document.getElementById('eventCancelEditBtn'); if(cancel) cancel.style.display='none';
+        ['evName','evPrice','evBonusPrice','evVIPPrice','evBonusVIPPrice','evVVIPPrice','evBonusVVIPPrice','evTablePrice','evBonusTablePrice','evRegularTicketLimit','evVipTicketLimit','evVvipTicketLimit','evTableTicketLimit','evDate','evTime','evVenue','evDesc','evTags','evIncludedRegular','evIncludedVip','evIncludedVVIP','evIncludedTable'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        var uni=document.getElementById('evUniversity');if(uni)uni.value='';
+        if(typeof updateUniCategories==='function')updateUniCategories();
+        if(typeof clearEventImage==='function')clearEventImage();
+      };
+
+      window.editManagedEvent = function(eventId) {
+        if(!eventId)return;
+        fetch('/api/admin/events',{headers:authHeaders()}).then(function(r){if(r.status===401)throw new Error('Unauthorized');return r.json();}).then(function(data){
+          var events=(data&&data.success&&data.events)||[];
+          var ev=events.find(function(x){return String(x.id||x._id||'')===String(eventId);});
+          if(!ev)throw new Error('Event not found');
+          editingEventId=String(ev.id||eventId);
+          var set=function(id,v){var e=document.getElementById(id);if(e)e.value=(v==null?'':v);};
+          set('evName',ev.name);set('evPrice',ev.price);set('evBonusPrice',ev.bonusPrice);set('evVIPPrice',ev.vipPrice);set('evBonusVIPPrice',ev.bonusVipPrice);set('evVVIPPrice',ev.vvipPrice);set('evBonusVVIPPrice',ev.bonusVvipPrice);set('evTablePrice',ev.tablePrice);set('evBonusTablePrice',ev.bonusTablePrice);set('evRegularTicketLimit',ev.regularTicketLimit);set('evVipTicketLimit',ev.vipTicketLimit);set('evVvipTicketLimit',ev.vvipTicketLimit);set('evTableTicketLimit',ev.tableTicketLimit);
+          set('evDate',ev.date);set('evTime',ev.time);set('evVenue',ev.venue);set('evDesc',ev.description);
+          set('evTags',Array.isArray(ev.tags)?ev.tags.join(', '):ev.tags);
+          set('evIncludedRegular',ev.includedRegular);set('evIncludedVip',ev.includedVip);set('evIncludedVVIP',ev.includedVVIP);set('evIncludedTable',ev.includedTable);
+          var uni=document.getElementById('evUniversity');if(uni){uni.value=ev.universityId||'';if(typeof updateUniCategories==='function')updateUniCategories();var cat=document.getElementById('evCategory');if(cat)cat.value=ev.category||'General';}
+          selectedEventImage=ev.image||'';if(typeof setEventImagePreview==='function')setEventImagePreview(selectedEventImage);
+          var btn=document.getElementById('eventSubmitBtn');if(btn)btn.textContent='💾 Save Event Changes';
+          var cancel=document.getElementById('eventCancelEditBtn');if(cancel)cancel.style.display='inline-flex';
+          var panel=document.getElementById('panel-events');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
+          showToast('Editing “'+(ev.name||'event')+'”. Update the fields and save.');
+        }).catch(function(err){showToast(err.message||'Could not load that event.',true);});
       };
 
 window.addEventItem = function() {
 var name = document.getElementById('evName').value.trim();
         var category = document.getElementById('evCategory').value;
         var price = parseFloat(document.getElementById('evPrice').value) || 0;
+        var bonusPrice = parseFloat(document.getElementById('evBonusPrice').value) || 0;
         var vipPrice = parseFloat(document.getElementById('evVIPPrice').value) || 0;
+        var bonusVipPrice = parseFloat(document.getElementById('evBonusVIPPrice').value) || 0;
         var vvipPrice = parseFloat(document.getElementById('evVVIPPrice').value) || 0;
+        var bonusVvipPrice = parseFloat(document.getElementById('evBonusVVIPPrice').value) || 0;
         var tablePrice = parseFloat(document.getElementById('evTablePrice').value) || 0;
+        var bonusTablePrice = parseFloat(document.getElementById('evBonusTablePrice').value) || 0;
+        var regularTicketLimit = parseInt(document.getElementById('evRegularTicketLimit').value) || 0;
+        var vipTicketLimit = parseInt(document.getElementById('evVipTicketLimit').value) || 0;
+        var vvipTicketLimit = parseInt(document.getElementById('evVvipTicketLimit').value) || 0;
+        var tableTicketLimit = parseInt(document.getElementById('evTableTicketLimit').value) || 0;
         var date = document.getElementById('evDate').value.trim();
         var time = document.getElementById('evTime').value.trim();
         var venue = document.getElementById('evVenue').value.trim();
@@ -1615,12 +2120,21 @@ var name = document.getElementById('evName').value.trim();
         }
 
         var ev = {
+          id: editingEventId || undefined,
           name: name,
           category: category,
           price: price,
+          bonusPrice: bonusPrice,
           vipPrice: vipPrice,
+          bonusVipPrice: bonusVipPrice,
           vvipPrice: vvipPrice,
+          bonusVvipPrice: bonusVvipPrice,
           tablePrice: tablePrice,
+          bonusTablePrice: bonusTablePrice,
+          regularTicketLimit: regularTicketLimit,
+          vipTicketLimit: vipTicketLimit,
+          vvipTicketLimit: vvipTicketLimit,
+          tableTicketLimit: tableTicketLimit,
           includedRegular: includedRegular,
           includedVip: includedVip,
           includedVVIP: includedVVIP,
@@ -1647,7 +2161,7 @@ fetch('/api/admin/events', {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            showToast('Event "' + esc(name) + '" added!');
+            showToast(editingEventId ? 'Event "' + esc(name) + '" updated successfully!' : 'Event "' + esc(name) + '" added!');
 document.getElementById('evName').value = '';
             document.getElementById('evPrice').value = '';
             document.getElementById('evVIPPrice').value = '';
@@ -1663,6 +2177,7 @@ document.getElementById('evName').value = '';
             if (document.getElementById('evIncludedVVIP')) document.getElementById('evIncludedVVIP').value = '';
             if (document.getElementById('evIncludedTable')) document.getElementById('evIncludedTable').value = '';
             clearEventImage();
+            cancelEditEvent();
             loadManagedEvents();
           } else {
             showToast((data && data.error) || 'Failed to add event', true);
@@ -1692,13 +2207,6 @@ fetch('/api/admin/events?eventId=' + encodeURIComponent(eventId), {
           }
         })
         .catch(function() { showToast('Network error deleting event', true); });
-      };
-
-      // Load events on login
-      var origShowLoggedIn = showLoggedIn;
-      showLoggedIn = function() {
-        origShowLoggedIn();
-        loadManagedEvents();
       };
 
       // Load orders (exposed for refresh button)
@@ -2101,11 +2609,12 @@ fetch('/api/admin/events/notify', {
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
                 '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(referralCode) + '</span>' +
-                '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span>' +
+                 '<span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span>' +
                 '</div>' +
                 '<div style="font-size:0.75rem;color:var(--text-3);">' + esc(usageText) + '</div>' +
                 '</div>' +
-                '<button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '<div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || id) + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteSubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div>' +
                 '</div>';
             });
             container.innerHTML = html;
@@ -2135,7 +2644,7 @@ fetch('/api/admin/events/notify', {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            showToast('Sub-admin "' + esc(name) + '" created!');
+            showToast('Sub-admin "' + esc(name) + '" created! Referral code: ' + ((data.subadmin && data.subadmin.referralCode) || '—'));
             if (document.getElementById('subName')) document.getElementById('subName').value = '';
             if (document.getElementById('subEmail')) document.getElementById('subEmail').value = '';
             if (document.getElementById('subPassword')) document.getElementById('subPassword').value = '';
@@ -2151,10 +2660,9 @@ fetch('/api/admin/events/notify', {
       window.deleteSubAdmin = function(email) {
         if (!email) return;
         if (!confirm('Remove sub-admin ' + email + '? They will no longer be able to sign in.')) return;
-        fetch('/api/admin/subadmins', {
+        fetch('/api/admin/subadmins?email=' + encodeURIComponent(email), {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-          body: JSON.stringify({ email: email })
+          headers: { 'Authorization': 'Bearer ' + getToken() }
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -2168,15 +2676,661 @@ fetch('/api/admin/events/notify', {
         .catch(function() { showToast('Network error removing sub-admin', true); });
       };
 
+      // Dedicated Main Admin event-authorization tab.
+      window.openAdminTab = function(tabName) {
+        var tabs = document.querySelectorAll('.admin-tab');
+        tabs.forEach(function(tab) {
+          var active = tab.getAttribute('data-tab') === tabName;
+          tab.classList.toggle('active', active);
+        });
+        document.querySelectorAll('.admin-panel').forEach(function(panel) {
+          panel.classList.toggle('active', panel.id === 'panel-' + tabName);
+        });
+        if (tabName === 'event-authorizations') { loadEventAuthorizations(); loadCommissionPlanList(); }
+        else if (tabName === 'customers') loadCustomers();
+      };
+
+      // ── Influencer Manager (master admin only) ──
+      window.loadEventAuthorizations = function() {
+        Promise.all([
+          fetch('/api/admin/events', {headers: authHeaders()}).then(function(r){return r.json();}),
+          fetch('/api/admin/staff', {headers: authHeaders()}).then(function(r){return r.json();})
+        ]).then(function(res){
+          var events=(res[0]&&res[0].events)||[], staff=(res[1]&&res[1].staff)||[];
+          staff=staff.filter(function(u){return u.role==='influencer_admin' && !u.archived;});
+          var es=document.getElementById('authEventSelect'), ss=document.getElementById('authInfluencerAdminSelect');
+          if(es) es.innerHTML='<option value="">Select event…</option>'+events.map(function(e){return '<option value="'+esc(e.id)+'">'+esc(e.name||e.id)+'</option>';}).join('');
+          if(ss) ss.innerHTML='<option value="">Select Influencer Admin…</option>'+staff.map(function(u){return '<option value="'+esc(u.id)+'">'+esc(u.name||u.email)+' — '+esc(u.email||'')+'</option>';}).join('');
+          var box=document.getElementById('eventAuthorizationsList');
+          if(box){ var html=''; events.forEach(function(e){ var ids=Array.isArray(e.authorizedInfluencerAdminIds)?e.authorizedInfluencerAdminIds:[]; if(!ids.length)return; ids.forEach(function(id){var u=staff.find(function(x){return String(x.id)===String(id);}); html+='<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--border);"><span><strong>'+esc(e.name||e.id)+'</strong><br><small style="color:var(--text-3)">Authorized to '+esc(u?(u.name||u.email):id)+'</small></span><button class="admin-filter-btn" onclick="removeEventAuthorization(\''+esc(e.id)+'\',\''+esc(id)+'\')">Remove</button></div>';}); }); box.innerHTML=html||'<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">No event authorizations yet.</div>'; }
+        }).catch(function(){var b=document.getElementById('eventAuthorizationsList');if(b)b.innerHTML='<div style="color:#B71C1C;padding:10px;">Unable to load event authorizations.</div>';});
+      };
+      window.authorizeInfluencerEvent = function() {
+        var eventId=(document.getElementById('authEventSelect')||{}).value||'', influencerAdminId=(document.getElementById('authInfluencerAdminSelect')||{}).value||'';
+        var status=document.getElementById('eventAuthorizationStatus');
+        var btn=document.getElementById('authorizeEventBtn');
+        if(!eventId||!influencerAdminId){ if(status)status.textContent='Select both an existing event and an Influencer Admin.'; return showToast('Select both an existing event and an Influencer Admin.',true); }
+        if(btn)btn.disabled=true;
+        fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'add'})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Authorization failed');if(status)status.textContent='Event authorized successfully. The Influencer Admin can now oversee this event.';showToast('Event authorized successfully.');loadEventAuthorizations();}).catch(function(e){if(status)status.textContent=e.message;showToast(e.message,true);}).finally(function(){if(btn)btn.disabled=false;});
+      };
+      window.removeEventAuthorization = function(eventId,influencerAdminId) {
+        if(!confirm('Remove this event authorization?'))return;
+        fetch('/api/admin/events/authorize-influencer',{method:'POST',headers:authHeaders(),body:JSON.stringify({eventId:eventId,influencerAdminId:influencerAdminId,action:'remove'})}).then(function(r){return r.json();}).then(function(d){if(!d.success)throw new Error(d.error||'Could not remove authorization');showToast('Authorization removed.');loadEventAuthorizations();}).catch(function(e){showToast(e.message,true);});
+      };
+
+      // ── Reduced 15% commission split, per event (Main Admin only) ──
+      // Lists every event with its current split and lets the Main Admin
+      // authorize or revoke the reduced 15/85 plan for future sales.
+      window.loadCommissionPlanList = function() {
+        var box = document.getElementById('commissionPlanList');
+        if (box) box.innerHTML = '<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">Loading events…</div>';
+        fetch('/api/admin/events', {headers: authHeaders(), credentials:'same-origin'})
+          .then(function(r) { if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; } return r.json(); })
+          .then(function(data) {
+            var events = (data && data.success && data.events) || [];
+            if (!box) return;
+            if (!events.length) { box.innerHTML = '<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">No events yet. Add an event in the Events tab first.</div>'; return; }
+            var html = '';
+            events.forEach(function(ev) {
+              var id = String(ev.id || ev._id || '');
+              var reduced = String(ev.commissionPlan || 'standard') === 'reduced_15';
+              html += '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">' +
+                '<span style="display:flex;flex-direction:column;gap:2px;">' +
+                  '<strong>' + esc(ev.name || id) + '</strong>' +
+                  '<small style="color:var(--text-3);">' + (reduced ? '💰 15% Unisocials / 85% owner (direct sales)' : 'Standard: 20% Unisocials / 80% owner') + '</small>' +
+                '</span>' +
+                '<button type="button" class="admin-filter-btn" data-plan-event="' + esc(id) + '" data-plan-current="' + (reduced ? 'reduced_15' : 'standard') + '">' + (reduced ? 'Revoke — use standard 20%' : 'Authorize 15% split') + '</button>' +
+              '</div>';
+            });
+            box.innerHTML = html;
+            box.querySelectorAll('[data-plan-event]').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                var eventId = btn.getAttribute('data-plan-event') || '';
+                var current = btn.getAttribute('data-plan-current') || 'standard';
+                var next = current === 'reduced_15' ? 'standard' : 'reduced_15';
+                if (!eventId) return;
+                var confirmMsg = next === 'reduced_15'
+                  ? 'Authorize the reduced 15% split for this event?\n\nFuture DIRECT sales will split 15% Unisocials / 85% owner. Referred sales stay 2.5/20/77.5. Sales already verified keep their current split.'
+                  : 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% owner. Sales already verified keep their current split.';
+                if (!confirm(confirmMsg)) return;
+                btn.disabled = true;
+                fetch('/api/admin/events/commission-plan', {method:'POST', headers:authHeaders(), body:JSON.stringify({eventId:eventId, plan:next}), credentials:'same-origin'})
+                  .then(function(r) { return r.json().then(function(d) { return {ok:r.ok, data:d}; }); })
+                  .then(function(x) {
+                    if (x.ok && x.data && x.data.success) { showToast(x.data.message || (next === 'reduced_15' ? 'Reduced 15% split authorized.' : 'Standard 20% split restored.')); loadCommissionPlanList(); }
+                    else showToast((x.data && x.data.error) || 'Could not change the commission plan', true);
+                  }).catch(function() { showToast('Network error changing the commission plan', true); })
+                  .finally(function() { btn.disabled = false; });
+              });
+            });
+          })
+          .catch(function(err) {
+            if (!box) return;
+            box.innerHTML = err && err.unauthorized
+              ? '<div style="color:#B71C1C;font-size:.85rem;padding:12px 0;">Your admin session is invalid or expired. Log in again.</div>'
+              : '<div style="color:#B71C1C;font-size:.85rem;padding:12px 0;">Unable to load commission plans.</div>';
+          });
+      };
+
+      window.loadInfluencers = function() {
+        fetch('/api/admin/influencers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.success && data.influencers) || [];
+            var container = document.getElementById('influencersList');
+            var count = document.getElementById('influencerCount');
+            if (count) count.textContent = list.length + ' influencer' + (list.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!list.length) { container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No influencers yet. Create your first influencer above.</div>'; return; }
+            var html = '<div class="admin-ticket-codes-label">📣 Active Influencers (' + list.length + ')</div>';
+            list.forEach(function(u) {
+              var stats = u.referralStats || {};
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;"><span>📣</span><strong>' + esc(u.name || '—') + '</strong><span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;"><span style="font-size:0.72rem;color:var(--text-3);">Referral: <strong>' + esc(u.referralCode || '—') + '</strong></span><span style="font-size:0.72rem;color:var(--text-3);">People: ' + esc(stats.uniquePeople || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Tickets: ' + esc(stats.totalTickets || 0) + '</span><span style="font-size:0.72rem;color:var(--text-3);">Revenue: ' + fmtN(stats.totalRevenue || 0) + '</span></div>' +
+                '</div><div style="display:flex;gap:6px;align-items:flex-start;"><button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || '') + '\')" title="Reset password">🔑</button><button class="admin-ticket-copy" onclick="deleteInfluencer(\'' + esc(u.email || '') + '\')" title="Remove influencer" style="color:#B71C1C;border-color:#F5C6CB;">✕</button></div></div>';
+            });
+            container.innerHTML = html;
+          }).catch(function() {});
+      };
+
+      window.addInfluencer = function() {
+        var name = (document.getElementById('infName') || {}).value || '';
+        var email = (document.getElementById('infEmail') || {}).value || '';
+        var password = (document.getElementById('infPassword') || {}).value || '';
+        name = name.trim(); email = email.trim(); password = password.trim();
+        if (!name || !email || !password) return showToast('Name, Email, and Password are required.', true);
+        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
+        fetch('/api/admin/influencers', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({name:name,email:email,password:password}) })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) {
+              showToast('Influencer created! Referral code: ' + ((data.influencer && data.influencer.referralCode) || '—'));
+              ['infName','infEmail','infPassword'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+              loadInfluencers();
+            } else showToast((data && data.error) || 'Failed to create influencer', true);
+          }).catch(function(){ showToast('Network error creating influencer', true); });
+      };
+
+      window.deleteInfluencer = function(email) {
+        if (!email || !confirm('Remove influencer ' + email + '? They will no longer be able to sign in.')) return;
+        fetch('/api/admin/influencers?email=' + encodeURIComponent(email), { method:'DELETE', headers:{'Authorization':'Bearer '+getToken()} })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) { showToast('Influencer removed'); loadInfluencers(); }
+            else showToast((data && data.error) || 'Failed to remove influencer', true);
+          }).catch(function(){ showToast('Network error removing influencer', true); });
+      };
+
+
+      // ── Dedicated staff accounts ──
+      window.loadStaffAccounts = function() {
+        fetch('/api/admin/staff', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json(); }).then(function(data){
+            var list=(data&&data.success&&data.staff)||[];
+            var el=document.getElementById('staffList'), count=document.getElementById('staffCount');
+            var active=list.filter(function(u){return !u.archived;});
+            var archived=list.filter(function(u){return u.archived;});
+            if(count) count.textContent=active.length+' active'+(active.length!==1?'s':'')+(archived.length?' · '+archived.length+' archived':'');
+            if(!el) return;
+            if(!list.length){ el.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-3);font-size:.85rem;">No dedicated staff accounts yet.</div>'; return; }
+            var html='';
+            var row=function(u,isArchived){
+              var label=u.role==='checkin_staff'?'Check-in Staff':'Influencer Admin';
+              return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;'+(isArchived?'opacity:.6;':'')+'">'+
+                '<div style="display:flex;flex-direction:column;gap:4px;"><div><strong>'+esc(u.name||'—')+'</strong> <span style="font-size:.72rem;color:var(--text-3);">'+esc(u.email||'')+'</span></div>'+
+                '<span style="font-size:.72rem;color:'+(isArchived?'#B71C1C':'var(--accent)')+';font-weight:700;">'+label+(isArchived?' · Archived':'')+'</span></div>'+
+                '<div style="display:flex;gap:6px;align-items:flex-start;">'+
+                  '<button class="admin-ticket-copy" onclick="resetManagedPassword(\''+esc(u.email||'')+'\')" title="Reset password">🔑</button>'+
+                  '<button class="admin-ticket-copy" data-staff-archive="'+esc(u.email||'')+'" data-archived="'+(isArchived?'1':'0')+'" title="'+(isArchived?'Restore account':'Archive account — blocks sign in')+'" style="color:'+(isArchived?'#1B5E20':'#E65100')+';">'+(isArchived?'♻️':'📦')+'</button>'+
+                  '<button class="admin-ticket-copy" onclick="deleteStaffAccount(\''+esc(u.email||'')+'\')" title="Remove account" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>'+
+                '</div></div>';
+            };
+            if (active.length) { html+='<div class="admin-ticket-codes-label">👥 Active Accounts</div>'; active.forEach(function(u){ html+=row(u,false); }); }
+            if (archived.length) { html+='<div class="admin-ticket-codes-label" style="margin-top:12px;">📦 Archived (blocked from signing in)</div>'; archived.forEach(function(u){ html+=row(u,true); }); }
+            el.innerHTML=html;
+            // Archive / restore buttons use data attributes so no email ever has
+            // to be spliced into an inline onclick handler.
+            el.querySelectorAll('[data-staff-archive]').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                setStaffArchived(btn.getAttribute('data-staff-archive') || '', btn.getAttribute('data-archived') !== '1');
+              });
+            });
+          }).catch(function(){ showToast('Could not load staff accounts',true); });
+      };
+      // Archive = restrict the account without deleting it or its history.
+      window.setStaffArchived = function(email, archived){
+        if (!email) return;
+        var going = archived === true || archived === 'true';
+        if (!confirm((going ? 'Archive' : 'Restore') + ' ' + email + '?' + (going ? '\n\nThey will be signed out and blocked from signing in again until restored.' : ''))) return;
+        fetch('/api/admin/staff', { method:'PATCH', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body: JSON.stringify({ email: email, archived: going }) })
+          .then(function(r){ return r.json(); }).then(function(data){
+            if (data && data.success) { showToast(going ? email + ' archived.' : email + ' restored.'); loadStaffAccounts(); }
+            else showToast((data && data.error) || 'Could not update the account', true);
+          }).catch(function(){ showToast('Network error updating the account', true); });
+      };
+      window.addStaffAccount = function(){
+        var role=(document.getElementById('staffRole')||{}).value||'';
+        var name=((document.getElementById('staffName')||{}).value||'').trim();
+        var email=((document.getElementById('staffEmail')||{}).value||'').trim();
+        var contactEmail=((document.getElementById('staffContactEmail')||{}).value||'').trim();
+        var password=((document.getElementById('staffPassword')||{}).value||'').trim();
+        if(!name||!email||!password) return showToast('Name, Email, and Password are required.',true);
+        if(password.length<6) return showToast('Password must be at least 6 characters.',true);
+        if(contactEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return showToast('Enter a valid real email address, or leave it blank.',true);
+        fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({role:role,name:name,email:email,contactEmail:contactEmail,password:password})})
+          .then(function(r){return r.json();}).then(function(data){
+            if(data&&data.success){ showToast((role==='checkin_staff'?'Check-in Staff':'Influencer Admin')+' account created for '+name+'.'); ['staffName','staffEmail','staffContactEmail','staffPassword'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';}); loadStaffAccounts(); }
+            else showToast((data&&data.error)||'Failed to create account',true);
+          }).catch(function(){showToast('Network error creating account',true);});
+      };
+
+      // ── Payout Requests (verify and pay Influencer Admin commissions) ──
+      function payoutBadgeHtml(status) {
+        var s = String(status || 'pending').toLowerCase();
+        return '<span class="lookup-badge ' + esc(s) + '">' + esc(s) + '</span>';
+      }
+
+      // Filter state for the payout list: status quick-filter + requester/schedule selects.
+      var payoutFilter = 'all';
+      var payoutRequesterFilter = '';
+      var payoutScheduleFilter = '';
+      var payoutsAll = [];
+      var payoutHeldData = [];
+      var payoutHoldDays = 7;
+      var payoutHoldTimer = null;
+
+      // d / hh / mm / ss countdown, shared by the hold banner and the table.
+      function fmtCountdown(ms) {
+        if (!(ms > 0)) return '0d 00h 00m 00s';
+        var s = Math.floor(ms / 1000);
+        var d = Math.floor(s / 86400); s -= d * 86400;
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+        return d + 'd ' + pad(h) + 'h ' + pad(m) + 'm ' + pad(s) + 's';
+      }
+
+      // Ticks once a second so the withdrawal hold visibly counts down instead
+      // of showing whatever was left at the moment the panel loaded.
+      function renderPayoutHoldNotice() {
+        var el = document.getElementById('payoutHoldNotice');
+        if (!el) return;
+        var now = Date.now();
+        var remaining = payoutHeldData.filter(function(h) {
+          return new Date(h.unlocksAt).getTime() > now;
+        });
+        if (payoutHoldTimer) { clearInterval(payoutHoldTimer); payoutHoldTimer = null; }
+        if (!remaining.length) { el.style.display = 'none'; return; }
+        var totalHeld = remaining.reduce(function(s, h) {
+          return s + (Number(h.commissionAmount != null ? h.commissionAmount : h.amount) || 0);
+        }, 0);
+        var next = remaining[0];
+        var until = new Date(next.unlocksAt).getTime() - now;
+        el.style.display = 'block';
+        el.innerHTML = '⏳ <strong>' + fmtN(totalHeld) + '</strong> of verified payments is still inside the <strong>' + payoutHoldDays + '-day withdrawal countdown</strong> across ' + remaining.length + ' payment' + (remaining.length === 1 ? '' : 's') + '. Next unlocks in <strong>' + fmtCountdown(until) + '</strong>.';
+        payoutHoldTimer = setInterval(renderPayoutHoldNotice, 1000);
+      }
+
+      window.loadPayoutRequests = function() {
+        fetch('/api/admin/payouts', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (!data || !data.success) { showToast((data && data.error) || 'Could not load payout requests', true); return; }
+            payoutsAll = data.payouts || [];
+            payoutHeldData = Array.isArray(data.heldPayments) ? data.heldPayments : [];
+            payoutHoldDays = Number(data.holdDays) || 7;
+            renderPayoutHoldNotice();
+            populatePayoutFilterSelects();
+            renderPayoutRequests();
+          })
+          .catch(function(){ showToast('Network error loading payout requests', true); });
+      };
+
+      // Build the Requester + Schedule dropdown options from the loaded payouts,
+      // preserving the current selection across refreshes.
+      function populatePayoutFilterSelects() {
+        var whoSel = document.getElementById('payoutRequesterFilterSel');
+        var schSel = document.getElementById('payoutScheduleFilterSel');
+        if (!whoSel || !schSel) return;
+        var people = [], schedules = [];
+        var pushUnique = function(arr, val) { if (val && arr.indexOf(val) === -1) arr.push(val); };
+        payoutsAll.forEach(function(p) {
+          pushUnique(people, (p.requesterName || p.requesterEmail || '').trim());
+          pushUnique(schedules, p.payoutMethodLabel || p.payoutMethod || '');
+        });
+        people.sort(function(a, b) { return a.localeCompare(b); });
+        schedules.sort(function(a, b) { return a.localeCompare(b); });
+        var keepWho = whoSel.value;
+        var keepSch = schSel.value;
+        var whoHtml = '<option value="">All Influencer Admins</option>';
+        people.forEach(function(w) { whoHtml += '<option value="' + esc(w) + '">' + esc(w) + '</option>'; });
+        var schHtml = '<option value="">All Schedules</option>';
+        schedules.forEach(function(s) { schHtml += '<option value="' + esc(s) + '">' + esc(s) + '</option>'; });
+        whoSel.innerHTML = whoHtml;
+        schSel.innerHTML = schHtml;
+        if (keepWho && people.indexOf(keepWho) !== -1) whoSel.value = keepWho;
+        else if (keepWho) payoutRequesterFilter = '';
+        if (keepSch && schedules.indexOf(keepSch) !== -1) schSel.value = keepSch;
+        else if (keepSch) payoutScheduleFilter = '';
+      }
+
+      window.setPayoutFilter = function(f) {
+        payoutFilter = f || 'all';
+        var btns = document.querySelectorAll('[data-payout-filter]');
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].classList.toggle('active', btns[i].getAttribute('data-payout-filter') === payoutFilter);
+        }
+        renderPayoutRequests();
+      };
+      window.setPayoutRequesterFilter = function(v) { payoutRequesterFilter = v || ''; renderPayoutRequests(); };
+      window.setPayoutScheduleFilter = function(v) { payoutScheduleFilter = v || ''; renderPayoutRequests(); };
+      window.clearPayoutFilters = function() {
+        payoutRequesterFilter = '';
+        payoutScheduleFilter = '';
+        var whoSel = document.getElementById('payoutRequesterFilterSel');
+        var schSel = document.getElementById('payoutScheduleFilterSel');
+        if (whoSel) whoSel.value = '';
+        if (schSel) schSel.value = '';
+        renderPayoutRequests();
+      };
+
+      function renderPayoutRequests() {
+            // Requester + Schedule selects drive the stat cards, then the status
+            // quick-filter narrows the visible list.
+            var scoped = payoutsAll.filter(function(p) {
+              var matchesRequester = !payoutRequesterFilter ||
+                ((p.requesterName || p.requesterEmail || '').trim()) === payoutRequesterFilter;
+              var matchesSchedule = !payoutScheduleFilter ||
+                (p.payoutMethodLabel || p.payoutMethod || '') === payoutScheduleFilter;
+              return matchesRequester && matchesSchedule;
+            });
+            var payouts = scoped.filter(function(p) {
+              return payoutFilter === 'all' || String(p.status || '').toLowerCase() === payoutFilter;
+            });
+            var pendingEl = document.getElementById('payoutAdminPending');
+            var approvedEl = document.getElementById('payoutAdminApproved');
+            var paidEl = document.getElementById('payoutAdminPaid');
+            var feesEl = document.getElementById('payoutAdminFees');
+            var pending = scoped.filter(function(p){ return String(p.status).toLowerCase() === 'pending'; });
+            var approved = scoped.filter(function(p){ return String(p.status).toLowerCase() === 'approved'; });
+            var paid = scoped.filter(function(p){ return String(p.status).toLowerCase() === 'paid'; });
+            if (pendingEl) pendingEl.textContent = pending.length;
+            if (approvedEl) approvedEl.textContent = approved.length;
+            // Paid totals are what actually reaches the bank: the commission
+            // minus any platform fee. Older payouts keep their own stored
+            // rate, so each one is split by the fee it was actually made with.
+            var rateOf = function(p) { var r = Number(p && p.feeRate); return isFinite(r) ? r : 0; };
+            // Percentages keep one decimal, so a 17.5% rate never renders as 18%.
+            var pctOf = function(p) {
+              var v = Math.round(rateOf(p) * 1000) / 10;
+              return (Math.abs(v - Math.round(v)) < 0.001 ? String(Math.round(v)) : String(v)) + '%';
+            };
+            var netOf = function(p) { return Number(p.netAmount) || Math.round(((Number(p.amount) || 0) * (1 - rateOf(p))) * 100) / 100; };
+            var feeOf = function(p) { return Number(p.feeAmount) || Math.round(((Number(p.amount) || 0) * rateOf(p)) * 100) / 100; };
+            if (paidEl) paidEl.textContent = fmtN(paid.reduce(function(s,p){ return s + netOf(p); }, 0));
+            if (feesEl) feesEl.textContent = fmtN(paid.reduce(function(s,p){ return s + feeOf(p); }, 0));
+
+            var list = document.getElementById('payoutAdminList');
+            if (!list) return;
+            if (!payouts.length) {
+              list.innerHTML = '<div class="admin-scan-panel" style="text-align:center;padding:24px;color:var(--text-3);font-size:.85rem;">' +
+                (payoutsAll.length
+                  ? 'No ' + (payoutFilter === 'all' ? '' : esc(payoutFilter) + ' ') + 'payout requests found with the selected filters.'
+                  : 'No payout requests yet. Influencer Admins\u2019 requests will appear here.') +
+                '</div>';
+              return;
+            }
+            // Open requests first, then newest first.
+            var sorted = payouts.slice().sort(function(a, b) {
+              var rank = function(p){ return String(p.status).toLowerCase() === 'pending' ? 0 : (String(p.status).toLowerCase() === 'approved' ? 1 : 2); };
+              if (rank(a) !== rank(b)) return rank(a) - rank(b);
+              return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+            var html = '';
+            sorted.forEach(function(p) {
+              var st = String(p.status).toLowerCase();
+              var dueLine = p.paymentDueBy ? '⏰ Pay by ' + esc(new Date(p.paymentDueBy).toLocaleString()) : '';
+              var actions = '';
+              if (st === 'pending') {
+                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'approve\')">✅ Verify & Approve</button>' +
+                  '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
+              } else if (st === 'approved') {
+                actions = '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;" onclick="payoutAction(\'' + esc(p.id) + '\',\'mark_paid\')">💸 Send ₦' + fmtN(netOf(p)) + ' in full as Paid</button>' +
+                  '<button class="btn-submit" style="white-space:nowrap;padding:10px 18px;font-size:.8rem;background:#B71C1C;" onclick="payoutAction(\'' + esc(p.id) + '\',\'reject\')">✖ Reject</button>';
+              } else if (st === 'paid') {
+                actions = '<span style="font-size:.78rem;color:#1B5E20;font-weight:700;">✅ Paid ' + esc(p.paidAt ? new Date(p.paidAt).toLocaleString() : '') + '</span>';
+              } else {
+                actions = '<span style="font-size:.78rem;color:var(--text-3);">Rejected' + (p.adminNote ? ' — ' + esc(p.adminNote) : '') + '</span>';
+              }
+              html += '<div class="admin-scan-panel" style="margin-bottom:12px;' + (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
+                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (20%)</span>' : '') + '</strong>' +
+                payoutBadgeHtml(p.status) +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
+                '<span>📧 ' + esc(p.requesterContactEmail || p.requesterEmail || '—') + (p.requesterContactEmail ? '' : ' <em style="color:#E65100;">(no real email — payout notices will not reach them)</em>') + '</span>' +
+                '<span>📅 ' + esc(p.payoutMethodLabel || p.payoutMethod || '') + '</span>' +
+                '<span>🕒 ' + esc(p.createdAt ? new Date(p.createdAt).toLocaleString() : '—') + '</span>' +
+                '<span><code style="font-size:.72rem;">' + esc(p.id) + '</code></span>' +
+                '</div>' +
+                '<div style="margin-top:10px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:10px;font-size:.88rem;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;">' +
+                '<span>Requested <strong>' + fmtN(p.amount) + '</strong></span>' +
+                '<span>Send <strong style="color:#1B5E20;">' + fmtN(netOf(p)) + '</strong> in full' + (rateOf(p) > 0 ? ' (after ' + pctOf(p) + ' fee)' : '') + '</span>' +
+                (rateOf(p) > 0 ? '<span>Unisocials fee ' + pctOf(p) + ' <strong style="color:#E65100;">' + fmtN(feeOf(p)) + '</strong></span>' : '') +
+                '</div>' +
+                '<div style="margin-top:8px;">' +
+                '<strong>🏦 ' + esc(p.bankName || '—') + '</strong> · <strong>' + esc(p.accountNumber || '—') + '</strong> · ' + esc(p.accountName || '—') +
+                '</div>' +
+                (dueLine ? '<div style="margin-top:6px;color:#0D47A1;font-weight:600;font-size:.8rem;">' + dueLine + '</div>' : '') +
+                (p.note ? '<div style="margin-top:6px;color:var(--text-3);font-size:.8rem;">Note: ' + esc(p.note) + '</div>' : '') +
+                '</div>' +
+                (st === 'pending' || st === 'approved' ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">' + actions + '</div>' : '<div style="margin-top:10px;">' + actions + '</div>') +
+                '</div>';
+            });
+            list.innerHTML = html;
+      }
+
+      window.payoutAction = function(payoutId, action) {
+        var adminNote = '';
+        if (action === 'reject') {
+          adminNote = prompt('Reason for rejecting this payout request (sent to the requester by email):');
+          if (adminNote === null) return;
+          adminNote = String(adminNote).trim();
+          if (!adminNote) return showToast('A rejection reason is required.', true);
+        }
+        if (action === 'mark_paid' && !confirm('Confirm you have sent this bank transfer. The requester will be emailed that the payout is complete.')) return;
+        if (action === 'approve' && !confirm('Verify the bank details and approve? The requester will be emailed that payment will be made within 24 hours.')) return;
+        fetch('/api/admin/payouts', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},
+          body: JSON.stringify({ payoutId: payoutId, action: action, adminNote: adminNote }) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              if (data.emailWarning) {
+                // No receivable address on file — never claim the influencer was told.
+                showToast(data.emailWarning, true);
+              } else {
+                showToast(action === 'mark_paid'
+                  ? 'Marked as paid. ' + (data.emailSent ? 'Completion email sent to ' + data.emailSentTo + '.' : 'Requester emailed.')
+                  : (action === 'approve' ? 'Approved. Pay within 24 hours — requester notified.' : 'Request rejected. Requester notified.'));
+              }
+              loadPayoutRequests();
+            } else showToast((data && data.error) || 'Failed to update payout', true);
+          })
+          .catch(function(){ showToast('Network error updating payout', true); });
+      };
+      window.deleteStaffAccount = function(email){
+        if(!email||!confirm('Remove staff account '+email+'?')) return;
+        fetch('/api/admin/staff?email='+encodeURIComponent(email),{method:'DELETE',headers:{'Authorization':'Bearer '+getToken()}})
+          .then(function(r){return r.json();}).then(function(data){ if(data&&data.success){showToast('Staff account removed');loadStaffAccounts();} else showToast((data&&data.error)||'Failed to remove account',true); })
+          .catch(function(){showToast('Network error removing account',true);});
+      };
+
+      // Emails of the customers currently listed, indexed to match the rendered
+      // rows, so the "View orders" expander can fetch the right detail record.
+      var customerEmails = [];
+
+      window.loadCustomers = function() {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = 'Loading…';
+        var listEl = document.getElementById('customersList');
+        if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">Loading customers…</div>';
+        fetch('/api/admin/customers', { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
+          .then(function(r) {
+            // Surface auth failures instead of rendering them as an empty list:
+            // a 401 used to look exactly like "no customers yet".
+            if (r.status === 401) {
+              var err = new Error('unauthorized'); err.unauthorized = true; throw err;
+            }
+            return r.json();
+          })
+          .then(function(data) {
+            var list = (data && data.success && data.customers) || [];
+            var totalCount = data && data.totalCount != null ? data.totalCount : 0;
+            var withOrders = data && data.customersWithOrders != null ? data.customersWithOrders : 0;
+            if (countEl) countEl.textContent = totalCount + ' customer' + (totalCount !== 1 ? 's' : '') + ' · ' + withOrders + ' with orders';
+            if (!listEl) return;
+            if (!list.length) { listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">No customer accounts yet.</div>'; return; }
+            var html = '';
+            customerEmails = [];
+            list.forEach(function(c, i) {
+              var acct = c && c.account ? c.account : null;
+              var email = acct && acct.email ? acct.email : '—';
+              customerEmails[i] = String(email || '');
+              var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '—');
+              var summary = c && c.summary ? c.summary : null;
+              var orderLine = summary && summary.totalOrders > 0
+                ? '<span style="font-size:.74rem;color:var(--accent);font-weight:600;">' + summary.totalOrders + ' order' + (summary.totalOrders !== 1 ? 's' : '') + ' · ' + fmtN(summary.totalSpent) + '</span>'
+                : '<span style="font-size:.74rem;color:var(--text-3);">No orders yet</span>';
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">' +
+                '<div style="display:flex;flex-direction:column;gap:4px;">' +
+                  '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong></div>' +
+                  '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
+                  '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
+                  '<div style="font-size:.74rem;color:var(--text-2);">Member since ' + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
+                  '<div style="margin-top:6px;">' + orderLine + '</div>' +
+                '</div>' +
+                '<div style="text-align:right;">' +
+                  '<button type="button" class="btn-cta-ghost" data-customer-index="' + i + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;cursor:pointer;background:none;">View orders →</button>' +
+                '</div>' +
+              '</div>' +
+              '<div data-customer-detail="' + i + '" style="display:none;padding:10px 0 16px;border-bottom:1px solid var(--border);"></div>';
+            });
+            listEl.innerHTML = html;
+            var detailBtns = listEl.querySelectorAll('[data-customer-index]');
+            for (var d = 0; d < detailBtns.length; d++) {
+              detailBtns[d].addEventListener('click', function() {
+                toggleCustomerDetail(parseInt(this.getAttribute('data-customer-index'), 10), this);
+              });
+            }
+          })
+          .catch(function(err) {
+            if (countEl) countEl.textContent = '';
+            if (!listEl) return;
+            if (err && err.unauthorized) {
+              listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Your admin session is invalid or expired. Log in again to view customers.</div>';
+            } else {
+              listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Could not load customers.</div>';
+            }
+          });
+      };
+
+      // Expand a customer's order history inline in the Customers tab.
+      // The old "View orders" link navigated to the raw API URL, which left the
+      // dashboard and showed unfriendly JSON; fetching + rendering here keeps the
+      // admin inside the tab where the details belong.
+      window.toggleCustomerDetail = function(index, btn) {
+        var email = customerEmails && customerEmails[index];
+        var panel = document.querySelector('[data-customer-detail="' + index + '"]');
+        if (!email || !panel) return;
+
+        if (panel.style.display !== 'none' && panel.getAttribute('data-loaded') === '1') {
+          panel.style.display = 'none';
+          if (btn) btn.textContent = 'View orders →';
+          return;
+        }
+
+        if (btn) btn.textContent = 'Loading…';
+        panel.style.display = 'block';
+        panel.innerHTML = '<div style="font-size:.82rem;color:var(--text-3);padding:6px 0;">Loading orders…</div>';
+
+        fetch('/api/admin/customers/' + encodeURIComponent(email), { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
+          .then(function(r) {
+            if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; }
+            return r.json();
+          })
+          .then(function(data) {
+            if (!data || !data.success) {
+              panel.innerHTML = '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">' + esc((data && data.error) || 'Could not load this customer.') + '</div>';
+              if (btn) btn.textContent = 'View orders →';
+              return;
+            }
+            var orders = data.orders || [];
+            var totals = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--text-2);margin-bottom:10px;">' +
+              '<span><strong>' + (data.totalOrders || 0) + '</strong> order' + ((data.totalOrders || 0) !== 1 ? 's' : '') + '</span>' +
+              '<span><strong>' + (data.totalVerifiedOrders || 0) + '</strong> verified</span>' +
+              '<span><strong>' + (data.totalTickets || 0) + '</strong> tickets</span>' +
+              '<span>Spent <strong>' + fmtN(data.totalSpent || 0) + '</strong></span>' +
+              '</div>';
+            if (!orders.length) {
+              panel.innerHTML = totals + '<div style="font-size:.82rem;color:var(--text-3);">No orders for this customer yet.</div>';
+              if (btn) btn.textContent = 'Hide orders';
+              panel.setAttribute('data-loaded', '1');
+              return;
+            }
+            var rows = orders.map(function(o) {
+              var status = String(o.status || '').toLowerCase();
+              var statusColor = status === 'verified' ? 'var(--accent)' : (status === 'pending' ? '#B7791F' : 'var(--text-3)');
+              var tickets = Array.isArray(o.ticketCodes) ? o.ticketCodes : [];
+              return '<div style="padding:10px 0;border-top:1px solid var(--border);">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+                  '<strong style="font-size:.85rem;">' + esc(o.eventName || 'Event') + '</strong>' +
+                  '<span style="font-size:.78rem;color:' + statusColor + ';font-weight:600;text-transform:capitalize;">' + esc(o.status || 'unknown') + '</span>' +
+                '</div>' +
+                '<div style="font-size:.76rem;color:var(--text-3);margin-top:4px;">' +
+                  'Order <span style="font-family:monospace;">' + esc(o.orderId || '—') + '</span>' +
+                  ' · ' + (parseInt(o.qty, 10) || 0) + ' ticket' + ((parseInt(o.qty, 10) || 0) !== 1 ? 's' : '') +
+                  ' · ₦' + fmtN(o.amount || 0) +
+                  (o.eventDate ? ' · ' + esc(o.eventDate) : '') +
+                  (o.eventVenue ? ' · ' + esc(o.eventVenue) : '') +
+                '</div>' +
+                (o.buyerPhone ? '<div style="font-size:.74rem;color:var(--text-3);margin-top:2px;">Phone: ' + esc(o.buyerPhone) + '</div>' : '') +
+                (tickets.length ? '<div style="font-size:.74rem;color:var(--text-2);margin-top:4px;">Tickets: ' + tickets.map(function(t) {
+                  return '<span style="font-family:monospace;">' + esc(t && t.code ? t.code : t) + '</span>' + (t && t.used ? ' <span style="color:#B7791F;">(used)</span>' : '');
+                }).join(', ') + '</div>' : '') +
+                '</div>';
+            }).join('');
+            panel.innerHTML = totals + rows;
+            if (btn) btn.textContent = 'Hide orders';
+            panel.setAttribute('data-loaded', '1');
+          })
+          .catch(function(err) {
+            panel.innerHTML = err && err.unauthorized
+              ? '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">Your admin session is invalid or expired. Log in again.</div>'
+              : '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">Could not load orders. Check your connection and try again.</div>';
+            if (btn) btn.textContent = 'View orders →';
+          });
+      };
+
+      window.resetManagedPassword = function(email) {
+        if (!email) return;
+        var first = prompt('Enter a new password for ' + email + ' (8+ chars, letter, number & symbol):');
+        if (first === null) return;
+        var password = String(first).trim();
+        if (password.length < 6) return showToast('Password must be at least 6 characters.', true);
+        var second = prompt('Confirm the new password:');
+        if (second === null) return;
+        if (password !== String(second)) return showToast('Passwords do not match.', true);
+        fetch('/api/admin/account-password', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()}, body:JSON.stringify({email:email,password:password}) })
+          .then(function(r){return r.json();}).then(function(data){
+            if(data&&data.success) showToast('Password reset successfully. The account must log in again.');
+            else showToast((data&&data.error)||'Failed to reset password',true);
+          }).catch(function(){showToast('Network error resetting password',true);});
+      };
+
 // Load events on login — also load universities and subscribers
       var origShowLoggedIn2 = showLoggedIn;
       showLoggedIn = function() {
         origShowLoggedIn2();
+        // Load the Customers tab first: it must not depend on the other loaders
+        // succeeding, and a throw in any of them would otherwise starve it.
+        loadCustomers();
         loadManagedEvents();
+        loadStaffAccounts();
         loadManagedUniversities();
         loadSubscribers();
         loadSubAdmins();
+        loadCoupons();
+        loadInfluencers();
+        loadEventAuthorizations();
       };
+
+      var editingCouponId = '';
+      window.cancelCouponEdit = function(){ editingCouponId=''; var c=document.getElementById('couponCodeAdmin'),a=document.getElementById('couponAmountAdmin'),b=document.getElementById('couponSaveBtn'),x=document.getElementById('couponCancelBtn'); if(c)c.value=''; if(a)a.value=''; if(b)b.textContent='➕ Create Coupon'; if(x)x.style.display='none'; };
+      window.loadCoupons = function(){
+        fetch('/api/admin/coupons',{headers:authHeaders()}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){
+          if(!x.ok||!x.d.success) throw new Error(x.d.error||'Could not load coupons');
+          var list=x.d.coupons||[], box=document.getElementById('couponsList'), count=document.getElementById('couponCount');
+          if(count) count.textContent=list.length+' coupon'+(list.length===1?'':'s');
+          if(!box) return;
+          if(!list.length){box.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-3);">No coupons created yet.</div>';return;}
+          box.innerHTML=list.map(function(c){
+            return '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">'+
+              '<div><strong>'+esc(c.code)+'</strong><span style="font-size:.78rem;color:var(--text-3);margin-left:10px;">−₦'+Number(c.amount||0).toLocaleString()+'</span><span style="font-size:.72rem;margin-left:10px;color:'+(c.active===false?'#B71C1C':'var(--accent)')+';">'+(c.active===false?'Inactive':'Active')+'</span></div>'+
+              '<div style="display:flex;gap:6px;"><button type="button" class="admin-ticket-copy coupon-edit-btn" data-id="'+esc(c.id)+'">✏️</button><button type="button" class="admin-ticket-copy coupon-delete-btn" data-id="'+esc(c.id)+'">🗑</button></div></div>';
+          }).join('');
+          box.querySelectorAll('.coupon-edit-btn').forEach(function(b){b.addEventListener('click',function(){editCoupon(b.getAttribute('data-id'));});});
+          box.querySelectorAll('.coupon-delete-btn').forEach(function(b){b.addEventListener('click',function(){deleteCoupon(b.getAttribute('data-id'));});});
+        }).catch(function(e){
+          console.error('Coupon load failed:', e);
+          var box=document.getElementById('couponsList'), msg=document.getElementById('couponLoadMessage');
+          if(msg){msg.style.display='block';msg.style.background='rgba(183,28,28,.08)';msg.style.color='#B71C1C';msg.textContent='Could not load coupons: '+(e.message||'Unauthorized or server error. Click Refresh to try again.');}
+          if(box && !box.innerHTML.trim()) box.innerHTML='<div style="padding:16px;text-align:center;color:#B71C1C;">Coupon list could not be loaded.</div>';
+        });
+      };
+      window.saveCoupon = function(){ var code=(document.getElementById('couponCodeAdmin').value||'').trim().toUpperCase(), amount=Number(document.getElementById('couponAmountAdmin').value||0); if(code.length<3||amount<=0){alert('Enter a coupon code and discount amount.');return;} var btn=document.getElementById('couponSaveBtn'); if(btn)btn.disabled=true; fetch('/api/admin/coupons',{method:'POST',headers:authHeaders(),body:JSON.stringify({id:editingCouponId||undefined,code:code,amount:amount,active:true})}).then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});}).then(function(x){if(!x.ok||!x.d.success)throw new Error(x.d.error||'Could not save coupon'); cancelCouponEdit(); loadCoupons(); alert('Coupon saved: '+code+' = ₦'+amount.toLocaleString()+' off.');}).catch(function(e){alert(e.message||'Could not save coupon.');}).finally(function(){if(btn)btn.disabled=false;}); };
+      window.editCoupon = function(id){ fetch('/api/admin/coupons',{headers:authHeaders()}).then(r=>r.json()).then(function(d){var c=(d.coupons||[]).find(function(x){return String(x.id)===String(id);});if(!c)throw new Error('Coupon not found');editingCouponId=c.id;document.getElementById('couponCodeAdmin').value=c.code;document.getElementById('couponAmountAdmin').value=c.amount;document.getElementById('couponSaveBtn').textContent='💾 Save Coupon';document.getElementById('couponCancelBtn').style.display='inline-flex';}).catch(function(e){alert(e.message);}); };
+      window.deleteCoupon = function(id){if(!confirm('Delete this coupon?'))return;fetch('/api/admin/coupons?id='+encodeURIComponent(id),{method:'DELETE',headers:authHeaders()}).then(r=>r.json()).then(function(d){if(!d.success)throw new Error(d.error||'Delete failed');loadCoupons();}).catch(function(e){alert(e.message);});};
 
       // ── Tab switching ──
       var tabButtons = document.querySelectorAll('.admin-tab');
@@ -2196,20 +3350,122 @@ fetch('/api/admin/events/notify', {
       tabButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
           switchTab(btn.getAttribute('data-tab'));
+          var name = btn.getAttribute('data-tab');
+          if (name === 'payouts' && typeof window.loadPayoutRequests === 'function') loadPayoutRequests();
+          // Refresh the Customers tab every time it opens, so the list can never
+          // stay stuck on an old "Loading…"/empty state from the login fetch.
+          if (name === 'customers' && typeof window.loadCustomers === 'function') loadCustomers();
         });
       });
       window.switchTab = switchTab;
+
+      // ── Small screens: the tab strip collapses into a styled menu ──
+      // The menu mirrors the tab buttons, so choosing an entry runs exactly the
+      // same activation + lazy-load path as tapping the tab itself.
+      (function setupTabMenu() {
+        var menu = document.getElementById('adminTabMenu');
+        var toggle = document.getElementById('adminTabToggle');
+        var list = document.getElementById('adminTabList');
+        var label = document.getElementById('adminTabToggleLabel');
+        var icon = document.getElementById('adminTabToggleIcon');
+        if (!menu || !toggle || !list || !label) return;
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.admin-tab'));
+        if (!buttons.length) return;
+
+        // Split "📊 Overview" into an icon and a label so the toggle can show both.
+        var split = function(btn) {
+          var text = (btn.textContent || '').trim();
+          var tokens = text.split(/\s+/).filter(Boolean);
+          var hasIcon = tokens.length > 1 && !/[A-Za-z0-9]/.test(tokens[0]);
+          return { icon: hasIcon ? tokens[0] : '', text: (hasIcon ? tokens.slice(1) : tokens).join(' ') };
+        };
+
+        var html = '';
+        buttons.forEach(function(btn) {
+          var name = btn.getAttribute('data-tab');
+          if (!name) return;
+          var p = split(btn);
+          html += '<button class="admin-tab-item" type="button" role="option" data-tab="' + esc(name) + '" aria-selected="false">' +
+            '<span class="admin-tab-toggle-icon" aria-hidden="true">' + esc(p.icon) + '</span><span>' + esc(p.text) + '</span></button>';
+        });
+        list.innerHTML = html;
+
+        var items = Array.prototype.slice.call(list.querySelectorAll('.admin-tab-item'));
+        var isOpen = function() { return menu.classList.contains('open'); };
+        var setOpen = function(on) {
+          menu.classList.toggle('open', on);
+          list.hidden = !on;
+          toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
+        };
+        var sync = function() {
+          var active = document.querySelector('.admin-tab.active');
+          if (!active) return;
+          var name = active.getAttribute('data-tab') || '';
+          var p = split(active);
+          label.textContent = p.text;
+          if (icon) icon.textContent = p.icon;
+          items.forEach(function(item) {
+            item.setAttribute('aria-selected', item.getAttribute('data-tab') === name ? 'true' : 'false');
+          });
+        };
+
+        toggle.addEventListener('click', function(e) { e.stopPropagation(); setOpen(!isOpen()); });
+        items.forEach(function(item) {
+          item.addEventListener('click', function() {
+            var name = item.getAttribute('data-tab') || '';
+            setOpen(false);
+            for (var i = 0; i < buttons.length; i++) {
+              if (buttons[i].getAttribute('data-tab') === name) { buttons[i].click(); return; }
+            }
+          });
+        });
+        // A click anywhere else, or Escape, closes the menu.
+        document.addEventListener('click', function() { if (isOpen()) setOpen(false); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && isOpen()) { setOpen(false); toggle.focus(); } });
+        buttons.forEach(function(btn) { btn.addEventListener('click', sync); });
+        sync();
+      })();
 
 // Initial state — restore the master-admin (sessionStorage) session if present.
       if (getToken()) {
         showLoggedIn();
         loadOrders();
         pollUnseen();
+        loadPayoutRequests();
       } else {
         showLoggedOut();
       }
     })();
   </script>
+<script id="archive-controls-ui">
+(function(){
+  // Current event cards render archive controls directly. Only add a control
+  // for stale cached cards that do not have one, and never overwrite current state.
+  function token(){ return typeof getToken==='function' ? getToken() : ''; }
+  function scanLegacy(){
+    document.querySelectorAll('#managedEventsList .admin-ticket-code').forEach(function(card){
+      if(card.querySelector('[data-direct-archive-event]')) return;
+      var edit=card.querySelector('[onclick*="editManagedEvent"]');
+      if(!edit) return;
+      var m=(edit.getAttribute('onclick')||'').match(/editManagedEvent\(["']([^"']+)["']\)/);
+      if(!m) return;
+      var b=document.createElement('button'); b.type='button'; b.className='admin-ticket-copy'; b.textContent='🗃️'; b.title='Archive event';
+      b.addEventListener('click',function(){
+        if(!confirm('Archive this event?')) return;
+        b.disabled=true;
+        fetch('/api/admin/events/archive',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({eventId:m[1],archived:true}),credentials:'same-origin'})
+          .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+          .then(function(x){if(x.ok&&x.data&&x.data.success){showToast('Event archived');loadManagedEvents();}else showToast((x.data&&x.data.error)||'Could not archive event',true);})
+          .catch(function(){showToast('Network error changing event status',true);})
+          .finally(function(){b.disabled=false;});
+      });
+      var action=card.lastElementChild||card; action.insertBefore(b,action.firstChild);
+    });
+  }
+  setTimeout(scanLegacy,800); setTimeout(scanLegacy,1800);
+})();
+</script>
+
 </body>
 </html>
 

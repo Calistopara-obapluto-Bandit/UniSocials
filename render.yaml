@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: npm install
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     envVars:
       # ─────────────────────────────────────────────────────────────────────────
@@ -40,8 +40,13 @@ services:
         value: support.sbiamautos@gmail.com
       - key: FORMSUBMIT_KEY
         value: support.sbiamautos@gmail.com
+      # The React checkout/thank-you flow is now canonical when the React build is
+      # deployed. The server aliases /thank-you.html -> /thank-you while the build
+      # exists, so this value still works during the migration. Once you are ready
+      # to make the React thank-you page the only post-payment destination, point
+      # this at the canonical path instead: https://unisocials.onrender.com/thank-you
       - key: REDIRECT_URL
-        value: https://unisocials.onrender.com/thank-you.html
+        value: https://unisocials.onrender.com/thank-you
 
       # ─────────────────────────────────────────────────────────────────────────
       # SECRETS — set these in the Render dashboard (Environment → Env Vars).
