@@ -17,6 +17,15 @@ export default function ThankYou() {
   const [order, setOrder] = useState(null);
   const [checking, setChecking] = useState(true);
 
+  // Read the checkout session at RENDER scope. The JSX below reads
+  // `checkoutData`; it previously existed only inside the effect, so rendering
+  // threw "checkoutData is not defined" and React showed a blank page.
+  let checkoutData = null;
+  try {
+    const raw = sessionStorage.getItem('checkoutData');
+    if (raw) checkoutData = JSON.parse(raw);
+  } catch (e) { checkoutData = null; }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -118,26 +127,46 @@ export default function ThankYou() {
 
   const ticketCodes = order?.ticketCodes || [];
 
+  // Free events are verified and emailed instantly — the paid "awaiting
+  // verification" copy would be wrong for them.
+  const paidAmount = Number(totalPaid || 0);
+  const isFreeOrder = order
+    ? (Number(order.amount || 0) === 0 || order.paymentMethod === 'free')
+    : !(paidAmount > 0);
+  const emailTarget = buyerEmail || (checkoutData && checkoutData.buyerEmail) || 'your email';
+
   return (
     <>
       <Nav />
 
       <section className="page-header">
         <div className="container">
-          <div className="section-label reveal">Payment Received</div>
+          <div className="section-label reveal">{isFreeOrder ? 'Ticket Generated' : 'Payment Received'}</div>
           <h1 className="section-title reveal reveal-delay-1">Thank <em>you!</em></h1>
-          <p className="section-sub reveal reveal-delay-2">Thank you for your purchase. Your order is awaiting verification.</p>
+          <p className="section-sub reveal reveal-delay-2">
+            {isFreeOrder
+              ? 'Your free ticket has been generated and sent to your email.'
+              : 'Thank you for your purchase. Your order is awaiting verification.'}
+          </p>
         </div>
       </section>
 
       <section className="success-section">
         <div className="container">
           <div className="success-card reveal">
-            <div className="success-icon">✅</div>
-            <h2>Your tickets will be sent shortly</h2>
-            <p>
-              We have received your payment. You will receive a confirmation email now, and your actual ticket(s) will be sent to your email after your payment is verified. Please check your inbox and spam or junk folder.
-            </p>
+            <div className="success-icon">{isFreeOrder ? '🎟️' : '✅'}</div>
+            <h2>{isFreeOrder ? 'Your free ticket is ready!' : 'Your tickets will be sent shortly'}</h2>
+            {isFreeOrder ? (
+              <p>
+                We&apos;ve generated your QR ticket and emailed it to <strong>{esc(emailTarget)}</strong>.
+                Please check your inbox — and your spam or junk folder — for the email containing your
+                ticket(s). You can also open them any time from My Tickets.
+              </p>
+            ) : (
+              <p>
+                We have received your payment. You will receive a confirmation email now, and your actual ticket(s) will be sent to your email after your payment is verified. Please check your inbox and spam or junk folder.
+              </p>
+            )}
 
             {orderId && (
               <div className="success-summary" style={{ textAlign: 'left', marginTop: '22px', padding: '16px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px' }}>
