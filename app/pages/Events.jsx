@@ -131,26 +131,23 @@ function NotifyButton({ event }) {
 
 function eventCard(ev, index, referralCode) {
   const delay = (index % 3) === 0 ? '' : ' reveal-delay-' + (index % 3);
-  const tagsHtml = null; // rendered below via tagsHtmlFree (adds the free-entry chip when the event is free)
+  const tagsHtml = (ev.tags && ev.tags.length) ? (
+    <div className="event-card-tags">
+      {ev.tags.map(t => <span key={t} className="event-tag">{esc(t)}</span>)}
+    </div>
+  ) : null;
   const dateLine = (ev.date || '') + (ev.time ? ' · ' + ev.time : '');
   const uniName = ev.universityName || '';
   const price = Number(ev.price || 0);
   const bonus = Number(ev.bonusPrice || 0);
-  const isFree = price <= 0;
-  const unitPrice = isFree ? (
-    <strong style={{ color: 'var(--accent)' }}>Free</strong>
-  ) : (bonus > 0 && bonus < price) ? (
+  // Free events (₦0 across the tier) show "FREE" instead of "₦0".
+  const isFree = !(price > 0) && !(bonus > 0);
+  const unitPrice = (bonus > 0 && bonus < price) ? (
     <>
       <span style={{ textDecoration: 'line-through', opacity: 0.55, marginRight: 6 }}>{fmtN(price)}</span>
       <strong>{fmtN(bonus)}</strong>
     </>
-  ) : fmtN(price);
-  const allTags = isFree ? [].concat(ev.tags || [], ['🎉 Free entry']) : (ev.tags || []);
-  const tagsHtmlFree = allTags.length ? (
-    <div className="event-card-tags">
-      {allTags.map(t => <span key={t} className="event-tag">{esc(t)}</span>)}
-    </div>
-  ) : null;
+  ) : (isFree ? <strong>FREE</strong> : fmtN(price));
 
   const ticketsHref = '/tickets.html?event=' + encodeURIComponent(ev.id || '') +
     ((ev.universitySlug || ev.universityId) ? '&university=' + encodeURIComponent(ev.universitySlug || ev.universityId) : '') +
@@ -175,11 +172,11 @@ function eventCard(ev, index, referralCode) {
         <h3 className="event-card-title">{esc(ev.name)}</h3>
         {uniName ? <div className="event-card-uni">{esc(uniName)}</div> : null}
         <p className="event-card-desc">{esc(ev.description || '')}</p>
-        {tagsHtmlFree}
+        {tagsHtml}
       </div>
       <div className="event-card-footer">
         <div className="event-card-footer-left">
-          <div className="event-card-price">{unitPrice} <small>/ ticket</small></div>
+          <div className="event-card-price">{unitPrice}{isFree ? null : <small> / ticket</small>}</div>
           <div className="event-card-capacity">🎟 {esc(ev.seats || '—')}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
@@ -209,12 +206,11 @@ export default function Events() {
   const [categories, setCategories] = useState([]);
   const [monthSummaryEvents, setMonthSummaryEvents] = useState(null);
 
+  // gridRef is READ-ONLY (the reveal observer queries it). Never write
+  // innerHTML into React-rendered nodes: React's reconciliation then tries to
+  // remove children that are already gone and throws NotFoundError, blanking
+  // the page. All grid/count content below is driven by state instead.
   const gridRef = useRef(null);
-  const countRef = useRef(null);
-
-  const setCount = useCallback((text) => {
-    if (countRef.current) countRef.current.innerHTML = text;
-  }, []);
 
   const populateUniversityFilter = useCallback((list) => {
     const seen = new Set();
@@ -232,10 +228,11 @@ export default function Events() {
 
   const rebuildCategoryFilter = useCallback((uni) => {
     const cats = (uni && uni.categories && uni.categories.length) ? uni.categories : [];
-    const html = '<option value="all">All Categories</option>' + cats.map(c =>
-      '<option value="' + esc(c) + '">' + esc(c) + '</option>'
-    ).join('');
-    return html;
+    // Return the ARRAY for the `categories` state — the JSX renders the
+    // <option>s (including "All Categories") itself. Returning an HTML string
+    // here made `categories.map(...)` throw TypeError as soon as a campus was
+    // chosen or restored, crashing the whole page.
+    return cats.map(c => String(c).trim()).filter(Boolean);
   }, []);
 
   const universityKeySet = useCallback((uni) => {
@@ -263,8 +260,6 @@ export default function Events() {
     const url = '/api/events' + ((uni && (uni.slug || uni.id || uni.name)) ? '?university=' + encodeURIComponent(uni.name || uni.slug || uni.id) : '');
     setLoading(true);
     setError(null);
-    if (countRef.current) countRef.current.innerHTML = 'Loading events…';
-    if (gridRef.current) gridRef.current.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><p style="color:var(--text-3);">Loading events…</p></div>';
 
     fetch(url, { cache: 'no-store' })
       .then(r => r.json())
@@ -278,15 +273,10 @@ export default function Events() {
         });
         setEvents(filtered);
         setMonthSummaryEvents(filtered);
-        if (!filtered.length) {
-          if (gridRef.current) gridRef.current.innerHTML =
-            '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">🏘️</span><p style="color:var(--text-3);">No events available for this campus yet. Check back soon!</p></div>';
-          setCount('Showing <strong>0</strong> events');
-        }
+        // Empty and error states are rendered by the JSX from this state — no
+        // direct innerHTML writes into the React-managed grid.
       })
       .catch(() => {
-        if (gridRef.current) gridRef.current.innerHTML =
-          '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">😔</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
         setError('Could not load events. Please refresh the page.');
       })
       .finally(() => setLoading(false));
@@ -324,7 +314,9 @@ export default function Events() {
     if (!selectEl) return;
 
     const result = populateUniversityFilter(universities);
-    selectEl.innerHTML = result.html;
+    // Do NOT write selectEl.innerHTML here: React renders the <option>s from
+    // the universities state, and stomping them makes the next diff throw
+    // NotFoundError (crashing the page as soon as a campus is selected).
     const findSelected = () => result.list.find(u => String(u.slug || u.id) === String(selectEl.value)) || null;
 
     const selectUniversity = (selected) => {
@@ -381,7 +373,10 @@ export default function Events() {
   }, [universities, userSelectedUniversity, loadEvents, populateUniversityFilter, rebuildCategoryFilter]);
 
   useEffect(() => {
-    if (!universities) return;
+    // Fetch EXACTLY ONCE, while still unloaded. The old guard was inverted
+    // (`if (!universities) return;`) — with a null initial state and [] deps it
+    // returned immediately, never fetched, and the page stayed on "Loading…".
+    if (universities) return;
     fetch('/api/universities', { cache: 'no-store' })
       .then(r => r.json())
       .then(data => {
@@ -518,7 +513,9 @@ export default function Events() {
       <section className="events-section">
         <div className="container">
           <div className="events-count reveal">
-            {loading ? 'Loading events…' : error ? error : `Showing <strong>${filteredEvents.length}</strong> event${filteredEvents.length !== 1 ? 's' : ''}`}
+            {loading ? 'Loading events…' : error ? error : (
+              <>Showing <strong>{filteredEvents.length}</strong> event{filteredEvents.length !== 1 ? 's' : ''}</>
+            )}
           </div>
           {monthSummary(monthSummaryEvents)}
           <div className="events-grid" ref={gridRef}>

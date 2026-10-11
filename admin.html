@@ -1976,7 +1976,8 @@ fetch('/api/ticket/scan', {
               var vipValue = parseFloat(ev.vipPrice || 0) || 0, bonusVipValue = parseFloat(ev.bonusVipPrice || 0) || 0;
               var vvipValue = parseFloat(ev.vvipPrice || 0) || 0, bonusVvipValue = parseFloat(ev.bonusVvipPrice || 0) || 0;
               var bonusValue = parseFloat(ev.bonusPrice || 0) || 0, tableValue = parseFloat(ev.tablePrice || 0) || 0, bonusTableValue = parseFloat(ev.bonusTablePrice || 0) || 0;
-              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>';
+              var regValue = parseFloat(ev.price || 0) || 0;
+              var priceHtml = (bonusValue > 0) ? '<span style="font-size:0.75rem;color:var(--text-3);text-decoration:line-through;">₦' + Number(ev.price||0).toLocaleString() + '</span> <strong style="font-size:0.78rem;">₦' + bonusValue.toLocaleString() + '</strong>' : (regValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">₦' + Number(ev.price||0).toLocaleString() + '</span>' : '<strong style="font-size:0.75rem;color:var(--accent);">FREE</strong>');
               var vipHtml = vipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VIP ' + ((bonusVipValue > 0) ? '<s>₦'+vipValue.toLocaleString()+'</s> <strong>₦'+bonusVipValue.toLocaleString()+'</strong>' : '₦'+vipValue.toLocaleString()) + '</span>' : '';
               var vvipHtml = vvipValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">VVIP ' + ((bonusVvipValue > 0) ? '<s>₦'+vvipValue.toLocaleString()+'</s> <strong>₦'+bonusVvipValue.toLocaleString()+'</strong>' : '₦'+vvipValue.toLocaleString()) + '</span>' : '';
               var tableHtml = tableValue > 0 ? '<span style="font-size:0.75rem;color:var(--text-3);">Table ' + ((bonusTableValue > 0) ? '<s>₦'+tableValue.toLocaleString()+'</s> <strong>₦'+bonusTableValue.toLocaleString()+'</strong>' : '₦'+tableValue.toLocaleString()) + '</span>' : '';
@@ -3130,11 +3131,106 @@ fetch('/api/admin/events/notify', {
       // rows, so the "View orders" expander can fetch the right detail record.
       var customerEmails = [];
 
+      // Derive the customer directory from the orders endpoint when the account
+      // directory endpoint is unavailable, so ticket buyers NEVER disappear from
+      // this tab. Same shape as the API response: { account, summary, guest }.
+      function customersFromOrders(orders) {
+        var byEmail = {};
+        (orders || []).forEach(function(o) {
+          if (!o || !o.buyerEmail) return;
+          var key = String(o.buyerEmail).toLowerCase();
+          if (!byEmail[key]) {
+            byEmail[key] = {
+              guest: true,
+              account: { id: null, name: '', email: key, phone: '', role: 'guest', createdAt: null, archived: false },
+              summary: { totalOrders: 0, totalVerifiedOrders: 0, totalTickets: 0, totalSpent: 0, lastOrderAt: null }
+            };
+          }
+          var entry = byEmail[key], s = entry.summary;
+          s.totalOrders += 1;
+          if (String(o.status || '').toLowerCase() === 'verified') s.totalVerifiedOrders += 1;
+          s.totalTickets += Math.max(0, parseInt(o.qty, 10) || 0);
+          s.totalSpent += Math.max(0, Number(o.amount) || 0);
+          var orderAt = o.verifiedAt || o.createdAt || null;
+          if (orderAt && (!s.lastOrderAt || orderAt > s.lastOrderAt)) {
+            s.lastOrderAt = orderAt;
+            if (o.buyerName && !entry.account.name) entry.account.name = String(o.buyerName).trim();
+            if (o.buyerPhone && !entry.account.phone) entry.account.phone = String(o.buyerPhone).trim();
+          }
+          if (o.createdAt && (!entry.account.createdAt || o.createdAt < entry.account.createdAt)) entry.account.createdAt = o.createdAt;
+        });
+        return Object.keys(byEmail).map(function(k) {
+          var e = byEmail[k];
+          if (!e.account.name) e.account.name = e.account.email.split('@')[0] || '\u2014';
+          return e;
+        }).sort(function(a, b) {
+          var byA = a.summary.lastOrderAt || a.account.createdAt || '';
+          var byB = b.summary.lastOrderAt || b.account.createdAt || '';
+          return String(byB).localeCompare(String(byA));
+        });
+      }
+
+      function showCustomersError(message) {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = '';
+        var listEl = document.getElementById('customersList');
+        if (!listEl) return;
+        listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">' + esc(message) + '</div>';
+      }
+
+      // Render customer rows into the tab. Shared by the live endpoint and the
+      // orders fallback so both look and behave identically.
+      function renderCustomerList(list, totalCount, withOrders, notice) {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = totalCount + ' customer' + (totalCount !== 1 ? 's' : '') + ' \u00B7 ' + withOrders + ' with orders';
+        var listEl = document.getElementById('customersList');
+        if (!listEl) return;
+        var noticeHtml = notice
+          ? '<div style="text-align:center;padding:8px 0;color:#B7791F;font-size:.78rem;">' + esc(notice) + '</div>'
+          : '';
+        if (!list.length) { listEl.innerHTML = noticeHtml + '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">No customer accounts yet.</div>'; return; }
+        var html = '';
+        customerEmails = [];
+        list.forEach(function(c, i) {
+          var acct = c && c.account ? c.account : null;
+          var email = acct && acct.email ? acct.email : '\u2014';
+          customerEmails[i] = String(email || '');
+          var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '\u2014');
+          var summary = c && c.summary ? c.summary : null;
+          // Buyers who never created an account (guest checkout) are still
+          // listed \u2014 flag them so the admin can tell them apart from accounts.
+          var isGuest = !!(c && c.guest);
+          var orderLine = summary && summary.totalOrders > 0
+            ? '<span style="font-size:.74rem;color:var(--accent);font-weight:600;">' + summary.totalOrders + ' order' + (summary.totalOrders !== 1 ? 's' : '') + ' \u00B7 ' + fmtN(summary.totalSpent) + '</span>'
+            : '<span style="font-size:.74rem;color:var(--text-3);">No orders yet</span>';
+          html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">' +
+            '<div style="display:flex;flex-direction:column;gap:4px;">' +
+              '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong>' + (isGuest ? '<span style="font-size:.68rem;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;">Guest buyer</span>' : '') + '</div>' +
+              '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
+              '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
+              '<div style="font-size:.74rem;color:var(--text-2);">' + (isGuest ? 'First ticket purchase ' : 'Member since ') + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
+              '<div style="margin-top:6px;">' + orderLine + '</div>' +
+            '</div>' +
+            '<div style="text-align:right;">' +
+              '<button type="button" class="btn-cta-ghost" data-customer-index="' + i + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;cursor:pointer;background:none;">View orders \u2192</button>' +
+            '</div>' +
+          '</div>' +
+          '<div data-customer-detail="' + i + '" style="display:none;padding:10px 0 16px;border-bottom:1px solid var(--border);"></div>';
+        });
+        listEl.innerHTML = noticeHtml + html;
+        var detailBtns = listEl.querySelectorAll('[data-customer-index]');
+        for (var d = 0; d < detailBtns.length; d++) {
+          detailBtns[d].addEventListener('click', function() {
+            toggleCustomerDetail(parseInt(this.getAttribute('data-customer-index'), 10), this);
+          });
+        }
+      }
+
       window.loadCustomers = function() {
         var countEl = document.getElementById('customerCount');
-        if (countEl) countEl.textContent = 'Loading…';
+        if (countEl) countEl.textContent = 'Loading\u2026';
         var listEl = document.getElementById('customersList');
-        if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">Loading customers…</div>';
+        if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">Loading customers\u2026</div>';
         fetch('/api/admin/customers', { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
           .then(function(r) {
             // Surface auth failures instead of rendering them as an empty list:
@@ -3142,56 +3238,53 @@ fetch('/api/admin/events/notify', {
             if (r.status === 401) {
               var err = new Error('unauthorized'); err.unauthorized = true; throw err;
             }
-            return r.json();
+            return r.text().then(function(txt) {
+              var d = null;
+              try { d = JSON.parse(txt); } catch (e) { d = null; }
+              // A server error or success:false must NEVER render as an empty
+              // tab — it used to show "No customer accounts yet." for a 500.
+              if (!r.ok || !d || d.success !== true) {
+                var msg = (d && d.error) ? d.error : ('Server returned HTTP ' + r.status);
+                var err = new Error(msg); err.fromServer = true; throw err;
+              }
+              return d;
+            });
           })
           .then(function(data) {
-            var list = (data && data.success && data.customers) || [];
-            var totalCount = data && data.totalCount != null ? data.totalCount : 0;
+            var list = (data && data.customers) || [];
+            var totalCount = data && data.totalCount != null ? data.totalCount : list.length;
             var withOrders = data && data.customersWithOrders != null ? data.customersWithOrders : 0;
-            if (countEl) countEl.textContent = totalCount + ' customer' + (totalCount !== 1 ? 's' : '') + ' · ' + withOrders + ' with orders';
-            if (!listEl) return;
-            if (!list.length) { listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">No customer accounts yet.</div>'; return; }
-            var html = '';
-            customerEmails = [];
-            list.forEach(function(c, i) {
-              var acct = c && c.account ? c.account : null;
-              var email = acct && acct.email ? acct.email : '—';
-              customerEmails[i] = String(email || '');
-              var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '—');
-              var summary = c && c.summary ? c.summary : null;
-              var orderLine = summary && summary.totalOrders > 0
-                ? '<span style="font-size:.74rem;color:var(--accent);font-weight:600;">' + summary.totalOrders + ' order' + (summary.totalOrders !== 1 ? 's' : '') + ' · ' + fmtN(summary.totalSpent) + '</span>'
-                : '<span style="font-size:.74rem;color:var(--text-3);">No orders yet</span>';
-              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">' +
-                '<div style="display:flex;flex-direction:column;gap:4px;">' +
-                  '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong></div>' +
-                  '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
-                  '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
-                  '<div style="font-size:.74rem;color:var(--text-2);">' + (c.hasAccount === false ? '🛒 Guest checkout \u2014 customer since ' : 'Member since ') + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
-                  '<div style="margin-top:6px;">' + orderLine + '</div>' +
-                '</div>' +
-                '<div style="text-align:right;">' +
-                  '<button type="button" class="btn-cta-ghost" data-customer-index="' + i + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;cursor:pointer;background:none;">View orders →</button>' +
-                '</div>' +
-              '</div>' +
-              '<div data-customer-detail="' + i + '" style="display:none;padding:10px 0 16px;border-bottom:1px solid var(--border);"></div>';
-            });
-            listEl.innerHTML = html;
-            var detailBtns = listEl.querySelectorAll('[data-customer-index]');
-            for (var d = 0; d < detailBtns.length; d++) {
-              detailBtns[d].addEventListener('click', function() {
-                toggleCustomerDetail(parseInt(this.getAttribute('data-customer-index'), 10), this);
-              });
-            }
+            renderCustomerList(list, totalCount, withOrders, null);
           })
           .catch(function(err) {
-            if (countEl) countEl.textContent = '';
-            if (!listEl) return;
             if (err && err.unauthorized) {
-              listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Your admin session is invalid or expired. Log in again to view customers.</div>';
-            } else {
-              listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Could not load customers.</div>';
+              if (countEl) countEl.textContent = '';
+              if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">Your admin session is invalid or expired. Log in again to view customers.</div>';
+              return;
             }
+            // Fallback: the directory endpoint failed — rebuild the list from
+            // the orders endpoint (the dashboard\u2019s own data source) so every
+            // ticket buyer still appears instead of showing an empty tab.
+            fetch('/api/admin/orders', { headers: { 'Authorization': 'Bearer ' + getToken() }, credentials: 'same-origin' })
+              .then(function(r) {
+                if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; }
+                if (!r.ok) throw new Error('fallback HTTP ' + r.status);
+                return r.json();
+              })
+              .then(function(d) {
+                var orders = (d && d.success && d.orders) || [];
+                var list = customersFromOrders(orders);
+                if (!list.length) throw err;
+                var withOrders = list.filter(function(c) { return c.summary && c.summary.totalOrders > 0; }).length;
+                renderCustomerList(list, list.length, withOrders, 'The full account directory could not be loaded (' + err.message + '). Showing ticket buyers from orders instead.');
+              })
+              .catch(function(fallbackErr) {
+                if (fallbackErr && fallbackErr.unauthorized) {
+                  showCustomersError('Your admin session is invalid or expired. Log in again to view customers.');
+                } else {
+                  showCustomersError('Could not load customers: ' + (err && err.message ? err.message : 'unknown error'));
+                }
+              });
           });
       };
 
@@ -3231,7 +3324,6 @@ fetch('/api/admin/events/notify', {
               '<span><strong>' + (data.totalVerifiedOrders || 0) + '</strong> verified</span>' +
               '<span><strong>' + (data.totalTickets || 0) + '</strong> tickets</span>' +
               '<span>Spent <strong>' + fmtN(data.totalSpent || 0) + '</strong></span>' +
-              (data.customer && data.customer.hasAccount === false ? '<span style="color:var(--text-3);">🛒 Guest checkout (no account)</span>' : '') +
               '</div>';
             if (!orders.length) {
               panel.innerHTML = totals + '<div style="font-size:.82rem;color:var(--text-3);">No orders for this customer yet.</div>';
@@ -3251,7 +3343,7 @@ fetch('/api/admin/events/notify', {
                 '<div style="font-size:.76rem;color:var(--text-3);margin-top:4px;">' +
                   'Order <span style="font-family:monospace;">' + esc(o.orderId || '—') + '</span>' +
                   ' · ' + (parseInt(o.qty, 10) || 0) + ' ticket' + ((parseInt(o.qty, 10) || 0) !== 1 ? 's' : '') +
-                  ' · ' + fmtN(o.amount || 0) +
+                  ' · ₦' + fmtN(o.amount || 0) +
                   (o.eventDate ? ' · ' + esc(o.eventDate) : '') +
                   (o.eventVenue ? ' · ' + esc(o.eventVenue) : '') +
                 '</div>' +

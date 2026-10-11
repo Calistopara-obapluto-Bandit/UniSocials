@@ -196,17 +196,6 @@ export default function Checkout() {
     return base;
   }
 
-  // A free event (every tier priced ₦0) resolves to a ₦0 total. The whole
-  // checkout still runs — buyer details, order creation, QR tickets, emails —
-  // it just skips Flutterwave because there is nothing to pay.
-  function isFreeCheckout() {
-    return !!checkoutData && computedTotal() <= 0;
-  }
-
-  function fmtTotal(n) {
-    return Number(n || 0) <= 0 ? 'Free' : '₦' + Number(n || 0).toLocaleString();
-  }
-
   async function applyReferralCode() {
     const input = document.getElementById('referralCodeInput');
     const msg = document.getElementById('referralMessage');
@@ -284,9 +273,11 @@ export default function Checkout() {
     );
     const unitPriceNode = document.getElementById('summaryUnitPrice');
     if (unitPriceNode) {
+      // Free events price out at ₦0 — say "FREE" instead of "₦0".
+      const payableLabel = payable > 0 ? '₦' + payable.toLocaleString() : 'FREE';
       unitPriceNode.innerHTML = (!referralApplied && original > payable && payable > 0)
-        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">✨ Bonus price</small>'
-        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">₦' + payable.toLocaleString() + '</strong>');
+        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong><small class="referral-price-note">✨ Bonus price</small>'
+        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong>');
     }
     renderCouponTotal();
   }
@@ -296,10 +287,12 @@ export default function Checkout() {
     const unitPriceNode = document.getElementById('summaryUnitPrice');
     if (unitPriceNode && referralApplied && checkoutData) {
       const original = Number(checkoutData.originalEventPrice || 0);
-      unitPriceNode.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">₦' + Number(checkoutData.eventPrice || 0).toLocaleString() + '</strong><small class="referral-price-note">🎁 Referral price</small>';
+      const refPrice = Number(checkoutData.eventPrice || 0);
+      unitPriceNode.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">' + (refPrice > 0 ? '₦' + refPrice.toLocaleString() : 'FREE') + '</strong><small class="referral-price-note">🎁 Referral price</small>';
     }
     const totalNodes = ['summaryTotal', 'placeOrderTotal', 'mobileBarTotal'].map(id => document.getElementById(id)).filter(Boolean);
-    totalNodes.forEach(node => { if (node) node.textContent = fmtTotal(total); });
+    const totalLabel = total > 0 ? '₦' + total.toLocaleString() : 'FREE';
+    totalNodes.forEach(node => { if (node) node.textContent = totalLabel; });
 
     const box = document.getElementById('couponSummary');
     if (box && appliedCoupon) {
@@ -487,6 +480,12 @@ export default function Checkout() {
   }
 
   async function placeOrder(paymentMethod) {
+    // A free event (₦0 total) never opens Flutterwave: the server recognises
+    // the ₦0 server-priced order, issues the tickets immediately, and we jump
+    // straight to the thank-you page with the ticket codes.
+    const total = computedTotal();
+    const isFreeOrder = !(total > 0);
+    const method = isFreeOrder ? 'free' : (paymentMethod === 'banktransfer' ? 'banktransfer' : 'card');
     const selectedEventId = checkoutData && (checkoutData.eventId || checkoutData.eventValue);
     if (!checkoutData || !selectedEventId || !checkoutData.buyerName || !checkoutData.buyerEmail || !checkoutData.buyerPhone) {
       alert('Please return to the ticket details page and complete your name, email, and phone number before paying.');
@@ -500,37 +499,30 @@ export default function Checkout() {
     const name = checkoutData.buyerName;
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
-    const total = computedTotal();
-    const isFree = total <= 0;
 
-    if (isFree) {
-      // FREE EVENT — no Flutterwave, no payment method selection. The server
-      // issues the QR tickets immediately because the order total is ₦0.
-      const freeBtn = document.getElementById('freeTicketBtn');
-      if (freeBtn) { freeBtn.disabled = true; freeBtn.textContent = '🎉 Issuing your free ticket…'; }
-      createOrderViaApi(orderId, 0, 'free', function (success, ticketCodes, serverAmount, errorMessage) {
-        if (!success) {
-          alert(errorMessage || 'Could not create your order. Please try again.');
-          if (freeBtn) { freeBtn.disabled = false; freeBtn.textContent = '🎉 Get My Free Ticket'; }
-          return;
-        }
-        try { sessionStorage.setItem('checkoutData', JSON.stringify(Object.assign({}, checkoutData, { orderId: orderId }))); } catch (e) {}
-        window.location.href = '/thank-you?orderId=' + encodeURIComponent(orderId);
-      });
-      return;
+    const selectedBtn = isFreeOrder
+      ? document.getElementById('freeTicketBtn')
+      : (method === 'banktransfer'
+        ? document.getElementById('bankTransferBtn')
+        : document.getElementById('cardPaymentBtn'));
+    if (selectedBtn) {
+      selectedBtn.disabled = true;
+      selectedBtn.textContent = isFreeOrder ? '🎟️ Generating your ticket…' : 'Opening Flutterwave…';
     }
-
-    const method = paymentMethod === 'banktransfer' ? 'banktransfer' : 'card';
-
-    const selectedBtn = method === 'banktransfer'
-      ? document.getElementById('bankTransferBtn')
-      : document.getElementById('cardPaymentBtn');
-    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = 'Opening Flutterwave…'; }
 
     createOrderViaApi(orderId, total, method, function (success, ticketCodes, serverAmount, errorMessage) {
       if (!success) {
-        alert((errorMessage || 'Could not create your order. Please try again.') + '\n\nPayment method: ' + (method === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card'));
-        if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = method === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'; }
+        const methodNote = isFreeOrder ? '' : '\n\nPayment method: ' + (method === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card');
+        alert((errorMessage || 'Could not create your order. Please try again.') + methodNote);
+        if (selectedBtn) {
+          selectedBtn.disabled = false;
+          selectedBtn.textContent = isFreeOrder ? '🎟️ Generate my free ticket' : (method === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout');
+        }
+        return;
+      }
+      if (isFreeOrder) {
+        // Tickets were issued in the same request — no gateway to run.
+        window.location.href = '/thank-you?orderId=' + encodeURIComponent(orderId);
         return;
       }
       const paymentAmount = serverAmount > 0 ? serverAmount : total;
@@ -603,6 +595,10 @@ export default function Checkout() {
   }
 
   // ---- Normal checkout (we have checkoutData) ----
+  // A ₦0 total means a free event: no payment methods, just one action that
+  // generates the ticket server-side and emails it to the buyer.
+  const freeOrder = !(computedTotal() > 0);
+
   return (
     <>
       <Nav />
@@ -674,39 +670,39 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* PAYMENT METHOD (or FREE EVENT notice) */}
-            {isFreeCheckout() ? (
-              <div className="checkout-card reveal reveal-delay-1">
-                <h3 className="checkout-card-title">🎟️ Free Event — no payment needed</h3>
-                <div id="paymentNote" className="payment-note">
-                  🎉 This event is <strong>free</strong>. Your QR tickets are issued the moment you claim them — same tickets, same check-in, nothing to pay.
-                </div>
+            {/* PAYMENT METHOD — free events never see card/bank transfer */}
+            {freeOrder ? (
+            <div className="checkout-card reveal reveal-delay-1">
+              <h3 className="checkout-card-title">🎟️ Free Ticket</h3>
+              <div id="paymentNote" className="payment-note">
+                This ticket is free — no card or bank transfer needed. Generate your ticket and we&apos;ll email it to you automatically.
               </div>
+            </div>
             ) : (
-              <div className="checkout-card reveal reveal-delay-1">
-                <h3 className="checkout-card-title">💳 Payment Method</h3>
-                <div className="payment-methods">
-                  <div className="payment-option selected">
-                    <div className="payment-option-content">
-                      <span className="payment-option-icon">
-                        <svg className="flw-logo" viewBox="0 0 64 64" aria-hidden="true">
-                          <path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z" />
-                          <path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z" />
-                          <path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z" />
-                          <path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z" />
-                        </svg>
-                      </span>
-                      <div>
-                        <strong>Flutterwave</strong>
-                        <small>Pay securely with card, bank transfer, USSD &amp; mobile money</small>
-                      </div>
+            <div className="checkout-card reveal reveal-delay-1">
+              <h3 className="checkout-card-title">💳 Payment Method</h3>
+              <div className="payment-methods">
+                <div className="payment-option selected">
+                  <div className="payment-option-content">
+                    <span className="payment-option-icon">
+                      <svg className="flw-logo" viewBox="0 0 64 64" aria-hidden="true">
+                        <path fill="#F5A623" d="M48.4 6.3 30.4 37.2h8.4l18-30.9z" />
+                        <path fill="#123B79" d="M14.5 55.9l16.6-28.8 4.2-7.3-9.1.1z" />
+                        <path fill="#F5A623" d="M39 33.6h8.4L30.4 64h-9.7z" />
+                        <path fill="#123B79" d="M14.6 55.9 39 33.6h-8.4L5.2 61.9c4.5 2.1 9.4 2.6 9.4 2.6s4.6.1 8.3-1.3L8.3 53.8z" />
+                      </svg>
+                    </span>
+                    <div>
+                      <strong>Flutterwave</strong>
+                      <small>Pay securely with card, bank transfer, USSD &amp; mobile money</small>
                     </div>
                   </div>
                 </div>
-                <div id="paymentNote" className="payment-note">
-                  🔒 You&apos;ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.
-                </div>
               </div>
+              <div id="paymentNote" className="payment-note">
+                🔒 You&apos;ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.
+              </div>
+            </div>
             )}
 
             {/* REFERRAL CODE */}
@@ -786,21 +782,29 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* PAYMENT ACTIONS (or single free-ticket claim) */}
+            {/* PAYMENT ACTIONS — one button for free events, methods only when paid */}
             <div className="checkout-card reveal reveal-delay-3">
-              <h3 className="checkout-card-title">{isFreeCheckout() ? 'Claim your free ticket' : 'Choose how you want to pay'}</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {isFreeCheckout() ? (
-                  <button
-                    type="button"
-                    className="btn-submit btn-submit-lg"
-                    id="freeTicketBtn"
-                    onClick={() => placeOrder('free')}
-                  >
-                    🎉 Get My Free Ticket
-                  </button>
-                ) : (
-                  <>
+              {freeOrder ? (
+                <>
+                  <h3 className="checkout-card-title">Get your free ticket</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="freeTicketBtn"
+                      onClick={() => placeOrder('free')}
+                    >
+                      🎟️ Generate my free ticket
+                    </button>
+                  </div>
+                  <p className="summary-note">
+                    No payment is required. Your ticket is generated instantly and sent to your email address.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="checkout-card-title">Choose how you want to pay</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <button
                       type="button"
                       className="btn-submit btn-submit-lg"
@@ -817,14 +821,12 @@ export default function Checkout() {
                     >
                       🏦 Click to proceed via bank transfer
                     </button>
-                  </>
-                )}
-              </div>
-              <p className="summary-note">
-                {isFreeCheckout()
-                  ? 'No card or bank details needed. Your QR tickets are issued instantly and emailed to you, and they work at the gate exactly like paid tickets.'
-                  : <>After you choose a method, Flutterwave opens its secure payment screen with only that payment method. By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.</>}
-              </p>
+                  </div>
+                  <p className="summary-note">
+                    After you choose a method, Flutterwave opens its secure payment screen with only that payment method. By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -839,9 +841,9 @@ export default function Checkout() {
         <button
           className="btn-submit mobile-checkout-btn"
           id="mobilePlaceOrderBtn"
-          onClick={() => placeOrder(isFreeCheckout() ? 'free' : undefined)}
+          onClick={() => placeOrder(freeOrder ? 'free' : undefined)}
         >
-          {isFreeCheckout() ? '🎉 Get Free Ticket' : '🛒 Place Order'}
+          {freeOrder ? '🎟️ Get Free Ticket' : '🛒 Place Order'}
         </button>
       </div>
 

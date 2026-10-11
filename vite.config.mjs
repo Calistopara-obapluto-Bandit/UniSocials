@@ -17,13 +17,16 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
-    // Predictable names keep server.js's asset routing simple and readable in
-    // logs when something 404s.
+    // Content-hashed names: /assets/* is served with a one-year immutable
+    // cache, so a fixed name made every returning browser keep the OLD bundle
+    // after a deploy (stale checkout/thank-you UI). index.html is no-cache and
+    // picks up the new hashed name each deploy; server.js serves whatever
+    // files live under dist/assets, so hashed names route identically.
     rollupOptions: {
       output: {
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name][extname]'
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]'
       }
     },
     minify: 'terser',

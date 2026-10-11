@@ -138,8 +138,16 @@
           </div>
         </div>
 
+        <!-- FREE TICKET NOTICE (shown instead of payment methods for ₦0 orders) -->
+        <div class="checkout-card reveal reveal-delay-1" id="freeTicketCard" style="display:none;">
+          <h3 class="checkout-card-title">🎟️ Free Ticket</h3>
+          <div class="payment-note">
+            This ticket is free — no card or bank transfer needed. Generate your ticket and we'll email it to you automatically.
+          </div>
+        </div>
+
         <!-- PAYMENT METHOD (below summary) -->
-        <div class="checkout-card reveal reveal-delay-1">
+        <div class="checkout-card reveal reveal-delay-1" id="paymentMethodCard">
           <h3 class="checkout-card-title">💳 Payment Method</h3>
           <div class="payment-methods">
             <div class="payment-option selected">
@@ -191,14 +199,21 @@
           </div>
         </div>
 
-        <!-- PAYMENT ACTIONS -->
-        <div class="checkout-card reveal reveal-delay-3">
-          <h3 class="checkout-card-title" id="paymentActionsTitle">Choose how you want to pay</h3>
+        <!-- FREE TICKET ACTION (shown instead of payment methods for ₦0 orders) -->
+        <div class="checkout-card reveal reveal-delay-3" id="freeTicketActionsCard" style="display:none;">
+          <h3 class="checkout-card-title">Get your free ticket</h3>
           <div style="display:flex;flex-direction:column;gap:12px;">
-            <!-- Shown instead of the two payment buttons when the event is free. -->
-            <button type="button" class="btn-submit btn-submit-lg" onclick="placeOrder('free')" id="freeTicketBtn" style="display:none;">
-              🎉 Get My Free Ticket
+            <button type="button" class="btn-submit btn-submit-lg" onclick="placeOrder('free')" id="freeTicketBtn">
+              🎟️ Generate my free ticket
             </button>
+          </div>
+          <p class="summary-note">No payment is required. Your ticket is generated instantly and sent to your email address.</p>
+        </div>
+
+        <!-- PAYMENT ACTIONS -->
+        <div class="checkout-card reveal reveal-delay-3" id="paymentActionsCard">
+          <h3 class="checkout-card-title">Choose how you want to pay</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
             <button type="button" class="btn-submit btn-submit-lg" onclick="placeOrder('card')" id="cardPaymentBtn">
               💳 Click to proceed to checkout
             </button>
@@ -292,7 +307,7 @@
   </footer>
 
   <script src="config.js"></script>
-  <script src="templatemo-622-clearwave.js?v=flutterwave-card-banktransfer-20260927-v2"></script>
+  <script src="templatemo-622-clearwave.js?v=free-ticket-generate-20261011-v3"></script>
 </body>
 </html>
 
