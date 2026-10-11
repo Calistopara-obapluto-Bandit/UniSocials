@@ -12,6 +12,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/templatemo-622-clearwave.css" />
+  <!-- Runtime settings (Flutterwave public key, redirect URL, WhatsApp number)
+       published by the server. The legacy .html pages all include this tag; the
+       React build is a separate document, so without it window.SITE_CONFIG is
+       undefined here and the checkout reports "Flutterwave is not configured".
+       Loaded synchronously (no type="module", so not deferred) so it is set
+       before the React bundle executes. -->
+  <script src="/config.js"></script>
 </head>
 <body>
   <div id="root"></div>
