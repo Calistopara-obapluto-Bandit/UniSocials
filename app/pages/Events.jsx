@@ -206,12 +206,11 @@ export default function Events() {
   const [categories, setCategories] = useState([]);
   const [monthSummaryEvents, setMonthSummaryEvents] = useState(null);
 
+  // gridRef is READ-ONLY (the reveal observer queries it). Never write
+  // innerHTML into React-rendered nodes: React's reconciliation then tries to
+  // remove children that are already gone and throws NotFoundError, blanking
+  // the page. All grid/count content below is driven by state instead.
   const gridRef = useRef(null);
-  const countRef = useRef(null);
-
-  const setCount = useCallback((text) => {
-    if (countRef.current) countRef.current.innerHTML = text;
-  }, []);
 
   const populateUniversityFilter = useCallback((list) => {
     const seen = new Set();
@@ -229,10 +228,11 @@ export default function Events() {
 
   const rebuildCategoryFilter = useCallback((uni) => {
     const cats = (uni && uni.categories && uni.categories.length) ? uni.categories : [];
-    const html = '<option value="all">All Categories</option>' + cats.map(c =>
-      '<option value="' + esc(c) + '">' + esc(c) + '</option>'
-    ).join('');
-    return html;
+    // Return the ARRAY for the `categories` state — the JSX renders the
+    // <option>s (including "All Categories") itself. Returning an HTML string
+    // here made `categories.map(...)` throw TypeError as soon as a campus was
+    // chosen or restored, crashing the whole page.
+    return cats.map(c => String(c).trim()).filter(Boolean);
   }, []);
 
   const universityKeySet = useCallback((uni) => {
@@ -260,8 +260,6 @@ export default function Events() {
     const url = '/api/events' + ((uni && (uni.slug || uni.id || uni.name)) ? '?university=' + encodeURIComponent(uni.name || uni.slug || uni.id) : '');
     setLoading(true);
     setError(null);
-    if (countRef.current) countRef.current.innerHTML = 'Loading events…';
-    if (gridRef.current) gridRef.current.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><p style="color:var(--text-3);">Loading events…</p></div>';
 
     fetch(url, { cache: 'no-store' })
       .then(r => r.json())
@@ -275,15 +273,10 @@ export default function Events() {
         });
         setEvents(filtered);
         setMonthSummaryEvents(filtered);
-        if (!filtered.length) {
-          if (gridRef.current) gridRef.current.innerHTML =
-            '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">🏘️</span><p style="color:var(--text-3);">No events available for this campus yet. Check back soon!</p></div>';
-          setCount('Showing <strong>0</strong> events');
-        }
+        // Empty and error states are rendered by the JSX from this state — no
+        // direct innerHTML writes into the React-managed grid.
       })
       .catch(() => {
-        if (gridRef.current) gridRef.current.innerHTML =
-          '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;"><span style="font-size:2.8rem;display:block;margin-bottom:12px;">😔</span><p style="color:var(--text-3);">Could not load events. Please refresh the page.</p></div>';
         setError('Could not load events. Please refresh the page.');
       })
       .finally(() => setLoading(false));
@@ -321,7 +314,9 @@ export default function Events() {
     if (!selectEl) return;
 
     const result = populateUniversityFilter(universities);
-    selectEl.innerHTML = result.html;
+    // Do NOT write selectEl.innerHTML here: React renders the <option>s from
+    // the universities state, and stomping them makes the next diff throw
+    // NotFoundError (crashing the page as soon as a campus is selected).
     const findSelected = () => result.list.find(u => String(u.slug || u.id) === String(selectEl.value)) || null;
 
     const selectUniversity = (selected) => {
@@ -378,7 +373,10 @@ export default function Events() {
   }, [universities, userSelectedUniversity, loadEvents, populateUniversityFilter, rebuildCategoryFilter]);
 
   useEffect(() => {
-    if (!universities) return;
+    // Fetch EXACTLY ONCE, while still unloaded. The old guard was inverted
+    // (`if (!universities) return;`) — with a null initial state and [] deps it
+    // returned immediately, never fetched, and the page stayed on "Loading…".
+    if (universities) return;
     fetch('/api/universities', { cache: 'no-store' })
       .then(r => r.json())
       .then(data => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Nav from '../components/Nav.jsx';
 import Footer from '../components/Footer.jsx';
 import { esc, fmtN, fmtDate } from '../lib/utils.jsx';
+import { api } from '../lib/api.js';
 
 /*
  * React thank-you page.
