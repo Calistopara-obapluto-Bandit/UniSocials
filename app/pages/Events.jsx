@@ -513,7 +513,9 @@ export default function Events() {
       <section className="events-section">
         <div className="container">
           <div className="events-count reveal">
-            {loading ? 'Loading events…' : error ? error : `Showing <strong>${filteredEvents.length}</strong> event${filteredEvents.length !== 1 ? 's' : ''}`}
+            {loading ? 'Loading events…' : error ? error : (
+              <>Showing <strong>{filteredEvents.length}</strong> event{filteredEvents.length !== 1 ? 's' : ''}</>
+            )}
           </div>
           {monthSummary(monthSummaryEvents)}
           <div className="events-grid" ref={gridRef}>
