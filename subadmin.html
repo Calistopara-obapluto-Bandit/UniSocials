@@ -606,6 +606,7 @@
           <button class="admin-tab active" data-tab="checkin">🎫 Check-in</button>
           <button class="admin-tab" data-tab="overview">📊 My Check-ins</button>
           <button class="admin-tab" data-tab="sales">💰 Sales</button>
+          <button class="admin-tab" data-tab="customers">👥 Customers</button>
           <button class="admin-tab" data-tab="payouts">🏦 Payouts</button>
           <button class="admin-tab" data-tab="referral">📈 Referral Links</button>
           <button class="admin-tab" data-tab="events">🎤 Events</button>
@@ -760,6 +761,23 @@
 
           <div class="admin-orders" id="salesOrdersList">
             <div class="admin-empty"><span>🧾</span><p>Loading sales…</p></div>
+          </div>
+        </div>
+
+        <!-- ── CUSTOMER ACCOUNTS ── -->
+        <div class="admin-panel" id="panel-customers">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>👥 Customers</h1>
+              <p>Registered buyers and everyone who has bought tickets. Passwords are never shown.</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="admin-refresh-btn" onclick="loadCustomers()">↻ Refresh</button>
+              <span style="font-size:.78rem;color:var(--text-3);" id="customerCount">Loading…</span>
+            </div>
+          </div>
+          <div class="admin-scan-panel">
+            <div id="customersList" style="margin-top:14px;"></div>
           </div>
         </div>
 
@@ -2355,8 +2373,236 @@ resultBox.className = 'admin-scan-result show';
             if (tabName === 'staff') {
               loadStaffAccounts();
             }
+            if (tabName === 'customers') {
+              loadCustomers();
+            }
           });
         });
+
+      // ── CUSTOMERS TAB ──
+      // Emails of the customers currently listed, indexed to match the rendered
+      // rows, so the "View orders" expander can fetch the right detail record.
+      var customerEmails = [];
+
+      // Fallback builder: derive the directory from the sales/orders endpoint
+      // when the account directory endpoint fails, so buyers never disappear.
+      function customersFromOrders(orders) {
+        var byEmail = {};
+        (orders || []).forEach(function(o) {
+          if (!o || !o.buyerEmail) return;
+          var key = String(o.buyerEmail).toLowerCase();
+          if (!byEmail[key]) {
+            byEmail[key] = {
+              guest: true,
+              account: { id: null, name: '', email: key, phone: '', role: 'guest', createdAt: null, archived: false },
+              summary: { totalOrders: 0, totalVerifiedOrders: 0, totalTickets: 0, totalSpent: 0, lastOrderAt: null }
+            };
+          }
+          var entry = byEmail[key], s = entry.summary;
+          s.totalOrders += 1;
+          if (String(o.status || '').toLowerCase() === 'verified') s.totalVerifiedOrders += 1;
+          s.totalTickets += Math.max(0, parseInt(o.qty, 10) || 0);
+          s.totalSpent += Math.max(0, Number(o.amount) || 0);
+          var orderAt = o.verifiedAt || o.createdAt || null;
+          if (orderAt && (!s.lastOrderAt || orderAt > s.lastOrderAt)) {
+            s.lastOrderAt = orderAt;
+            if (o.buyerName && !entry.account.name) entry.account.name = String(o.buyerName).trim();
+            if (o.buyerPhone && !entry.account.phone) entry.account.phone = String(o.buyerPhone).trim();
+          }
+          if (o.createdAt && (!entry.account.createdAt || o.createdAt < entry.account.createdAt)) entry.account.createdAt = o.createdAt;
+        });
+        return Object.keys(byEmail).map(function(k) {
+          var e = byEmail[k];
+          if (!e.account.name) e.account.name = e.account.email.split('@')[0] || '\u2014';
+          return e;
+        }).sort(function(a, b) {
+          var byA = a.summary.lastOrderAt || a.account.createdAt || '';
+          var byB = b.summary.lastOrderAt || b.account.createdAt || '';
+          return String(byB).localeCompare(String(byA));
+        });
+      }
+
+      function showCustomersError(message) {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = '';
+        var listEl = document.getElementById('customersList');
+        if (!listEl) return;
+        listEl.innerHTML = '<div style="text-align:center;padding:18px;color:#B71C1C;font-size:.85rem;">' + esc(message) + '</div>';
+      }
+
+      function renderCustomerList(list, totalCount, withOrders, notice) {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = totalCount + ' customer' + (totalCount !== 1 ? 's' : '') + ' \u00B7 ' + withOrders + ' with orders';
+        var listEl = document.getElementById('customersList');
+        if (!listEl) return;
+        var noticeHtml = notice
+          ? '<div style="text-align:center;padding:8px 0;color:#B7791F;font-size:.78rem;">' + esc(notice) + '</div>'
+          : '';
+        if (!list.length) { listEl.innerHTML = noticeHtml + '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">No customer accounts yet.</div>'; return; }
+        var html = '';
+        customerEmails = [];
+        list.forEach(function(c, i) {
+          var acct = c && c.account ? c.account : null;
+          var email = acct && acct.email ? acct.email : '\u2014';
+          customerEmails[i] = String(email || '');
+          var name = acct && acct.name ? acct.name : (acct && acct.email ? acct.email.split('@')[0] : '\u2014');
+          var summary = c && c.summary ? c.summary : null;
+          var isGuest = !!(c && c.guest);
+          var orderLine = summary && summary.totalOrders > 0
+            ? '<span style="font-size:.74rem;color:var(--accent);font-weight:600;">' + summary.totalOrders + ' order' + (summary.totalOrders !== 1 ? 's' : '') + ' \u00B7 ' + fmtN(summary.totalSpent) + '</span>'
+            : '<span style="font-size:.74rem;color:var(--text-3);">No orders yet</span>';
+          html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--border);">' +
+            '<div style="display:flex;flex-direction:column;gap:4px;">' +
+              '<div style="display:flex;align-items:center;gap:8px;"><strong style="font-size:.95rem;">' + esc(name) + '</strong>' + (isGuest ? '<span style="font-size:.68rem;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;">Guest buyer</span>' : '') + '</div>' +
+              '<div style="font-size:.82rem;color:var(--text-3);">' + esc(email) + '</div>' +
+              '<div style="font-size:.78rem;color:var(--text-3);">' + (acct && acct.phone ? esc(acct.phone) : 'No phone') + '</div>' +
+              '<div style="font-size:.74rem;color:var(--text-2);">' + (isGuest ? 'First ticket purchase ' : 'Member since ') + fmtDate(acct && acct.createdAt ? acct.createdAt : null) + '</div>' +
+              '<div style="margin-top:6px;">' + orderLine + '</div>' +
+            '</div>' +
+            '<div style="text-align:right;">' +
+              '<button type="button" class="btn-cta-ghost" data-customer-index="' + i + '" style="font-size:.8rem;color:var(--accent);border:none;padding:6px 10px;cursor:pointer;background:none;">View orders \u2192</button>' +
+            '</div>' +
+          '</div>' +
+          '<div data-customer-detail="' + i + '" style="display:none;padding:10px 0 16px;border-bottom:1px solid var(--border);"></div>';
+        });
+        listEl.innerHTML = noticeHtml + html;
+        var detailBtns = listEl.querySelectorAll('[data-customer-index]');
+        for (var d = 0; d < detailBtns.length; d++) {
+          detailBtns[d].addEventListener('click', function() {
+            toggleCustomerDetail(parseInt(this.getAttribute('data-customer-index'), 10), this);
+          });
+        }
+      }
+
+      window.loadCustomers = function() {
+        var countEl = document.getElementById('customerCount');
+        if (countEl) countEl.textContent = 'Loading\u2026';
+        var listEl = document.getElementById('customersList');
+        if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:18px;color:var(--text-3);font-size:.85rem;">Loading customers\u2026</div>';
+        fetch('/api/admin/customers', { headers: authHeaders(), credentials: 'same-origin' })
+          .then(function(r) {
+            if (r.status === 401) {
+              var err = new Error('unauthorized'); err.unauthorized = true; throw err;
+            }
+            return r.text().then(function(txt) {
+              var d = null;
+              try { d = JSON.parse(txt); } catch (e) { d = null; }
+              if (!r.ok || !d || d.success !== true) {
+                var msg = (d && d.error) ? d.error : ('Server returned HTTP ' + r.status);
+                var err = new Error(msg); err.fromServer = true; throw err;
+              }
+              return d;
+            });
+          })
+          .then(function(data) {
+            var list = (data && data.customers) || [];
+            var totalCount = data && data.totalCount != null ? data.totalCount : list.length;
+            var withOrders = data && data.customersWithOrders != null ? data.customersWithOrders : 0;
+            renderCustomerList(list, totalCount, withOrders, null);
+          })
+          .catch(function(err) {
+            if (err && err.unauthorized) {
+              showCustomersError('Your session is invalid or expired. Log in again to view customers.');
+              return;
+            }
+            // Fallback: rebuild the list from the orders endpoint so every
+            // ticket buyer still appears instead of showing an empty tab.
+            fetch('/api/subadmin/orders', { headers: authHeaders(), credentials: 'same-origin' })
+              .then(function(r) {
+                if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; }
+                if (!r.ok) throw new Error('fallback HTTP ' + r.status);
+                return r.json();
+              })
+              .then(function(d) {
+                var orders = (d && d.success && d.orders) || [];
+                var list = customersFromOrders(orders);
+                if (!list.length) throw err;
+                var withOrders = list.filter(function(c) { return c.summary && c.summary.totalOrders > 0; }).length;
+                renderCustomerList(list, list.length, withOrders, 'The full account directory could not be loaded (' + err.message + '). Showing ticket buyers from orders instead.');
+              })
+              .catch(function(fallbackErr) {
+                if (fallbackErr && fallbackErr.unauthorized) {
+                  showCustomersError('Your session is invalid or expired. Log in again to view customers.');
+                } else {
+                  showCustomersError('Could not load customers: ' + (err && err.message ? err.message : 'unknown error'));
+                }
+              });
+          });
+      };
+
+      // Expand a customer's order history inline in the Customers tab.
+      window.toggleCustomerDetail = function(index, btn) {
+        var email = customerEmails && customerEmails[index];
+        var panel = document.querySelector('[data-customer-detail="' + index + '"]');
+        if (!email || !panel) return;
+
+        if (panel.style.display !== 'none' && panel.getAttribute('data-loaded') === '1') {
+          panel.style.display = 'none';
+          if (btn) btn.textContent = 'View orders \u2192';
+          return;
+        }
+
+        if (btn) btn.textContent = 'Loading\u2026';
+        panel.style.display = 'block';
+        panel.innerHTML = '<div style="font-size:.82rem;color:var(--text-3);padding:6px 0;">Loading orders\u2026</div>';
+
+        fetch('/api/admin/customers/' + encodeURIComponent(email), { headers: authHeaders(), credentials: 'same-origin' })
+          .then(function(r) {
+            if (r.status === 401) { var e = new Error('unauthorized'); e.unauthorized = true; throw e; }
+            return r.json();
+          })
+          .then(function(data) {
+            if (!data || !data.success) {
+              panel.innerHTML = '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">' + esc((data && data.error) || 'Could not load this customer.') + '</div>';
+              if (btn) btn.textContent = 'View orders \u2192';
+              return;
+            }
+            var orders = data.orders || [];
+            var totals = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--text-2);margin-bottom:10px;">' +
+              '<span><strong>' + (data.totalOrders || 0) + '</strong> order' + ((data.totalOrders || 0) !== 1 ? 's' : '') + '</span>' +
+              '<span><strong>' + (data.totalVerifiedOrders || 0) + '</strong> verified</span>' +
+              '<span><strong>' + (data.totalTickets || 0) + '</strong> tickets</span>' +
+              '<span>Spent <strong>' + fmtN(data.totalSpent || 0) + '</strong></span>' +
+              '</div>';
+            if (!orders.length) {
+              panel.innerHTML = totals + '<div style="font-size:.82rem;color:var(--text-3);">No orders for this customer yet.</div>';
+              if (btn) btn.textContent = 'Hide orders';
+              panel.setAttribute('data-loaded', '1');
+              return;
+            }
+            var rows = orders.map(function(o) {
+              var status = String(o.status || '').toLowerCase();
+              var statusColor = status === 'verified' ? 'var(--accent)' : (status === 'pending' ? '#B7791F' : 'var(--text-3)');
+              var tickets = Array.isArray(o.ticketCodes) ? o.ticketCodes : [];
+              return '<div style="padding:10px 0;border-top:1px solid var(--border);">' +
+                '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+                  '<strong style="font-size:.85rem;">' + esc(o.eventName || 'Event') + '</strong>' +
+                  '<span style="font-size:.78rem;color:' + statusColor + ';font-weight:600;text-transform:capitalize;">' + esc(o.status || 'unknown') + '</span>' +
+                '</div>' +
+                '<div style="font-size:.76rem;color:var(--text-3);margin-top:4px;">' +
+                  'Order <span style="font-family:monospace;">' + esc(o.orderId || '\u2014') + '</span>' +
+                  ' \u00B7 ' + (parseInt(o.qty, 10) || 0) + ' ticket' + ((parseInt(o.qty, 10) || 0) !== 1 ? 's' : '') +
+                  ' \u00B7 ' + fmtN(o.amount || 0) +
+                  (o.eventDate ? ' \u00B7 ' + esc(o.eventDate) : '') +
+                  (o.eventVenue ? ' \u00B7 ' + esc(o.eventVenue) : '') +
+                '</div>' +
+                (o.buyerPhone ? '<div style="font-size:.74rem;color:var(--text-3);margin-top:2px;">Phone: ' + esc(o.buyerPhone) + '</div>' : '') +
+                (tickets.length ? '<div style="font-size:.74rem;color:var(--text-2);margin-top:4px;">Tickets: ' + tickets.map(function(t) {
+                  return '<span style="font-family:monospace;">' + esc(t && t.code ? t.code : t) + '</span>' + (t && t.used ? ' <span style="color:#B7791F;">(used)</span>' : '');
+                }).join(', ') + '</div>' : '') +
+                '</div>';
+            }).join('');
+            panel.innerHTML = totals + rows;
+            if (btn) btn.textContent = 'Hide orders';
+            panel.setAttribute('data-loaded', '1');
+          })
+          .catch(function(err) {
+            panel.innerHTML = err && err.unauthorized
+              ? '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">Your session is invalid or expired. Log in again.</div>'
+              : '<div style="font-size:.82rem;color:#B71C1C;padding:6px 0;">Could not load orders. Check your connection and try again.</div>';
+            if (btn) btn.textContent = 'View orders \u2192';
+          });
+      };
 
       // ── Small screens: the tab strip collapses into a styled menu ──
       // The menu mirrors the tab buttons, so choosing an entry runs exactly the

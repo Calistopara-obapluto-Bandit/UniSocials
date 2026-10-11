@@ -18,8 +18,11 @@ export default function App() {
       <Route path="/lookup" element={<Lookup />} />
       <Route path="/my-tickets" element={<MyTickets />} />
       <Route path="/checkout" element={<Checkout />} />
+      <Route path="/checkout.html" element={<Checkout />} />
       <Route path="/thank-you" element={<ThankYou />} />
+      <Route path="/thank-you.html" element={<ThankYou />} />
       <Route path="/events" element={<Events />} />
+      <Route path="/events.html" element={<Events />} />
       <Route path="*" element={<Navigate to="/lookup" replace />} />
     </Routes>
   );

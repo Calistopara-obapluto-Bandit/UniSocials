@@ -5249,7 +5249,8 @@ codes[idx] = entry;
     // context, signup date and recent order activity. Passwords and one-time secrets
     // are never returned, even for internal lookups.
     if (pathname === '/api/admin/customers' && req.method === 'GET') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const customersAuth = await isAdminOrSubadmin(req);
+      if (!customersAuth || !['admin','subadmin'].includes(customersAuth.role)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       // The account read must never sink the whole directory: if it fails, the
       // order-derived buyers below still give the admin every ticket purchaser.
       let users = [];
@@ -5349,7 +5350,8 @@ codes[idx] = entry;
 
     // ── Admin: detailed customer record by email, with their order history ──
     if (pathname.startsWith('/api/admin/customers/') && req.method === 'GET') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const customerDetailAuth = await isAdminOrSubadmin(req);
+      if (!customerDetailAuth || !['admin','subadmin'].includes(customerDetailAuth.role)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
       // The browser sends this email percent-encoded (e.g. ada%40example.com).
       // url.pathname keeps the encoding, so decode before matching the account.
       let rawEmail = String(url.pathname.slice('/api/admin/customers/'.length) || '').trim();
