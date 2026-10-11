@@ -744,11 +744,13 @@ async function writeUsers(users) {
 }
 async function findUserByEmail(email) {
   const users = await readUsers();
-  return users.find(u => u.email.toLowerCase() === String(email).toLowerCase()) || null;
+  // Guard malformed rows: one legacy record without an email must not crash
+  // registration/login (this loop runs over EVERY account on each login).
+  return users.find(u => u && typeof u.email === 'string' && u.email.toLowerCase() === String(email).toLowerCase()) || null;
 }
 async function findUserById(id) {
   const users = await readUsers();
-  return users.find(u => u.id === id) || null;
+  return users.find(u => u && u.id === id) || null;
 }
 async function addUser(user) {
   if (usePg) {
@@ -5248,7 +5250,11 @@ codes[idx] = entry;
     // are never returned, even for internal lookups.
     if (pathname === '/api/admin/customers' && req.method === 'GET') {
       if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
-      const users = await readUsers();
+      // The account read must never sink the whole directory: if it fails, the
+      // order-derived buyers below still give the admin every ticket purchaser.
+      let users = [];
+      try { users = await readUsers(); }
+      catch (e) { console.warn('Customers: readUsers failed, falling back to order buyers only:', e.message); }
       const orders = await readOrders();
 
       // Build a compact per-account purchase summary so the admin list can show
@@ -5278,12 +5284,24 @@ codes[idx] = entry;
       });
 
       const accountEmails = new Set();
-      const customers = users
-        .map(user => ({
-          account: adminUser(user),
-          summary: orderSummaryByEmail.get(String(user.email || '').toLowerCase()) || null
-        }))
-        .filter(entry => entry.account !== null);
+      const customers = [];
+      users.forEach(user => {
+        // Per-row guard: one malformed record is skipped (and logged) instead
+        // of failing the request, which the dashboard rendered as an empty tab.
+        try {
+          const account = adminUser(user);
+          if (!account) return;
+          // A row without an email can never match orders or be opened in the
+          // detail view — skip it instead of showing a dead "—" entry.
+          if (!account.email) { console.warn('Customers: skipped account row without an email (id=' + (user && user.id) + ')'); return; }
+          customers.push({
+            account: account,
+            summary: orderSummaryByEmail.get(String(user.email || '').toLowerCase()) || null
+          });
+        } catch (e) {
+          console.warn('Customers: skipped unreadable account row:', e.message);
+        }
+      });
       customers.forEach(entry => {
         const key = String(entry.account.email || '').toLowerCase();
         if (key) accountEmails.add(key);
@@ -5339,7 +5357,11 @@ codes[idx] = entry;
       const email = rawEmail.toLowerCase();
       if (!email) return sendJson(res, 400, { success: false, error: 'Email is required' });
 
-      const user = await findUserByEmail(email);
+      // Account lookup failure must not hide a buyer who has orders: fall
+      // through to the guest record built from their order history below.
+      let user = null;
+      try { user = await findUserByEmail(email); }
+      catch (e) { console.warn('Customer detail: account lookup failed:', e.message); }
 
       const orders = await readOrders();
       const customerOrders = orders
@@ -6756,10 +6778,13 @@ process.on('uncaughtException', (err) => {
 function publicUser(user) {
   if (!user) return null;
   const role = String(user.role || '').trim();
+  // Legacy rows may lack name/email; one bad row must never crash the caller
+  // (login, /api/auth/me and the admin directory all build from these).
+  const safeEmail = String(user.email || '').trim();
   return {
     id: user.id,
-    name: user.name || user.email.split('@')[0] || '—',
-    email: user.email || '',
+    name: String(user.name || '') || safeEmail.split('@')[0] || '—',
+    email: safeEmail,
     // The real inbox on file, when there is one. Staff dashboards show it so an
     // account can be given its payout notification address.
     contactEmail: isInternalLoginEmail(user.contactEmail) ? '' : (user.contactEmail || '').trim().toLowerCase(),
@@ -6772,12 +6797,15 @@ function publicUser(user) {
 }
 
 function adminUser(user) {
-  if (!user) return null;
+  if (!user || typeof user !== 'object') return null;
   const role = String(user.role || '').trim();
+  // NEVER throw from here: a single malformed account row must not take the
+  // whole admin directory down (it surfaced as an "empty" Customers tab).
+  const safeEmail = String(user.email || '').trim();
   return {
     id: user.id,
-    name: user.name || user.email.split('@')[0] || '—',
-    email: user.email || '',
+    name: String(user.name || '') || safeEmail.split('@')[0] || '—',
+    email: safeEmail,
     phone: user.phone || '',
     role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(role) ? 'influencer_admin' : role || 'buyer',
     createdAt: user.createdAt || null,
@@ -6795,7 +6823,7 @@ function adminUser(user) {
     lastLoginAt: user.lastLoginAt || null,
     loginEmail: user.loginEmail || '',
     employeeNote: user.employeeNote || '',
-    createdBy: typeof user.createdBy === 'object' && user.createdBy ? adminUser(user.createdBy) : (typeof user.createdBy === 'string' ? user.createdBy : null),
+    createdBy: typeof user.createdBy === 'object' && user.createdBy ? (adminUser(user.createdBy) || null) : (typeof user.createdBy === 'string' ? user.createdBy : null),
     createdByEmail: typeof user.createdBy === 'object' ? (user.createdBy.email || '').trim().toLowerCase() : (typeof user.createdBy === 'string' ? user.createdBy : ''),
     createdById: typeof user.createdBy === 'object' ? (user.createdBy.id || '') : (typeof user.createdBy === 'string' ? user.createdBy : '')
   };

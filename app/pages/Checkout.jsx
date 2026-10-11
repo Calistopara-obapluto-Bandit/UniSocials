@@ -433,16 +433,24 @@ export default function Checkout() {
     const email = checkoutData.buyerEmail;
     const phone = checkoutData.buyerPhone;
 
-    const selectedBtn = method === 'banktransfer'
-      ? document.getElementById('bankTransferBtn')
-      : document.getElementById('cardPaymentBtn');
-    if (selectedBtn) { selectedBtn.disabled = true; selectedBtn.textContent = isFreeOrder ? 'Issuing your free ticket…' : 'Opening Flutterwave…'; }
+    const selectedBtn = isFreeOrder
+      ? document.getElementById('freeTicketBtn')
+      : (method === 'banktransfer'
+        ? document.getElementById('bankTransferBtn')
+        : document.getElementById('cardPaymentBtn'));
+    if (selectedBtn) {
+      selectedBtn.disabled = true;
+      selectedBtn.textContent = isFreeOrder ? '🎟️ Generating your ticket…' : 'Opening Flutterwave…';
+    }
 
     createOrderViaApi(orderId, total, method, function (success, ticketCodes, serverAmount, errorMessage) {
       if (!success) {
         const methodNote = isFreeOrder ? '' : '\n\nPayment method: ' + (method === 'banktransfer' ? 'Bank Transfer' : 'Credit/Debit Card');
         alert((errorMessage || 'Could not create your order. Please try again.') + methodNote);
-        if (selectedBtn) { selectedBtn.disabled = false; selectedBtn.textContent = method === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout'; }
+        if (selectedBtn) {
+          selectedBtn.disabled = false;
+          selectedBtn.textContent = isFreeOrder ? '🎟️ Generate my free ticket' : (method === 'banktransfer' ? '🏦 Click to proceed via bank transfer' : '💳 Click to proceed to checkout');
+        }
         return;
       }
       if (isFreeOrder) {
@@ -520,6 +528,10 @@ export default function Checkout() {
   }
 
   // ---- Normal checkout (we have checkoutData) ----
+  // A ₦0 total means a free event: no payment methods, just one action that
+  // generates the ticket server-side and emails it to the buyer.
+  const freeOrder = !(computedTotal() > 0);
+
   return (
     <>
       <Nav />
@@ -591,7 +603,15 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* PAYMENT METHOD */}
+            {/* PAYMENT METHOD — free events never see card/bank transfer */}
+            {freeOrder ? (
+            <div className="checkout-card reveal reveal-delay-1">
+              <h3 className="checkout-card-title">🎟️ Free Ticket</h3>
+              <div id="paymentNote" className="payment-note">
+                This ticket is free — no card or bank transfer needed. Generate your ticket and we&apos;ll email it to you automatically.
+              </div>
+            </div>
+            ) : (
             <div className="checkout-card reveal reveal-delay-1">
               <h3 className="checkout-card-title">💳 Payment Method</h3>
               <div className="payment-methods">
@@ -616,6 +636,7 @@ export default function Checkout() {
                 🔒 You&apos;ll be redirected to <strong>Flutterwave</strong> to complete your payment securely. Your ticket(s) are issued automatically once payment is confirmed.
               </div>
             </div>
+            )}
 
             {/* REFERRAL CODE */}
             <div className="checkout-card reveal reveal-delay-2 referral-checkout-card">
@@ -694,30 +715,51 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* PAYMENT ACTIONS */}
+            {/* PAYMENT ACTIONS — one button for free events, methods only when paid */}
             <div className="checkout-card reveal reveal-delay-3">
-              <h3 className="checkout-card-title">Choose how you want to pay</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button
-                  type="button"
-                  className="btn-submit btn-submit-lg"
-                  id="cardPaymentBtn"
-                  onClick={() => placeOrder('card')}
-                >
-                  💳 Click to proceed to checkout
-                </button>
-                <button
-                  type="button"
-                  className="btn-submit btn-submit-lg"
-                  id="bankTransferBtn"
-                  onClick={() => placeOrder('banktransfer')}
-                >
-                  🏦 Click to proceed via bank transfer
-                </button>
-              </div>
-              <p className="summary-note">
-                After you choose a method, Flutterwave opens its secure payment screen with only that payment method. By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.
-              </p>
+              {freeOrder ? (
+                <>
+                  <h3 className="checkout-card-title">Get your free ticket</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="freeTicketBtn"
+                      onClick={() => placeOrder('free')}
+                    >
+                      🎟️ Generate my free ticket
+                    </button>
+                  </div>
+                  <p className="summary-note">
+                    No payment is required. Your ticket is generated instantly and sent to your email address.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="checkout-card-title">Choose how you want to pay</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="cardPaymentBtn"
+                      onClick={() => placeOrder('card')}
+                    >
+                      💳 Click to proceed to checkout
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="bankTransferBtn"
+                      onClick={() => placeOrder('banktransfer')}
+                    >
+                      🏦 Click to proceed via bank transfer
+                    </button>
+                  </div>
+                  <p className="summary-note">
+                    After you choose a method, Flutterwave opens its secure payment screen with only that payment method. By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -732,9 +774,9 @@ export default function Checkout() {
         <button
           className="btn-submit mobile-checkout-btn"
           id="mobilePlaceOrderBtn"
-          onClick={() => placeOrder()}
+          onClick={() => placeOrder(freeOrder ? 'free' : undefined)}
         >
-          🛒 Place Order
+          {freeOrder ? '🎟️ Get Free Ticket' : '🛒 Place Order'}
         </button>
       </div>
 
