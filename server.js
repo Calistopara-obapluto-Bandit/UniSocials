@@ -6665,7 +6665,7 @@ const events = await readEvents();
 // the fallback is invisible during normal operation and the migration is
 // reversible by removing the build.
 const REACT_CANONICAL_ROUTES = new Set(['/checkout', '/thank-you', '/events']);
-const REACT_SPA_ROUTES = new Set(['/lookup', '/my-tickets', '/checkout', '/thank-you', '/events']);
+const REACT_SPA_ROUTES = new Set(['/', '/lookup', '/my-tickets', '/checkout', '/thank-you', '/events', '/tickets', '/pending', '/ticket', '/login', '/register', '/forgot-password', '/reset-password', '/about', '/faq', '/contact']);
 const REACT_DIST = path.join(__dirname, 'dist');
 const reactIndexHtml = path.join(REACT_DIST, 'index.html');
 const REACT_BUILT = fs.existsSync(reactIndexHtml);
@@ -6710,9 +6710,24 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
     // bookmarks, and old .html links all reach the React page instead of the
     // legacy static file.
     const legacyToCanonical = new Map([
+      // '/' is rewritten to '/index.html' earlier in this handler, so the
+      // landing page is registered under its legacy filename too.
+      ['/index.html', '/'],
       ['/thank-you.html', '/thank-you'],
       ['/checkout.html', '/checkout'],
       ['/events.html', '/events'],
+      ['/tickets.html', '/tickets'],
+      ['/lookup.html', '/lookup'],
+      ['/my-tickets.html', '/my-tickets'],
+      ['/pending.html', '/pending'],
+      ['/ticket.html', '/ticket'],
+      ['/login.html', '/login'],
+      ['/register.html', '/register'],
+      ['/forgot-password.html', '/forgot-password'],
+      ['/reset-password.html', '/reset-password'],
+      ['/about.html', '/about'],
+      ['/faq.html', '/faq'],
+      ['/contact.html', '/contact'],
     ]);
     const canonicalPath = legacyToCanonical.has(urlPath.toLowerCase())
       ? legacyToCanonical.get(urlPath.toLowerCase())

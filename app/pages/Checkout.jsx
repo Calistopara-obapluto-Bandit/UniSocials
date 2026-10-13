@@ -21,6 +21,63 @@ import { esc, fmtN } from '../lib/utils.jsx';
 
 const TIER_LABELS = { regular: '🎟 Regular', vip: '⭐ VIP', vvip: '👑 VVIP', table: '🪑 Table' };
 
+/*
+ * Payment runtime bootstrap.
+ *
+ * /checkout is served from the React build (dist/index.html), a different
+ * document from the legacy .html pages. The two things the payment flow needs
+ * both live outside the bundle:
+ *
+ *   - window.SITE_CONFIG, published by the server at /config.js (the Flutterwave
+ *     PUBLIC key must never be compiled into the JS bundle, it is per-environment)
+ *   - window.FlutterwaveCheckout, defined by Flutterwave's hosted v3.js
+ *
+ * app/index.html includes /config.js, but the SDK is fetched on demand. Both
+ * loaders are cached so a script that is already present is never requested
+ * twice, and both resolve rather than reject so a failed load still reaches the
+ * existing "not configured / could not be loaded" alerts instead of dying as an
+ * unhandled rejection.
+ */
+let siteConfigPromise = null;
+function loadSiteConfig() {
+  if (window.SITE_CONFIG) return Promise.resolve(window.SITE_CONFIG);
+  if (!siteConfigPromise) {
+    siteConfigPromise = new Promise((resolve) => {
+      const el = document.createElement('script');
+      el.src = '/config.js';
+      const done = (value) => resolve(value || {});
+      el.onload = () => done(window.SITE_CONFIG);
+      el.onerror = () => done({});
+      document.head.appendChild(el);
+    });
+  }
+  return siteConfigPromise;
+}
+
+let flutterwavePromise = null;
+function loadFlutterwaveSdk() {
+  if (typeof window.FlutterwaveCheckout === 'function') return Promise.resolve(true);
+  if (!flutterwavePromise) {
+    flutterwavePromise = new Promise((resolve) => {
+      const el = document.createElement('script');
+      el.src = 'https://checkout.flutterwave.com/v3.js';
+      el.async = true;
+      // Never hang the checkout: after 15s let the caller show its own error.
+      const timer = setTimeout(() => resolve(typeof window.FlutterwaveCheckout === 'function'), 15000);
+      el.onload = () => { clearTimeout(timer); resolve(typeof window.FlutterwaveCheckout === 'function'); };
+      el.onerror = () => { clearTimeout(timer); resolve(false); };
+      document.head.appendChild(el);
+    });
+  }
+  return flutterwavePromise;
+}
+
+function ensurePaymentRuntime() {
+  // .catch keeps a rejected appendChild/load from surfacing as an unhandled
+  // rejection: the caller always proceeds to its own "not configured" alert.
+  return Promise.all([loadSiteConfig(), loadFlutterwaveSdk()]).catch(() => {});
+}
+
 export default function Checkout() {
   const [checkoutData, setCheckoutData] = useState(null);
   const [referralApplied, setReferralApplied] = useState(false);
@@ -28,6 +85,13 @@ export default function Checkout() {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Warm the payment runtime up as soon as the checkout opens, so /config.js
+  // and Flutterwave's SDK are ready before the buyer clicks Pay instead of
+  // racing the click.
+  useEffect(() => {
+    ensurePaymentRuntime();
+  }, []);
 
   // The legacy checkout derives these from sessionStorage at startup, then
   // keeps them in module-scope locals. We mirror that in React state.
@@ -358,7 +422,10 @@ export default function Checkout() {
    * We reproduce that exactly: we never verify the payment from the browser; we
    * only send the acknowledgement and move the buyer along.
    */
-  function startFlutterwavePayment(orderId, eventName, qty, orderTotal, name, email, phone, paymentMethod) {
+  async function startFlutterwavePayment(orderId, eventName, qty, orderTotal, name, email, phone, paymentMethod) {
+    // Make sure the config and the Flutterwave SDK are actually present before
+    // deciding they are missing — the SPA document does not guarantee either.
+    await ensurePaymentRuntime();
     const publicKey = window.SITE_CONFIG?.FLUTTERWAVE_PUBLIC_KEY || '';
     if (!publicKey) {
       alert('Flutterwave is not configured. Please contact support.');
@@ -375,7 +442,7 @@ export default function Checkout() {
       amount: orderTotal,
       currency: 'NGN',
       payment_options: paymentMethod === 'banktransfer' ? 'banktransfer' : 'card',
-      redirect_url: window.SITE_CONFIG?.REDIRECT_URL || window.SITE_CONFIG?.SITE_URL + '/thank-you.html',
+      redirect_url: window.SITE_CONFIG?.REDIRECT_URL || (window.location.origin + '/thank-you'),
       customer: {
         email: email || 'customer@example.com',
         name: name || 'Unisocial Customer',
