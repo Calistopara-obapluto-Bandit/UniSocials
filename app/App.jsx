@@ -15,6 +15,7 @@ import Home from './pages/Home.jsx';
 import About from './pages/About.jsx';
 import Faq from './pages/Faq.jsx';
 import Contact from './pages/Contact.jsx';
+import Admin from './pages/Admin.jsx';
 
 // Phase 1 and Phase 2 ship the account-free flow (lookup, my-tickets) and the
 // checkout/thank-you flow. Phase 5 ports additional page by page. server.js is
@@ -55,6 +56,8 @@ export default function App() {
       <Route path="/faq.html" element={<Faq />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/contact.html" element={<Contact />} />
+      <Route path="/admin" element={<Admin />} />
+      <Route path="/admin.html" element={<Admin />} />
       <Route path="*" element={<Navigate to="/lookup" replace />} />
     </Routes>
   );

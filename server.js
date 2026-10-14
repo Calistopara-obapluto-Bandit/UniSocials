@@ -1107,6 +1107,16 @@ function canonicalReferralUrl(code) {
   return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events?ref=' + encodeURIComponent(safeCode)) : '';
 }
 
+// A task referral link is the influencer's SECOND link type: it carries no code
+// to apply and no commission — it only counts how many people the influencer
+// sends. It lands on /events?task=... and, per the product rule, it is never
+// active at the same time as a referral (?ref=) session: the landing handlers
+// and the checkout make the two mutually exclusive.
+function canonicalTaskUrl(code) {
+  const safeCode = String(code || '').trim().toUpperCase();
+  return safeCode ? ((process.env.SITE_URL || '').replace(/\/$/, '') + '/events?task=' + encodeURIComponent(safeCode)) : '';
+}
+
 function referralLinkResponse(link) {
   if (!link) return null;
   return { ...link, referralUrl: canonicalReferralUrl(link.code) };
@@ -4836,6 +4846,69 @@ codes[idx] = entry;
       return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
     }
 
+    // ── Task referral link (influencer) ──
+    // Creates (once) and returns the influencer's task referral link. The task
+    // link does not discount, attribute or commission anything — it exists only
+    // to count the people the influencer sends through it. It can be used any
+    // number of times; "people" counts each browser once and "uses" counts every
+    // landing.
+    if (pathname === '/api/influencer/task-link' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'influencer') return sendJson(res, 403, { success: false, error: 'Influencer access only' });
+      const taskUser = (await findUserById(sessionUser.id)) || sessionUser;
+      if (!taskUser.taskLink || !taskUser.taskLink.code) {
+        const allUsers = await readUsers();
+        let taskCode = 'TASK-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        while (allUsers.some(u => u && u.taskLink && String(u.taskLink.code || '') === taskCode)) {
+          taskCode = 'TASK-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        }
+        taskUser.taskLink = {
+          code: taskCode,
+          createdAt: new Date().toISOString(),
+          people: 0,
+          uses: 0,
+          visitors: []
+        };
+        await addUser(taskUser);
+      }
+      const t = taskUser.taskLink;
+      return sendJson(res, 200, { success: true, task: {
+        code: t.code,
+        url: canonicalTaskUrl(t.code),
+        people: Number(t.people) || 0,
+        uses: Number(t.uses) || 0,
+        createdAt: t.createdAt || null
+      } });
+    }
+
+    // ── Task referral link hit (public) ──
+    // Fired by the landing handlers when someone opens /events?task=CODE. Only
+    // the code and an anonymous per-browser visitor id are sent; no PII.
+    if (pathname === '/api/task-referral/track' && req.method === 'POST') {
+      const body = await readBody(req); let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const code = String(data.code || '').trim().toUpperCase();
+      const visitorId = String(data.visitorId || '').trim();
+      if (!code) return sendJson(res, 400, { success: false, error: 'Task link code is required.' });
+      if (!/^[A-Za-z0-9_-]{8,64}$/.test(visitorId)) return sendJson(res, 400, { success: false, error: 'A visitor id is required.' });
+      const users = await readUsers();
+      const taskOwner = users.find(u => u && u.role === 'influencer' && u.taskLink && String(u.taskLink.code || '').toUpperCase() === code);
+      if (!taskOwner) return sendJson(res, 404, { success: false, error: 'Unknown task link.' });
+      const t = taskOwner.taskLink;
+      if (!Array.isArray(t.visitors)) t.visitors = [];
+      const alreadyCounted = t.visitors.indexOf(visitorId) !== -1;
+      if (!alreadyCounted) {
+        // The visitors list is only the de-duplication set; it is bounded so one
+        // very popular task link can never grow the record without limit.
+        if (t.visitors.length < 20000) t.visitors.push(visitorId);
+        t.people = (Number(t.people) || 0) + 1;
+      }
+      t.uses = (Number(t.uses) || 0) + 1;
+      await addUser(taskOwner);
+      return sendJson(res, 200, { success: true, people: Number(t.people) || 0, uses: Number(t.uses) || 0, alreadyCounted: alreadyCounted });
+    }
+
     // ── Influencer: referral stats ──
     if (pathname === '/api/influencer/referral-stats' && req.method === 'GET') {
       const auth = req.headers['authorization'] || '';
@@ -6626,7 +6699,7 @@ const events = await readEvents();
 // the fallback is invisible during normal operation and the migration is
 // reversible by removing the build.
 const REACT_CANONICAL_ROUTES = new Set(['/checkout', '/thank-you', '/events']);
-const REACT_SPA_ROUTES = new Set(['/', '/lookup', '/my-tickets', '/checkout', '/thank-you', '/events', '/tickets', '/pending', '/ticket', '/login', '/register', '/forgot-password', '/reset-password', '/about', '/faq', '/contact']);
+const REACT_SPA_ROUTES = new Set(['/', '/admin', '/lookup', '/my-tickets', '/checkout', '/thank-you', '/events', '/tickets', '/pending', '/ticket', '/login', '/register', '/forgot-password', '/reset-password', '/about', '/faq', '/contact']);
 const REACT_DIST = path.join(__dirname, 'dist');
 const reactIndexHtml = path.join(REACT_DIST, 'index.html');
 const REACT_BUILT = fs.existsSync(reactIndexHtml);
@@ -6689,6 +6762,9 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
       ['/about.html', '/about'],
       ['/faq.html', '/faq'],
       ['/contact.html', '/contact'],
+      // The admin dashboard is ported too: /admin.html serves the React build
+      // when it exists and falls back to the legacy page when it does not.
+      ['/admin.html', '/admin'],
     ]);
     const canonicalPath = legacyToCanonical.has(urlPath.toLowerCase())
       ? legacyToCanonical.get(urlPath.toLowerCase())

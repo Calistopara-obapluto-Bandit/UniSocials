@@ -13,11 +13,26 @@ Free for personal and commercial use
 
   // Preserve referral tracking when a user lands on a referral link on any page,
   // then continues to checkout or another page in the same browser session.
+  //
+  // Task referral links (?task=CODE) are the influencer's second link type:
+  // they only count the people who open them. The two are mutually exclusive —
+  // a task session and a referral session are never active at the same time.
   try {
     const params = new URLSearchParams(window.location.search);
+    const taskCode = (params.get('task') || '').trim();
     const referralCode = (params.get('ref') || '').trim();
-    if (referralCode) {
+    if (taskCode) {
+      sessionStorage.setItem('unn_task_code', taskCode.toUpperCase()); localStorage.setItem('unn_task_code', taskCode.toUpperCase());
+      sessionStorage.removeItem('referralCode'); localStorage.removeItem('unn_referral_code');
+      let visitorId = localStorage.getItem('unn_visitor_id') || '';
+      if (!visitorId) {
+        visitorId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12));
+        try { localStorage.setItem('unn_visitor_id', visitorId); } catch (e) {}
+      }
+      fetch('/api/task-referral/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: taskCode.toUpperCase(), visitorId: visitorId }) }).catch(function() {});
+    } else if (referralCode) {
       sessionStorage.setItem('referralCode', referralCode.toUpperCase()); localStorage.setItem('unn_referral_code', referralCode.toUpperCase());
+      sessionStorage.removeItem('unn_task_code'); localStorage.removeItem('unn_task_code');
     }
   } catch (e) {}
 
@@ -1045,6 +1060,9 @@ const tier = getSelectedTier();
       if (!r.ok || !data.success) throw new Error(data.error || 'Invalid referral code.');
       referralApplied = true; appliedReferralCode = code;
       sessionStorage.setItem('referralCode', code); localStorage.setItem('unn_referral_code', code);
+      // A task referral link and a referral link never run at the same time:
+      // activating a referral ends any task-link session on this browser.
+      try { sessionStorage.removeItem('unn_task_code'); localStorage.removeItem('unn_task_code'); } catch (e) {}
       if (msg) { msg.textContent = '✓ Referral applied — original ticket price unlocked.'; msg.className = 'form-hint referral-message success'; }
       await refreshReferralPricing();
     } catch (e) {
@@ -1139,8 +1157,11 @@ const tier = getSelectedTier();
 
   // Pre-fill the referral code from the referral link/session, but do NOT apply it automatically.
   // The customer must explicitly click Apply before the referral price is activated.
+  // While a task referral link session is active the two must not run at the
+  // same time, so nothing is prefilled then.
   const refInput = document.getElementById('referralCodeInput');
-  if (refInput) {
+  const taskRefActive = (sessionStorage.getItem('unn_task_code') || localStorage.getItem('unn_task_code') || '').trim();
+  if (refInput && !taskRefActive) {
     const savedRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
     if (savedRef) { refInput.value = savedRef.toUpperCase(); }
   }

@@ -130,6 +130,20 @@ export default function Checkout() {
     } catch (e) {}
   }, [checkoutData]);
 
+  // Pre-fill the referral code carried by a referral link, but do NOT apply it
+  // automatically — the buyer must click Apply first (same contract as the
+  // legacy checkout script). While a task referral link session is active the
+  // two must not run at the same time, so nothing is prefilled then.
+  useEffect(() => {
+    if (!checkoutData) return;
+    const input = document.getElementById('referralCodeInput');
+    if (!input || input.value) return;
+    if (taskSessionActive()) return;
+    const saved = (new URLSearchParams(window.location.search).get('ref') ||
+      tryGetSession('referralCode') || tryGetLocal('unn_referral_code') || '').trim();
+    if (saved) input.value = saved.toUpperCase();
+  }, [checkoutData]);
+
   async function fetchEvents() {
     const res = await api('/api/events');
     if (!res || !res.success) return [];
@@ -219,6 +233,10 @@ export default function Checkout() {
       setAppliedReferralCode(code);
       try { sessionStorage.setItem('referralCode', code); } catch (e) {}
       try { localStorage.setItem('unn_referral_code', code); } catch (e) {}
+      // A task referral link and a referral link never run at the same time:
+      // activating a referral ends any task-link session on this browser.
+      try { sessionStorage.removeItem('unn_task_code'); } catch (e) {}
+      try { localStorage.removeItem('unn_task_code'); } catch (e) {}
       if (msg) { msg.textContent = '✓ Referral applied — original ticket price unlocked.'; msg.className = 'form-hint referral-message success'; }
       await refreshReferralPricing();
     } catch (err) {
@@ -533,8 +551,11 @@ export default function Checkout() {
 
   // ---- Event picker when there is no checkoutData yet ----
   if (!checkoutData) {
-    const refFromUrl = new URLSearchParams(window.location.search).get('ref') ||
-      (tryGetSession('referralCode') || tryGetLocal('unn_referral_code') || '').trim().toUpperCase();
+    const refFromUrl = taskSessionActive()
+      // A task referral link session and a referral session never coexist.
+      ? ''
+      : (new URLSearchParams(window.location.search).get('ref') ||
+        (tryGetSession('referralCode') || tryGetLocal('unn_referral_code') || '').trim().toUpperCase());
     if (refFromUrl) {
       try { sessionStorage.setItem('referralCode', refFromUrl); } catch (e) {}
       try { localStorage.setItem('unn_referral_code', refFromUrl); } catch (e) {}
@@ -717,8 +738,14 @@ export default function Checkout() {
                     placeholder="Enter referral code"
                     autoComplete="off"
                     maxLength={64}
+                    onKeyDown={(e) => {
+                      // Enter applies too, exactly like the legacy checkout script.
+                      if (e.key === 'Enter') { e.preventDefault(); applyReferralCode(); }
+                    }}
                   />
-                  <button type="button" id="applyReferralBtn" className="admin-refresh-btn">Apply</button>
+                  {/* The referral only takes effect on an explicit Apply click
+                      (or Enter) — typing alone never applies it. */}
+                  <button type="button" id="applyReferralBtn" className="admin-refresh-btn" onClick={applyReferralCode}>Apply</button>
                   <button
                     type="button"
                     id="removeReferralBtn"
@@ -893,4 +920,12 @@ function tryGetSession(key) {
 }
 function tryGetLocal(key) {
   try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+}
+
+// A task referral link session and a referral (?ref=) session are mutually
+// exclusive: a visitor is inside one or the other, never both at the same time.
+// Whichever side becomes active clears the other (see applyReferralCode and the
+// landing handlers in main.jsx / templatemo-622-clearwave.js).
+function taskSessionActive() {
+  return !!(tryGetSession('unn_task_code') || tryGetLocal('unn_task_code')).trim();
 }

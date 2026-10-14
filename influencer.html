@@ -205,7 +205,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
 </section>
 <div class="admin-entry-bar"><div><strong>Run your own events?</strong><span>Influencer Admins get their own dashboard for events, sales, check-in staff and commission payouts.</span></div><a class="admin-entry-link" href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a></div>
 <section class="portal-selector" id="portalSelector" aria-label="Referral portal selector"><div class="portal-selector-copy"><div class="portal-selector-label">Working for</div><div class="portal-selector-title" id="portalTitle">Loading referral portals…</div><div class="portal-meta" id="portalMeta"></div></div><select class="portal-select" id="portalSelect" aria-label="Select Influencer Admin"></select></section><section class="relationship-panel" id="relationshipPanel"><div class="relationship-head"><div><h2>Influencer Admin requests</h2><p>Review requests to work with you. You keep the same influencer account and login.</p></div></div><div class="relationship-list" id="relationshipList"><div class="relationship-empty">Loading requests...</div></div></section>
-<section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every sale through your link is split <strong>2.5% to Unisocials, 20% commission to you, 77.5% to the event owner</strong>, and the event's Influencer Admin is who pays you.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
+<section class="influencer-hero"><div class="influencer-hero-content"><div class="influencer-overline">Your referral</div><h2>Share your code. Track your results.</h2><p>Your referral activity is updated from verified and paid ticket orders. Every sale through your link is split <strong>2.5% to Unisocials, 20% commission to you, 77.5% to the event owner</strong>, and the event's Influencer Admin is who pays you.</p><div><div class="ref-label">Referral code</div><div class="ref-row"><div class="ref-code" id="refCode">—</div><button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Referral link</div><div class="ref-link-row"><a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here...</a><button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div class="ref-link-wrap"><div class="ref-label">Task referral link</div><div class="ref-link-row"><a class="ref-link is-empty" id="taskLink" href="#" target="_blank" rel="noopener" aria-label="Task referral link">Your task referral link will appear here...</a><button class="copy-icon" id="copyTaskLinkBtn" type="button" title="Copy task referral link" aria-label="Copy task referral link"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg></button></div></div><div id="taskLinkStats" style="display:none;margin-top:10px;font-size:.82rem;color:var(--text-3);flex-wrap:wrap;gap:6px 18px;align-items:center;">👥 Used by <strong id="taskPeople" style="color:var(--text-1);">0</strong> people <span style="opacity:.6;">·</span> 🔁 <strong id="taskUses" style="color:var(--text-1);">0</strong> visits</div><div class="copy-status" id="copyStatus" aria-live="polite"></div></div></section>
 <section class="influencer-stats" id="commissionEarned"><div class="influencer-stat"><div class="influencer-stat-label">People referred</div><div class="influencer-stat-value accent-value" id="people">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Orders</div><div class="influencer-stat-value" id="orders">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Tickets sold</div><div class="influencer-stat-value" id="tickets">0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Revenue</div><div class="influencer-stat-value accent-value" id="revenue">₦0</div></div><div class="influencer-stat"><div class="influencer-stat-label">Commission (20%)</div><div class="influencer-stat-value accent-value" id="commission">₦0</div></div></section>
 <section class="portal-events" id="portalEvents"><div class="portal-events-head"><div><div class="influencer-overline">Selected portal</div><h2>Events &amp; performance</h2><p id="eventsSubtitle">Events authorised to the selected Influencer Admin.</p></div></div><div class="portal-events-list" id="portalEventsList"><div class="portal-empty">Loading events…</div></div></section>
 <section class="all-overview hidden" id="allOverview"><div class="all-overview-head"><div class="influencer-overline">All relationships</div><h2>Performance by Influencer Admin</h2><p>Each accepted relationship remains separate. The totals above are the combined overview of these individual portals.</p></div><div class="all-overview-list" id="allOverviewList"><div class="portal-empty">Loading relationship totals…</div></div></section>
@@ -433,6 +433,25 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   }
   async function loadPortals(){
     var r=await fetch('/api/influencer/referral-portals',{headers:headers()});var d=await r.json();if(!d.success)throw new Error(d.error||'Unable to load referral portals');portals=Array.isArray(d.portals)?d.portals:[];renderPortalSelector();if(portals.length)await selectPortal(selectedPortalId);else applyPortal(null,null);
+  }
+
+  // ── Task referral link: the second link type, which only counts people ──
+  // It never applies a referral by itself (no discount, no commission), it can
+  // be shared and used any number of times, and it can never be active at the
+  // same time as the referral link: landing with ?task= clears any stored
+  // referral code, and applying a referral at checkout clears the task session.
+  var taskLinkUrl='';
+  async function loadTaskLink(){
+    try{
+      var r=await fetch('/api/influencer/task-link',{headers:headers()});var d=await r.json();
+      if(!d.success)throw new Error(d.error||'Unable to load task link');
+      taskLinkUrl=d.task.url||(window.location.origin+'/events?task='+encodeURIComponent(d.task.code));
+      var el=document.getElementById('taskLink');
+      el.textContent=taskLinkUrl;el.href=taskLinkUrl;el.classList.toggle('is-empty',!taskLinkUrl);
+      document.getElementById('taskPeople').textContent=Number(d.task.people||0).toLocaleString();
+      document.getElementById('taskUses').textContent=Number(d.task.uses||0).toLocaleString();
+      document.getElementById('taskLinkStats').style.display='flex';
+    }catch(e){/* the regular referral link above still works */}
   }
   // ── Payouts: request the 20% commission earned through the referral link ──
   var payoutFeeRate=0, payoutHeld=[], payoutTimer=null, payoutHoldDays=7, payoutAvailable=0, payoutEarnedTotal=0;
@@ -680,6 +699,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
       if(!md.success||!md.user||md.user.role!=='influencer') throw new Error('invalid');
       document.getElementById('userName').textContent=md.user.name||md.user.fullName||md.user.email||'Influencer';
       await loadPortals();
+      await loadTaskLink();
       await loadRelationships();
       await loadPayouts();
       loginView.classList.add('hidden');dash.classList.remove('hidden');syncPortalAccountUI();return true;
@@ -737,6 +757,7 @@ body.influencer-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
   syncPortalAccountUI();
   document.getElementById('copyCodeBtn').onclick=function(){var v=document.getElementById('refCode').textContent;if(v&&v!=='—')copyText(v).then(function(){showCopied('Referral code');});};
   document.getElementById('copyLinkBtn').onclick=function(){var v=document.getElementById('refLink').href;if(v&&v!=='#')copyText(v).then(function(){showCopied('Referral link');});};
+  document.getElementById('copyTaskLinkBtn').onclick=function(){if(taskLinkUrl)copyText(taskLinkUrl).then(function(){showCopied('Task referral link');});};
   load();setInterval(function(){if(localStorage.getItem(KEY))load();},30000);
 })();
 </script></body></html>
