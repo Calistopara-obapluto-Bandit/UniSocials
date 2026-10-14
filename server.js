@@ -1219,12 +1219,37 @@ async function findTaskLinkOwner(taskCode) {
     String(u.taskLink.code || '').trim().toUpperCase() === safeCode) || null;
 }
 
+// The one shape every dashboard renders for a task referral link: purchases
+// only. Deliberately no people/visits numbers — the product decision is that a
+// task link is measured by how many paid orders it produced, nothing else.
+function taskLinkStatsFor(taskCode, orders) {
+  const safeCode = String(taskCode || '').trim().toUpperCase();
+  if (!safeCode) return { code: null, url: null, purchases: 0, tickets: 0, revenue: 0 };
+  const rows = (orders || []).filter(o => isTaskOrderCounted(o, safeCode));
+  return {
+    code: safeCode,
+    url: canonicalTaskUrl(safeCode),
+    purchases: rows.length,
+    tickets: rows.reduce((n, o) => n + (parseInt(o.qty, 10) || 0), 0),
+    revenue: rows.reduce((sum, o) => sum + (Number(o.amount) || 0), 0)
+  };
+}
+
 // Influencer referral codes are scoped to the Influencer Admin who created the
 // influencer. That admin must be authorized for the event (or own the event)
 // before the code can be used. Sub-admin referral links are intentionally not
 // subject to this rule because their referral model is global.
 async function influencerReferralAuthorizedForEvent(referralLink, event) {
   if (!referralLink || !event) return false;
+
+  // Sub-admin links are global by design and are never subject to the
+  // influencer-admin authorization rule. They must be exempted by role: a
+  // sub-admin link still carries an ownerId, so falling back to it (as the
+  // legacy-influencer fallback below does) wrongly sent every sub-admin code
+  // down the influencer path, where it found no influencer and was rejected —
+  // which made every sub-admin referral code fail at checkout.
+  const linkRole = String(referralLink.ownerRole || '').trim().toLowerCase();
+  if (linkRole === 'subadmin' || referralLink.subadminId) return true;
 
   const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
   if (!influencerId) return true; // legacy/sub-admin referral link
@@ -1250,7 +1275,14 @@ async function getScopedReferralOrders(referralLink, orders, events, scopedAdmin
   if (!referralLink) return [];
   const verifiedOrders = orders.filter(o => isReferralOrderCounted(o, referralLink.code));
 
-  // Sub-admin/global referral links retain their existing global scope.
+  // Sub-admin/global referral links retain their existing global scope. They
+  // must be recognised by role: a sub-admin link also carries an ownerId, and
+  // falling back to it (as the legacy-influencer path below does) sent every
+  // sub-admin code down the influencer route, found no influencer account, and
+  // reported zero sales for all of them.
+  const linkRole = String(referralLink.ownerRole || '').trim().toLowerCase();
+  if (linkRole === 'subadmin' || referralLink.subadminId) return verifiedOrders;
+
   const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
   if (!influencerId) return verifiedOrders;
 
@@ -3723,7 +3755,10 @@ function checkinStaffPublic(user) {
               totalRevenue,
               totalTickets,
               uniquePeople: new Set(referredOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
-            }
+            },
+            // Same "like the referral link" line the admin sees above, for the
+            // influencer's task referral link — purchases only.
+            taskLink: taskLinkStatsFor(influencer.taskLink && influencer.taskLink.code, orders)
           };
         })
       );
@@ -3777,11 +3812,60 @@ function checkinStaffPublic(user) {
             totalOrders: uniqueOrders.length,
             totalRevenue,
             totalTickets,
-            uniquePeople: new Set(uniqueOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
-          }
+uniquePeople: new Set(uniqueOrders.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size
+          },
+          taskLink: taskLinkStatsFor(u.taskLink && u.taskLink.code, orders)
         };
       }));
       return sendJson(res, 200, { success: true, influencers });
+    }
+
+    // ── Admin (master only): overall task-link + referral numbers ──
+    // The platform-wide view in one place: how every influencer's task referral
+    // link has performed (purchases only) and how the referral links of
+    // influencers and sub-admins together have performed.
+    if (pathname === '/api/admin/task-links' && req.method === 'GET') {
+      const authCtx = await isAdminOrSubadmin(req);
+      if (!authCtx || authCtx.role !== 'admin') return sendJson(res, 403, { success: false, error: 'Main Admin access only' });
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const orders = await readOrders();
+
+      const taskLinks = users
+        .filter(u => u && u.role === 'influencer' && u.taskLink && String(u.taskLink.code || '').trim())
+        .map(u => Object.assign({
+          influencerId: u.id,
+          influencerName: u.name || '',
+          influencerEmail: u.email || ''
+        }, taskLinkStatsFor(u.taskLink.code, orders)));
+
+      const task = {
+        influencers: taskLinks.length,
+        withPurchases: taskLinks.filter(r => r.purchases > 0).length,
+        purchases: taskLinks.reduce((n, r) => n + (Number(r.purchases) || 0), 0),
+        tickets: taskLinks.reduce((n, r) => n + (Number(r.tickets) || 0), 0),
+        revenue: taskLinks.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0)
+      };
+
+      // Referral side, sub-admins included: every verified order that carries a
+      // referral code, split by who owns the code.
+      const ownerByCode = new Map(links.map(l => [String(l.code || ''), l]));
+      const referralOrders = orders.filter(o => isReferralOrderCounted(o, String(o.referralCode || '').trim()));
+      let subadminOrders = 0, subadminRevenue = 0, influencerOrders = 0, influencerRevenue = 0;
+      referralOrders.forEach(o => {
+        const link = ownerByCode.get(String(o.referralCode || '').trim());
+        const fromSubAdmin = !!(link && (link.ownerRole === 'subadmin' || link.subadminId));
+        const amount = Number(o.amount) || 0;
+        if (fromSubAdmin) { subadminOrders++; subadminRevenue += amount; }
+        else { influencerOrders++; influencerRevenue += amount; }
+      });
+
+      return sendJson(res, 200, { success: true, task, taskLinks, referral: {
+        totalOrders: referralOrders.length,
+        totalRevenue: referralOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+        subadmin: { orders: subadminOrders, revenue: subadminRevenue },
+        influencer: { orders: influencerOrders, revenue: influencerRevenue }
+      } });
     }
 
     // ── Admin (master only): create influencer account ──
@@ -4936,18 +5020,12 @@ codes[idx] = entry;
       const t = taskUser.taskLink;
       // Purchases are derived from the orders themselves (verified/paid only),
       // so the dashboard always reports the live number without any stored
-      // counter that could drift out of sync.
-      const taskOrders = (await readOrders()).filter(o => isTaskOrderCounted(o, t.code));
-      return sendJson(res, 200, { success: true, task: {
-        code: t.code,
-        url: canonicalTaskUrl(t.code),
-        people: Number(t.people) || 0,
-        uses: Number(t.uses) || 0,
-        purchases: taskOrders.length,
-        tickets: taskOrders.reduce((n, o) => n + (parseInt(o.qty, 10) || 0), 0),
-        revenue: taskOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+      // counter that could drift out of sync. People and visit counts are still
+      // tracked internally by /api/task-referral/track, but they are never
+      // exposed: a task link is measured by purchases alone.
+      return sendJson(res, 200, { success: true, task: Object.assign({}, taskLinkStatsFor(t.code, await readOrders()), {
         createdAt: t.createdAt || null
-      } });
+      }) });
     }
 
     // ── Task referral link hit (public) ──

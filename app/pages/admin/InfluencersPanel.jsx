@@ -9,10 +9,20 @@ import { esc, fmtN } from '../../lib/utils.jsx';
 export default function InfluencersPanel({ active }) {
   const { showToast, switchTab } = useAdmin();
   const [list, setList] = useState([]);
+  const [overall, setOverall] = useState(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Platform-wide task-link and referral totals, sub-admins included. The
+  // per-influencer numbers below are the same figures scoped to one account.
+  async function loadOverall() {
+    try {
+      const data = await adminFetch('/api/admin/task-links');
+      if (data && data.success) setOverall(data);
+    } catch (e) { /* the panel still works without the totals */ }
+  }
 
   async function loadInfluencers() {
     try {
@@ -21,7 +31,11 @@ export default function InfluencersPanel({ active }) {
     } catch (e) { /* keep the last list on a transient failure */ }
   }
 
-  useEffect(() => { loadInfluencers(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    loadInfluencers();
+    loadOverall();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
 
   async function addInfluencer() {
     const n = name.trim();
@@ -94,6 +108,30 @@ export default function InfluencersPanel({ active }) {
           </button>
         </div>
       </div>
+      <div className="admin-scan-panel" style={{ marginBottom: 16 }}>
+        <div className="admin-ticket-codes-label">🔗 Task referral links — overall</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '.84rem', color: 'var(--text-2)' }}>
+          <span>🛒 Purchases: <strong>{overall ? String(overall.task.purchases) : '—'}</strong></span>
+          <span>🎟 Tickets: <strong>{overall ? String(overall.task.tickets) : '—'}</strong></span>
+          <span>💰 Revenue: <strong>{overall ? fmtN(overall.task.revenue) : '—'}</strong></span>
+          <span>📣 Influencers with a task link: <strong>{overall ? String(overall.task.influencers) : '—'}</strong></span>
+        </div>
+        <div className="admin-ticket-codes-label" style={{ marginTop: 14 }}>
+          🎁 Referral links — overall (influencers + sub-admins)
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '.84rem', color: 'var(--text-2)' }}>
+          <span>Orders: <strong>{overall ? String(overall.referral.totalOrders) : '—'}</strong></span>
+          <span>Revenue: <strong>{overall ? fmtN(overall.referral.totalRevenue) : '—'}</strong></span>
+          <span>
+            Sub-admins: <strong>{overall ? String(overall.referral.subadmin.orders) : '—'}</strong> orders ·{' '}
+            {overall ? fmtN(overall.referral.subadmin.revenue) : '—'}
+          </span>
+          <span>
+            Influencers: <strong>{overall ? String(overall.referral.influencer.orders) : '—'}</strong> orders ·{' '}
+            {overall ? fmtN(overall.referral.influencer.revenue) : '—'}
+          </span>
+        </div>
+      </div>
       <div className="admin-scan-panel">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12, marginBottom: 14 }}>
           <div className="form-group">
@@ -131,6 +169,7 @@ export default function InfluencersPanel({ active }) {
               <div className="admin-ticket-codes-label">📣 Active Influencers ({list.length})</div>
               {list.map((u) => {
                 const stats = u.referralStats || {};
+                const task = u.taskLink || {};
                 return (
                   <div className="admin-ticket-code" key={u.email || u.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '10px 0' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -144,6 +183,14 @@ export default function InfluencersPanel({ active }) {
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>People: {esc(String(stats.uniquePeople || 0))}</span>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>Tickets: {esc(String(stats.totalTickets || 0))}</span>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>Revenue: {fmtN(stats.totalRevenue || 0)}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>Task link: <strong>{esc(task.code || '—')}</strong></span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 700 }}>
+                          🛒 Task purchases: {esc(String(task.purchases || 0))}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>Tickets: {esc(String(task.tickets || 0))}</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>Revenue: {fmtN(task.revenue || 0)}</span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
