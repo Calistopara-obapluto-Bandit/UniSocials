@@ -3295,6 +3295,55 @@ const user = {
       return sendJson(res, 200, { success: true, token: token, user: publicUser(user) });
     }
 
+    // ── PUBLIC: self-service Influencer account signup ──
+    // Until now an influencer account could only be minted by an admin, so a
+    // person who wanted to refer events had nowhere to sign up even though the
+    // Influencer Portal login existed. This mirrors /api/auth/register but
+    // creates the 'influencer' role only — it can never mint an admin, and no
+    // referral link is generated until an Influencer Admin relationship is
+    // accepted (see /api/influencer/referral-portals).
+    if (pathname === '/api/influencer-signup' && req.method === 'POST') {
+      const rl = rateLimit(req, 'influencer-signup', 5, 60000); // 5/min per IP
+      if (!rl.allowed) {
+        res.writeHead(429, withSecurityHeaders({ 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter) }));
+        res.end(JSON.stringify({ success: false, error: 'Too many attempts. Please try again later.' }));
+        return;
+      }
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const phone = String(data.phone || '').trim();
+      const password = String(data.password || '');
+
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      const phoneError = phone ? validatePhone(phone) : null;
+      if (!name || !email || passwordError || emailError || phoneError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || phoneError || 'Please provide your name and email.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) {
+        return sendJson(res, 409, { success: false, error: 'An account with this email already exists. Please sign in.' });
+      }
+      const influencer = {
+        id: 'INF-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name: name,
+        email: email,
+        phone: phone,
+        passwordHash: hashPassword(password),
+        role: 'influencer',
+        selfRegistered: true,
+        influencerAssignments: [],
+        createdAt: new Date().toISOString()
+      };
+      await addUser(influencer);
+      const token = generateToken();
+      await createSession(token, influencer.id);
+      return sendJson(res, 200, { success: true, token: token, user: publicUser(influencer) });
+    }
+
 // ── PUBLIC: request a self-service Influencer Admin account ──
 // The applicant gives their name, their real email and their university. We mint
 // the login as <name>@unisocials.com, generate a one-time password and email both

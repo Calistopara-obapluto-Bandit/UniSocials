@@ -336,6 +336,35 @@ window.UNUniversity = {
       }
     });
 
+    // Influencer Portal: one shared entry on every page so an influencer can
+    // always create an account or sign in (influencer.html has both). Injected
+    // instead of hand-edited into each page so all pages stay identical.
+    if (!/influencer\.html$/i.test(location.pathname)) {
+      document.querySelectorAll('.nav-cta').forEach(function(cta) {
+        if (cta.querySelector('.inf-link')) return;
+        var a = document.createElement('a');
+        a.href = 'influencer.html';
+        a.className = 'inf-link';
+        a.title = 'Influencer Portal — create an account or sign in';
+        a.innerHTML = '<span aria-hidden="true">📣</span> Influencer';
+        var iaf = cta.querySelector('.iaf-link');
+        if (iaf) cta.insertBefore(a, iaf);
+        else {
+          var ctaBtn = cta.querySelector('.btn-primary');
+          if (ctaBtn) cta.insertBefore(a, ctaBtn); else cta.appendChild(a);
+        }
+      });
+      document.querySelectorAll('.mobile-menu').forEach(function(menu) {
+        if (menu.querySelector('.mobile-inf-entry')) return;
+        var a = document.createElement('a');
+        a.href = 'influencer.html';
+        a.className = 'mobile-iaf mobile-inf-entry';
+        a.textContent = '📣 Create or sign in to an Influencer account';
+        var iaf = menu.querySelector('.mobile-iaf');
+        if (iaf) menu.insertBefore(a, iaf); else menu.appendChild(a);
+      });
+    }
+
 // Mobile top-bar auth cluster — visible on small screens (CSS hides it on desktop).
     // Shows Sign In when logged out, or the account link + a logout button when
     // logged in. Injected here so it stays in sync with login/logout state on every page.
