@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Influencer Account — Unisocials</title>
+  <meta name="description" content="Create your Unisocials influencer account, get your referral link and earn 20% commission on every ticket you sell — or sign in to your portal." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    .auth-section { padding: 56px 0 80px; }
+    .auth-card {
+      max-width: 480px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-lg);
+    }
+    .auth-card .auth-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 18px;
+    }
+    .auth-card h2 { font-size: 1.4rem; font-weight: 700; color: var(--text-1); text-align: center; margin-bottom: 6px; }
+    .auth-card .auth-sub { font-size: 0.86rem; color: var(--text-3); text-align: center; margin-bottom: 24px; line-height: 1.6; }
+
+    .signup-form { display: grid; gap: 12px; }
+    .signup-form label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 6px; }
+    .signup-form input {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.9rem;
+      color: var(--text-1);
+      min-height: 46px;
+    }
+    .signup-form input:focus {
+      outline: none;
+      border-color: var(--accent-border);
+      box-shadow: 0 0 0 3px var(--accent-ghost);
+    }
+    .signup-form button[type="submit"] {
+      width: 100%; margin-top: 4px; min-height: 46px;
+      font-size: 0.9rem; font-weight: 700;
+      border-radius: 100px; cursor: pointer;
+    }
+    .signup-form button[type="submit"]:disabled { opacity: 0.65; cursor: wait; }
+
+    .signup-status { font-size: 0.84rem; margin-top: 14px; line-height: 1.55; }
+    .signup-status:empty { display: none; }
+    .signup-hint { font-size: 0.76rem; color: var(--text-3); margin-top: 8px; text-align: center; }
+    .signup-hint strong { color: var(--accent); }
+    .signup-note {
+      margin-top: 18px; padding: 14px 16px;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      border-radius: 12px;
+      font-size: 0.78rem; color: var(--text-2); line-height: 1.6;
+    }
+    .signup-note strong { color: var(--text-1); }
+    .auth-switch { text-align: center; font-size: 0.85rem; color: var(--text-3); margin-top: 20px; }
+    .auth-switch a { color: var(--accent); text-decoration: underline; font-weight: 600; }
+    .admin-entry { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px; text-align: center; }
+    .admin-entry-title { font-size: 0.8rem; font-weight: 800; color: var(--text-1); margin-bottom: 5px; }
+    .admin-entry p { font-size: 0.76rem; color: var(--text-3); line-height: 1.6; margin: 0 0 12px; }
+    .admin-entry a {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 1.5px solid var(--accent-border); background: var(--accent-ghost); color: var(--accent);
+      border-radius: 100px; padding: 10px 18px; font-size: 0.78rem; font-weight: 800;
+      text-decoration: none; transition: 0.2s;
+    }
+    .admin-entry a:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+    @media (max-width: 600px) {
+      .auth-section { padding: 34px 0 56px; }
+      .auth-card { padding: 28px 18px; }
+      .auth-card h2 { font-size: 1.2rem; }
+      .signup-form input { font-size: 0.95rem; /* stops iOS zooming on focus */ }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="influencer.html" class="mobile-iaf">📣 Already have an account? Sign in to the Influencer Portal</a>
+    <a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="influencer.html" class="inf-link" title="Sign in to your existing Influencer account">
+          <span aria-hidden="true">📣</span> Influencer sign in
+        </a>
+        <a href="influencer-admin-signup.html" class="iaf-link" title="Create or sign in to an Influencer Admin account">
+          <span aria-hidden="true">👤</span> Create or sign up
+        </a>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="auth-section">
+    <div class="container">
+      <div class="auth-card">
+        <div class="auth-icon">📣</div>
+        <h2>Create your influencer account</h2>
+        <p class="auth-sub">Get your own referral link and earn <strong>20% commission</strong> on every ticket sold through it. It takes a few seconds and your account works immediately.</p>
+
+        <form class="signup-form" id="influencerSignupForm" novalidate>
+          <div>
+            <label for="infName">Full name</label>
+            <input type="text" id="infName" placeholder="e.g. Ada Nwosu" autocomplete="name" required />
+          </div>
+          <div>
+            <label for="infEmail">Email address</label>
+            <input type="email" id="infEmail" placeholder="you@university.edu.ng" autocomplete="email" required />
+          </div>
+          <div>
+            <label for="infPassword">Password</label>
+            <input type="password" id="infPassword" placeholder="At least 8 characters" autocomplete="new-password" required />
+            <p class="signup-hint">At least 8 characters with a letter, a number and a symbol.</p>
+          </div>
+          <button class="btn-primary" id="infBtn" type="submit">✨ Create my account</button>
+        </form>
+
+        <p class="signup-status" id="infStatus" role="status" aria-live="polite"></p>
+
+        <div class="signup-note">
+          <strong>What you get:</strong> a referral link and code of your own, live sales and ticket stats, and commission payouts paid by the Influencer Admin behind each event.
+        </div>
+
+        <p class="auth-switch">Already have an account? <a href="influencer.html">Sign in to the Influencer Portal</a></p>
+
+        <div class="admin-entry">
+          <div class="admin-entry-title">Creating or running events?</div>
+          <p>That's a different account: an Influencer Admin creates events, tracks sales and requests commission payouts.</p>
+          <a href="influencer-admin-signup.html">Create or sign in as an Influencer Admin →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+  <script>
+  (function() {
+    var TOKEN_KEY = 'unn_influencer_token';
+    var form = document.getElementById('influencerSignupForm');
+    if (!form) return;
+    var name = document.getElementById('infName');
+    var email = document.getElementById('infEmail');
+    var password = document.getElementById('infPassword');
+    var btn = document.getElementById('infBtn');
+    var status = document.getElementById('infStatus');
+
+    function say(msg, tone) {
+      if (!status) return;
+      status.textContent = msg;
+      status.style.color = tone === 'ok' ? 'var(--accent)' : (tone === 'bad' ? '#B71C1C' : '');
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var payload = {
+        name: name ? name.value.trim().replace(/\s+/g, ' ') : '',
+        email: email ? email.value.trim().toLowerCase() : '',
+        password: password ? password.value : ''
+      };
+      if (!payload.name) return say('⚠️ Please enter your full name.', 'bad');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email)) return say('⚠️ Please enter a valid email address.', 'bad');
+      if (payload.password.length < 8) return say('⚠️ Your password must be at least 8 characters long.', 'bad');
+      if (!/[A-Za-z]/.test(payload.password)) return say('⚠️ Your password must contain at least one letter.', 'bad');
+      if (!/[0-9]/.test(payload.password)) return say('⚠️ Your password must contain at least one number.', 'bad');
+      if (!/[^A-Za-z0-9\s]/.test(payload.password)) return say('⚠️ Your password must contain at least one symbol.', 'bad');
+
+      if (btn) { btn.disabled = true; btn.textContent = 'Creating your account…'; }
+      say('Creating your account…');
+      fetch('/api/influencer-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          var d = res.data || {};
+          if (!res.ok || !d.success) throw new Error(d.error || 'Could not create your account.');
+          if (!d.token || !d.user) throw new Error('Account created, but sign-in failed — please open the Influencer Portal and sign in.');
+          try { localStorage.setItem(TOKEN_KEY, d.token); } catch (err) { /* private mode: the portal sign-in still works */ }
+          say('✅ Account created. Opening your influencer dashboard…', 'ok');
+          var switchLink = document.querySelector('.auth-switch a');
+          if (switchLink) { switchLink.textContent = 'Open your dashboard →'; }
+          setTimeout(function() { window.location.href = 'influencer.html'; }, 700);
+        })
+        .catch(function(err) { say('⚠️ ' + (err.message || 'Could not create your account. Please try again.'), 'bad'); })
+        .then(function() { if (btn) { btn.disabled = false; btn.textContent = '✨ Create my account'; } });
+    });
+  })();
+  </script>
+</body>
+</html>

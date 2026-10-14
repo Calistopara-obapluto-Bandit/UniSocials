@@ -343,9 +343,9 @@ window.UNUniversity = {
       document.querySelectorAll('.nav-cta').forEach(function(cta) {
         if (cta.querySelector('.inf-link')) return;
         var a = document.createElement('a');
-        a.href = 'influencer.html';
+        a.href = 'influencer-signup.html';
         a.className = 'inf-link';
-        a.title = 'Influencer Portal — create an account or sign in';
+        a.title = 'Create or sign in to an Influencer account';
         a.innerHTML = '<span aria-hidden="true">📣</span> Influencer';
         var iaf = cta.querySelector('.iaf-link');
         if (iaf) cta.insertBefore(a, iaf);
@@ -357,7 +357,7 @@ window.UNUniversity = {
       document.querySelectorAll('.mobile-menu').forEach(function(menu) {
         if (menu.querySelector('.mobile-inf-entry')) return;
         var a = document.createElement('a');
-        a.href = 'influencer.html';
+        a.href = 'influencer-signup.html';
         a.className = 'mobile-iaf mobile-inf-entry';
         a.textContent = '📣 Create or sign in to an Influencer account';
         var iaf = menu.querySelector('.mobile-iaf');

@@ -72,7 +72,7 @@ export default function Nav({ active }) {
             {l.label}
           </a>
         ))}
-        <a href="/influencer.html" className="mobile-iaf">
+        <a href="/influencer-signup.html" className="mobile-iaf">
           📣 Create or sign in to an Influencer account
         </a>
         <a href="/influencer-admin-signup.html" className="mobile-iaf">
@@ -108,8 +108,8 @@ export default function Nav({ active }) {
                 <a href="/login.html" className="nav-signin">Sign In</a>
               )}
             </span>
-            <a href="/influencer.html" className="inf-link"
-               title="Influencer Portal — create an account or sign in">
+            <a href="/influencer-signup.html" className="inf-link"
+               title="Create or sign in to an Influencer account">
               <span aria-hidden="true">📣</span> Influencer
             </a>
             <a href="/influencer-admin-signup.html" className="iaf-link"
