@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAdmin } from './adminContext.js';
-import { adminFetch } from './adminApi.js';
+import { adminFetch, changeCommissionPlan, planInfo, COMMISSION_PLANS } from './adminApi.js';
 import { esc } from '../../lib/utils.jsx';
 
 // Authorize Events tab: assign a specific existing event to a specific
@@ -68,29 +68,8 @@ export default function EventAuthorizationsPanel() {
     }
   }
 
-  async function togglePlan(ev) {
-    const id = String(ev.id || ev._id || '');
-    const current = String(ev.commissionPlan || 'standard');
-    const next = current === 'reduced_15' ? 'standard' : 'reduced_15';
-    const msg = next === 'reduced_15'
-      ? 'Authorize the reduced 15% split for this event?\n\nFuture DIRECT sales will split 15% Unisocials / 85% owner. Referred sales stay 2.5/20/77.5. Sales already verified keep their current split.'
-      : 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% owner. Sales already verified keep their current split.';
-    if (!window.confirm(msg)) return;
-    try {
-      const data = await adminFetch('/api/admin/events/commission-plan', {
-        method: 'POST',
-        body: JSON.stringify({ eventId: id, plan: next }),
-        credentials: 'same-origin'
-      });
-      if (data && data.success) {
-        showToast(data.message || (next === 'reduced_15' ? 'Reduced 15% split authorized.' : 'Standard 20% split restored.'));
-        loadEvents();
-      } else {
-        showToast((data && data.error) || 'Could not change the commission plan', true);
-      }
-    } catch (e) {
-      showToast('Network error changing the commission plan', true);
-    }
+  async function setPlan(eventId, next) {
+    await changeCommissionPlan(eventId, next, showToast, loadEvents);
   }
 
   return (
@@ -169,11 +148,14 @@ export default function EventAuthorizationsPanel() {
       <div className="admin-scan-panel" style={{ marginTop: 16 }}>
         <div className="admin-panel-heading" style={{ marginBottom: 8 }}>
           <div>
-            <h2 style={{ fontSize: '1rem' }}>💰 Reduced 15% Commission Split</h2>
+            <h2 style={{ fontSize: '1rem' }}>💰 Commission Split (20% / 15% / 10%)</h2>
             <p>
-              Authorize the reduced platform fee for an event: future <strong>direct</strong> sales split 15% Unisocials /
-              85% event owner instead of the standard 20/80. Referred sales always stay 2.5% / 20% / 77.5%. Only sales
-              verified from the moment you authorize earn the new rate — sales already verified keep their original split.
+              Pick the platform fee per event: future <strong>direct</strong> sales split{' '}
+              <strong>20% Unisocials / 80% owner</strong> (standard), <strong>15% / 85%</strong> or{' '}
+              <strong>10% / 90%</strong>. A sale through an influencer&apos;s link always keeps the normal
+              influencer split — 2.5% Unisocials / 20% influencer / 77.5% owner — on every plan. Only sales
+              verified from the moment you change it earn the new rate — sales already verified keep their
+              original split.
             </p>
           </div>
           <button className="admin-refresh-btn" type="button" onClick={loadEvents}>↻ Refresh</button>
@@ -185,18 +167,24 @@ export default function EventAuthorizationsPanel() {
             </div>
           ) : events.map((ev) => {
             const id = String(ev.id || ev._id || '');
-            const reduced = String(ev.commissionPlan || 'standard') === 'reduced_15';
+            const plan = planInfo(ev.commissionPlan);
             return (
               <div key={id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <strong>{esc(ev.name || id)}</strong>
                   <small style={{ color: 'var(--text-3)' }}>
-                    {reduced ? '💰 15% Unisocials / 85% owner (direct sales)' : 'Standard: 20% Unisocials / 80% owner'}
+                    {plan.value === 'standard' ? plan.label : '💰 ' + plan.label + ' (direct sales)'}
                   </small>
                 </span>
-                <button type="button" className="admin-filter-btn" onClick={() => togglePlan(ev)}>
-                  {reduced ? 'Revoke — use standard 20%' : 'Authorize 15% split'}
-                </button>
+                <select
+                  value={plan.value}
+                  onChange={(e) => setPlan(id, e.target.value)}
+                  style={{ fontSize: '.78rem', padding: '7px 10px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer' }}
+                >
+                  {COMMISSION_PLANS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.fee}% Unisocials / {p.owner}% owner</option>
+                  ))}
+                </select>
               </div>
             );
           })}

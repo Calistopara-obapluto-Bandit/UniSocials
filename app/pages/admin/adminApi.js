@@ -94,6 +94,45 @@ export async function adminFetch(path, options = {}) {
   return data;
 }
 
+// The three platform-split plans for DIRECT sales (Main Admin only). A sale
+// through an influencer's link keeps the normal influencer split (2.5% / 20% /
+// 77.5%) on every plan. Mirrors the legacy admin's plan list.
+export const COMMISSION_PLANS = [
+  { value: 'standard', fee: 20, owner: 80, label: 'Standard: 20% Unisocials / 80% owner' },
+  { value: 'reduced_15', fee: 15, owner: 85, label: '15% Unisocials / 85% owner (direct sales)' },
+  { value: 'reduced_10', fee: 10, owner: 90, label: '10% Unisocials / 90% owner (direct sales)' }
+];
+
+export function planInfo(value) {
+  return COMMISSION_PLANS.find((p) => p.value === String(value || 'standard')) || COMMISSION_PLANS[0];
+}
+
+// Ask, then move an event onto the chosen split plan. `reload` re-renders the
+// caller's list once the server confirms (or refuses).
+export async function changeCommissionPlan(eventId, next, showToast, reload) {
+  if (!eventId) return;
+  const target = planInfo(next);
+  const confirmMsg = target.value === 'standard'
+    ? 'Restore the standard 20% split for this event?\n\nFuture DIRECT sales go back to 20% Unisocials / 80% owner. Sales already verified keep their current split.'
+    : 'Use the ' + target.fee + '% split for this event?\n\nFuture DIRECT sales will split ' + target.fee + '% Unisocials / ' + target.owner + '% owner. Referred sales keep the normal influencer split (2.5% / 20% / 77.5%). Sales already verified keep their current split.';
+  if (!window.confirm(confirmMsg)) { if (typeof reload === 'function') reload(); return; }
+  try {
+    const data = await adminFetch('/api/admin/events/commission-plan', {
+      method: 'POST',
+      body: JSON.stringify({ eventId, plan: target.value }),
+      credentials: 'same-origin'
+    });
+    if (data && data.success) {
+      showToast(data.message || ('Split updated to ' + target.fee + '% Unisocials / ' + target.owner + '% owner.'));
+    } else {
+      showToast((data && data.error) || 'Could not change the commission plan', true);
+    }
+  } catch (e) {
+    showToast('Network error changing the commission plan', true);
+  }
+  if (typeof reload === 'function') reload();
+}
+
 // Shared "reset password" flow for every managed account type (sub-admins,
 // influencers and staff all use the same endpoint). Ported from admin.html's
 // resetManagedPassword(): two prompts (new + confirm), then a single POST.

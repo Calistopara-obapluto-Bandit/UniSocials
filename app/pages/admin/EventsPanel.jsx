@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAdmin } from './adminContext.js';
-import { adminFetch } from './adminApi.js';
+import { adminFetch, changeCommissionPlan, planInfo, COMMISSION_PLANS } from './adminApi.js';
 import { esc, fmtN } from '../../lib/utils.jsx';
 
 // Downscale + JPEG-compress an uploaded picture so the inline data URL stays
@@ -278,29 +278,11 @@ export default function EventsPanel() {
     }
   }
 
-  async function toggleCommissionPlan(ev) {
-    const id = String(ev.id || ev._id || '');
-    const current = String(ev.commissionPlan || 'standard');
-    const next = current === 'reduced_15' ? 'standard' : 'reduced_15';
-    const msg = next === 'reduced_15'
-      ? 'Authorize the reduced 15% split for this event?\n\nFuture DIRECT sales will split 15% Unisocials / 85% you. Referred sales stay 2.5/20/77.5. Sales already verified keep their current split.'
-      : 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% you. Sales already verified keep their current split.';
-    if (!window.confirm(msg)) return;
-    try {
-      const data = await adminFetch('/api/admin/events/commission-plan', {
-        method: 'POST',
-        body: JSON.stringify({ eventId: id, plan: next }),
-        credentials: 'same-origin'
-      });
-      if (data && data.success) {
-        showToast(data.message || (next === 'reduced_15' ? 'Reduced 15% split authorized.' : 'Standard 20% split restored.'));
-        loadEvents();
-      } else {
-        showToast((data && data.error) || 'Could not change the commission plan', true);
-      }
-    } catch (e) {
-      showToast('Network error changing the commission plan', true);
-    }
+  async function setPlan(eventId, next) {
+    await changeCommissionPlan(eventId, next, showToast, () => {
+      loadEvents();
+      loadOrders();
+    });
   }
 
   const num = (key, label, placeholder) => (
@@ -431,7 +413,7 @@ export default function EventsPanel() {
                   onDelete={() => deleteEvent(String(ev.id || ev._id || ''))}
                   onArchive={() => toggleArchive(ev)}
                   onNotify={() => notifySubscribers(ev)}
-                  onPlan={() => toggleCommissionPlan(ev)}
+                  onPlan={(next) => setPlan(String(ev.id || ev._id || ''), next)}
                 />
               ))}
             </>
@@ -452,7 +434,7 @@ function EventRow({ ev, onEdit, onDelete, onArchive, onNotify, onPlan }) {
   const table = parseFloat(ev.tablePrice || 0) || 0;
   const bonusTable = parseFloat(ev.bonusTablePrice || 0) || 0;
   const reg = parseFloat(ev.price || 0) || 0;
-  const planReduced = String(ev.commissionPlan || 'standard') === 'reduced_15';
+  const plan = planInfo(ev.commissionPlan);
 
   const priceHtml = bonus > 0
     ? (<>
@@ -490,20 +472,18 @@ function EventRow({ ev, onEdit, onDelete, onArchive, onNotify, onPlan }) {
         {tierHtml('Table', table, bonusTable)}
         <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{esc(ev.date || '')}</span>
         <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>{esc(ev.universityName || '')}</span>
-        <span style={{
-          fontSize: '0.72rem', fontWeight: 700, borderRadius: 999, padding: '2px 8px',
-          border: '1px solid ' + (planReduced ? 'var(--accent-border)' : 'var(--border)'),
-          color: planReduced ? 'var(--accent)' : 'var(--text-3)',
-          background: planReduced ? 'var(--accent-ghost)' : 'transparent'
-        }}>
-          {planReduced ? '💰 15% split' : '20% split'}
-        </span>
+        <select
+          value={plan.value}
+          onChange={(e) => onPlan(e.target.value)}
+          title="Platform split on direct sales: 20%, 15% or 10% to Unisocials"
+          style={{ fontSize: '0.72rem', fontWeight: 700, padding: '5px 6px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', maxWidth: 170 }}
+        >
+          {COMMISSION_PLANS.map((p) => (
+            <option key={p.value} value={p.value}>{p.fee}% Unisocials / {p.owner}% owner</option>
+          ))}
+        </select>
       </div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <button type="button" className="admin-ticket-copy" onClick={onPlan}
-          title={planReduced ? 'Revoke the reduced 15% split (future sales go back to 20/80)' : 'Authorize the reduced 15% split for this event (future direct sales: 15% Unisocials / 85% owner)'}>
-          {planReduced ? '💰' : '💵'}
-        </button>
         <button type="button" className="admin-ticket-copy" onClick={onEdit} title="Edit event" data-ev-edit={id}>✏️</button>
         <button type="button" className="admin-ticket-copy" onClick={onArchive}
           title={ev.archived ? 'Unarchive event' : 'Archive event'}>

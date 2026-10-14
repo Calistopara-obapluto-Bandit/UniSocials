@@ -178,8 +178,9 @@ export default function PayoutsPanel() {
           <p>
             Every payout on the site. A sale through an influencer's link is split{' '}
             <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to the event owner</strong>; a sale with no link is{' '}
-            <strong>20% / 80%</strong> — or <strong>15% / 85%</strong> on events authorized for the reduced 15% split.
-            Requests are paid in full — the platform fee was already taken from the ticket. Referrer commission is
+            <strong>20% / 80%</strong> — or <strong>15% / 85%</strong> or <strong>10% / 90%</strong> on events
+            authorized for a reduced split. Requests are paid in full — the platform fee was already taken from
+            the ticket. Referrer commission is
             normally paid by the Influencer Admin of the event; you can still verify, release or reject any payout
             here. Approved payouts are promised within 24 hours.
           </p>
