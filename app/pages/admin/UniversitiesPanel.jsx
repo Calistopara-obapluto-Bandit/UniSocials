@@ -7,7 +7,7 @@ import { esc } from '../../lib/utils.jsx';
 // site, and events/tickets are scoped per university. The shared list lives in
 // the shell's context so the event form, this panel and the subscriber filter
 // all read one copy.
-export default function UniversitiesPanel() {
+export default function UniversitiesPanel({ active }) {
   const { showToast, loadUniversities, loadEvents, universities } = useAdmin();
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
@@ -66,7 +66,7 @@ export default function UniversitiesPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-universities">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-universities">
       <div className="admin-panel-heading">
         <div>
           <h1>🏛 Universities Manager</h1>

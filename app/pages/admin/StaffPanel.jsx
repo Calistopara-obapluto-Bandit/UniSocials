@@ -6,7 +6,9 @@ import { esc } from '../../lib/utils.jsx';
 // Dedicated Staff Accounts: separate login accounts for Check-in Staff and
 // Influencer Admins. 📦 archives an account (signed out, blocked from signing
 // in, history kept); ♻️ restores it.
-export default function StaffPanel() {
+// `active` is renamed on the way in: this panel already keeps a local
+// `active` list of non-archived staff accounts.
+export default function StaffPanel({ active: isActive }) {
   const { showToast } = useAdmin();
   const [list, setList] = useState([]);
   const [role, setRole] = useState('checkin_staff');
@@ -136,7 +138,7 @@ export default function StaffPanel() {
   };
 
   return (
-    <div className="admin-panel" id="panel-staff">
+    <div className={'admin-panel' + (isActive ? ' active' : '')} id="panel-staff">
       <div className="admin-panel-heading">
         <div>
           <h1>👥 Dedicated Staff Accounts</h1>

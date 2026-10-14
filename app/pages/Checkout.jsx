@@ -85,6 +85,11 @@ export default function Checkout() {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Active task referral link session (?task=CODE). It is counted, never
+  // applied: it never changes the price, it only credits the influencer's
+  // task-link purchase count once this order is verified. Applying a referral
+  // ends the session (see applyReferralCode), exactly like the legacy checkout.
+  const [taskCode, setTaskCode] = useState('');
 
   // Warm the payment runtime up as soon as the checkout opens, so /config.js
   // and Flutterwave's SDK are ready before the buyer clicks Pay instead of
@@ -143,6 +148,12 @@ export default function Checkout() {
       tryGetSession('referralCode') || tryGetLocal('unn_referral_code') || '').trim();
     if (saved) input.value = saved.toUpperCase();
   }, [checkoutData]);
+
+  // Surface the active task referral link session to the buyer (initial read).
+  useEffect(() => {
+    const code = (tryGetSession('unn_task_code') || tryGetLocal('unn_task_code') || '').trim();
+    if (code) setTaskCode(code.toUpperCase());
+  }, []);
 
   async function fetchEvents() {
     const res = await api('/api/events');
@@ -237,6 +248,7 @@ export default function Checkout() {
       // activating a referral ends any task-link session on this browser.
       try { sessionStorage.removeItem('unn_task_code'); } catch (e) {}
       try { localStorage.removeItem('unn_task_code'); } catch (e) {}
+      setTaskCode('');
       if (msg) { msg.textContent = '✓ Referral applied — original ticket price unlocked.'; msg.className = 'form-hint referral-message success'; }
       await refreshReferralPricing();
     } catch (err) {
@@ -416,6 +428,9 @@ export default function Checkout() {
           universityName: checkoutData?.universityName || '',
           universitySlug: checkoutData?.universitySlug || '',
           referralCode,
+          // Task referral link attribution (mutually exclusive with the
+          // referral code above — the server drops one if both arrive).
+          taskCode: referralApplied ? '' : taskCode,
           couponCode: appliedCoupon ? appliedCoupon.code : '',
         }),
       });
@@ -594,6 +609,23 @@ export default function Checkout() {
                   🎁 Referral code: {esc(refFromUrl)}
                 </div>
               ) : null}
+              {taskCode && !refFromUrl ? (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '14px',
+                  padding: '9px 14px',
+                  borderRadius: '999px',
+                  background: 'var(--accent-ghost)',
+                  border: '1px solid var(--accent-border)',
+                  color: 'var(--accent)',
+                  fontWeight: 700,
+                  fontSize: '.84rem',
+                }}>
+                  🔗 Task link active: {esc(taskCode)}
+                </div>
+              ) : null}
             </div>
             <div id="checkoutEventList" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
               {loading ? (
@@ -725,6 +757,19 @@ export default function Checkout() {
               </div>
             </div>
             )}
+
+            {/* TASK REFERRAL LINK */}
+            {taskCode ? (
+              <div className="checkout-card reveal reveal-delay-2 task-link-card">
+                <h3 className="checkout-card-title">🔗 Task link active</h3>
+                <div className="task-link-row">
+                  <code className="task-link-code">{esc(taskCode)}</code>
+                  <p className="form-hint task-link-note">
+                    You arrived through an influencer's task link, so this purchase is counted for them. Your price does not change.
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             {/* REFERRAL CODE */}
             <div className="checkout-card reveal reveal-delay-2 referral-checkout-card">

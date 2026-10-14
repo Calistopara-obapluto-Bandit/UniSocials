@@ -913,13 +913,17 @@ const tier = getSelectedTier();
     const checkoutSection = document.querySelector('.checkout-section');
     if (checkoutSection) {
       const container = checkoutSection.querySelector('.container') || checkoutSection;
-      const refFromUrl = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
+      // A task referral link session and a referral session never coexist, so
+      // an active task session suppresses any stored referral code here.
+      const taskFromSession = (function() { try { return (sessionStorage.getItem('unn_task_code') || localStorage.getItem('unn_task_code') || '').trim().toUpperCase(); } catch(e) { return ''; } })();
+      const refFromUrl = taskFromSession ? '' : (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim().toUpperCase();
       if (refFromUrl) {
         try { sessionStorage.setItem('referralCode', refFromUrl); localStorage.setItem('unn_referral_code', refFromUrl); } catch(e) {}
       }
       container.innerHTML = '<div class="checkout-event-picker" style="max-width:980px;margin:0 auto;">' +
         '<div style="text-align:center;margin-bottom:26px;"><div class="section-label">Choose an event</div><h2 style="margin:8px 0 8px;">Select the event you want to attend</h2><p style="color:var(--text-3);margin:0;">Your referral code will be applied automatically after you choose an event.</p>' +
         (refFromUrl ? '<div style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:.84rem;">🎁 Referral code: ' + refFromUrl.replace(/[<>]/g,'') + '</div>' : '') +
+        (!refFromUrl && taskFromSession ? '<div style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 14px;border-radius:999px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:.84rem;">🔗 Task link active: ' + taskFromSession.replace(/[<>]/g,'') + '</div>' : '') +
         '</div><div id="checkoutEventList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;"><div style="grid-column:1/-1;text-align:center;padding:34px;color:var(--text-3);">Loading available events…</div></div></div>';
       const list = document.getElementById('checkoutEventList');
       fetch('/api/events').then(function(r){ return r.json(); }).then(function(payload){
@@ -1063,6 +1067,7 @@ const tier = getSelectedTier();
       // A task referral link and a referral link never run at the same time:
       // activating a referral ends any task-link session on this browser.
       try { sessionStorage.removeItem('unn_task_code'); localStorage.removeItem('unn_task_code'); } catch (e) {}
+      renderTaskLinkNotice();
       if (msg) { msg.textContent = '✓ Referral applied — original ticket price unlocked.'; msg.className = 'form-hint referral-message success'; }
       await refreshReferralPricing();
     } catch (e) {
@@ -1165,6 +1170,23 @@ const tier = getSelectedTier();
     const savedRef = (new URLSearchParams(window.location.search).get('ref') || sessionStorage.getItem('referralCode') || localStorage.getItem('unn_referral_code') || '').trim();
     if (savedRef) { refInput.value = savedRef.toUpperCase(); }
   }
+
+  // Task referral link session: tell the buyer their visit — and the purchase
+  // they are about to make — is counted for the influencer who sent them. It
+  // never changes the price. Applying a referral ends the session (see
+  // applyReferralCode), so the notice disappears the moment one is applied.
+  function renderTaskLinkNotice() {
+    const notice = document.getElementById('taskLinkNotice');
+    if (!notice) return;
+    const code = (function () {
+      try { return (sessionStorage.getItem('unn_task_code') || localStorage.getItem('unn_task_code') || '').trim(); } catch (e) { return ''; }
+    })();
+    const active = !!code && !referralApplied;
+    const label = document.getElementById('taskLinkCode');
+    if (active && label) label.textContent = code.toUpperCase();
+    notice.style.display = active ? '' : 'none';
+  }
+  renderTaskLinkNotice();
 
   const initialTotalLabel = total > 0 ? '\u20A6' + total.toLocaleString() : 'FREE';
   if (mobileBarTotal) mobileBarTotal.textContent = initialTotalLabel;
@@ -1292,6 +1314,10 @@ const tier = getSelectedTier();
         universityName: checkoutData.universityName || '',
         universitySlug: checkoutData.universitySlug || '',
         referralCode: referralCode,  // Add referral code to order
+        // Task referral link attribution. A referral session clears the stored
+        // task code, so this is empty whenever a referral is attached — the two
+        // are mutually exclusive by product rule (and the server enforces it).
+        taskCode: (function() { try { return (sessionStorage.getItem('unn_task_code') || localStorage.getItem('unn_task_code') || '').trim().toUpperCase(); } catch (e) { return ''; } })(),
         couponCode: appliedCoupon ? appliedCoupon.code : ''
       })
     })

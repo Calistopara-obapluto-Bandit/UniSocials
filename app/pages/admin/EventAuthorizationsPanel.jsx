@@ -5,7 +5,7 @@ import { esc } from '../../lib/utils.jsx';
 
 // Authorize Events tab: assign a specific existing event to a specific
 // Influencer Admin, plus the reduced 15% commission-split controls.
-export default function EventAuthorizationsPanel() {
+export default function EventAuthorizationsPanel({ active }) {
   const { showToast, events, loadEvents } = useAdmin();
   const [staff, setStaff] = useState([]);
   const [eventId, setEventId] = useState('');
@@ -73,7 +73,7 @@ export default function EventAuthorizationsPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-event-authorizations">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-event-authorizations">
       <div className="admin-panel-heading">
         <div>
           <h1>🔐 Authorize Events</h1>

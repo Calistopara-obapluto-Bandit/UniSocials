@@ -76,6 +76,20 @@
       .event-card, .event-preview, .event-preview-row { min-width: 0; max-width: 100%; }
       .event-preview-row { flex-wrap: wrap; }
       .event-preview-row > * { min-width: 0; overflow-wrap: anywhere; }
+      /* Filters: the campus / category / price pills share one row on desktop,
+         which squeezes each of them to ~100px on a phone. Stack them full
+         width instead so every label stays readable. */
+      .filter-search, .filter-group { min-width: 0; max-width: 100%; }
+      .filter-group { gap: 10px; }
+      .filter-group > *, .filter-group select, .uni-search-wrap {
+        flex: 1 1 auto; width: 100%; min-width: 0; max-width: 100%;
+      }
+      /* Card footer: price + "Get Tickets" + "Notify me" wrap instead of
+         being clipped by the card's overflow. */
+      .event-card-footer { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+      .event-card-footer > * { min-width: 0; }
+      .event-card-price { font-size: 1.1rem; overflow-wrap: anywhere; }
+      .event-card-title, .event-card-desc { overflow-wrap: anywhere; }
     }
   </style>
   <script type="text/javascript">

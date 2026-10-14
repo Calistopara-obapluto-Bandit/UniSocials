@@ -5,7 +5,7 @@ import { esc, fmtN, fmtDate } from '../../lib/utils.jsx';
 
 // Sub-admins: staff accounts limited to gate check-in and adding events. They
 // cannot view orders or manage universities/subscribers. Master admin only.
-export default function SubAdminsPanel() {
+export default function SubAdminsPanel({ active }) {
   const { showToast } = useAdmin();
   const [list, setList] = useState([]);
   const [name, setName] = useState('');
@@ -74,7 +74,7 @@ export default function SubAdminsPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-subadmins">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-subadmins">
       <div className="admin-panel-heading">
         <div>
           <h1>🔑 Sub-Admins</h1>

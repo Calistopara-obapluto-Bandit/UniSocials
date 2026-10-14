@@ -6,7 +6,7 @@ import { esc, fmtN } from '../../lib/utils.jsx';
 // Influencers: create influencer login accounts. Assigning events to an
 // Influencer Admin happens on the Authorize Events tab, so this panel links
 // straight to it, exactly like the legacy page.
-export default function InfluencersPanel() {
+export default function InfluencersPanel({ active }) {
   const { showToast, switchTab } = useAdmin();
   const [list, setList] = useState([]);
   const [name, setName] = useState('');
@@ -74,7 +74,7 @@ export default function InfluencersPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-influencers">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-influencers">
       <div className="admin-panel-heading">
         <div>
           <h1>📣 Influencers</h1>

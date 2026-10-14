@@ -5,7 +5,7 @@ import { esc } from '../../lib/utils.jsx';
 
 // Coupons tab: create fixed-amount coupons (₦4,000 ticket − ₦400 = ₦3,600),
 // edit existing ones and delete them.
-export default function CouponsPanel() {
+export default function CouponsPanel({ active }) {
   const { showToast } = useAdmin();
   const [coupons, setCoupons] = useState([]);
   const [count, setCount] = useState('');
@@ -89,7 +89,7 @@ export default function CouponsPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-coupons">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-coupons">
       <div className="admin-panel-heading">
         <div><h1>🏷️ Coupon Codes</h1><p>Create fixed-amount coupons. Example: ₦4,000 ticket − ₦400 coupon = ₦3,600 to pay.</p></div>
         <button type="button" className="admin-refresh-btn" onClick={loadCoupons}>↻ Refresh</button>

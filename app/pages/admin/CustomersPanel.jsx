@@ -48,7 +48,7 @@ function customersFromOrders(orders) {
 // Customers tab: registered buyers and everyone who has bought tickets.
 // Passwords are never shown. Auth failures and server errors are surfaced as
 // messages — a 401 or a 500 must never render as an empty customer list.
-export default function CustomersPanel() {
+export default function CustomersPanel({ active }) {
   const { activeTab } = useAdmin();
   const [list, setList] = useState([]);
   const [countText, setCountText] = useState('Loading…');
@@ -155,7 +155,7 @@ export default function CustomersPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-customers">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-customers">
       <div className="admin-panel-heading">
         <div>
           <h1>👥 Customers</h1>

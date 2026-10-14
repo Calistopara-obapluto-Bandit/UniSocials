@@ -23,7 +23,7 @@ function payoutBadge(status) {
 // through an influencer's link splits 2.5/20/77.5, a direct sale 20/80 (or
 // 15/85 on events authorized for the reduced split). Requests are paid in full
 // minus the platform fee that was already taken from the ticket.
-export default function PayoutsPanel() {
+export default function PayoutsPanel({ active }) {
   const { showToast, loadOrders, activeTab } = useAdmin();
   const [payoutsAll, setPayoutsAll] = useState([]);
   const [held, setHeld] = useState([]);
@@ -171,7 +171,7 @@ export default function PayoutsPanel() {
   const nextUnlock = remaining[0] ? new Date(remaining[0].unlocksAt).getTime() - now : 0;
 
   return (
-    <div className="admin-panel" id="panel-payouts">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-payouts">
       <div className="admin-panel-heading">
         <div>
           <h1>💰 Payout Requests</h1>

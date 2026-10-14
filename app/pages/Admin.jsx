@@ -357,18 +357,21 @@ export default function Admin() {
             </div>
 
             <div className="container">
-              <OverviewPanel orders={orders} lastUpdated={lastUpdated} />
+              {/* Every panel stays mounted (so its filters and data survive a
+                  tab switch) and is shown only while its own tab is active:
+                  `.admin-panel` is display:none unless it carries `.active`. */}
+              <OverviewPanel orders={orders} lastUpdated={lastUpdated} active={activeTab === 'overview'} />
               <CheckinPanel active={activeTab === 'checkin'} />
-              <EventsPanel />
-              <UniversitiesPanel />
-              <SubscribersPanel />
-              <SubAdminsPanel />
-              <InfluencersPanel />
-              <EventAuthorizationsPanel />
-              <StaffPanel />
-              <CustomersPanel />
-              <PayoutsPanel />
-              <CouponsPanel />
+              <EventsPanel active={activeTab === 'events'} />
+              <UniversitiesPanel active={activeTab === 'universities'} />
+              <SubscribersPanel active={activeTab === 'subscribers'} />
+              <SubAdminsPanel active={activeTab === 'subadmins'} />
+              <InfluencersPanel active={activeTab === 'influencers'} />
+              <EventAuthorizationsPanel active={activeTab === 'event-authorizations'} />
+              <StaffPanel active={activeTab === 'staff'} />
+              <CustomersPanel active={activeTab === 'customers'} />
+              <PayoutsPanel active={activeTab === 'payouts'} />
+              <CouponsPanel active={activeTab === 'coupons'} />
             </div>
           </div>
         )}

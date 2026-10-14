@@ -178,6 +178,21 @@
   .events-month-summary { min-width: 0; }
   .month-chip { max-width: 100%; }
   .month-chip .month-name { overflow-wrap: anywhere; min-width: 0; }
+
+  /* Filters: the campus / category / price pills share one row on desktop,
+     which squeezes each of them to ~100px on a phone. Stack them full width
+     instead so every label stays readable. */
+  .filter-search, .filter-group { min-width: 0; max-width: 100%; }
+  .filter-group { gap: 10px; }
+  .filter-group > *, .filter-group select, .uni-search-wrap {
+    flex: 1 1 auto; width: 100%; min-width: 0; max-width: 100%;
+  }
+  /* Card footer: price + "Get Tickets" + "Notify me" wrap instead of being
+     clipped by the card's overflow. */
+  .event-card-footer { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+  .event-card-footer > * { min-width: 0; }
+  .event-card-price { font-size: 1.1rem; overflow-wrap: anywhere; }
+  .event-card-title, .event-card-desc { overflow-wrap: anywhere; }
 }
 
 /* ── Events page (ported from events.html <style> so the React version looks
@@ -284,4 +299,32 @@
   .referral-input-row { flex-wrap: wrap; }
   .referral-input-row input { flex: 1 1 100%; }
   .referral-input-row button { flex: 1 1 calc(50% - 5px); width: auto; min-width: 0; }
+}
+
+/* Task referral link notice — shown only while a task session is active.
+   Mirrors the rules inlined in the legacy checkout.html so both versions of
+   the page look identical. */
+.task-link-card { border-color: var(--accent-border); }
+.task-link-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.task-link-code {
+  display: inline-flex;
+  align-items: center;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: var(--accent-ghost);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  word-break: break-all;
+}
+.task-link-note { margin: 0; }
+@media (max-width: 520px) {
+  .task-link-row { align-items: stretch; }
 }

@@ -189,7 +189,7 @@ export default function CheckinPanel({ active }) {
   }
 
   return (
-    <div className="admin-panel" id="panel-checkin">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-checkin">
       <div className="admin-panel-heading">
         <div>
           <h1>🎫 Gate Check-in / Scan Ticket</h1>

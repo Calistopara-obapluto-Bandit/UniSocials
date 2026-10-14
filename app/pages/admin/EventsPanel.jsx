@@ -81,7 +81,7 @@ function safeImg(value) {
 
 // Events manager: add/edit/archive/notify/delete events. New events appear
 // instantly on the Events, Tickets and Home pages for buyers.
-export default function EventsPanel() {
+export default function EventsPanel({ active }) {
   const { showToast, loadOrders, loadEvents, events, universities, loadUniversities } = useAdmin();
   const [form, setForm] = useState(EMPTY_EVENT);
   const [editingId, setEditingId] = useState('');
@@ -308,7 +308,7 @@ export default function EventsPanel() {
   );
 
   return (
-    <div className="admin-panel" id="panel-events">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-events">
       <div className="admin-panel-heading">
         <div>
           <h1>🎤 Manage Events</h1>

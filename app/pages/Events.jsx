@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import Nav from '../components/Nav.jsx';
 import { esc, fmtN } from '../lib/utils.jsx';
 import { subscribeToEvent } from '../lib/notify.js';
 
@@ -437,25 +438,10 @@ export default function Events() {
         <span className="wa-tooltip">Chat with us</span>
       </a>
 
-      <nav className="nav" id="mainNav" role="navigation" aria-label="Main navigation">
-        <div className="nav-inner">
-          <a href="/index.html" className="nav-logo">Uni<span>socials</span></a>
-          <ul className="nav-links" role="list">
-            <li><a href="/index.html">Home</a></li>
-            <li><a href="/events.html" className="active">Events</a></li>
-            <li><a href="/tickets.html">Tickets</a></li>
-            <li><a href="/about.html">About</a></li>
-            <li><a href="/contact.html">Contact</a></li>
-          </ul>
-          <div className="nav-cta">
-            <span className="nav-account-slot"></span>
-            <a href="/influencer-admin-signup.html" className="iaf-link" title="Create or sign in to an Influencer Admin account">
-              <span aria-hidden="true">👤</span> Create or sign up
-            </a>
-            <a href="/events.html" className="btn-primary">Get Tickets</a>
-          </div>
-        </div>
-      </nav>
+      {/* Shared nav: this page previously carried its own hand-written copy of
+          the header, which left it without the hamburger menu — so on a phone
+          the nav links (hidden below 768px) were simply unreachable. */}
+      <Nav active="Events" />
 
       <section className="page-header">
         <div className="container">
@@ -546,7 +532,7 @@ export default function Events() {
               <div key={ev.id || i}>{eventCard(ev, i, referralCode)}</div>
             ))}
             {filteredEvents.length === 0 && events && events.length > 0 && (
-              <div id="noResults" className="no-results" style={{ display: 'block' }}>
+              <div id="noResults" className="no-results" style={{ display: 'block', gridColumn: '1 / -1' }}>
                 <span>😕</span>
                 <p>No events match your search criteria.</p>
                 <button

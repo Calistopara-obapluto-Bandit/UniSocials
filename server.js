@@ -1198,6 +1198,27 @@ function isReferralOrderCounted(order, referralCode) {
   return status === 'verified';
 }
 
+// Task-link purchases: an order carries the task code of the task referral
+// link session that brought the buyer in. Only a verified (paid) order counts
+// as a purchase — a pending or rejected order never credits the influencer.
+function isTaskOrderCounted(order, taskCode) {
+  const safeCode = String(taskCode || '').trim().toUpperCase();
+  if (!order || !safeCode) return false;
+  if (String(order.taskCode || '').trim().toUpperCase() !== safeCode) return false;
+  return String(order.status || '').toLowerCase() === 'verified';
+}
+
+// Resolves a task code to its influencer owner. Returns null for anything that
+// is not a live task referral link; a stale code must never block a purchase,
+// it just does not attribute one.
+async function findTaskLinkOwner(taskCode) {
+  const safeCode = String(taskCode || '').trim().toUpperCase();
+  if (!safeCode) return null;
+  const users = await readUsers();
+  return users.find(u => u && u.role === 'influencer' && u.taskLink &&
+    String(u.taskLink.code || '').trim().toUpperCase() === safeCode) || null;
+}
+
 // Influencer referral codes are scoped to the Influencer Admin who created the
 // influencer. That admin must be authorized for the event (or own the event)
 // before the code can be used. Sub-admin referral links are intentionally not
@@ -4286,6 +4307,10 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
       const universityName = String(data.universityName || '').trim();
       const universitySlug = String(data.universitySlug || '').trim();
       const referralCode = String(data.referralCode || '').trim().toUpperCase();
+      // Optional attribution for a task referral link session (?task=CODE).
+      // Unlike a referral code this never changes the price and never carries a
+      // commission — it only credits the influencer's task-link purchase count.
+      const taskCode = String(data.taskCode || '').trim().toUpperCase();
       const couponCode = String(data.couponCode || '').trim().toUpperCase();
       // 'free' is accepted here only as a known value: a free event (server-
       // priced at exactly ₦0) is decided AFTER pricing below, never by the client.
@@ -4294,7 +4319,7 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
         return sendJson(res, 400, { success: false, error: 'Please select Credit/Debit Card or Bank Transfer.' });
       }
       // Reject malformed/oversized order input before touching storage or payment state.
-      if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || couponCode.length > 100) {
+      if (orderId.length > 100 || eventId.length > 100 || eventName.length > 200 || eventDate.length > 100 || eventVenue.length > 300 || eventCategory.length > 100 || buyerName.length > 160 || buyerEmail.length > 254 || buyerPhone.length > 40 || buyerFaculty.length > 160 || universityId.length > 100 || universityName.length > 200 || universitySlug.length > 160 || referralCode.length > 100 || taskCode.length > 100 || couponCode.length > 100) {
         return sendJson(res, 400, { success: false, error: 'One or more order fields are too long.' });
       }
       if (qty < 1 || qty > 100) {
@@ -4337,6 +4362,11 @@ function getTierInventoryFromMap(event, tier, inventoryMap) {
         }
         referralApplied = true;
       }
+
+      // A task link and a referral link are mutually exclusive sessions: a
+      // referral always wins the attribution, so a task code riding along with
+      // a referred order is dropped rather than counted twice.
+      const attributedTaskCode = (taskCode && !referralCode && (await findTaskLinkOwner(taskCode))) ? taskCode : null;
 
       // Server-authoritative pricing: bonus is the default; a valid referral
       // switches the selected tier back to its original price.
@@ -4425,6 +4455,7 @@ buyerFaculty: buyerFaculty,
         universityName: universityName,
         universitySlug: universitySlug,
         referralCode: referralCode || null,  // Track which subadmin referred this order
+        taskCode: attributedTaskCode || null, // Task referral link that brought this buyer in
         couponCode: couponCode || null,
         couponDiscount: couponDiscount || 0,
         amountBeforeCoupon: baseAmountBeforeCoupon,
@@ -4903,11 +4934,18 @@ codes[idx] = entry;
         await addUser(taskUser);
       }
       const t = taskUser.taskLink;
+      // Purchases are derived from the orders themselves (verified/paid only),
+      // so the dashboard always reports the live number without any stored
+      // counter that could drift out of sync.
+      const taskOrders = (await readOrders()).filter(o => isTaskOrderCounted(o, t.code));
       return sendJson(res, 200, { success: true, task: {
         code: t.code,
         url: canonicalTaskUrl(t.code),
         people: Number(t.people) || 0,
         uses: Number(t.uses) || 0,
+        purchases: taskOrders.length,
+        tickets: taskOrders.reduce((n, o) => n + (parseInt(o.qty, 10) || 0), 0),
+        revenue: taskOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
         createdAt: t.createdAt || null
       } });
     }

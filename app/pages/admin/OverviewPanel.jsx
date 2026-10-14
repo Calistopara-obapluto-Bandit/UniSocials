@@ -7,7 +7,7 @@ import { fmtN, fmtDate, esc } from '../../lib/utils.jsx';
 // the order cards with verify/reject/reopen/resend actions plus per-ticket codes.
 // Orders are loaded by the shell (shared with the check-in tab); this panel only
 // derives stats and the visible list from them.
-export default function OverviewPanel({ orders, lastUpdated }) {
+export default function OverviewPanel({ orders, lastUpdated, active }) {
   const { showToast, loadOrders } = useAdmin();
   const [statusFilter, setStatusFilter] = useState('all');
   const [eventFilter, setEventFilter] = useState('');
@@ -90,7 +90,7 @@ export default function OverviewPanel({ orders, lastUpdated }) {
   }
 
   return (
-    <div className="admin-panel active" id="panel-overview">
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-overview">
       <div className="admin-panel-heading">
         <div>
           <h1>📊 Orders Overview</h1>

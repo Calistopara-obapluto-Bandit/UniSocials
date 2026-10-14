@@ -5,7 +5,7 @@ import { esc } from '../../lib/utils.jsx';
 
 // Subscribers tab: users who opted in to receive event notifications, filterable
 // by university. Creating an event emails that university's subscribers.
-export default function SubscribersPanel() {
+export default function SubscribersPanel({ active }) {
   const { showToast, universities } = useAdmin();
   const [filterUni, setFilterUni] = useState('');
   const [subs, setSubs] = useState(null);
@@ -50,7 +50,7 @@ export default function SubscribersPanel() {
 
   if (subs === null) {
     return (
-      <div className="admin-panel" id="panel-subscribers">
+      <div className={'admin-panel' + (active ? ' active' : '')} id="panel-subscribers">
         <SubsHeading filterUni={filterUni} onFilter={changeFilter} onRefresh={() => load()} universities={universities} />
         <div className="admin-scan-panel">
           <div style={{ textAlign: 'center', padding: 16, color: 'var(--text-3)', fontSize: '0.85rem' }}>Loading subscribers…</div>
@@ -60,7 +60,7 @@ export default function SubscribersPanel() {
   }
 
   return (
-    <div className="admin-panel" id="panel-subscribers">        <SubsHeading filterUni={filterUni} onFilter={changeFilter} onRefresh={() => load()} universities={universities} />
+    <div className={'admin-panel' + (active ? ' active' : '')} id="panel-subscribers">        <SubsHeading filterUni={filterUni} onFilter={changeFilter} onRefresh={() => load()} universities={universities} />
       <div className="admin-scan-panel">
         <div className="admin-ticket-codes" style={{ marginTop: 14 }}>
           {subs.length === 0 ? (
