@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Look Up Your Ticket — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="templatemo-622-clearwave.css" />
+  <style>
+    /* This page is the guest destination: one card, one job — find the ticket
+       for an order you already paid for, without creating an account. */
+    .lookup-section { padding: 24px 0 80px; }
+    .lookup-card {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-md);
+    }
+    .lookup-card h2 { font-size: 1.3rem; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+    .lookup-card > p { font-size: 0.88rem; color: var(--text-3); margin-bottom: 24px; line-height: 1.6; }
+    .lookup-result {
+      margin-top: 24px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: none;
+    }
+    .lookup-result.show { display: block; }
+    .lookup-order-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 0.88rem;
+    }
+    .lookup-order-row:last-child { border-bottom: none; }
+    .lookup-order-row span { color: var(--text-3); }
+    .lookup-order-row strong { color: var(--text-1); text-align: right; }
+    .lookup-badge {
+      display: inline-block;
+      padding: 3px 14px;
+      border-radius: 100px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .lookup-badge.pending { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+    .lookup-badge.verified { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
+    .lookup-badge.rejected { background: #FDECEA; color: #B71C1C; border: 1px solid #F5C6CB; }
+    .lookup-error {
+      display: none;
+      background: #FDECEA;
+      border: 1px solid #F5C6CB;
+      color: #B71C1C;
+      font-size: 0.85rem;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-top: 16px;
+    }
+    .lookup-error.show { display: block; }
+    .lookup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .lookup-hint {
+      max-width: 720px;
+      margin: 0 auto 20px;
+      background: var(--accent-ghost);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: 0.85rem;
+      color: var(--text-2);
+    }
+    .lookup-hint a { color: var(--accent); text-decoration: underline; }
+
+    .ticket-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .ticket-state.ok { background: #E8F5E9; color: #1B5E20; border: 1px solid #C8E6C9; }
+    .ticket-state.used { background: #F3F4F6; color: #6B7280; border: 1px solid #D1D5DB; }
+    .order-code-row.used { opacity: 0.65; }
+    .order-code-row.used code { color: var(--text-3); text-decoration: line-through; }
+
+    @media (max-width: 480px) {
+      .lookup-card { padding: 28px 20px; }
+      .lookup-actions .btn-primary, .lookup-actions .btn-cta-ghost { width: 100%; }
+      .lookup-order-row { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+<a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+<li><a href="tickets.html" class="active">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <span class="nav-account-slot"></span>
+        <a href="influencer-admin-signup.html" class="iaf-link" title="Create or sign in to an Influencer Admin account">
+          <span aria-hidden="true">👤</span> Create or sign up
+        </a>
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <div class="section-label reveal">Order Lookup</div>
+      <h1 class="section-title reveal reveal-delay-1">Find your <em>ticket</em></h1>
+      <p class="section-sub reveal reveal-delay-2" id="pageSub">Already bought a ticket? Enter your Order ID and the phone number you paid with — no account, no sign-in.</p>
+    </div>
+  </section>
+
+  <section class="lookup-section" id="lookupSection">
+    <div class="container">
+      <div class="lookup-hint" id="lookupHint">
+        <strong>No account needed.</strong> Your tickets are emailed to you the moment payment is confirmed — just open that email. <a href="login.html">Signing in</a> is optional, only to see every order in one place.
+      </div>
+      <div class="lookup-card reveal">
+        <h2 id="lookupHeading">🔍 Look Up Your Order</h2>
+        <p id="lookupBlurb">Enter your Order ID and the phone number you used to buy the ticket. No sign-up, no sign-in.</p>
+
+        <div class="form-group">
+          <label for="lookupOrderId">Order ID</label>
+          <input type="text" id="lookupOrderId" placeholder="UNI-XXXX-XXXX" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="lookupPhone">Phone Number</label>
+          <input type="tel" id="lookupPhone" placeholder="0812 345 6789" autocomplete="tel" />
+        </div>
+
+        <button class="btn-submit" id="lookupBtn" onclick="lookupOrder()">Find My Ticket</button>
+
+        <div class="lookup-error" id="lookupError"></div>
+
+        <div class="lookup-result" id="lookupResult"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-logo">Uni<span style="color:var(--accent-light)">socials</span></a>
+<p class="footer-brand-desc">The event ticket selling platform for universities across Nigeria.</p>
+        </div>
+        <div>
+          <div class="footer-col-label">Quick Links</div>
+          <div class="footer-links">
+            <a href="events.html">Events</a>
+            <a href="tickets.html">Tickets</a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="faq.html">FAQ</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Support</div>
+          <div class="footer-links">
+            <a href="faq.html">Help Center</a>
+            <a href="contact.html">Report Issue</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-label">Follow Us</div>
+          <div class="footer-links">
+            <a href="https://www.tiktok.com/@unisocialshq" target="_blank" rel="noopener noreferrer">TikTok</a>
+            <a href="https://www.instagram.com/unisocialshq/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a href="https://whatsapp.com/channel/0029VbDCK4NG3R3mXiZzip27" target="_blank" rel="noopener noreferrer">WhatsApp Channel</a>
+            <a href="https://x.com/unisocialshq" target="_blank" rel="noopener noreferrer">X</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copy">
+          &copy; 2026 Unisocials. All rights reserved.
+        </div>
+        <div class="footer-legal">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="assets/min/templatemo-622-clearwave.min.js"></script>
+  <script>
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>\"']/g, function(c) {
+        return { '&': '&amp;', '<': '<', '>': '>', '\"': '\"', "'": '&#39;' }[c];
+      });
+    }
+    function fmtN(n) {
+      return '\u20A6' + Number(n || 0).toLocaleString();
+    }
+    function fmtDate(iso) {
+      if (!iso) return '\u2014';
+      var d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function orderStatusBadge(status) {
+      var badge = status === 'verified' ? 'verified' : (status === 'rejected' ? 'rejected' : 'pending');
+      var label = status === 'verified' ? '\u2705 Verified' : (status === 'rejected' ? '\u274C Rejected' : '\u23F3 Pending');
+      return '<span class="lookup-badge ' + badge + '">' + label + '</span>';
+    }
+
+    function ticketStateBadge(tc) {
+      var used = !!(tc && tc.used);
+      return '<span class="ticket-state ' + (used ? 'used' : 'ok') + '">' + (used ? '\u2713 Used' : '\u2713 OK') + '</span>';
+    }
+
+    function ticketLinks(o) {
+      var links = '';
+      if (o.status === 'verified') {
+        var codes = (o.ticketCodes && o.ticketCodes.length) ? o.ticketCodes : (o.ticketCode ? [{ code: o.ticketCode }] : []);
+        codes.forEach(function(tc, i) {
+          var used = !!(tc && tc.used);
+          links += '<a class="order-code-row' + (used ? ' used' : '') + '" style="display:flex;justify-content:space-between;align-items:center;gap:8px;text-decoration:none;color:inherit;" href="ticket.html?orderId=' + encodeURIComponent(o.orderId) + '&code=' + encodeURIComponent(tc.code) + '">' +
+            '<span>Ticket ' + (i + 1) + '</span>' +
+            '<span style="display:flex;align-items:center;gap:8px;"><code>' + esc(tc.code) + '</code>' + ticketStateBadge(tc) + ' \u2192</span></a>';
+        });
+      } else if (o.status === 'pending') {
+        links = '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="pending.html?orderId=' + encodeURIComponent(o.orderId) + '">\u23F3 Track Order</a>';
+      }
+      return links;
+    }
+
+window.lookupOrder = function() {
+      var orderId = document.getElementById('lookupOrderId').value.trim();
+      var phone = document.getElementById('lookupPhone').value.trim();
+      var errBox = document.getElementById('lookupError');
+      var resultBox = document.getElementById('lookupResult');
+      var btn = document.getElementById('lookupBtn');
+
+      errBox.classList.remove('show');
+      resultBox.classList.remove('show');
+
+      if (!orderId || !phone) {
+        errBox.textContent = 'Please enter both your Order ID and phone number.';
+        errBox.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Searching\u2026';
+
+      fetch('/api/orders/lookup', {
+        method: 'POST',
+        headers: window.UNNAuth.authHeaders(),
+        body: JSON.stringify({ orderId: orderId, phone: phone })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data && data.success && data.order) {
+          var o = data.order;
+          // Your Order ID plus the phone number you paid with is all the proof
+          // needed, so a guest never has to sign up or sign in to see their
+          // tickets — the same links that were emailed to you.
+          var codesHtml = ticketLinks(o);
+          resultBox.innerHTML =
+            '<div style="text-align:center;margin-bottom:14px;">' + orderStatusBadge(o.status) + '</div>' +
+            '<div class="lookup-order-row"><span>Order ID</span><strong>' + esc(o.orderId) + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Event</span><strong>' + esc(o.eventName || '\u2014') + '</strong></div>' +
+            (o.eventDate ? '<div class="lookup-order-row"><span>Date</span><strong>' + esc(o.eventDate) + '</strong></div>' : '') +
+            (o.eventVenue ? '<div class="lookup-order-row"><span>Venue</span><strong>' + esc(o.eventVenue) + '</strong></div>' : '') +
+            '<div class="lookup-order-row"><span>Quantity</span><strong>' + o.qty + ' ticket' + (o.qty > 1 ? 's' : '') + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Total</span><strong>' + fmtN(o.amount) + '</strong></div>' +
+            '<div class="lookup-order-row"><span>Payment</span><strong>Flutterwave</strong></div>' +
+            (o.status === 'verified' ? '<div class="lookup-order-row"><span>Verified</span><strong>' + fmtDate(o.verifiedAt) + '</strong></div>' : '') +
+            '<div class="lookup-actions">' + codesHtml +
+            '<a class="btn-cta-ghost" style="display:inline-flex;padding:12px 26px;" href="events.html">Browse Events</a>' +
+            '</div>';
+          resultBox.classList.add('show');
+        } else {
+          errBox.textContent = (data && data.error) || 'Order not found. Check your details and try again.';
+          errBox.classList.add('show');
+        }
+      })
+      .catch(function() {
+        errBox.textContent = 'Cannot reach server. Please try again.';
+        errBox.classList.add('show');
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Find My Ticket';
+      });
+    };
+
+    // This page is for guests, but a signed-in buyer can still land here (an old
+    // bookmark, a shared link, an order bought on another number). Point them at
+    // their dashboard instead of making them re-enter details they already have.
+    (function initSignedIn() {
+      var token = window.UNNAuth ? window.UNNAuth.getToken() : '';
+      if (!token) return;
+
+      var pageSub = document.getElementById('pageSub');
+      var hint = document.getElementById('lookupHint');
+      if (pageSub) {
+        pageSub.textContent = 'You\u2019re signed in \u2014 every order on your account is on your dashboard. You can still look up a single order here.';
+      }
+      if (hint) {
+        hint.innerHTML = '<strong>Signed in.</strong> Every order on your account is already listed on your dashboard. <a href="/my-tickets">Go to My Tickets \u2192</a>';
+      }
+    })();
+  </script>
+</body>
+</html>
