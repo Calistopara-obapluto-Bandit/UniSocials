@@ -111,7 +111,7 @@ export default function InfluencersPanel({ active }) {
       <div className="admin-scan-panel" style={{ marginBottom: 16 }}>
         <div className="admin-ticket-codes-label">🔗 Task referral links — overall</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '.84rem', color: 'var(--text-2)' }}>
-          <span>🛒 Purchases: <strong>{overall ? String(overall.task.purchases) : '—'}</strong></span>
+          <span>🛒 Task purchases: <strong>{overall ? String(overall.task.purchases) : '—'}</strong></span>
           <span>🎟 Tickets: <strong>{overall ? String(overall.task.tickets) : '—'}</strong></span>
           <span>💰 Revenue: <strong>{overall ? fmtN(overall.task.revenue) : '—'}</strong></span>
           <span>📣 Influencers with a task link: <strong>{overall ? String(overall.task.influencers) : '—'}</strong></span>
