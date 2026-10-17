@@ -1998,7 +1998,7 @@ fetch('/api/ticket/scan', {
                 planHtml +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<select data-plan-select="' + esc(id) + '" title="Platform split on direct sales: 20%, 15% or 10% to Unisocials" style="font-size:0.72rem;font-weight:700;padding:5px 6px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;max-width:170px;">' + planOptionsHtml(plan.value) + '</select>' +
+                '<select data-plan-select="' + esc(id) + '" title="Platform split on direct sales: 20%, 15%, 13% or 10% to Unisocials" style="font-size:0.72rem;font-weight:700;padding:5px 6px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;max-width:170px;">' + planOptionsHtml(plan.value) + '</select>' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
                 '<button type="button" class="admin-ticket-copy" data-direct-archive-event="' + esc(id) + '" data-archived="' + (ev.archived ? '1' : '0') + '" title="' + (ev.archived ? 'Unarchive event' : 'Archive event') + '">' + (ev.archived ? '📦' : '🗃️') + '</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
@@ -2706,13 +2706,14 @@ fetch('/api/admin/events/notify', {
       };
 
       // ── Platform split (commission plan), per event (Main Admin only) ──
-      // Three plans stay available for DIRECT sales: 20% standard, 15% and the
-      // deeper 10% — all three give the event owner 80% / 85% / 90%. A sale
-      // through an influencer's link keeps the normal influencer split
+      // Four plans stay available for DIRECT sales: 20% standard, 15%, 13%
+      // and the deeper 10% — they give the event owner 80% / 85% / 87% / 90%.
+      // A sale through an influencer's link keeps the normal influencer split
       // (2.5% Unisocials / 20% influencer / 77.5% owner) on every plan.
       var COMMISSION_PLANS = [
         { value: 'standard',  badge: '20% split', label: 'Standard: 20% Unisocials / 80% owner', short: '20% Unisocials / 80% owner', owner: 80, fee: 20 },
         { value: 'reduced_15', badge: '💰 15% split', label: '15% Unisocials / 85% owner (direct sales)', short: '15% Unisocials / 85% owner', owner: 85, fee: 15 },
+        { value: 'reduced_13', badge: '💰 13% split', label: '13% Unisocials / 87% owner (direct sales)', short: '13% Unisocials / 87% owner', owner: 87, fee: 13 },
         { value: 'reduced_10', badge: '💰 10% split', label: '10% Unisocials / 90% owner (direct sales)', short: '10% Unisocials / 90% owner', owner: 90, fee: 10 }
       ];
       function planInfo(value) {
@@ -2745,7 +2746,7 @@ fetch('/api/admin/events/notify', {
       };
 
       // Lists every event with its current split and lets the Main Admin
-      // pick 20%, 15% or 10% for future sales.
+      // pick 20%, 15%, 13% or 10% for future sales.
       window.loadCommissionPlanList = function() {
         var box = document.getElementById('commissionPlanList');
         if (box) box.innerHTML = '<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">Loading events…</div>';

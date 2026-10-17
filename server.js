@@ -268,9 +268,10 @@ const OWNER_CREDIT_REFERRED = 1 - PLATFORM_FEE_REFERRED;
 const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
 // ── Per-event reduced platform split (Main Admin authorization required) ──
 // The Main Admin can move an event onto a cheaper platform fee on DIRECT
-// sales. Three plans exist and all stay available:
+// sales. Four plans exist and all stay available:
 //   standard  → 20% Unisocials / 80% event owner
 //   reduced_15 → 15% Unisocials / 85% event owner
+//   reduced_13 → 13% Unisocials / 87% event owner
 //   reduced_10 → 10% Unisocials / 90% event owner
 // Referred sales (an influencer link was used) keep the normal influencer
 // split — 2.5% / 20% / 77.5% — on every event, on every plan. Which plan a
@@ -278,14 +279,17 @@ const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
 // authorizing (or changing) a plan later never re-splits money already earned.
 const COMMISSION_PLAN_STANDARD = 'standard';
 const COMMISSION_PLAN_REDUCED_15 = 'reduced_15';
+const COMMISSION_PLAN_REDUCED_13 = 'reduced_13';
 const COMMISSION_PLAN_REDUCED_10 = 'reduced_10';
 const PLATFORM_FEE_DIRECT_REDUCED_15 = 0.15;
 const EVENT_OWNER_RATE_REDUCED_15 = 1 - PLATFORM_FEE_DIRECT_REDUCED_15;
+const PLATFORM_FEE_DIRECT_REDUCED_13 = 0.13;
+const EVENT_OWNER_RATE_REDUCED_13 = 1 - PLATFORM_FEE_DIRECT_REDUCED_13;
 const PLATFORM_FEE_DIRECT_REDUCED_10 = 0.10;
 const EVENT_OWNER_RATE_REDUCED_10 = 1 - PLATFORM_FEE_DIRECT_REDUCED_10;
 // Every plan the Main Admin may authorize. Anything else falls back to
 // standard, so an unknown stamp on an old order can never split money wrongly.
-const COMMISSION_PLANS = [COMMISSION_PLAN_STANDARD, COMMISSION_PLAN_REDUCED_15, COMMISSION_PLAN_REDUCED_10];
+const COMMISSION_PLANS = [COMMISSION_PLAN_STANDARD, COMMISSION_PLAN_REDUCED_15, COMMISSION_PLAN_REDUCED_13, COMMISSION_PLAN_REDUCED_10];
 function normalizeCommissionPlan(plan) {
   const value = String(plan || '').trim();
   return COMMISSION_PLANS.includes(value) ? value : COMMISSION_PLAN_STANDARD;
@@ -298,13 +302,15 @@ function orderCommissionPlan(order) {
 function platformFeeForPlan(plan) {
   const value = normalizeCommissionPlan(plan);
   if (value === COMMISSION_PLAN_REDUCED_15) return PLATFORM_FEE_DIRECT_REDUCED_15;
+  if (value === COMMISSION_PLAN_REDUCED_13) return PLATFORM_FEE_DIRECT_REDUCED_13;
   if (value === COMMISSION_PLAN_REDUCED_10) return PLATFORM_FEE_DIRECT_REDUCED_10;
   return PLATFORM_FEE_DIRECT;
 }
-// "20% / 80%", "15% / 85%", "10% / 90%" — used in confirmations and toasts.
+// "20% / 80%", "15% / 85%", "13% / 87%", "10% / 90%" — used in confirmations and toasts.
 function commissionPlanSplitLabel(plan) {
   const value = normalizeCommissionPlan(plan);
   if (value === COMMISSION_PLAN_REDUCED_15) return '15% Unisocials / 85% event owner';
+  if (value === COMMISSION_PLAN_REDUCED_13) return '13% Unisocials / 87% event owner';
   if (value === COMMISSION_PLAN_REDUCED_10) return '10% Unisocials / 90% event owner';
   return '20% Unisocials / 80% event owner';
 }
@@ -352,26 +358,29 @@ function rateLabel(rate) {
   return (Math.abs(rounded - Math.round(rounded)) < 0.001 ? String(Math.round(rounded)) : String(rounded)) + '%';
 }
 
-function commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced10DirectAmount) {
+function commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced13DirectAmount, reduced10DirectAmount) {
   const referred = commissionSplit(referredAmount, true);
   const direct = commissionSplit(directAmount, false);
   // Direct sales on events authorized for a reduced plan are their own
   // buckets so every published total (owner net, platform fee, credit) adds up.
   const reducedDirect = commissionSplit(reducedDirectAmount || 0, false, COMMISSION_PLAN_REDUCED_15);
+  const reduced13Direct = commissionSplit(reduced13DirectAmount || 0, false, COMMISSION_PLAN_REDUCED_13);
   const reduced10Direct = commissionSplit(reduced10DirectAmount || 0, false, COMMISSION_PLAN_REDUCED_10);
   const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
   const reducedGross = round2(reducedDirectAmount || 0);
+  const reduced13Gross = round2(reduced13DirectAmount || 0);
   const reduced10Gross = round2(reduced10DirectAmount || 0);
   return {
     referredAmount: round2(referredAmount),
     directAmount: round2(directAmount),
     reducedDirectAmount: reducedGross,
+    reduced13DirectAmount: reduced13Gross,
     reduced10DirectAmount: reduced10Gross,
-    grossAmount: round2(referredAmount + directAmount + reducedGross + reduced10Gross),
-    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount + reducedDirect.ownerCreditAmount + reduced10Direct.ownerCreditAmount),
-    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount + reducedDirect.influencerAmount + reduced10Direct.influencerAmount),
-    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount + reducedDirect.ownerNetAmount + reduced10Direct.ownerNetAmount),
-    platformAmount: round2(referred.platformAmount + direct.platformAmount + reducedDirect.platformAmount + reduced10Direct.platformAmount)
+    grossAmount: round2(referredAmount + directAmount + reducedGross + reduced13Gross + reduced10Gross),
+    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount + reducedDirect.ownerCreditAmount + reduced13Direct.ownerCreditAmount + reduced10Direct.ownerCreditAmount),
+    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount + reducedDirect.influencerAmount + reduced13Direct.influencerAmount + reduced10Direct.influencerAmount),
+    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount + reducedDirect.ownerNetAmount + reduced13Direct.ownerNetAmount + reduced10Direct.ownerNetAmount),
+    platformAmount: round2(referred.platformAmount + direct.platformAmount + reducedDirect.platformAmount + reduced13Direct.platformAmount + reduced10Direct.platformAmount)
   };
 }
 
@@ -382,11 +391,13 @@ const COMMISSION_SPLIT = {
   eventOwner: EVENT_OWNER_RATE,
   eventOwnerReferred: EVENT_OWNER_RATE_REFERRED,
   eventOwnerReduced15: EVENT_OWNER_RATE_REDUCED_15,
+  eventOwnerReduced13: EVENT_OWNER_RATE_REDUCED_13,
   eventOwnerReduced10: EVENT_OWNER_RATE_REDUCED_10,
   influencer: INFLUENCER_COMMISSION_RATE,
   platformReferred: PLATFORM_FEE_REFERRED,
   platformDirect: PLATFORM_FEE_DIRECT,
   platformReduced15: PLATFORM_FEE_DIRECT_REDUCED_15,
+  platformReduced13: PLATFORM_FEE_DIRECT_REDUCED_13,
   platformReduced10: PLATFORM_FEE_DIRECT_REDUCED_10,
   plans: COMMISSION_PLANS.slice(),
   ownerCreditReferred: OWNER_CREDIT_REFERRED,
@@ -5986,13 +5997,14 @@ codes[idx] = entry;
         // dashboard.
         const revenue = verified.reduce((n,o)=>n+(Number(o.amount)||0),0);
         // Per-event breakdown, splitting referred sales (20% to the influencer,
-        // 2.5% to Unisocials) from direct ones (20% to Unisocials, or 15% on
-        // events authorized for the reduced plan — read from each order's stamp).
+        // 2.5% to Unisocials) from direct ones (20% to Unisocials, or 15% / 13% /
+        // 10% on events authorized for a reduced plan — read from each order's stamp).
         const referred = verified.filter(o => !!String(o.referralCode || '').trim()).reduce((n,o)=>n+(Number(o.amount)||0),0);
         const directReduced = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_15).reduce((n,o)=>n+(Number(o.amount)||0),0);
-        const directReduced10 = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_10).reduce((n,o)=>n+(Number(o.amount)||0),0);
-        const split = commissionTotals(referred, revenue - referred - directReduced - directReduced10, directReduced, directReduced10);
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, reducedDirectAmount:split.reducedDirectAmount, reduced10DirectAmount:split.reduced10DirectAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
+        const directReduced13 = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_13).reduce((n,o)=>n+(Number(o.amount)||0), 0);
+        const directReduced10 = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_10).reduce((n,o)=>n+(Number(o.amount)||0), 0);
+        const split = commissionTotals(referred, revenue - referred - directReduced - directReduced13 - directReduced10, directReduced, directReduced13, directReduced10);
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, reducedDirectAmount:split.reducedDirectAmount, reduced13DirectAmount:split.reduced13DirectAmount, reduced10DirectAmount:split.reduced10DirectAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
       });
       // commissionRates lets the dashboard show how each sale was split.
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
@@ -6014,6 +6026,8 @@ codes[idx] = entry;
       let heldDirect = 0;
       let reducedDirectAmount = 0;
       let heldReducedDirect = 0;
+      let reduced13DirectAmount = 0;
+      let heldReduced13Direct = 0;
       let reduced10DirectAmount = 0;
       let heldReduced10Direct = 0;
       const heldPayments = [];
@@ -6025,6 +6039,7 @@ codes[idx] = entry;
           const plan = orderCommissionPlan(o);
           if (referred) referredAmount += amount;
           else if (plan === COMMISSION_PLAN_REDUCED_15) reducedDirectAmount += amount;
+          else if (plan === COMMISSION_PLAN_REDUCED_13) reduced13DirectAmount += amount;
           else if (plan === COMMISSION_PLAN_REDUCED_10) reduced10DirectAmount += amount;
           else directAmount += amount;
           // Every payment made through the site stays on hold for 7 days
@@ -6034,6 +6049,7 @@ codes[idx] = entry;
           if (Number.isFinite(paidMs) && nowMs < unlocksMs) {
             if (referred) heldReferred += amount;
             else if (plan === COMMISSION_PLAN_REDUCED_15) heldReducedDirect += amount;
+            else if (plan === COMMISSION_PLAN_REDUCED_13) heldReduced13Direct += amount;
             else if (plan === COMMISSION_PLAN_REDUCED_10) heldReduced10Direct += amount;
             else heldDirect += amount;
             // What this payment actually earned the owner, so the countdown is
@@ -6050,14 +6066,15 @@ codes[idx] = entry;
           }
         });
       });
-      const totals = commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced10DirectAmount);
-      const heldTotals = commissionTotals(heldReferred, heldDirect, heldReducedDirect, heldReduced10Direct);
+      const totals = commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced13DirectAmount, reduced10DirectAmount);
+      const heldTotals = commissionTotals(heldReferred, heldDirect, heldReducedDirect, heldReduced13Direct, heldReduced10Direct);
       // Plan mix of this account's events, so the dashboard can describe the
       // current split rules the moment a plan is authorized — not only after
       // the first reduced-plan sale has actually verified.
       const reducedPlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_15).length;
+      const reduced13PlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_13).length;
       const reduced10PlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_10).length;
-      const standardPlanEvents = authorizedEvents.length - reducedPlanEvents - reduced10PlanEvents;
+      const standardPlanEvents = authorizedEvents.length - reducedPlanEvents - reduced13PlanEvents - reduced10PlanEvents;
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
       const balance = payoutBalance(totals.ownerNetAmount, heldTotals.ownerNetAmount, mine);
       heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
@@ -6069,10 +6086,12 @@ codes[idx] = entry;
         directAmount: totals.directAmount,
         // Direct sales on events authorized for each reduced plan.
         reducedDirectAmount: totals.reducedDirectAmount,
+        reduced13DirectAmount: totals.reduced13DirectAmount,
         reduced10DirectAmount: totals.reduced10DirectAmount,
         // How many of this account's events are on each plan (drives the
         // dashboard write-ups before any new sale has verified).
         reducedPlanEvents: reducedPlanEvents,
+        reduced13PlanEvents: reduced13PlanEvents,
         reduced10PlanEvents: reduced10PlanEvents,
         standardPlanEvents: standardPlanEvents,
         // 97.5% of referred sales + 80%/85% of direct sales: what the owner is
@@ -6665,8 +6684,9 @@ codes[idx] = entry;
     }
 
     // ── Main Admin only: change an event's platform split ──
-    // Three plans stay available for DIRECT sales: standard 20/80,
-    // reduced_15 15/85 and reduced_10 10/90. Referred sales keep the normal
+    // Four plans stay available for DIRECT sales: standard 20/80,
+    // reduced_15 15/85, reduced_13 13/87 and reduced_10 10/90. Referred sales
+    // keep the normal
     // influencer split (2.5/20/77.5) on every plan. Only sales verified AFTER
     // this change get the new rate — the plan is stamped onto each order at
     // verification time, so past earnings are never retroactively re-split.
