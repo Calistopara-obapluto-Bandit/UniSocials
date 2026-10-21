@@ -875,7 +875,8 @@
         </form>
 
         <p style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
-          Are you a sub-admin? <a href="subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sub-Admin Dashboard</a>
+          Are you a Master Sub-Admin? <a href="subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Master Sub-Admin Dashboard</a>
+          <span style="display:block;margin-top:8px;font-size:.82rem;color:var(--text-3);">Campus-scoped account? <a href="university-subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">University Sub-Admin Dashboard</a> · Selling as a worker? <a href="worker.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Worker Dashboard</a></span>
         </p>
       </div>
     </div>
@@ -890,7 +891,9 @@
           <button class="admin-tab" data-tab="events">🎤 Events</button>
           <button class="admin-tab" data-tab="universities">🏛 Universities</button>
           <button class="admin-tab" data-tab="subscribers">📧 Subscribers</button>
-          <button class="admin-tab" data-tab="subadmins">🔑 Sub-Admins</button>
+          <button class="admin-tab" data-tab="subadmins">🔑 Master Sub-Admins</button>
+          <button class="admin-tab" data-tab="university-subadmins">🎓 University Sub-Admins</button>
+          <button class="admin-tab" data-tab="workers">💼 Workers</button>
           <button class="admin-tab" data-tab="influencers">📣 Influencers</button>
           <button class="admin-tab" data-tab="event-authorizations">🔐 Authorize Events</button>
           <button class="admin-tab" data-tab="staff">👥 Staff Accounts</button>
@@ -1125,8 +1128,8 @@
         <div class="admin-panel" id="panel-subadmins">
           <div class="admin-panel-heading">
             <div>
-              <h1>🔑 Sub-Admins</h1>
-              <p>Create staff accounts that can only do gate check-in and add events. Sub-admins cannot view orders or manage universities/subscribers.</p>
+              <h1>🔑 Master Sub-Admins</h1>
+              <p>Create <strong>Master Sub-Admin</strong> accounts with platform-wide oversight: check-in, sales, customers, payouts and referral links across every university. For sub-admins limited to specific universities, use the 🎓 University Sub-Admins tab. The Main Admin stays master of all.</p>
             </div>
           </div>
           <div class="admin-scan-panel">
@@ -1141,6 +1144,63 @@
               <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="subAdminCount"></span>
             </div>
             <div class="admin-ticket-codes" id="subAdminsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── UNIVERSITY SUB-ADMINS PANEL (master admin only) ── -->
+        <div class="admin-panel" id="panel-university-subadmins">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>🎓 University Sub-Admins</h1>
+              <p>Create sub-admin accounts authorized for <strong>specific universities</strong>. Their dashboard (sales, customers, events and referral stats) only ever shows the campuses you authorize here. They sign in at <code>university-subadmin.html</code>.</p>
+            </div>
+            <button class="admin-refresh-btn" type="button" onclick="loadUniversitySubAdmins()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="usubName">Full Name</label><input type="text" id="usubName" placeholder="e.g. Campus Sub-Admin" /></div>
+              <div class="form-group"><label for="usubEmail">Email</label><input type="email" id="usubEmail" placeholder="subadmin@unisocials.com" /></div>
+              <div class="form-group"><label for="usubPassword">Password</label><input type="password" id="usubPassword" placeholder="8+ chars, letter, number & symbol" /></div>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label for="usubUniSearch">Authorize universities <span style="opacity:.6;">— pick one or more campuses</span></label>
+              <input type="text" id="usubUniSearch" placeholder="Search universities…" style="margin-bottom:8px;" oninput="filterUsubUniversityPicker(this.value)" />
+              <div id="usubUniList" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;"></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addUniversitySubAdmin()">➕ Create University Sub-Admin</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="usubCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="universitySubAdminsList" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <!-- ── WORKERS PANEL (master admin only) ── -->
+        <div class="admin-panel" id="panel-workers">
+          <div class="admin-panel-heading">
+            <div>
+              <h1>💼 Workers</h1>
+              <p>Workers pay nothing — they sell through their own task link. Each completed <strong>150-sales monthly quota</strong> (sales above 150 roll into the next month) earns <strong>₦25,000 salary</strong>, requestable once every 3 weeks. Salary requests arrive in 💰 Payout Requests. They sign in at <code>worker.html</code>.</p>
+            </div>
+            <button class="admin-refresh-btn" type="button" onclick="loadWorkers()">↻ Refresh</button>
+          </div>
+          <div class="admin-scan-panel">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px;">
+              <div class="form-group"><label for="workerName">Full Name</label><input type="text" id="workerName" placeholder="e.g. Wale Worker" /></div>
+              <div class="form-group"><label for="workerEmail">Login Email</label><input type="email" id="workerEmail" placeholder="worker@unisocials.com" /></div>
+              <div class="form-group"><label for="workerContactEmail">Real Email <span style="opacity:.6;">— optional</span></label><input type="email" id="workerContactEmail" placeholder="e.g. wale@gmail.com" /><p style="margin:6px 0 0;font-size:.72rem;color:var(--text-3);">Where they receive their <strong>salary paid</strong> email. A <code>@unisocials.com</code> login cannot receive mail.</p></div>
+              <div class="form-group"><label for="workerPassword">Password</label><input type="password" id="workerPassword" placeholder="8+ chars, letter, number & symbol" /></div>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label for="workerUniSearch">Authorize universities <span style="opacity:.6;">— pick one or more campuses; that campus's sub-admin settles their salary</span></label>
+              <input type="text" id="workerUniSearch" placeholder="Search universities…" style="margin-bottom:8px;" oninput="filterWorkerUniversityPicker(this.value)" />
+              <div id="workerUniList" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;"></div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-submit" style="white-space:nowrap;" onclick="addWorker()">➕ Create Worker</button>
+              <span style="font-size:0.75rem;color:var(--text-3);align-self:center;" id="workerCount"></span>
+            </div>
+            <div class="admin-ticket-codes" id="workersList" style="margin-top:14px;"></div>
           </div>
         </div>
 
@@ -1205,7 +1265,7 @@
           </div>
           <div class="admin-scan-panel" style="margin-top:16px;">
             <div class="admin-panel-heading" style="margin-bottom:8px;">
-              <div><h2 style="font-size:1rem;">💰 Commission Split (20% / 15% / 10%)</h2><p>Pick the platform fee per event: future <strong>direct</strong> sales split <strong>20% Unisocials / 80% owner</strong> (standard), <strong>15% / 85%</strong> or <strong>10% / 90%</strong>. A sale through an influencer's link always keeps the normal influencer split — 2.5% Unisocials / 20% influencer / 77.5% owner — on every plan. Only sales verified from the moment you change it earn the new rate; sales already verified keep their original split.</p></div>
+              <div><h2 style="font-size:1rem;">💰 Commission Split (20% / 25% / 15% / 13% / 10%)</h2><p>Pick the platform fee per event: future <strong>direct</strong> sales split <strong>20% Unisocials / 80% owner</strong> (standard), <strong>25% / 75%</strong>, <strong>15% / 85%</strong>, <strong>13% / 87%</strong> or <strong>10% / 90%</strong>. A University Sub-Admin can set the same split for events in their authorised universities. A sale through an influencer's link always keeps the normal influencer split — 2.5% Unisocials / 20% influencer / 77.5% owner — on every plan. Only sales verified from the moment you change it earn the new rate; sales already verified keep their original split.</p></div>
               <button class="admin-refresh-btn" type="button" onclick="loadCommissionPlanList()">↻ Refresh</button>
             </div>
             <div id="commissionPlanList"></div>
@@ -1998,7 +2058,7 @@ fetch('/api/ticket/scan', {
                 planHtml +
                 '</div>' +
                 '<div style="display:flex;gap:6px;align-items:center;">' +
-                '<select data-plan-select="' + esc(id) + '" title="Platform split on direct sales: 20%, 15%, 13% or 10% to Unisocials" style="font-size:0.72rem;font-weight:700;padding:5px 6px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;max-width:170px;">' + planOptionsHtml(plan.value) + '</select>' +
+                '<select data-plan-select="' + esc(id) + '" title="Platform split on direct sales: 20%, 25%, 15%, 13% or 10% to Unisocials" style="font-size:0.72rem;font-weight:700;padding:5px 6px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;max-width:170px;">' + planOptionsHtml(plan.value) + '</select>' +
                 '<button type="button" class="admin-ticket-copy" onclick="editManagedEvent(\'' + esc(id) + '\')" title="Edit event">✏️</button>' +
                 '<button type="button" class="admin-ticket-copy" data-direct-archive-event="' + esc(id) + '" data-archived="' + (ev.archived ? '1' : '0') + '" title="' + (ev.archived ? 'Unarchive event' : 'Archive event') + '">' + (ev.archived ? '📦' : '🗃️') + '</button>' +
                 '<button class="admin-ticket-copy" onclick="notifySubscribers(\'' + esc(id) + '\', this)" title="Email subscribers about this event">📧</button>' +
@@ -2564,6 +2624,328 @@ fetch('/api/admin/events/notify', {
         .finally(function() { if (btn) { btn.disabled = false; btn.textContent = '📧 Notify'; } });
       };
 
+      // ── University Sub-Admins Manager (master admin only) ──
+      // A university sub-admin is authorized for SPECIFIC universities: their
+      // entire dashboard (sales, customers, events, referral stats) is scoped
+      // to the campuses picked here. Selection state lives on the checkbox
+      // inputs so a partially filtered picker never drops earlier picks.
+      var usubCatalogue = [];
+      window.refreshUsubUniversityPicker = function() {
+        var list = document.getElementById('usubUniList');
+        if (!list) return;
+        var render = function() {
+          if (!usubCatalogue.length) {
+            list.innerHTML = '<span style="font-size:.78rem;color:var(--text-3);">No universities saved yet — add them in the 🏛 Universities tab first.</span>';
+            return;
+          }
+          var html = '';
+          usubCatalogue.forEach(function(u) {
+            var id = esc(u.id || u.slug || u.name);
+            html += '<label style="display:flex;gap:7px;align-items:center;font-size:.8rem;color:var(--text-2);cursor:pointer;">' +
+              '<input type="checkbox" class="usub-uni-check" value="' + id + '" onchange="usubToggleUniversity(this.value, this.checked)" /> ' +
+              '<span>' + esc(u.name || u.id) + '</span></label>';
+          });
+          list.innerHTML = html;
+          // Restore whatever was already selected before a re-render.
+          Object.keys(window.__usubSelected).forEach(function(id) {
+            if (!window.__usubSelected[id]) return;
+            var box = list.querySelector('input.usub-uni-check[value="' + (window.CSS && CSS.escape ? CSS.escape(id) : id.replace(/"/g, '\\"')) + '"]');
+            if (box) box.checked = true;
+          });
+        };
+        if (usubCatalogue.length) return render();
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            usubCatalogue = (data && data.success && data.universities) || [];
+            render();
+          })
+          .catch(function() { render(); });
+      };
+      window.__usubSelected = {};
+      window.usubToggleUniversity = function(id, on) {
+        window.__usubSelected[id] = !!on;
+        if (!on) delete window.__usubSelected[id];
+      };
+      window.filterUsubUniversityPicker = function(q) {
+        var needle = String(q || '').trim().toLowerCase();
+        var labels = document.querySelectorAll('#usubUniList label');
+        labels.forEach(function(label) {
+          label.style.display = !needle || label.textContent.toLowerCase().indexOf(needle) !== -1 ? '' : 'none';
+        });
+      };
+      function usubSelectedUniversities() {
+        return Object.keys(window.__usubSelected || {}).filter(function(k) { return window.__usubSelected[k]; });
+      }
+      window.loadUniversitySubAdmins = function() {
+        window.refreshUsubUniversityPicker();
+        fetch('/api/admin/university-subadmins', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var subs = (data && data.success && data.subadmins) || [];
+            var container = document.getElementById('universitySubAdminsList');
+            var count = document.getElementById('usubCount');
+            if (count) count.textContent = subs.length + ' university sub-admin' + (subs.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!subs.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No university sub-admins yet. Create your first one above.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">🎓 Authorized University Sub-Admins (' + subs.length + ')</div>';
+            subs.forEach(function(u) {
+              var id = (u.id || u._id || u.email || '').replace(/[^a-zA-Z0-9@.\-_]/g, '');
+              var unis = u.authorizedUniversities || [];
+              var chips = unis.length
+                ? unis.map(function(x) { return '<span style="background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);border-radius:100px;padding:2px 9px;font-size:.68rem;font-weight:700;">🏛 ' + esc(x.name || x.id || '') + '</span>'; }).join(' ')
+                : '<span style="color:#E65100;font-size:.72rem;">No universities authorized</span>';
+              var st = u.scopedStats || { totalOrders: 0, totalRevenue: 0, totalTickets: 0 };
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;min-width:0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<span>👤</span><strong>' + esc(u.name || '—') + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">Created ' + fmtDate(u.createdAt) + '</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;">' + chips + '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Referral: ' + esc(u.referralCode || 'No referral link yet') + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Orders: ' + Number(st.totalOrders || 0) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Purchases: ' + fmtN(st.totalRevenue || 0) + '</span>' +
+                '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;align-items:flex-start;">' +
+                '<button class="admin-ticket-copy" onclick="editUniversitySubAdminUniversities(\'' + esc(u.email || id) + '\')" title="Change authorized universities">🏛</button>' +
+                '<button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || id) + '\')" title="Reset password">🔑</button>' +
+                '<button class="admin-ticket-copy" onclick="deleteUniversitySubAdmin(\'' + esc(u.email || id) + '\')" title="Remove sub-admin" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function() {});
+      };
+
+      window.addUniversitySubAdmin = function() {
+        var name = (document.getElementById('usubName') ? document.getElementById('usubName').value : '').trim();
+        var email = (document.getElementById('usubEmail') ? document.getElementById('usubEmail').value : '').trim();
+        var password = (document.getElementById('usubPassword') ? document.getElementById('usubPassword').value : '').trim();
+        if (!name || !email || !password) { showToast('Name, Email, and Password are required.', true); return; }
+        if (password.length < 6) { showToast('Password must be at least 6 characters.', true); return; }
+        var universities = usubSelectedUniversities();
+        if (!universities.length) { showToast('Pick at least one university to authorize this sub-admin for.', true); return; }
+        fetch('/api/admin/university-subadmins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ name: name, email: email, password: password, universities: universities })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('University sub-admin "' + esc(name) + '" authorized for ' + universities.length + ' universities');
+            ['usubName', 'usubEmail', 'usubPassword'].forEach(function(elId) { var el = document.getElementById(elId); if (el) el.value = ''; });
+            window.__usubSelected = {};
+            window.refreshUsubUniversityPicker();
+            loadUniversitySubAdmins();
+          } else {
+            showToast((data && data.error) || 'Failed to create university sub-admin', true);
+          }
+        })
+        .catch(function() { showToast('Network error creating university sub-admin', true); });
+      };
+
+      window.editUniversitySubAdminUniversities = function(email) {
+        if (!email) return;
+        if (!usubCatalogue.length) { showToast('University catalogue is still loading — try again.', true); return; }
+        var current = [];
+        // Prefill the prompt from the account's current authorizations.
+        fetch('/api/admin/university-subadmins', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var subs = (data && data.success && data.subadmins) || [];
+            var me = subs.find(function(s) { return String(s.email || '').toLowerCase() === String(email || '').toLowerCase(); });
+            current = (me && me.authorizedUniversities || []).map(function(x) { return x.name || x.id; }).join(', ');
+            var input = prompt('Universities for ' + email + ' (comma-separated names):', current);
+            if (input === null) return;
+            var picks = input.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+            if (!picks.length) { showToast('Keep at least one university.', true); return; }
+            fetch('/api/admin/university-subadmins', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+              body: JSON.stringify({ email: email, universities: picks })
+            })
+            .then(function(r2) { return r2.json(); })
+            .then(function(d2) {
+              if (d2 && d2.success) { showToast('Authorized universities updated'); loadUniversitySubAdmins(); }
+              else showToast((d2 && d2.error) || 'Failed to update universities', true);
+            })
+            .catch(function() { showToast('Network error updating universities', true); });
+          })
+          .catch(function() { showToast('Network error loading sub-admin', true); });
+      };
+
+      window.deleteUniversitySubAdmin = function(email) {
+        if (!email) return;
+        if (!confirm('Remove university sub-admin ' + email + '? They will no longer be able to sign in.')) return;
+        fetch('/api/admin/university-subadmins?email=' + encodeURIComponent(email), {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) { showToast('University sub-admin removed'); loadUniversitySubAdmins(); }
+          else showToast((data && data.error) || 'Failed to remove university sub-admin', true);
+        })
+        .catch(function() { showToast('Network error removing university sub-admin', true); });
+      };
+
+      // ── Workers Manager (master admin only) ──
+      // A worker is authorized for SPECIFIC universities too: the sub-admin of
+      // that campus settles their salary, so the campuses are picked at
+      // creation. Selection state lives on the checkbox inputs so a partially
+      // filtered picker never drops earlier picks (same as the usub picker).
+      window.__workerSelected = {};
+      window.refreshWorkerUniversityPicker = function() {
+        var list = document.getElementById('workerUniList');
+        if (!list) return;
+        var render = function() {
+          if (!usubCatalogue.length) {
+            list.innerHTML = '<span style="font-size:.78rem;color:var(--text-3);">No universities saved yet — add them in the 🏛 Universities tab first.</span>';
+            return;
+          }
+          var html = '';
+          usubCatalogue.forEach(function(u) {
+            var id = esc(u.id || u.slug || u.name);
+            html += '<label style="display:flex;gap:7px;align-items:center;font-size:.8rem;color:var(--text-2);cursor:pointer;">' +
+              '<input type="checkbox" class="worker-uni-check" value="' + id + '" onchange="workerToggleUniversity(this.value, this.checked)" /> ' +
+              '<span>' + esc(u.name || u.id) + '</span></label>';
+          });
+          list.innerHTML = html;
+          // Restore whatever was already selected before a re-render.
+          Object.keys(window.__workerSelected).forEach(function(id) {
+            if (!window.__workerSelected[id]) return;
+            var box = list.querySelector('input.worker-uni-check[value="' + (window.CSS && CSS.escape ? CSS.escape(id) : id.replace(/"/g, '\\"')) + '"]');
+            if (box) box.checked = true;
+          });
+        };
+        if (usubCatalogue.length) return render();
+        fetch('/api/universities')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            usubCatalogue = (data && data.success && data.universities) || [];
+            render();
+          })
+          .catch(function() { render(); });
+      };
+      window.workerToggleUniversity = function(id, on) {
+        window.__workerSelected[id] = !!on;
+        if (!on) delete window.__workerSelected[id];
+      };
+      window.filterWorkerUniversityPicker = function(q) {
+        var needle = String(q || '').trim().toLowerCase();
+        var labels = document.querySelectorAll('#workerUniList label');
+        labels.forEach(function(label) {
+          label.style.display = !needle || label.textContent.toLowerCase().indexOf(needle) !== -1 ? '' : 'none';
+        });
+      };
+      function workerSelectedUniversities() {
+        return Object.keys(window.__workerSelected || {}).filter(function(k) { return window.__workerSelected[k]; });
+      }
+      function workerCampusNames(u) {
+        var names = ((u && u.authorizedUniversities) || []).map(function(x) { return (x && (x.name || x.id)) || ''; }).filter(Boolean);
+        return names.join(', ') || '—';
+      }
+      window.loadWorkers = function() {
+        window.refreshWorkerUniversityPicker();
+        fetch('/api/admin/workers', { headers: { 'Authorization': 'Bearer ' + getToken() } })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var workers = (data && data.success && data.workers) || [];
+            var container = document.getElementById('workersList');
+            var count = document.getElementById('workerCount');
+            if (count) count.textContent = workers.length + ' worker' + (workers.length !== 1 ? 's' : '');
+            if (!container) return;
+            if (!workers.length) {
+              container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-3);font-size:0.85rem;">No workers yet. Create your first worker above — they pay nothing and earn ₦25,000 salary per completed 150-sales block.</div>';
+              return;
+            }
+            var html = '<div class="admin-ticket-codes-label">💼 Active Workers (' + workers.length + ')</div>';
+            workers.forEach(function(u) {
+              var id = (u.id || u._id || u.email || '').replace(/[^a-zA-Z0-9@.\-_]/g, '');
+              var L = u.ledger || { quota: 150, monthSales: 0, credited: 0, blocksEarned: 0, totalSalary: 0, remainingToBlock: 150 };
+              var sal = u.salary || { totalPaid: 0, openAmount: 0 };
+              html += '<div class="admin-ticket-code" style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;">' +
+                '<div style="display:flex;flex-direction:column;gap:6px;min-width:0;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">' +
+                '<span>💼</span><strong>' + esc(u.name || '—') + '</strong>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">' + esc(u.email || '') + '</span>' +
+                '<span style="font-size:0.75rem;color:var(--text-3);">Created ' + fmtDate(u.createdAt) + '</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Task link: <strong style="color:var(--accent);">' + esc(u.taskCode || 'not generated yet') + '</strong></span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Campuses: <strong>' + esc(workerCampusNames(u)) + '</strong></span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">This month: ' + Number(L.monthSales || 0) + ' sales (' + Number(L.credited || 0) + '/' + Number(L.quota || 150) + ' counted)</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Blocks: ' + Number(L.blocksEarned || 0) + ' (' + fmtN(L.totalSalary || 0) + ' earned)</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Paid: ' + fmtN(sal.totalPaid || 0) + '</span>' +
+                '<span style="font-size:0.72rem;color:var(--text-3);">Awaiting payment: ' + fmtN(sal.openAmount || 0) + '</span>' +
+                '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;align-items:flex-start;">' +
+                '<button class="admin-ticket-copy" onclick="resetManagedPassword(\'' + esc(u.email || id) + '\')" title="Reset password">🔑</button>' +
+                '<button class="admin-ticket-copy" onclick="deleteWorker(\'' + esc(u.email || id) + '\')" title="Remove worker" style="color:#B71C1C;border-color:#F5C6CB;">✕</button>' +
+                '</div>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+          })
+          .catch(function() {});
+      };
+
+      window.addWorker = function() {
+        var name = (document.getElementById('workerName') ? document.getElementById('workerName').value : '').trim();
+        var email = (document.getElementById('workerEmail') ? document.getElementById('workerEmail').value : '').trim();
+        var contactEmail = (document.getElementById('workerContactEmail') ? document.getElementById('workerContactEmail').value : '').trim();
+        var password = (document.getElementById('workerPassword') ? document.getElementById('workerPassword').value : '').trim();
+        var campuses = workerSelectedUniversities();
+        if (!name || !email || !password) { showToast('Name, Email, and Password are required.', true); return; }
+        if (password.length < 6) { showToast('Password must be at least 6 characters.', true); return; }
+        if (!campuses.length) { showToast('Authorize this worker for at least one university — that campus\u2019s sub-admin settles their salary.', true); return; }
+        fetch('/api/admin/workers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+          body: JSON.stringify({ name: name, email: email, contactEmail: contactEmail, password: password, universities: campuses })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            showToast('Worker "' + esc(name) + '" created — they sign in at worker.html');
+            ['workerName', 'workerEmail', 'workerContactEmail', 'workerPassword'].forEach(function(elId) { var el = document.getElementById(elId); if (el) el.value = ''; });
+            window.__workerSelected = {};
+            window.refreshWorkerUniversityPicker();
+            loadWorkers();
+          } else {
+            showToast((data && data.error) || 'Failed to create worker', true);
+          }
+        })
+        .catch(function() { showToast('Network error creating worker', true); });
+      };
+
+      window.deleteWorker = function(email) {
+        if (!email) return;
+        if (!confirm('Remove worker ' + email + '? They will no longer be able to sign in. Their sales and salary history are kept.')) return;
+        fetch('/api/admin/workers?email=' + encodeURIComponent(email), {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + getToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) { showToast('Worker removed'); loadWorkers(); }
+          else showToast((data && data.error) || 'Failed to remove worker', true);
+        })
+        .catch(function() { showToast('Network error removing worker', true); });
+      };
+
       // ── Sub-Admins Manager (master admin only) ──
       window.loadSubAdmins = function() {
         fetch('/api/admin/subadmins', { headers: { 'Authorization': 'Bearer ' + getToken() } })
@@ -2706,12 +3088,15 @@ fetch('/api/admin/events/notify', {
       };
 
       // ── Platform split (commission plan), per event (Main Admin only) ──
-      // Four plans stay available for DIRECT sales: 20% standard, 15%, 13%
-      // and the deeper 10% — they give the event owner 80% / 85% / 87% / 90%.
+      // Five plans stay available for DIRECT sales: 20% standard, the
+      // authorised 25%, 15%, 13% and the deeper 10% — they give the event
+      // owner 80% / 75% / 85% / 87% / 90%. University sub-admins may set the
+      // same plans for events in their authorised universities.
       // A sale through an influencer's link keeps the normal influencer split
       // (2.5% Unisocials / 20% influencer / 77.5% owner) on every plan.
       var COMMISSION_PLANS = [
         { value: 'standard',  badge: '20% split', label: 'Standard: 20% Unisocials / 80% owner', short: '20% Unisocials / 80% owner', owner: 80, fee: 20 },
+        { value: 'plan_25',   badge: '💰 25% split', label: '25% Unisocials / 75% owner (direct sales)', short: '25% Unisocials / 75% owner', owner: 75, fee: 25 },
         { value: 'reduced_15', badge: '💰 15% split', label: '15% Unisocials / 85% owner (direct sales)', short: '15% Unisocials / 85% owner', owner: 85, fee: 15 },
         { value: 'reduced_13', badge: '💰 13% split', label: '13% Unisocials / 87% owner (direct sales)', short: '13% Unisocials / 87% owner', owner: 87, fee: 13 },
         { value: 'reduced_10', badge: '💰 10% split', label: '10% Unisocials / 90% owner (direct sales)', short: '10% Unisocials / 90% owner', owner: 90, fee: 10 }
@@ -2746,7 +3131,7 @@ fetch('/api/admin/events/notify', {
       };
 
       // Lists every event with its current split and lets the Main Admin
-      // pick 20%, 15%, 13% or 10% for future sales.
+      // pick 20%, 25%, 15%, 13% or 10% for future sales.
       window.loadCommissionPlanList = function() {
         var box = document.getElementById('commissionPlanList');
         if (box) box.innerHTML = '<div style="color:var(--text-3);font-size:.85rem;padding:12px 0;">Loading events…</div>';
@@ -3063,6 +3448,14 @@ fetch('/api/admin/events/notify', {
             var html = '';
             sorted.forEach(function(p) {
               var st = String(p.status).toLowerCase();
+              // What kind of request this is, spelled out for the reviewer:
+              // campus pool draws and worker salaries sit next to influencer
+              // commissions in the same list.
+              var typeChip = '';
+              if (p.requesterRole === 'university_subadmin' && p.payoutType === 'university_pool') typeChip = ' <span style="font-size:.7rem;font-weight:700;color:#1B5E20;">· University campus pool (55% of the authorised platform share)</span>';
+              else if (p.requesterRole === 'worker') typeChip = ' <span style="font-size:.7rem;font-weight:700;color:#0D47A1;">· Worker salary (₦25,000 per 150-sales block)</span>';
+              else if (p.requesterRole === 'university_subadmin') typeChip = ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Campus referral commission</span>';
+              else if (p.requesterRole === 'influencer') typeChip = ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (20%)</span>';
               var dueLine = p.paymentDueBy ? '⏰ Pay by ' + esc(new Date(p.paymentDueBy).toLocaleString()) : '';
               var actions = '';
               if (st === 'pending') {
@@ -3078,7 +3471,7 @@ fetch('/api/admin/events/notify', {
               }
               html += '<div class="admin-scan-panel" style="margin-bottom:12px;' + (st === 'pending' ? 'border:2px solid #FFE0B2;' : (st === 'approved' ? 'border:2px solid #BBDEFB;' : '')) + '">' +
                 '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + (p.requesterRole === 'influencer' ? ' <span style="font-size:.7rem;font-weight:700;color:var(--accent);">· Influencer commission (20%)</span>' : '') + '</strong>' +
+                '<strong style="font-size:1.02rem;">' + fmtN(p.amount) + ' — ' + esc(p.requesterName || 'Referrer') + typeChip + '</strong>' +
                 payoutBadgeHtml(p.status) +
                 '</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;color:var(--text-2);">' +
@@ -3406,6 +3799,8 @@ fetch('/api/admin/events/notify', {
         loadManagedUniversities();
         loadSubscribers();
         loadSubAdmins();
+        loadUniversitySubAdmins();
+        loadWorkers();
         loadCoupons();
         loadInfluencers();
         loadEventAuthorizations();
@@ -3461,6 +3856,8 @@ fetch('/api/admin/events/notify', {
           // Refresh the Customers tab every time it opens, so the list can never
           // stay stuck on an old "Loading…"/empty state from the login fetch.
           if (name === 'customers' && typeof window.loadCustomers === 'function') loadCustomers();
+          if (name === 'workers' && typeof window.loadWorkers === 'function') loadWorkers();
+          if (name === 'university-subadmins' && typeof window.loadUniversitySubAdmins === 'function') loadUniversitySubAdmins();
         });
       });
       window.switchTab = switchTab;

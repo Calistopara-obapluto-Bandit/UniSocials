@@ -94,11 +94,13 @@ export async function adminFetch(path, options = {}) {
   return data;
 }
 
-// The four platform-split plans for DIRECT sales (Main Admin only). A sale
+// The five platform-split plans for DIRECT sales (Main Admin only, and
+// University Sub-Admins for events in their authorised universities). A sale
 // through an influencer's link keeps the normal influencer split (2.5% / 20% /
 // 77.5%) on every plan. Mirrors the legacy admin's plan list.
 export const COMMISSION_PLANS = [
   { value: 'standard', fee: 20, owner: 80, label: 'Standard: 20% Unisocials / 80% owner' },
+  { value: 'plan_25', fee: 25, owner: 75, label: '25% Unisocials / 75% owner (direct sales)' },
   { value: 'reduced_15', fee: 15, owner: 85, label: '15% Unisocials / 85% owner (direct sales)' },
   { value: 'reduced_13', fee: 13, owner: 87, label: '13% Unisocials / 87% owner (direct sales)' },
   { value: 'reduced_10', fee: 10, owner: 90, label: '10% Unisocials / 90% owner (direct sales)' }

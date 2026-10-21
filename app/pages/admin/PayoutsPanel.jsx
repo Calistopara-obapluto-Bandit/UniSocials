@@ -322,9 +322,15 @@ function PayoutCard({ p, onAction, netOf, feeOf, rateOf, pctOf }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
         <strong style={{ fontSize: '1.02rem' }}>
           {fmtN(p.amount)} — {esc(p.requesterName || 'Referrer')}
-          {p.requesterRole === 'influencer'
-            ? <span style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--accent)' }}> · Influencer commission (20%)</span>
-            : null}
+          {p.requesterRole === 'university_subadmin' && p.payoutType === 'university_pool'
+            ? <span style={{ fontSize: '.7rem', fontWeight: 700, color: '#1B5E20' }}> · University campus pool (55% of the authorised platform share)</span>
+            : p.requesterRole === 'worker'
+              ? <span style={{ fontSize: '.7rem', fontWeight: 700, color: '#0D47A1' }}> · Worker salary (₦25,000 per 150-sales block)</span>
+              : p.requesterRole === 'university_subadmin'
+                ? <span style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--accent)' }}> · Campus referral commission</span>
+                : p.requesterRole === 'influencer'
+                  ? <span style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--accent)' }}> · Influencer commission (20%)</span>
+                  : null}
         </strong>
         {payoutBadge(p.status)}
       </div>

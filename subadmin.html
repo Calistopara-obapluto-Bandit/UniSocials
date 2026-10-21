@@ -9,7 +9,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <title>Sub-Admin Dashboard — Unisocials</title>
+  <title>Master Sub-Admin Dashboard — Unisocials</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet" />
@@ -557,7 +557,7 @@
   <!-- ── SUB-ADMIN TOP BAR ── -->
   <div class="admin-topbar">
     <div class="admin-topbar-inner">
-      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Sub-Admin</a>
+      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Master Sub-Admin</a>
       <div class="admin-topbar-actions">
         <span class="admin-user-name" id="adminUserName" style="display:none;"></span>
         <span class="admin-topbar-status" id="connStatus" style="display:none;">
@@ -575,8 +575,8 @@
     <div class="admin-login-wrap" id="loginScreen">
       <div class="admin-login-card reveal visible">
         <div class="admin-login-icon">👤</div>
-        <h2>Sub-Admin Access</h2>
-        <p>Sign in with your sub-admin account to manage gate check-in &amp; events.</p>
+        <h2>Master Sub-Admin Access</h2>
+        <p>Sign in with your <strong>Master Sub-Admin</strong> account for platform-wide oversight: check-in, sales, customers, payouts and referral links across every university.</p>
         <div class="admin-login-error" id="loginError">Incorrect details. Please try again.</div>
 
         <form id="loginForm" onsubmit="subAdminLogin(event)">
@@ -590,7 +590,9 @@
           </div>
           <button type="submit" class="btn-submit" id="loginBtn">Login to Dashboard</button>
         </form>
-<p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Referring people to events? <a href="influencer.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Influencer Portal</a></p>
+<p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Authorized for specific universities? <a href="university-subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">University Sub-Admin Dashboard</a></p>
+        <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:10px;">Selling as a worker? <a href="worker.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Worker Dashboard</a></p>
+        <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:10px;">Referring people to events? <a href="influencer.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Influencer Portal</a></p>
         <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:10px;">Creating or running events? <a href="influencer-admin-signup.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Create or sign in as an Influencer Admin</a></p>
 
         <p class="auth-switch" style="text-align:center;font-size:0.82rem;color:var(--text-3);margin-top:18px;">
@@ -1122,7 +1124,7 @@
         var email = document.getElementById('subAdminEmail').value.trim();
         var spwd = document.getElementById('subAdminPassword').value.trim();
         if (!email || !spwd) {
-          errBox.textContent = 'Enter your sub-admin email and password.';
+          errBox.textContent = 'Enter your Master Sub-Admin email and password.';
           errBox.classList.add('show');
           return;
         }
@@ -1152,10 +1154,10 @@
         })
         .catch(function(err) {
           if (err.message === 'not-subadmin') {
-            errBox.textContent = 'This account is not a sub-admin. Use the Admin Dashboard instead.';
+            errBox.textContent = 'This account is not a Master Sub-Admin. University Sub-Admins sign in at university-subadmin.html — everyone else uses the Admin Dashboard.';
             errBox.classList.add('show');
           } else if (err.message === 'unauthorized') {
-            errBox.textContent = 'Incorrect sub-admin credentials.';
+            errBox.textContent = 'Incorrect Master Sub-Admin credentials.';
             errBox.classList.add('show');
           } else {
             errBox.textContent = 'Cannot reach server. Check that the site is running.';

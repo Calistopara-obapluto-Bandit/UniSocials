@@ -10,6 +10,8 @@ import EventsPanel from './admin/EventsPanel.jsx';
 import UniversitiesPanel from './admin/UniversitiesPanel.jsx';
 import SubscribersPanel from './admin/SubscribersPanel.jsx';
 import SubAdminsPanel from './admin/SubAdminsPanel.jsx';
+import UniversitySubAdminsPanel from './admin/UniversitySubAdminsPanel.jsx';
+import WorkersPanel from './admin/WorkersPanel.jsx';
 import InfluencersPanel from './admin/InfluencersPanel.jsx';
 import EventAuthorizationsPanel from './admin/EventAuthorizationsPanel.jsx';
 import StaffPanel from './admin/StaffPanel.jsx';
@@ -24,7 +26,9 @@ const TABS = [
   { key: 'events', icon: '🎤', label: 'Events' },
   { key: 'universities', icon: '🏛', label: 'Universities' },
   { key: 'subscribers', icon: '📧', label: 'Subscribers' },
-  { key: 'subadmins', icon: '🔑', label: 'Sub-Admins' },
+  { key: 'subadmins', icon: '🔑', label: 'Master Sub-Admins' },
+  { key: 'university-subadmins', icon: '🎓', label: 'University Sub-Admins' },
+  { key: 'workers', icon: '💼', label: 'Workers' },
   { key: 'influencers', icon: '📣', label: 'Influencers' },
   { key: 'event-authorizations', icon: '🔐', label: 'Authorize Events' },
   { key: 'staff', icon: '👥', label: 'Staff Accounts' },
@@ -308,10 +312,20 @@ export default function Admin() {
                 </button>
               </form>
               <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-3)', marginTop: 18 }}>
-                Are you a sub-admin?{' '}
+                Are you a Master Sub-Admin?{' '}
                 <a href="/subadmin.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
-                  Sub-Admin Dashboard
+                  Master Sub-Admin Dashboard
                 </a>
+                <span style={{ display: 'block', marginTop: 8, fontSize: '.82rem', color: 'var(--text-3)' }}>
+                  Campus-scoped account?{' '}
+                  <a href="/university-subadmin.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
+                    University Sub-Admin Dashboard
+                  </a>
+                  {' '}· Selling as a worker?{' '}
+                  <a href="/worker.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
+                    Worker Dashboard
+                  </a>
+                </span>
               </p>
             </div>
           </div>
@@ -366,6 +380,8 @@ export default function Admin() {
               <UniversitiesPanel active={activeTab === 'universities'} />
               <SubscribersPanel active={activeTab === 'subscribers'} />
               <SubAdminsPanel active={activeTab === 'subadmins'} />
+              <UniversitySubAdminsPanel active={activeTab === 'university-subadmins'} />
+              <WorkersPanel active={activeTab === 'workers'} />
               <InfluencersPanel active={activeTab === 'influencers'} />
               <EventAuthorizationsPanel active={activeTab === 'event-authorizations'} />
               <StaffPanel active={activeTab === 'staff'} />

@@ -39,7 +39,7 @@ try {
 const PORT = process.env.PORT || 3000;
 
 const PUBLIC_DIR = __dirname;
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.UNN_DATA_DIR || path.join(__dirname, 'data');
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 
@@ -238,8 +238,34 @@ async function patchOrder(orderId, patch) {
 const PAYOUT_METHODS = {
   '7_days': { label: 'Every 7 days', description: 'Payout cycle: every 7 days' },
   '14_days': { label: 'Every 14 days', description: 'Payout cycle: every 14 days' },
-  'after_event': { label: 'After event day', description: 'Payout after the event day' }
+  'after_event': { label: 'After event day', description: 'Payout after the event day' },
+  // A worker's salary is not a commission cycle: it is the fixed amount paid
+  // for one completed monthly quota block (see WORKER_* below).
+  'salary': { label: 'Worker salary', description: '₦25,000 salary per completed 150-sales monthly quota' },
+  // The University Sub-Admin's requestable campus pool: 55% OF Unisocials'
+  // authorised share on their universities' sales, used to settle worker bills.
+  'university_pool': { label: 'University pool', description: '55% of Unisocials\' share on the university\'s sales — settles worker bills' }
 };const PAYOUT_STATUSES = ['pending','approved','paid','rejected'];
+
+// ── University pool ──
+// The University Sub-Admin may request UNIVERSITY_POOL_RATE (55%) OF
+// Unisocials' share on the verified sales of their authorised universities.
+// The pool is funded BY the authorised platform percentage — a party
+// authorised at 25% funds 55% of that 25% — never added on top of the
+// ticket split, so no sale's commission maths changes because of it.
+const UNIVERSITY_POOL_RATE = 0.55;
+
+// ── Workers: monthly task-link sales quota and fixed salary ──
+// A worker sells tickets through their OWN task link. Workers pay nothing and
+// earn no commission — the platform pays them a fixed salary per completed
+// quota block. Each calendar month counts at most WORKER_MONTHLY_QUOTA counted
+// (verified) sales toward salary; anything above the quota rolls over into the
+// next month instead of being lost. Every completed quota block earns one
+// WORKER_SALARY_AMOUNT payment, and a worker may request their salary once
+// every WORKER_SALARY_COOLDOWN_DAYS days.
+const WORKER_MONTHLY_QUOTA = 150;
+const WORKER_SALARY_AMOUNT = 25000;
+const WORKER_SALARY_COOLDOWN_DAYS = 21;
 
 // ── How a verified ticket payment is split ──
 // A sale made through an influencer's referral link:
@@ -266,10 +292,11 @@ const EVENT_OWNER_RATE_REFERRED = 1 - PLATFORM_FEE_REFERRED - INFLUENCER_COMMISS
 // 97.5% of a referred sale, 80% of a direct one.
 const OWNER_CREDIT_REFERRED = 1 - PLATFORM_FEE_REFERRED;
 const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
-// ── Per-event reduced platform split (Main Admin authorization required) ──
-// The Main Admin can move an event onto a cheaper platform fee on DIRECT
-// sales. Four plans exist and all stay available:
+// ── Per-event platform split (Main Admin / University Sub-Admin authorization) ──
+// The platform fee per event can be moved up or down on DIRECT sales. Five
+// plans exist and all stay available:
 //   standard  → 20% Unisocials / 80% event owner
+//   plan_25   → 25% Unisocials / 75% event owner
 //   reduced_15 → 15% Unisocials / 85% event owner
 //   reduced_13 → 13% Unisocials / 87% event owner
 //   reduced_10 → 10% Unisocials / 90% event owner
@@ -278,9 +305,12 @@ const OWNER_CREDIT_DIRECT = 1 - PLATFORM_FEE_DIRECT;
 // sale earns is stamped on the order when its payment is verified, so
 // authorizing (or changing) a plan later never re-splits money already earned.
 const COMMISSION_PLAN_STANDARD = 'standard';
+const COMMISSION_PLAN_25 = 'plan_25';
 const COMMISSION_PLAN_REDUCED_15 = 'reduced_15';
 const COMMISSION_PLAN_REDUCED_13 = 'reduced_13';
 const COMMISSION_PLAN_REDUCED_10 = 'reduced_10';
+const PLATFORM_FEE_DIRECT_25 = 0.25;
+const EVENT_OWNER_RATE_25 = 1 - PLATFORM_FEE_DIRECT_25;
 const PLATFORM_FEE_DIRECT_REDUCED_15 = 0.15;
 const EVENT_OWNER_RATE_REDUCED_15 = 1 - PLATFORM_FEE_DIRECT_REDUCED_15;
 const PLATFORM_FEE_DIRECT_REDUCED_13 = 0.13;
@@ -289,7 +319,7 @@ const PLATFORM_FEE_DIRECT_REDUCED_10 = 0.10;
 const EVENT_OWNER_RATE_REDUCED_10 = 1 - PLATFORM_FEE_DIRECT_REDUCED_10;
 // Every plan the Main Admin may authorize. Anything else falls back to
 // standard, so an unknown stamp on an old order can never split money wrongly.
-const COMMISSION_PLANS = [COMMISSION_PLAN_STANDARD, COMMISSION_PLAN_REDUCED_15, COMMISSION_PLAN_REDUCED_13, COMMISSION_PLAN_REDUCED_10];
+const COMMISSION_PLANS = [COMMISSION_PLAN_STANDARD, COMMISSION_PLAN_25, COMMISSION_PLAN_REDUCED_15, COMMISSION_PLAN_REDUCED_13, COMMISSION_PLAN_REDUCED_10];
 function normalizeCommissionPlan(plan) {
   const value = String(plan || '').trim();
   return COMMISSION_PLANS.includes(value) ? value : COMMISSION_PLAN_STANDARD;
@@ -301,14 +331,16 @@ function orderCommissionPlan(order) {
 // use this — they always take the flat 2.5%.
 function platformFeeForPlan(plan) {
   const value = normalizeCommissionPlan(plan);
+  if (value === COMMISSION_PLAN_25) return PLATFORM_FEE_DIRECT_25;
   if (value === COMMISSION_PLAN_REDUCED_15) return PLATFORM_FEE_DIRECT_REDUCED_15;
   if (value === COMMISSION_PLAN_REDUCED_13) return PLATFORM_FEE_DIRECT_REDUCED_13;
   if (value === COMMISSION_PLAN_REDUCED_10) return PLATFORM_FEE_DIRECT_REDUCED_10;
   return PLATFORM_FEE_DIRECT;
 }
-// "20% / 80%", "15% / 85%", "13% / 87%", "10% / 90%" — used in confirmations and toasts.
+// "20% / 80%", "25% / 75%", "15% / 85%", "13% / 87%", "10% / 90%" — used in confirmations and toasts.
 function commissionPlanSplitLabel(plan) {
   const value = normalizeCommissionPlan(plan);
+  if (value === COMMISSION_PLAN_25) return '25% Unisocials / 75% event owner';
   if (value === COMMISSION_PLAN_REDUCED_15) return '15% Unisocials / 85% event owner';
   if (value === COMMISSION_PLAN_REDUCED_13) return '13% Unisocials / 87% event owner';
   if (value === COMMISSION_PLAN_REDUCED_10) return '10% Unisocials / 90% event owner';
@@ -358,29 +390,32 @@ function rateLabel(rate) {
   return (Math.abs(rounded - Math.round(rounded)) < 0.001 ? String(Math.round(rounded)) : String(rounded)) + '%';
 }
 
-function commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced13DirectAmount, reduced10DirectAmount) {
+function commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced13DirectAmount, reduced10DirectAmount, plan25DirectAmount) {
   const referred = commissionSplit(referredAmount, true);
   const direct = commissionSplit(directAmount, false);
-  // Direct sales on events authorized for a reduced plan are their own
+  // Direct sales on events authorized for a reduced/raised plan are their own
   // buckets so every published total (owner net, platform fee, credit) adds up.
   const reducedDirect = commissionSplit(reducedDirectAmount || 0, false, COMMISSION_PLAN_REDUCED_15);
   const reduced13Direct = commissionSplit(reduced13DirectAmount || 0, false, COMMISSION_PLAN_REDUCED_13);
   const reduced10Direct = commissionSplit(reduced10DirectAmount || 0, false, COMMISSION_PLAN_REDUCED_10);
+  const plan25Direct = commissionSplit(plan25DirectAmount || 0, false, COMMISSION_PLAN_25);
   const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
   const reducedGross = round2(reducedDirectAmount || 0);
   const reduced13Gross = round2(reduced13DirectAmount || 0);
   const reduced10Gross = round2(reduced10DirectAmount || 0);
+  const plan25Gross = round2(plan25DirectAmount || 0);
   return {
     referredAmount: round2(referredAmount),
     directAmount: round2(directAmount),
     reducedDirectAmount: reducedGross,
     reduced13DirectAmount: reduced13Gross,
     reduced10DirectAmount: reduced10Gross,
-    grossAmount: round2(referredAmount + directAmount + reducedGross + reduced13Gross + reduced10Gross),
-    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount + reducedDirect.ownerCreditAmount + reduced13Direct.ownerCreditAmount + reduced10Direct.ownerCreditAmount),
-    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount + reducedDirect.influencerAmount + reduced13Direct.influencerAmount + reduced10Direct.influencerAmount),
-    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount + reducedDirect.ownerNetAmount + reduced13Direct.ownerNetAmount + reduced10Direct.ownerNetAmount),
-    platformAmount: round2(referred.platformAmount + direct.platformAmount + reducedDirect.platformAmount + reduced13Direct.platformAmount + reduced10Direct.platformAmount)
+    plan25DirectAmount: plan25Gross,
+    grossAmount: round2(referredAmount + directAmount + reducedGross + reduced13Gross + reduced10Gross + plan25Gross),
+    ownerCreditAmount: round2(referred.ownerCreditAmount + direct.ownerCreditAmount + reducedDirect.ownerCreditAmount + reduced13Direct.ownerCreditAmount + reduced10Direct.ownerCreditAmount + plan25Direct.ownerCreditAmount),
+    influencerAmount: round2(referred.influencerAmount + direct.influencerAmount + reducedDirect.influencerAmount + reduced13Direct.influencerAmount + reduced10Direct.influencerAmount + plan25Direct.influencerAmount),
+    ownerNetAmount: round2(referred.ownerNetAmount + direct.ownerNetAmount + reducedDirect.ownerNetAmount + reduced13Direct.ownerNetAmount + reduced10Direct.ownerNetAmount + plan25Direct.ownerNetAmount),
+    platformAmount: round2(referred.platformAmount + direct.platformAmount + reducedDirect.platformAmount + reduced13Direct.platformAmount + reduced10Direct.platformAmount + plan25Direct.platformAmount)
   };
 }
 
@@ -390,12 +425,14 @@ function commissionTotals(referredAmount, directAmount, reducedDirectAmount, red
 const COMMISSION_SPLIT = {
   eventOwner: EVENT_OWNER_RATE,
   eventOwnerReferred: EVENT_OWNER_RATE_REFERRED,
+  eventOwnerPlan25: EVENT_OWNER_RATE_25,
   eventOwnerReduced15: EVENT_OWNER_RATE_REDUCED_15,
   eventOwnerReduced13: EVENT_OWNER_RATE_REDUCED_13,
   eventOwnerReduced10: EVENT_OWNER_RATE_REDUCED_10,
   influencer: INFLUENCER_COMMISSION_RATE,
   platformReferred: PLATFORM_FEE_REFERRED,
   platformDirect: PLATFORM_FEE_DIRECT,
+  platformPlan25: PLATFORM_FEE_DIRECT_25,
   platformReduced15: PLATFORM_FEE_DIRECT_REDUCED_15,
   platformReduced13: PLATFORM_FEE_DIRECT_REDUCED_13,
   platformReduced10: PLATFORM_FEE_DIRECT_REDUCED_10,
@@ -600,6 +637,14 @@ function payoutPublic(p) {
     commissionRates: COMMISSION_SPLIT,
     influencerRate: COMMISSION_SPLIT.influencer,
     eventOwnerRate: COMMISSION_SPLIT.eventOwner,
+    // Which kind of request this is: a commission payout, a worker salary,
+    // or a university sub-admin's campus pool draw (55% of Unisocials'
+    // share, used to settle worker bills).
+    payoutType: p.payoutType || (String(p.requesterRole || '') === 'worker' ? 'salary' : 'commission'),
+    poolRate: Number(p.poolRate) || 0,
+    // The campuses a pool request snapshots, so its scope survives any later
+    // change to the sub-admin's authorizations.
+    universities: Array.isArray(p.universities) ? p.universities : [],
     payoutMethod: p.payoutMethod,
     payoutMethodLabel: (PAYOUT_METHODS[p.payoutMethod] || {}).label || p.payoutMethod,
     bankName: p.bank ? p.bank.bankName : '',
@@ -1184,10 +1229,10 @@ async function generateReferralLink(ownerId, ownerName, ownerEmail, ownerRole = 
     code: code,
     ownerId: ownerId,
     ownerRole: ownerRole,
-    subadminId: ownerRole === 'subadmin' ? ownerId : null,
+    subadminId: (ownerRole === 'subadmin' || ownerRole === 'university_subadmin') ? ownerId : null,
     influencerId: ownerRole === 'influencer' ? ownerId : null,
-    subadminName: ownerRole === 'subadmin' ? ownerName : null,
-    subadminEmail: ownerRole === 'subadmin' ? ownerEmail : null,
+    subadminName: (ownerRole === 'subadmin' || ownerRole === 'university_subadmin') ? ownerName : null,
+    subadminEmail: (ownerRole === 'subadmin' || ownerRole === 'university_subadmin') ? ownerEmail : null,
     influencerName: ownerRole === 'influencer' ? ownerName : null,
     influencerEmail: ownerRole === 'influencer' ? ownerEmail : null,
     assignmentId: ownerRole === 'influencer' ? (assignmentId || null) : null,
@@ -1226,7 +1271,8 @@ async function findTaskLinkOwner(taskCode) {
   const safeCode = String(taskCode || '').trim().toUpperCase();
   if (!safeCode) return null;
   const users = await readUsers();
-  return users.find(u => u && u.role === 'influencer' && u.taskLink &&
+  // Workers own task links too: their link is what their salary quota counts.
+  return users.find(u => u && ['influencer','worker'].includes(u.role) && u.taskLink &&
     String(u.taskLink.code || '').trim().toUpperCase() === safeCode) || null;
 }
 
@@ -1246,6 +1292,245 @@ function taskLinkStatsFor(taskCode, orders) {
   };
 }
 
+// ── Worker salary ledger ──
+// Everything is derived from the orders themselves (verified task-link orders
+// only), so no stored counter can drift. Counted sales are bucketed by
+// calendar month (UTC) from the month the task link was created. Each month
+// credits at most WORKER_MONTHLY_QUOTA sales toward salary; the excess rolls
+// into the next month, and every completed quota block earns one
+// WORKER_SALARY_AMOUNT payment. The walk is replayed on every request, which
+// keeps the rollover rule in exactly one place.
+function workerMonthKey(iso) {
+  if (!iso) return null; // new Date(null) is the epoch, not an invalid date
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+}
+function workerSalaryLedger(taskCode, orders, taskCreatedAt) {
+  const safeCode = String(taskCode || '').trim().toUpperCase();
+  const counted = (orders || [])
+    .filter(o => isTaskOrderCounted(o, safeCode))
+    .sort((a, b) => new Date(a.createdAt || a.verifiedAt || 0) - new Date(b.createdAt || b.verifiedAt || 0));
+  const perMonth = {};
+  counted.forEach(o => {
+    const key = workerMonthKey(o.createdAt || o.verifiedAt);
+    if (!key) return;
+    perMonth[key] = (perMonth[key] || 0) + 1;
+  });
+  const nowKey = workerMonthKey(new Date().toISOString()) || '0000-01';
+  const keys = [];
+  const startKey = Object.keys(perMonth).sort()[0] || workerMonthKey(taskCreatedAt);
+  if (startKey) {
+    let parts = startKey.split('-').map(Number);
+    let y = parts[0], m = parts[1];
+    const nowParts = nowKey.split('-').map(Number);
+    const ny = nowParts[0], nm = nowParts[1];
+    while (y < ny || (y === ny && m <= nm)) {
+      keys.push(y + '-' + String(m).padStart(2, '0'));
+      m += 1; if (m > 12) { m = 1; y += 1; }
+    }
+  }
+  if (!keys.length) keys.push(nowKey);
+  let carry = 0, blocks = 0;
+  const months = [];
+  keys.forEach(key => {
+    const sales = perMonth[key] || 0;
+    const available = carry + sales;
+    const credited = Math.min(available, WORKER_MONTHLY_QUOTA);
+    carry = available - credited;
+    if (credited === WORKER_MONTHLY_QUOTA) blocks += 1;
+    months.push({
+      month: key,
+      sales: sales,
+      carryIn: available - sales,
+      credited: credited,
+      carryOut: carry,
+      blockCompleted: credited === WORKER_MONTHLY_QUOTA
+    });
+  });
+  const current = months[months.length - 1] ||
+    { month: nowKey, sales: 0, carryIn: 0, credited: 0, carryOut: 0, blockCompleted: false };
+  return {
+    totalSales: counted.length,
+    quota: WORKER_MONTHLY_QUOTA,
+    salaryPerBlock: WORKER_SALARY_AMOUNT,
+    blocksEarned: blocks,
+    totalSalary: blocks * WORKER_SALARY_AMOUNT,
+    currentMonth: current.month,
+    monthSales: current.sales,
+    carryIn: current.carryIn,
+    credited: current.credited,
+    carryOut: current.carryOut,
+    remainingToBlock: Math.max(0, WORKER_MONTHLY_QUOTA - current.credited),
+    months: months.slice().reverse()
+  };
+}
+// The worker's salary payout records: requests that hold (or have paid) a
+// completed block. Rejected requests release their block back to the worker.
+function isWorkerSalaryPayout(p) {
+  return !!p && String(p.requesterRole || '') === 'worker' &&
+    ['pending', 'approved', 'paid'].includes(String(p.status || '').toLowerCase());
+}
+
+// ── University sub-admin scoping ──
+// A university sub-admin only ever sees the universities the Main Admin
+// authorized on their account. Matching accepts every stored identifier
+// (id, slug, name) because duplicate catalogue records can use different IDs
+// for the same university — the same rule the public events page uses.
+function universityKeySet(entries) {
+  const keys = new Set();
+  (entries || []).forEach(u => {
+    [u && u.id, u && u.slug, u && u.name].forEach(v => {
+      const k = String(v || '').trim().toLowerCase();
+      if (k) keys.add(k);
+    });
+  });
+  return keys;
+}
+function universityFieldsOf(record) {
+  if (!record) return [];
+  return [record.universityId, record.universitySlug, record.universityName]
+    .map(v => String(v || '').trim().toLowerCase()).filter(Boolean);
+}
+function recordBelongsToUniversityKeys(record, events, keys) {
+  if (!record || !keys || !keys.size) return false;
+  if (universityFieldsOf(record).some(k => keys.has(k))) return true;
+  // Older orders carry no university fields: fall back to their event.
+  const event = (events || []).find(ev => eventMatchesOrder(record, ev));
+  return universityFieldsOf(event).some(k => keys.has(k));
+}
+// Resolve a university sub-admin session, or null for any other role.
+async function getUniversitySubadminContext(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const user = await getSessionUser(token);
+  if (!user || user.role !== 'university_subadmin') return null;
+  return user;
+}
+function universitySubadminKeys(user) {
+  return universityKeySet(Array.isArray(user && user.authorizedUniversities) ? user.authorizedUniversities : []);
+}
+// Resolve submitted university values (ids, slugs or names) against the live
+// catalogue, deduplicated by canonical campus name. Shared by every endpoint
+// that stores a university authorization so they all behave identically.
+async function resolveUniversityAuthorizations(values) {
+  const catalogue = await readUniversities();
+  const resolved = [];
+  const seen = new Set();
+  (Array.isArray(values) ? values : []).forEach(value => {
+    const needle = String(value || '').trim().toLowerCase();
+    if (!needle) return;
+    const match = catalogue.find(c => String(c.id || '').trim().toLowerCase() === needle ||
+      String(c.slug || '').trim().toLowerCase() === needle || String(c.name || '').trim().toLowerCase() === needle);
+    if (!match) return;
+    const key = String(match.name || match.id || needle).trim().toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    resolved.push({ id: String(match.id || '').trim(), slug: String(match.slug || '').trim(), name: String(match.name || '').trim() });
+  });
+  return resolved;
+}
+// A pool payout request: a University Sub-Admin drawing 55% of Unisocials'
+// share on their universities' sales to settle worker bills.
+function isUniversityPoolPayout(p) {
+  return !!p && String(p.requesterRole || '') === 'university_subadmin' && String(p.payoutType || '') === 'university_pool';
+}
+// The key set a pool request snapshots (its authorizations at request time),
+// so a later authorization change never rewrites an existing request's scope.
+// The campuses to stamp on a new pool request: the account's authorizations
+// at request time (id, slug and name, so the scope survives re-keying).
+function authListSnapshot(user) {
+  return (Array.isArray(user && user.authorizedUniversities) ? user.authorizedUniversities : [])
+    .map(u => ({ id: String(u && u.id || '').trim(), slug: String(u && u.slug || '').trim(), name: String(u && u.name || '').trim() }))
+    .filter(u => u.id || u.slug || u.name);
+}
+// Pool maths for one sub-admin's authorized universities. The unit is the
+// CAMPUS ENTRY (an authorized-universities record), never a bare id/slug/name
+// key: one campus carries all three identifiers, and accumulating per key
+// would count the same sale three times.
+// Committed amounts from OTHER sub-admins' requests count too (split evenly
+// across each request's snapshotted campuses), so two admins on the same
+// campus can never draw the same naira twice.
+async function universityPoolDetails(entries) {
+  const campusList = (Array.isArray(entries) ? entries : [])
+    .map(entry => ({ entry: entry, keys: universityKeySet([entry]) }))
+    .filter(c => c.keys.size);
+  const [orders, events, payouts] = await Promise.all([
+    getOrdersForCurrentSiteEvents(), readEvents(), readPayouts()
+  ]);
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const rows = campusList.map(() => ({ sales: 0, platformShare: 0, committed: 0 }));
+  // The campus indexes one verified order belongs to: the order's own
+  // university fields first, falling back to its event for legacy orders.
+  const campusIndexesFor = (o) => {
+    const match = (fieldKeys) => campusList
+      .map((c, i) => (fieldKeys || []).some(k => c.keys.has(k)) ? i : -1)
+      .filter(i => i >= 0);
+    const fromOrder = match(universityFieldsOf(o));
+    if (fromOrder.length) return fromOrder;
+    const ev = events.find(e => eventMatchesOrder(o, e));
+    return ev ? match(universityFieldsOf(ev)) : [];
+  };
+  // 1) Entitlement: 55% of the platform share each verified sale actually
+  //    earned under its stamped plan (20% / 25% / 15% / 13% / 10% direct,
+  //    2.5% referred).
+  orders.filter(o => String(o.status || '').toLowerCase() === 'verified').forEach(o => {
+    const scope = campusIndexesFor(o);
+    if (!scope.length) return;
+    const amount = Number(o.amount) || 0;
+    const referred = !!String(o.referralCode || '').trim();
+    const share = commissionSplit(amount, referred, orderCommissionPlan(o)).platformAmount;
+    scope.forEach(i => { rows[i].sales += amount; rows[i].platformShare += share; });
+  });
+  // 2) Committed: every open/paid pool request that snapshots a campus,
+  //    attributed evenly across its own snapshotted campuses (matched to my
+  //    campuses by any shared identifier).
+  payouts.filter(isUniversityPoolPayout).forEach(p => {
+    const st = String(p.status || '').toLowerCase();
+    if (!['pending', 'approved', 'paid'].includes(st)) return; // rejected frees its draw
+    const snapshot = Array.isArray(p.universities) ? p.universities : [];
+    if (!snapshot.length) return;
+    const shareAmount = (Number(p.amount) || 0) / snapshot.length;
+    snapshot.forEach(su => {
+      const sKeys = universityKeySet([su]);
+      if (!sKeys.size) return;
+      campusList.forEach((c, i) => {
+        if (Array.from(sKeys).some(k => c.keys.has(k))) rows[i].committed += shareAmount;
+      });
+    });
+  });
+  const byUniversity = [];
+  let sales = 0, platformShare = 0, entitled = 0, committed = 0;
+  campusList.forEach((c, i) => {
+    const row = rows[i];
+    const pool = round2(row.platformShare * UNIVERSITY_POOL_RATE);
+    const used = round2(Math.min(pool, round2(row.committed)));
+    sales += row.sales;
+    platformShare += row.platformShare;
+    entitled += pool;
+    // Per-campus floor: an over-drawn campus never eats another campus's pool.
+    committed += used;
+    byUniversity.push({
+      universityKey: String(c.entry && (c.entry.id || c.entry.slug || c.entry.name) || ''),
+      universityName: String(c.entry && (c.entry.name || c.entry.id) || ''),
+      sales: round2(row.sales),
+      platformShare: round2(row.platformShare),
+      pool,
+      committed: used,
+      available: round2(pool - used)
+    });
+  });
+  return {
+    rate: UNIVERSITY_POOL_RATE,
+    sales: round2(sales),
+    platformShare: round2(platformShare),
+    entitled: round2(entitled),
+    committed: round2(committed),
+    available: round2(Math.max(0, round2(entitled) - round2(committed))),
+    byUniversity: byUniversity
+  };
+}
+
 // Influencer referral codes are scoped to the Influencer Admin who created the
 // influencer. That admin must be authorized for the event (or own the event)
 // before the code can be used. Sub-admin referral links are intentionally not
@@ -1260,7 +1545,7 @@ async function influencerReferralAuthorizedForEvent(referralLink, event) {
   // down the influencer path, where it found no influencer and was rejected —
   // which made every sub-admin referral code fail at checkout.
   const linkRole = String(referralLink.ownerRole || '').trim().toLowerCase();
-  if (linkRole === 'subadmin' || referralLink.subadminId) return true;
+  if (linkRole === 'subadmin' || linkRole === 'university_subadmin' || referralLink.subadminId) return true;
 
   const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
   if (!influencerId) return true; // legacy/sub-admin referral link
@@ -1292,7 +1577,7 @@ async function getScopedReferralOrders(referralLink, orders, events, scopedAdmin
   // sub-admin code down the influencer route, found no influencer account, and
   // reported zero sales for all of them.
   const linkRole = String(referralLink.ownerRole || '').trim().toLowerCase();
-  if (linkRole === 'subadmin' || referralLink.subadminId) return verifiedOrders;
+  if (linkRole === 'subadmin' || linkRole === 'university_subadmin' || referralLink.subadminId) return verifiedOrders;
 
   const influencerId = String(referralLink.influencerId || referralLink.ownerId || '').trim();
   if (!influencerId) return verifiedOrders;
@@ -5098,7 +5383,7 @@ codes[idx] = entry;
       if (!code) return sendJson(res, 400, { success: false, error: 'Task link code is required.' });
       if (!/^[A-Za-z0-9_-]{8,64}$/.test(visitorId)) return sendJson(res, 400, { success: false, error: 'A visitor id is required.' });
       const users = await readUsers();
-      const taskOwner = users.find(u => u && u.role === 'influencer' && u.taskLink && String(u.taskLink.code || '').toUpperCase() === code);
+      const taskOwner = users.find(u => u && ['influencer','worker'].includes(u.role) && u.taskLink && String(u.taskLink.code || '').toUpperCase() === code);
       if (!taskOwner) return sendJson(res, 404, { success: false, error: 'Unknown task link.' });
       const t = taskOwner.taskLink;
       if (!Array.isArray(t.visitors)) t.visitors = [];
@@ -5400,6 +5685,688 @@ codes[idx] = entry;
           link: link
         } 
       });
+    }
+
+    // ── Worker: task dashboard (task link, 150/month quota, salary status) ──
+    // Workers pay nothing and earn no commission. They sell through their own
+    // task link; each completed 150-sales monthly quota block earns ₦25,000,
+    // and sales above the monthly quota roll over into the next month.
+    if (pathname === '/api/worker/dashboard' && req.method === 'GET') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'worker') return sendJson(res, 403, { success: false, error: 'Worker access only' });
+      const worker = (await findUserById(sessionUser.id)) || sessionUser;
+      // Create the worker's task link once, exactly like an influencer's.
+      if (!worker.taskLink || !worker.taskLink.code) {
+        const allUsers = await readUsers();
+        let taskCode = 'TASK-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        while (allUsers.some(u => u && u.taskLink && String(u.taskLink.code || '') === taskCode)) {
+          taskCode = 'TASK-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        }
+        worker.taskLink = {
+          code: taskCode,
+          createdAt: new Date().toISOString(),
+          people: 0,
+          uses: 0,
+          visitors: []
+        };
+        await addUser(worker);
+      }
+      const t = worker.taskLink;
+      const orders = await readOrders();
+      const ledger = workerSalaryLedger(t.code, orders, t.createdAt);
+      const payouts = await readPayouts();
+      const mine = payouts.filter(p => String(p.requestedBy || '') === String(worker.id) && isWorkerSalaryPayout(p));
+      const committed = Math.round(mine.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100;
+      const totalEarned = ledger.blocksEarned * WORKER_SALARY_AMOUNT;
+      const availableAmount = Math.max(0, Math.round((totalEarned - committed) * 100) / 100);
+      // The 3-week salary cooldown runs from the most recent request. A
+      // rejected request frees both its block and its place in the cooldown.
+      const lastRequestedAt = mine
+        .map(p => String(p.createdAt || ''))
+        .filter(Boolean)
+        .sort()
+        .pop() || null;
+      const nextRequestAtMs = lastRequestedAt
+        ? new Date(lastRequestedAt).getTime() + WORKER_SALARY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000
+        : 0;
+      const canRequest = availableAmount > 0 && Date.now() >= nextRequestAtMs;
+      const contactEmail = isInternalLoginEmail(worker.contactEmail) ? '' : String(worker.contactEmail || '').trim().toLowerCase();
+      return sendJson(res, 200, {
+        success: true,
+        user: publicUser(worker),
+        task: { code: t.code, url: canonicalTaskUrl(t.code), createdAt: t.createdAt || null },
+        ledger: ledger,
+        salary: {
+          amountPerBlock: WORKER_SALARY_AMOUNT,
+          totalEarned: totalEarned,
+          committedAmount: committed,
+          availableAmount: availableAmount,
+          availableBlocks: Math.max(0, ledger.blocksEarned - mine.length),
+          cooldownDays: WORKER_SALARY_COOLDOWN_DAYS,
+          canRequest: canRequest,
+          lastRequestedAt: lastRequestedAt,
+          nextRequestAt: nextRequestAtMs > Date.now() ? new Date(nextRequestAtMs).toISOString() : null,
+          totalPaid: Math.round(mine.filter(p => String(p.status || '').toLowerCase() === 'paid')
+            .reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100,
+          openAmount: Math.round(mine.filter(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase()))
+            .reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100
+        },
+        requests: payouts.filter(p => String(p.requestedBy || '') === String(worker.id) && String(p.requesterRole || '') === 'worker')
+          .map(payoutPublic),
+        savedBankAccount: worker.payoutBankAccount || null,
+        notificationEmail: contactEmail,
+        notificationEmailOnFile: !!contactEmail
+      });
+    }
+
+    // ── Worker: request salary (once every 3 weeks, ₦25,000 per 150 sales) ──
+    if (pathname === '/api/worker/salary-requests' && req.method === 'POST') {
+      const auth = req.headers['authorization'] || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      const sessionUser = await getSessionUser(token);
+      if (!sessionUser || sessionUser.role !== 'worker') return sendJson(res, 403, { success: false, error: 'Worker access only' });
+      const worker = (await findUserById(sessionUser.id)) || sessionUser;
+      let data = {};
+      try { data = JSON.parse(await readBody(req) || '{}'); } catch (e) {}
+      const bank = data.bank || {};
+      const bankName = String(bank.bankName || '').trim();
+      const accountNumber = String(bank.accountNumber || '').replace(/[\s-]/g, '');
+      const accountName = String(bank.accountName || '').trim().toUpperCase();
+      const note = String(data.note || '').trim().slice(0, 500);
+      if (!bankName) return sendJson(res, 400, { success: false, error: 'Bank name is required.' });
+      if (!/^\d{10}$/.test(accountNumber)) return sendJson(res, 400, { success: false, error: 'Enter a valid 10-digit Nigerian bank account number.' });
+      if (!accountName) return sendJson(res, 400, { success: false, error: 'Bank account name is required.' });
+
+      const t = worker.taskLink || null;
+      const orders = await readOrders();
+      const ledger = t && t.code ? workerSalaryLedger(t.code, orders, t.createdAt) : workerSalaryLedger(null, [], null);
+      const payouts = await readPayouts();
+      const mine = payouts.filter(p => String(p.requestedBy || '') === String(worker.id) && isWorkerSalaryPayout(p));
+      const committed = Math.round(mine.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100;
+      const totalEarned = ledger.blocksEarned * WORKER_SALARY_AMOUNT;
+      const availableAmount = Math.max(0, Math.round((totalEarned - committed) * 100) / 100);
+      // The 3-week cooldown is checked BEFORE the balance so a worker who just
+      // requested sees the real reason they cannot request again yet.
+      const lastRequestedAt = mine.map(p => String(p.createdAt || '')).filter(Boolean).sort().pop() || null;
+      const nextRequestAtMs = lastRequestedAt
+        ? new Date(lastRequestedAt).getTime() + WORKER_SALARY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000
+        : 0;
+      if (Date.now() < nextRequestAtMs) {
+        return sendJson(res, 409, {
+          success: false,
+          error: 'Salary can be requested once every ' + (WORKER_SALARY_COOLDOWN_DAYS / 7) + ' weeks.' +
+            ' Your next request unlocks on ' + new Date(nextRequestAtMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '.',
+          nextRequestAt: new Date(nextRequestAtMs).toISOString()
+        });
+      }
+      if (availableAmount <= 0) {
+        return sendJson(res, 400, {
+          success: false,
+          error: 'No salary is available yet. Salary unlocks once you complete a 150-sales quota block — you still need ' +
+            ledger.remainingToBlock + ' sale' + (ledger.remainingToBlock === 1 ? '' : 's') + ' this month.'
+        });
+      }
+      // The requested amount defaults to everything available and may never
+      // exceed it: salary only ever pays out of completed quota blocks.
+      let amount = Math.round(Number(data.amount) * 100) / 100;
+      if (!Number.isFinite(amount) || amount <= 0) amount = availableAmount;
+      if (amount > availableAmount) {
+        return sendJson(res, 400, {
+          success: false,
+          error: 'The amount you requested exceeds your available salary of ₦' + availableAmount.toLocaleString() + '.'
+        });
+      }
+
+      const payout = {
+        id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+        requestedBy: worker.id,
+        requesterRole: 'worker',
+        requesterName: worker.name || '',
+        requesterEmail: worker.email || '',
+        requesterContactEmail: isInternalLoginEmail(worker.contactEmail) ? '' : String(worker.contactEmail || '').trim().toLowerCase(),
+        amount: amount,
+        // Salary is paid in full — no platform fee is taken from it.
+        feeRate: 0,
+        feeAmount: 0,
+        netAmount: amount,
+        payoutMethod: 'salary',
+        salaryBlockAmount: WORKER_SALARY_AMOUNT,
+        bank: { bankName: bankName, accountNumber: accountNumber, accountName: accountName },
+        note: note,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        reviewedAt: null,
+        paidAt: null,
+        reviewedBy: null,
+        adminNote: ''
+      };
+      await addPayoutRequest(payout);
+      // Remember the bank account so the next request prefills it.
+      try {
+        const fresh = await findUserById(worker.id);
+        if (fresh) {
+          fresh.payoutBankAccount = payout.bank;
+          await replaceUser(fresh);
+        }
+      } catch (e) { /* non-fatal */ }
+      // Notify the Main Admin so the salary can be verified and paid.
+      const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      return sendJson(res, 200, {
+        success: true,
+        payout: payoutPublic(payout),
+        adminEmailSent: !!emailSent,
+        message: 'Salary request submitted: ₦' + amount.toLocaleString() +
+          ' (' + Math.round(amount / WORKER_SALARY_AMOUNT) + ' completed quota block' + (amount === WORKER_SALARY_AMOUNT ? '' : 's') +
+          ' of ' + WORKER_MONTHLY_QUOTA + ' sales each). The Main Admin has been notified and will pay within 24 hours of approval.'
+      });
+    }
+
+    // ── University sub-admin: scoped overview (their universities only) ──
+    if (pathname === '/api/university-subadmin/overview' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const keys = universitySubadminKeys(user);
+      const [orders, events] = await Promise.all([getOrdersForCurrentSiteEvents(), readEvents()]);
+      const scoped = orders.filter(o => recordBelongsToUniversityKeys(o, events, keys));
+      const statusOf = o => String(o.status || 'pending').trim().toLowerCase();
+      const verified = scoped.filter(o => statusOf(o) === 'verified');
+      const eventMap = {};
+      verified.forEach(o => {
+        const key = String(o.eventId || o.eventName || 'unknown');
+        if (!eventMap[key]) eventMap[key] = { eventId: o.eventId || null, eventName: o.eventName || 'Unknown Event', universityName: o.universityName || '', tickets: 0, orders: 0, revenue: 0 };
+        eventMap[key].tickets += parseInt(o.qty, 10) || 0;
+        eventMap[key].orders += 1;
+        eventMap[key].revenue += Number(o.amount) || 0;
+      });
+      return sendJson(res, 200, {
+        success: true,
+        user: publicUser(user),
+        universities: Array.isArray(user.authorizedUniversities) ? user.authorizedUniversities : [],
+        sales: {
+          totalOrders: scoped.length,
+          pendingOrders: scoped.filter(o => statusOf(o) === 'pending').length,
+          verifiedOrders: verified.length,
+          rejectedOrders: scoped.filter(o => statusOf(o) === 'rejected').length,
+          totalTickets: verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+          totalRevenue: verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+          uniquePeople: new Set(verified.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size,
+          events: Object.values(eventMap).sort((a, b) => b.tickets - a.tickets)
+        }
+      });
+    }
+
+    // ── University sub-admin: scoped orders (READ-ONLY) ──
+    if (pathname === '/api/university-subadmin/orders' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const keys = universitySubadminKeys(user);
+      const [orders, events] = await Promise.all([getOrdersForCurrentSiteEvents(), readEvents()]);
+      return sendJson(res, 200, {
+        success: true,
+        orders: orders.filter(o => recordBelongsToUniversityKeys(o, events, keys)),
+        readOnly: true
+      });
+    }
+
+    // ── University sub-admin: scoped customers, derived from scoped orders ──
+    if (pathname === '/api/university-subadmin/customers' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const keys = universitySubadminKeys(user);
+      const [orders, events] = await Promise.all([getOrdersForCurrentSiteEvents(), readEvents()]);
+      const map = new Map();
+      orders.filter(o => recordBelongsToUniversityKeys(o, events, keys)).forEach(o => {
+        const email = String(o.buyerEmail || '').trim().toLowerCase();
+        if (!email) return;
+        if (!map.has(email)) {
+          map.set(email, { name: '', email: email, phone: '', universityName: '', totalOrders: 0, verifiedOrders: 0, totalTickets: 0, totalSpent: 0, lastOrderAt: null });
+        }
+        const c = map.get(email);
+        c.totalOrders += 1;
+        if (String(o.status || '').toLowerCase() === 'verified') {
+          c.verifiedOrders += 1;
+          c.totalSpent += Number(o.amount) || 0;
+        }
+        c.totalTickets += Math.max(0, parseInt(o.qty, 10) || 0);
+        if (!c.universityName) c.universityName = String(o.universityName || '').trim();
+        const at = o.verifiedAt || o.createdAt || null;
+        if (at && (!c.lastOrderAt || at > c.lastOrderAt)) {
+          c.lastOrderAt = at;
+          c.name = String(o.buyerName || '').trim() || c.name;
+          c.phone = String(o.buyerPhone || '').trim() || c.phone;
+        }
+      });
+      const customers = Array.from(map.values()).sort((a, b) => String(b.lastOrderAt || '').localeCompare(String(a.lastOrderAt || '')));
+      return sendJson(res, 200, { success: true, customers: customers, totalCount: customers.length });
+    }
+
+    // ── University sub-admin: scoped events ──
+    if (pathname === '/api/university-subadmin/events' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const keys = universitySubadminKeys(user);
+      const events = await readEvents();
+      return sendJson(res, 200, {
+        success: true,
+        events: events.filter(ev => universityFieldsOf(ev).some(k => keys.has(k))),
+        universities: Array.isArray(user.authorizedUniversities) ? user.authorizedUniversities : []
+      });
+    }
+
+    // ── University sub-admin: referral link (one per account) ──
+    if (pathname === '/api/university-subadmin/referral-link' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      let link = await getReferralLinkByOwnerId(user.id);
+      if (!link) {
+        link = await generateReferralLink(user.id, user.name, user.email, 'university_subadmin');
+      } else {
+        await updateReferralStats(link.code);
+        link = await getReferralLinkByCode(link.code);
+      }
+      return sendJson(res, 200, { success: true, link: referralLinkResponse(link) });
+    }
+
+    // ── University sub-admin: referral stats, scoped to their universities ──
+    if (pathname === '/api/university-subadmin/referral-stats' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const link = await getReferralLinkByOwnerId(user.id);
+      if (!link) return sendJson(res, 200, { success: true, stats: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, uniquePeople: 0, link: null } });
+      const keys = universitySubadminKeys(user);
+      const [orders, events] = await Promise.all([getOrdersForCurrentSiteEvents(), readEvents()]);
+      const referred = orders.filter(o => isReferralOrderCounted(o, link.code) && recordBelongsToUniversityKeys(o, events, keys));
+      return sendJson(res, 200, {
+        success: true,
+        stats: {
+          totalOrders: referred.length,
+          totalRevenue: referred.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+          totalTickets: referred.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0),
+          uniquePeople: new Set(referred.map(o => String(o.buyerEmail || '').trim().toLowerCase()).filter(Boolean)).size,
+          link: referralLinkResponse(link)
+        }
+      });
+    }
+
+    // ── University sub-admin: the 55% campus pool (settles worker bills) ──
+    // Available = 55% of Unisocials' authorised share on this admin's
+    // universities' verified sales, less every open/paid pool draw against
+    // those campuses (including other sub-admins').
+    if (pathname === '/api/university-subadmin/pool' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const pool = await universityPoolDetails(user.authorizedUniversities);
+      const payouts = await readPayouts();
+      const mine = payouts.filter(p => isUniversityPoolPayout(p) && String(p.requestedBy) === String(user.id))
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      const sum = rows => Math.round(rows.reduce((n, p) => n + (Number(p.amount) || 0), 0) * 100) / 100;
+      const open = mine.filter(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase()));
+      const paid = mine.filter(p => String(p.status || '').toLowerCase() === 'paid');
+      return sendJson(res, 200, {
+        success: true,
+        pool: pool,
+        requests: mine.map(payoutPublic),
+        savedBankAccount: user.payoutBankAccount || null,
+        totals: { requested: sum(mine), openAmount: sum(open), paidAmount: sum(paid), openCount: open.length }
+      });
+    }
+
+    // ── University sub-admin: request from the 55% campus pool ──
+    if (pathname === '/api/university-subadmin/payouts' && req.method === 'POST') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      let data = {};
+      try { data = JSON.parse(await readBody(req) || '{}'); } catch (e) {}
+      const bank = data.bank || {};
+      const bankName = String(bank.bankName || '').trim();
+      const accountNumber = String(bank.accountNumber || '').replace(/[\s-]/g, '');
+      const accountName = String(bank.accountName || '').trim().toUpperCase();
+      const note = String(data.note || '').trim().slice(0, 500);
+      if (!bankName) return sendJson(res, 400, { success: false, error: 'Bank name is required.' });
+      if (!/^\d{10}$/.test(accountNumber)) return sendJson(res, 400, { success: false, error: 'Enter a valid 10-digit Nigerian bank account number.' });
+      if (!accountName) return sendJson(res, 400, { success: false, error: 'Bank account name is required.' });
+      const pool = await universityPoolDetails(user.authorizedUniversities);
+      if (pool.available <= 0) {
+        return sendJson(res, 400, {
+          success: false,
+          error: 'No pool is available yet. The pool is 55% of Unisocials\' authorised share on your universities\' verified sales (₦' +
+            pool.platformShare.toLocaleString() + ' share → ₦' + pool.entitled.toLocaleString() + ' pool), minus draws already requested.'
+        });
+      }
+      let amount = Math.round(Number(data.amount) * 100) / 100;
+      if (!Number.isFinite(amount) || amount <= 0) amount = pool.available;
+      if (amount > pool.available) {
+        return sendJson(res, 400, { success: false, error: 'The amount you requested exceeds the available campus pool of ₦' + pool.available.toLocaleString() + '.' });
+      }
+      const snapshot = authListSnapshot(user);
+      const payout = {
+        id: 'PAY-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+        requestedBy: user.id,
+        requesterRole: 'university_subadmin',
+        requesterName: user.name || '',
+        requesterEmail: user.email || '',
+        requesterContactEmail: isInternalLoginEmail(user.contactEmail) ? '' : String(user.contactEmail || '').trim().toLowerCase(),
+        payoutType: 'university_pool',
+        poolRate: UNIVERSITY_POOL_RATE,
+        universities: snapshot,
+        amount: amount,
+        // The pool is paid in full — the platform share was already taken.
+        feeRate: 0,
+        feeAmount: 0,
+        netAmount: amount,
+        payoutMethod: 'university_pool',
+        bank: { bankName: bankName, accountNumber: accountNumber, accountName: accountName },
+        note: note,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        reviewedAt: null,
+        paidAt: null,
+        reviewedBy: null,
+        adminNote: ''
+      };
+      await addPayoutRequest(payout);
+      try {
+        const fresh = await findUserById(user.id);
+        if (fresh) {
+          fresh.payoutBankAccount = payout.bank;
+          await replaceUser(fresh);
+        }
+      } catch (e) { /* non-fatal */ }
+      const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      return sendJson(res, 200, {
+        success: true,
+        payout: payoutPublic(payout),
+        pool: pool,
+        adminEmailSent: !!emailSent,
+        message: 'Pool request submitted: ₦' + amount.toLocaleString() + ' (55% of Unisocials\' share on your universities\' sales) — the Main Admin has been notified and will pay within 24 hours of approval.'
+      });
+    }
+
+    // ── University sub-admin: settle their campuses' worker salaries ──
+    if (pathname === '/api/university-subadmin/worker-payouts' && req.method === 'GET') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const keys = universitySubadminKeys(user);
+      const [users, payouts, orders] = await Promise.all([readUsers(), readPayouts(), readOrders()]);
+      const workers = users.filter(u => {
+        if (!u || u.role !== 'worker' || u.archived === true) return false;
+        const workerKeys = universityKeySet(Array.isArray(u.authorizedUniversities) ? u.authorizedUniversities : []);
+        if (!workerKeys.size) return false; // campus-less workers: Main Admin only
+        return Array.from(workerKeys).some(k => keys.has(k));
+      });
+      const workerIds = new Set(workers.map(w => String(w.id)));
+      const workerPayouts = payouts
+        .filter(p => String(p.requesterRole || '') === 'worker' && workerIds.has(String(p.requestedBy)))
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .map(payoutPublic);
+      return sendJson(res, 200, {
+        success: true,
+        workers: workers.map(w => {
+          const t = w.taskLink || null;
+          return Object.assign(publicUser(w), {
+            taskCode: (t && t.code) || null,
+            ledger: t && t.code ? workerSalaryLedger(t.code, orders, t.createdAt) : workerSalaryLedger(null, [], null)
+          });
+        }),
+        payouts: workerPayouts,
+        // The campus sub-admin DOES release these — unlike the master payout
+        // panel, these actions are live for this endpoint.
+        canPay: true
+      });
+    }
+
+    if (pathname === '/api/university-subadmin/worker-payouts' && req.method === 'POST') {
+      const user = await getUniversitySubadminContext(req);
+      if (!user) return sendJson(res, 403, { success: false, error: 'University sub-admin access only' });
+      const body = await readBody(req);
+      let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const payoutId = String(data.payoutId || '').trim();
+      const action = String(data.action || '').trim().toLowerCase();
+      const adminNote = String(data.adminNote || '').trim().slice(0, 500);
+      if (!payoutId) return sendJson(res, 400, { success: false, error: 'Missing payoutId.' });
+      if (!['approve', 'mark_paid', 'reject'].includes(action)) return sendJson(res, 400, { success: false, error: 'Action must be approve, mark_paid, or reject.' });
+      if (action === 'reject' && !adminNote) return sendJson(res, 400, { success: false, error: 'Add a short reason when rejecting a salary request.' });
+      const payouts = await readPayouts();
+      const existing = payouts.find(p => p.id === payoutId);
+      if (!existing || String(existing.requesterRole || '') !== 'worker') {
+        return sendJson(res, 404, { success: false, error: 'Worker salary request not found.' });
+      }
+      // Only workers authorized for THIS admin's universities.
+      const worker = await findUserById(existing.requestedBy);
+      const workerKeys = universityKeySet(worker && Array.isArray(worker.authorizedUniversities) ? worker.authorizedUniversities : []);
+      const myKeys = universitySubadminKeys(user);
+      const shared = Array.from(workerKeys).some(k => myKeys.has(k));
+      if (!shared) {
+        return sendJson(res, 403, { success: false, error: 'You can only settle salary for workers authorized at your universities.' });
+      }
+      const currentStatus = String(existing.status || '').toLowerCase();
+      if (currentStatus === 'paid') return sendJson(res, 409, { success: false, error: 'This salary has already been paid.' });
+      const nowIso = new Date().toISOString();
+      const patch = {
+        reviewedAt: nowIso,
+        reviewedBy: (user.name || 'University Sub-Admin') + ' (University Sub-Admin)',
+        adminNote: adminNote || existing.adminNote || ''
+      };
+      if (action === 'approve') {
+        if (currentStatus === 'approved') return sendJson(res, 409, { success: false, error: 'This salary is already approved.' });
+        patch.status = 'approved';
+        patch.paymentDueBy = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      } else if (action === 'mark_paid') {
+        patch.status = 'paid';
+        patch.paidAt = nowIso;
+        if (currentStatus !== 'approved') patch.paymentDueBy = nowIso;
+      } else {
+        patch.status = 'rejected';
+      }
+      const updated = await updatePayoutRequest(payoutId, patch);
+      const notifyEmail = await payoutRecipientEmail(Object.assign({}, existing, patch));
+      const emailSent = updated ? await sendPayoutStatusEmailToRequester(Object.assign({}, existing, patch)) : false;
+      if (emailSent) await updatePayoutRequest(payoutId, { notifiedEmail: notifyEmail, notifiedAt: nowIso });
+      const payout = Object.assign({}, existing, patch, emailSent ? { notifiedEmail: notifyEmail } : {});
+      const emailWarning = notifyEmail ? '' : 'This worker has no real email address on file, so the payout email could not be sent.';
+      return sendJson(res, 200, { success: true, payout: payoutPublic(payout), emailSent: !!emailSent, emailAddress: notifyEmail, emailSentTo: emailSent ? notifyEmail : '', emailWarning });
+    }
+
+    // ── Admin (master only): create/remove worker accounts ──
+    if (pathname === '/api/admin/workers' && req.method === 'GET') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const users = await readUsers();
+      const orders = await readOrders();
+      const payouts = await readPayouts();
+      const workers = users.filter(u => u && u.role === 'worker').map(u => {
+        const t = u.taskLink || null;
+        const ledger = t && t.code
+          ? workerSalaryLedger(t.code, orders, t.createdAt)
+          : workerSalaryLedger(null, [], null);
+        const mine = payouts.filter(p => String(p.requestedBy || '') === String(u.id) && isWorkerSalaryPayout(p));
+        return Object.assign(publicUser(u), {
+          taskCode: (t && t.code) || null,
+          taskUrl: (t && t.code) ? canonicalTaskUrl(t.code) : null,
+          ledger: ledger,
+          salary: {
+            totalPaid: Math.round(mine.filter(p => String(p.status || '').toLowerCase() === 'paid')
+              .reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100,
+            openAmount: Math.round(mine.filter(p => ['pending', 'approved'].includes(String(p.status || '').toLowerCase()))
+              .reduce((sum, p) => sum + (Number(p.amount) || 0), 0) * 100) / 100,
+            lastRequestedAt: mine.map(p => String(p.createdAt || '')).filter(Boolean).sort().pop() || null
+          }
+        });
+      });
+      return sendJson(res, 200, { success: true, workers: workers });
+    }
+
+    if (pathname === '/api/admin/workers' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const contactEmail = String(data.contactEmail || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
+      }
+      if (contactEmail && validateEmail(contactEmail)) {
+        return sendJson(res, 400, { success: false, error: 'The real email address is not valid.' });
+      }
+      // Workers belong to campuses: the university sub-admin authorized for
+      // that campus is who settles this worker's salary.
+      const resolvedWorkerUnis = await resolveUniversityAuthorizations(data.universities);
+      if (!resolvedWorkerUnis.length) {
+        return sendJson(res, 400, { success: false, error: 'Authorize this worker for at least one university — the sub-admin of that university settles their salary.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      const worker = {
+        id: 'WRK-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name: name,
+        email: email,
+        phone: '',
+        passwordHash: hashPassword(password),
+        role: 'worker',
+        authorizedUniversities: resolvedWorkerUnis,
+        // Where "salary paid" notifications go. The @unisocials.com login
+        // cannot receive mail, so a real inbox is stored separately.
+        contactEmail: isInternalLoginEmail(contactEmail) ? '' : contactEmail,
+        createdAt: new Date().toISOString()
+      };
+      await addUser(worker);
+      return sendJson(res, 200, { success: true, worker: publicUser(worker), message: 'Worker created for ' + resolvedWorkerUnis.length + ' universities. They sign in at worker.html — their task link is generated on first sign-in.' });
+    }
+
+    // ── Admin (master only): change which universities a worker is authorized for ──
+    if (pathname === '/api/admin/workers' && req.method === 'PATCH') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'worker') return sendJson(res, 404, { success: false, error: 'Worker not found' });
+      const resolvedWorkerUnis = await resolveUniversityAuthorizations(data.universities);
+      if (!resolvedWorkerUnis.length) {
+        return sendJson(res, 400, { success: false, error: 'Authorize this worker for at least one university — the sub-admin of that university settles their salary.' });
+      }
+      user.authorizedUniversities = resolvedWorkerUnis;
+      await replaceUser(user);
+      return sendJson(res, 200, { success: true, worker: publicUser(user) });
+    }
+
+    if (pathname === '/api/admin/workers' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'worker') return sendJson(res, 404, { success: false, error: 'Worker not found' });
+      await deleteUserById(user.id);
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
+    }
+
+    // ── University sub-admins: list (Main Admin + Master Sub-Admin oversight) ──
+    if (pathname === '/api/admin/university-subadmins' && req.method === 'GET') {
+      const manageCtx = await isAdminOrSubadmin(req);
+      if (!manageCtx || !['admin', 'subadmin'].includes(manageCtx.role)) {
+        return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      }
+      const users = await readUsers();
+      const links = await readReferralLinks();
+      const [orders, events] = await Promise.all([getOrdersForCurrentSiteEvents(), readEvents()]);
+      const subs = users.filter(u => u && u.role === 'university_subadmin').map(u => {
+        const keys = universitySubadminKeys(u);
+        const scoped = orders.filter(o => recordBelongsToUniversityKeys(o, events, keys));
+        const verified = scoped.filter(o => String(o.status || '').toLowerCase() === 'verified');
+        const link = links.find(l => l.subadminId === u.id || l.ownerId === u.id) || null;
+        return Object.assign(publicUser(u), {
+          referralCode: link ? link.code : null,
+          scopedStats: {
+            totalOrders: scoped.length,
+            verifiedOrders: verified.length,
+            totalRevenue: verified.reduce((sum, o) => sum + (Number(o.amount) || 0), 0),
+            totalTickets: verified.reduce((sum, o) => sum + (parseInt(o.qty, 10) || 0), 0)
+          }
+        });
+      });
+      return sendJson(res, 200, { success: true, subadmins: subs });
+    }
+
+    // ── University sub-admins: create (Main Admin only) ──
+    if (pathname === '/api/admin/university-subadmins' && req.method === 'POST') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const name = String(data.name || '').trim();
+      const email = String(data.email || '').trim().toLowerCase();
+      const password = String(data.password || '');
+      const passwordError = validatePassword(password);
+      const emailError = validateEmail(email);
+      if (!name || !email || passwordError || emailError) {
+        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
+      }
+      const existing = await findUserByEmail(email);
+      if (existing) return sendJson(res, 409, { success: false, error: 'A user with this email already exists.' });
+      // Resolve the submitted universities against the live catalogue so a
+      // duplicate catalogue record for the same campus never creates a second,
+      // invisible authorization.
+      const resolved = await resolveUniversityAuthorizations(data.universities);
+      if (!resolved.length) {
+        return sendJson(res, 400, { success: false, error: 'Choose at least one university to authorize this sub-admin for.' });
+      }
+      const sub = {
+        id: 'USUB-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+        name: name,
+        email: email,
+        phone: '',
+        passwordHash: hashPassword(password),
+        role: 'university_subadmin',
+        authorizedUniversities: resolved,
+        createdAt: new Date().toISOString()
+      };
+      await addUser(sub);
+      const referralLink = await generateReferralLink(sub.id, sub.name, sub.email, 'university_subadmin');
+      return sendJson(res, 200, {
+        success: true,
+        subadmin: Object.assign(publicUser(sub), { referralCode: referralLink.code }),
+        message: name + ' can now sign in at university-subadmin.html for ' + resolved.length + ' universities.'
+      });
+    }
+
+    // ── University sub-admins: change the authorized universities ──
+    if (pathname === '/api/admin/university-subadmins' && req.method === 'PATCH') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const body = await readBody(req);
+      let data = {};
+      try { data = JSON.parse(body || '{}'); } catch (e) {}
+      const email = String(data.email || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'university_subadmin') return sendJson(res, 404, { success: false, error: 'University sub-admin not found' });
+      const resolved = await resolveUniversityAuthorizations(data.universities);
+      if (!resolved.length) {
+        return sendJson(res, 400, { success: false, error: 'Choose at least one university to authorize this sub-admin for.' });
+      }
+      user.authorizedUniversities = resolved;
+      await replaceUser(user);
+      return sendJson(res, 200, { success: true, subadmin: publicUser(user) });
+    }
+
+    // ── University sub-admins: remove (Main Admin only) ──
+    if (pathname === '/api/admin/university-subadmins' && req.method === 'DELETE') {
+      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { success: false, error: 'Missing email' });
+      const user = await findUserByEmail(email);
+      if (!user || user.role !== 'university_subadmin') return sendJson(res, 404, { success: false, error: 'University sub-admin not found' });
+      await deleteUserById(user.id);
+      await deleteUserSessions(user.id);
+      return sendJson(res, 200, { success: true });
     }
 
     // ── Admin: mark orders seen ──
@@ -6003,8 +6970,9 @@ codes[idx] = entry;
         const directReduced = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_15).reduce((n,o)=>n+(Number(o.amount)||0),0);
         const directReduced13 = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_13).reduce((n,o)=>n+(Number(o.amount)||0), 0);
         const directReduced10 = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_REDUCED_10).reduce((n,o)=>n+(Number(o.amount)||0), 0);
-        const split = commissionTotals(referred, revenue - referred - directReduced - directReduced13 - directReduced10, directReduced, directReduced13, directReduced10);
-        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, reducedDirectAmount:split.reducedDirectAmount, reduced13DirectAmount:split.reduced13DirectAmount, reduced10DirectAmount:split.reduced10DirectAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
+        const directPlan25 = verified.filter(o => !String(o.referralCode || '').trim() && orderCommissionPlan(o) === COMMISSION_PLAN_25).reduce((n,o)=>n+(Number(o.amount)||0), 0);
+        const split = commissionTotals(referred, revenue - referred - directReduced - directReduced13 - directReduced10 - directPlan25, directReduced, directReduced13, directReduced10, directPlan25);
+        return { event: ev, totalOrders:visibleOrders.length, pendingOrders:pending.length, verifiedOrders:verified.length, ticketsSold:verified.reduce((n,o)=>n+(parseInt(o.qty,10)||0),0), revenue, referredAmount:split.referredAmount, directAmount:split.directAmount, reducedDirectAmount:split.reducedDirectAmount, reduced13DirectAmount:split.reduced13DirectAmount, reduced10DirectAmount:split.reduced10DirectAmount, plan25DirectAmount:split.plan25DirectAmount, ownerCredit:split.ownerCreditAmount, influencerCommission:split.influencerAmount, eventOwnerShare:split.ownerNetAmount, platformShare:split.platformAmount, influencers:influencerRows };
       });
       // commissionRates lets the dashboard show how each sale was split.
       return sendJson(res, 200, { success:true, feeRate: PAYOUT_FEE_RATE, commissionRates: COMMISSION_SPLIT, events:result });
@@ -6030,6 +6998,8 @@ codes[idx] = entry;
       let heldReduced13Direct = 0;
       let reduced10DirectAmount = 0;
       let heldReduced10Direct = 0;
+      let plan25DirectAmount = 0;
+      let heldPlan25Direct = 0;
       const heldPayments = [];
       authorizedEvents.forEach(ev => {
         orders.forEach(o => {
@@ -6041,6 +7011,7 @@ codes[idx] = entry;
           else if (plan === COMMISSION_PLAN_REDUCED_15) reducedDirectAmount += amount;
           else if (plan === COMMISSION_PLAN_REDUCED_13) reduced13DirectAmount += amount;
           else if (plan === COMMISSION_PLAN_REDUCED_10) reduced10DirectAmount += amount;
+          else if (plan === COMMISSION_PLAN_25) plan25DirectAmount += amount;
           else directAmount += amount;
           // Every payment made through the site stays on hold for 7 days
           // from the moment it was paid before it becomes withdrawable.
@@ -6051,6 +7022,7 @@ codes[idx] = entry;
             else if (plan === COMMISSION_PLAN_REDUCED_15) heldReducedDirect += amount;
             else if (plan === COMMISSION_PLAN_REDUCED_13) heldReduced13Direct += amount;
             else if (plan === COMMISSION_PLAN_REDUCED_10) heldReduced10Direct += amount;
+            else if (plan === COMMISSION_PLAN_25) heldPlan25Direct += amount;
             else heldDirect += amount;
             // What this payment actually earned the owner, so the countdown is
             // read in withdrawable share rather than gross ticket revenue.
@@ -6066,15 +7038,16 @@ codes[idx] = entry;
           }
         });
       });
-      const totals = commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced13DirectAmount, reduced10DirectAmount);
-      const heldTotals = commissionTotals(heldReferred, heldDirect, heldReducedDirect, heldReduced13Direct, heldReduced10Direct);
+      const totals = commissionTotals(referredAmount, directAmount, reducedDirectAmount, reduced13DirectAmount, reduced10DirectAmount, plan25DirectAmount);
+      const heldTotals = commissionTotals(heldReferred, heldDirect, heldReducedDirect, heldReduced13Direct, heldReduced10Direct, heldPlan25Direct);
       // Plan mix of this account's events, so the dashboard can describe the
       // current split rules the moment a plan is authorized — not only after
       // the first reduced-plan sale has actually verified.
       const reducedPlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_15).length;
       const reduced13PlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_13).length;
       const reduced10PlanEvents = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_REDUCED_10).length;
-      const standardPlanEvents = authorizedEvents.length - reducedPlanEvents - reduced13PlanEvents - reduced10PlanEvents;
+      const plan25Events = authorizedEvents.filter(ev => String(ev.commissionPlan || '').trim() === COMMISSION_PLAN_25).length;
+      const standardPlanEvents = authorizedEvents.length - reducedPlanEvents - reduced13PlanEvents - reduced10PlanEvents - plan25Events;
       const mine = payouts.filter(p => String(p.requestedBy) === String(authCtx.user.id));
       const balance = payoutBalance(totals.ownerNetAmount, heldTotals.ownerNetAmount, mine);
       heldPayments.sort((a, b) => new Date(a.unlocksAt) - new Date(b.unlocksAt));
@@ -6088,11 +7061,13 @@ codes[idx] = entry;
         reducedDirectAmount: totals.reducedDirectAmount,
         reduced13DirectAmount: totals.reduced13DirectAmount,
         reduced10DirectAmount: totals.reduced10DirectAmount,
+        plan25DirectAmount: totals.plan25DirectAmount,
         // How many of this account's events are on each plan (drives the
         // dashboard write-ups before any new sale has verified).
         reducedPlanEvents: reducedPlanEvents,
         reduced13PlanEvents: reduced13PlanEvents,
         reduced10PlanEvents: reduced10PlanEvents,
+        plan25Events: plan25Events,
         standardPlanEvents: standardPlanEvents,
         // 97.5% of referred sales + 80%/85% of direct sales: what the owner is
         // owed before the referrers' commission is allocated out of it.
@@ -6691,7 +7666,6 @@ codes[idx] = entry;
     // this change get the new rate — the plan is stamped onto each order at
     // verification time, so past earnings are never retroactively re-split.
     if (pathname === '/api/admin/events/commission-plan' && req.method === 'POST') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 403, { success: false, error: 'Only the Main Admin can change an event\'s commission plan' });
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -6704,6 +7678,22 @@ codes[idx] = entry;
       const events = await readEvents();
       const idx = events.findIndex(e => String(e.id) === eventId);
       if (idx < 0) return sendJson(res, 404, { success: false, error: 'Event not found' });
+      // Who may authorise the sales %: the Main Admin for any event, or a
+      // University Sub-Admin for an event at one of THEIR authorised
+      // universities — never for a campus outside their authorization.
+      const isAdmin = isAdminAuthorized(req);
+      let changedBy = 'admin';
+      if (!isAdmin) {
+        const usub = await getUniversitySubadminContext(req);
+        if (!usub) {
+          return sendJson(res, 403, { success: false, error: 'Only the Main Admin, or a University Sub-Admin for this university, can change an event\'s commission plan' });
+        }
+        const keys = universitySubadminKeys(usub);
+        if (!universityFieldsOf(events[idx]).some(k => keys.has(k))) {
+          return sendJson(res, 403, { success: false, error: 'You can only authorise the sales % for events at your authorised universities.' });
+        }
+        changedBy = 'university_subadmin';
+      }
       const now = new Date().toISOString();
       const prevPlan = String(events[idx].commissionPlan || COMMISSION_PLAN_STANDARD).trim() || COMMISSION_PLAN_STANDARD;
       events[idx] = Object.assign({}, events[idx], {
@@ -6711,7 +7701,7 @@ codes[idx] = entry;
         // Audit trail: who flipped the plan and when. Existing verified orders
         // keep the plan stamped on them; only future verifications are affected.
         commissionPlanChangedAt: now,
-        commissionPlanChangedBy: 'admin'
+        commissionPlanChangedBy: changedBy
       });
       await writeEvents(events);
       console.log('✓ Commission plan for', eventId, ':', prevPlan, '→', plan, '(only sales verified from now on)');
@@ -7109,6 +8099,11 @@ function publicUser(user) {
     role: ['influencer_admin','influencer-admin','influencerAdmin'].includes(role) ? 'influencer_admin' : role || 'buyer',
     createdAt: user.createdAt || null,
     archived: user.archived === true,
+    // Which campuses a university sub-admin (or a worker) is authorized for.
+    // Only those roles carry the field; for everyone else it stays absent.
+    ...(role === 'university_subadmin' || role === 'worker' ? {
+      authorizedUniversities: Array.isArray(user.authorizedUniversities) ? user.authorizedUniversities : []
+    } : {}),
     // Public shape intentionally excludes any credential or one-time-secret fields.
   };
 }

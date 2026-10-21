@@ -148,11 +148,13 @@ export default function EventAuthorizationsPanel({ active }) {
       <div className="admin-scan-panel" style={{ marginTop: 16 }}>
         <div className="admin-panel-heading" style={{ marginBottom: 8 }}>
           <div>
-            <h2 style={{ fontSize: '1rem' }}>💰 Commission Split (20% / 15% / 10%)</h2>
+            <h2 style={{ fontSize: '1rem' }}>💰 Commission Split (20% / 25% / 15% / 13% / 10%)</h2>
             <p>
               Pick the platform fee per event: future <strong>direct</strong> sales split{' '}
-              <strong>20% Unisocials / 80% owner</strong> (standard), <strong>15% / 85%</strong> or{' '}
-              <strong>10% / 90%</strong>. A sale through an influencer&apos;s link always keeps the normal
+              <strong>20% Unisocials / 80% owner</strong> (standard), <strong>25% / 75%</strong>,{' '}
+              <strong>15% / 85%</strong>, <strong>13% / 87%</strong> or <strong>10% / 90%</strong>. A
+              University Sub-Admin can set the same split for events in their authorised universities. A
+              sale through an influencer&apos;s link always keeps the normal
               influencer split — 2.5% Unisocials / 20% influencer / 77.5% owner — on every plan. Only sales
               verified from the moment you change it earn the new rate — sales already verified keep their
               original split.
@@ -173,7 +175,7 @@ export default function EventAuthorizationsPanel({ active }) {
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <strong>{esc(ev.name || id)}</strong>
                   <small style={{ color: 'var(--text-3)' }}>
-                    {plan.value === 'standard' ? plan.label : '💰 ' + plan.label + ' (direct sales)'}
+                    {plan.value === 'standard' ? plan.label : '💰 ' + plan.label}
                   </small>
                 </span>
                 <select

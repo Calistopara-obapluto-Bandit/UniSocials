@@ -3,8 +3,9 @@ import { useAdmin } from './adminContext.js';
 import { adminFetch, resetManagedPassword } from './adminApi.js';
 import { esc, fmtN, fmtDate } from '../../lib/utils.jsx';
 
-// Sub-admins: staff accounts limited to gate check-in and adding events. They
-// cannot view orders or manage universities/subscribers. Master admin only.
+// Master Sub-Admins: platform-wide oversight accounts (the original sub-admin
+// role). Campus-limited accounts are the separate University Sub-Admins role
+// (UniversitySubAdminsPanel), scoped to specific universities.
 export default function SubAdminsPanel({ active }) {
   const { showToast } = useAdmin();
   const [list, setList] = useState([]);
@@ -35,7 +36,7 @@ export default function SubAdminsPanel({ active }) {
         body: JSON.stringify({ name: n, email: e, password: p })
       });
       if (data && data.success) {
-        showToast('Sub-admin "' + n + '" created! Referral code: ' + ((data.subadmin && data.subadmin.referralCode) || '—'));
+        showToast('Master sub-admin "' + n + '" created! Referral code: ' + ((data.subadmin && data.subadmin.referralCode) || '—'));
         setName(''); setEmail(''); setPassword('');
         loadSubAdmins();
       } else {
@@ -50,13 +51,13 @@ export default function SubAdminsPanel({ active }) {
 
   async function deleteSubAdmin(mail) {
     if (!mail) return;
-    if (!window.confirm('Remove sub-admin ' + mail + '? They will no longer be able to sign in.')) return;
+    if (!window.confirm('Remove Master Sub-Admin ' + mail + '? They will no longer be able to sign in.')) return;
     try {
       const data = await adminFetch('/api/admin/subadmins?email=' + encodeURIComponent(mail), {
         method: 'DELETE'
       });
       if (data && data.success) {
-        showToast('Sub-admin removed');
+        showToast('Master sub-admin removed');
         loadSubAdmins();
       } else {
         showToast((data && data.error) || 'Failed to remove sub-admin', true);
@@ -77,8 +78,8 @@ export default function SubAdminsPanel({ active }) {
     <div className={'admin-panel' + (active ? ' active' : '')} id="panel-subadmins">
       <div className="admin-panel-heading">
         <div>
-          <h1>🔑 Sub-Admins</h1>
-          <p>Create staff accounts that can only do gate check-in and add events. Sub-admins cannot view orders or manage universities/subscribers.</p>
+          <h1>🔑 Master Sub-Admins</h1>
+          <p>Create <strong>Master Sub-Admin</strong> accounts with platform-wide oversight: check-in, sales, customers, payouts and referral links across every university. For sub-admins limited to specific universities, use the 🎓 University Sub-Admins tab. The Main Admin stays master of all.</p>
         </div>
       </div>
       <div className="admin-scan-panel">
@@ -111,11 +112,11 @@ export default function SubAdminsPanel({ active }) {
         <div className="admin-ticket-codes" style={{ marginTop: 14 }}>
           {list.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 16, color: 'var(--text-3)', fontSize: '0.85rem' }}>
-              No sub-admins yet. Create your first sub-admin above.
+              No Master Sub-Admins yet. Create your first one above.
             </div>
           ) : (
             <>
-              <div className="admin-ticket-codes-label">🔑 Active Sub-Admins ({list.length})</div>
+              <div className="admin-ticket-codes-label">🔑 Active Master Sub-Admins ({list.length})</div>
               {list.map((u) => {
                 const id = String(u.id || u._id || u.email || '').replace(/[^a-zA-Z0-9@.\-_]/g, '');
                 const stats = u.referralStats || { totalOrders: 0, totalRevenue: 0, totalTickets: 0 };
@@ -141,7 +142,7 @@ export default function SubAdminsPanel({ active }) {
                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                       <button className="admin-ticket-copy" onClick={() => resetPassword(u.email || id)} title="Reset password">🔑</button>
                       <button className="admin-ticket-copy" onClick={() => deleteSubAdmin(u.email || id)}
-                        title="Remove sub-admin" style={{ color: '#B71C1C', borderColor: '#F5C6CB' }}>✕</button>
+                        title="Remove Master Sub-Admin" style={{ color: '#B71C1C', borderColor: '#F5C6CB' }}>✕</button>
                     </div>
                   </div>
                 );

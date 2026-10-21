@@ -475,7 +475,7 @@ function EventRow({ ev, onEdit, onDelete, onArchive, onNotify, onPlan }) {
         <select
           value={plan.value}
           onChange={(e) => onPlan(e.target.value)}
-          title="Platform split on direct sales: 20%, 15%, 13% or 10% to Unisocials"
+          title="Platform split on direct sales: 20%, 25%, 15%, 13% or 10% to Unisocials"
           style={{ fontSize: '0.72rem', fontWeight: 700, padding: '5px 6px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', maxWidth: 170 }}
         >
           {COMMISSION_PLANS.map((p) => (

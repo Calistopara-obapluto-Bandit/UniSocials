@@ -339,9 +339,17 @@ window.UNUniversity = {
     // Influencer Portal: one shared entry on every page so an influencer can
     // always create an account or sign in (influencer.html has both). Injected
     // instead of hand-edited into each page so all pages stay identical.
-    if (!/influencer\.html$/i.test(location.pathname)) {
+    // The Worker entry follows the same rule: workers are created by the Main
+    // Admin, but an existing worker must always find their dashboard from here.
+    if (!/influencer\.html$/i.test(location.pathname) && !/worker\.html$/i.test(location.pathname)) {
       document.querySelectorAll('.nav-cta').forEach(function(cta) {
         if (cta.querySelector('.inf-link')) return;
+        var worker = document.createElement('a');
+        worker.href = 'worker.html';
+        worker.className = 'worker-link';
+        worker.title = 'Sign in to the Worker task & salary dashboard';
+        worker.innerHTML = '<span aria-hidden="true">💼</span> Worker';
+        cta.insertBefore(worker, cta.querySelector('.btn-primary') || null);
         var a = document.createElement('a');
         a.href = 'influencer-signup.html';
         a.className = 'inf-link';
@@ -356,12 +364,17 @@ window.UNUniversity = {
       });
       document.querySelectorAll('.mobile-menu').forEach(function(menu) {
         if (menu.querySelector('.mobile-inf-entry')) return;
+        var worker = document.createElement('a');
+        worker.href = 'worker.html';
+        worker.className = 'mobile-iaf mobile-worker-entry';
+        worker.textContent = '💼 Open the Worker task & salary dashboard';
+        var firstIaf = menu.querySelector('.mobile-iaf');
+        if (firstIaf) menu.insertBefore(worker, firstIaf); else menu.appendChild(worker);
         var a = document.createElement('a');
         a.href = 'influencer-signup.html';
         a.className = 'mobile-iaf mobile-inf-entry';
         a.textContent = '📣 Create or sign in to an Influencer account';
-        var iaf = menu.querySelector('.mobile-iaf');
-        if (iaf) menu.insertBefore(a, iaf); else menu.appendChild(a);
+        if (firstIaf) menu.insertBefore(a, firstIaf); else menu.appendChild(a);
       });
     }
 
