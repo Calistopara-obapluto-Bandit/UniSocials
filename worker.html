@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow">
+  <title>Worker Dashboard — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="templatemo-622-clearwave.css">
+  <style>
+    body.worker-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
+    .hidden{display:none!important}
+    .worker-login{padding:96px 0 80px;background:var(--bg)}
+    .worker-login .container{max-width:1200px;margin:0 auto;padding:0 20px}
+    .worker-login-card{width:min(100%,440px);margin:0 auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px}
+    .worker-mark{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:1.15rem;margin:0 auto 18px}
+    .worker-kicker{display:block;text-align:center;text-transform:uppercase;letter-spacing:.14em;font-size:.7rem;font-weight:800;color:var(--accent);margin-bottom:10px}
+    .worker-kicker:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:8px}
+    .worker-login-card h1{font-size:1.4rem;font-weight:700;color:var(--text-1);text-align:center;margin:0 0 6px}
+    .worker-subtitle{font-size:.86rem;color:var(--text-3);text-align:center;line-height:1.6;margin:0 0 24px}
+    .worker-form-group{margin-bottom:18px}.worker-form-group label{display:block;font-size:.76rem;font-weight:700;color:var(--text-2);margin-bottom:8px}.worker-form-group input{width:100%;box-sizing:border-box;padding:13px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text-1);font:inherit;outline:0}.worker-form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+    .worker-login-btn{width:100%;border:0;border-radius:100px;padding:13px 20px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}.worker-login-btn:hover{background:var(--accent-mid);transform:translateY(-1px)}.worker-login-btn:disabled{opacity:.65;cursor:wait;transform:none}
+    .worker-error{display:none;margin-top:14px;padding:11px 13px;border-radius:10px;background:#fff4f3;border:1px solid #f1d2ce;color:#b71c1c;font-size:.82rem}.worker-error.show{display:block}
+    /* The fixed site nav sits above the dashboard, so it needs the top clearance. */
+    .worker-dashboard{padding:96px 20px 80px}.worker-container{max-width:1000px;margin:0 auto}
+    .worker-dashboard-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+    .worker-overline{font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:var(--accent);margin-bottom:7px}
+    .worker-dashboard-head h1{font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3rem);margin:0;letter-spacing:-.04em}
+    .worker-welcome{color:var(--text-3);margin-top:8px}.worker-user{font-weight:700;color:var(--text-2)}
+    .worker-logout{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}.worker-logout:hover{background:var(--accent-ghost)}
+    .worker-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:26px;margin-bottom:18px}
+    .worker-card h2{font-size:1.15rem;font-weight:700;margin:0 0 6px}
+    .worker-card .card-sub{font-size:.82rem;color:var(--text-3);line-height:1.65;margin:0 0 18px}
+    .ref-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:7px}
+    .ref-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+    .ref-code{font-weight:800;letter-spacing:.12em;color:var(--accent);background:var(--accent-ghost);border:1px solid var(--accent-border);padding:11px 14px;border-radius:10px}
+    .copy-icon{width:42px;height:42px;border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:10px;display:grid;place-items:center;cursor:pointer}.copy-icon:hover{background:var(--accent-ghost)}.copy-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .ref-link-wrap{margin-top:18px}.ref-link-row{display:flex;gap:8px}.ref-link{flex:1;min-width:0;display:block;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:10px;padding:12px 13px;font:inherit;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+    .copy-status{min-height:18px;margin-top:6px;font-size:.75rem;color:var(--accent);font-weight:700}
+    .worker-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+    .worker-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);min-width:0}
+    .worker-stat-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800}
+    .worker-stat-value{font-size:1.7rem;font-weight:800;margin-top:8px;letter-spacing:-.03em;overflow-wrap:anywhere}
+    .accent-value{color:var(--accent)}
+    .quota-wrap{margin-top:6px}
+    .quota-track{height:14px;border-radius:100px;background:var(--bg);border:1px solid var(--border);overflow:hidden}
+    .quota-fill{height:100%;width:0;border-radius:100px;background:linear-gradient(90deg,var(--accent),var(--accent-mid));transition:width .5s ease}
+    .quota-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:.78rem;color:var(--text-3)}
+    .quota-meta strong{color:var(--text-1)}
+    .worker-notice{padding:14px 16px;background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:12px;color:var(--text-2);font-size:.82rem;line-height:1.65;margin-bottom:18px}
+    .worker-notice.warn{background:#FFF8E1;border-color:#FFE0B2;color:#E65100}
+    .payout-field{margin-bottom:12px}.payout-field label{display:block;font-size:.72rem;font-weight:700;color:var(--text-2);margin-bottom:6px}.payout-field input{width:100%;box-sizing:border-box;padding:12px 13px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text-1);font:inherit;outline:0}.payout-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+    .payout-btn{border:0;border-radius:100px;padding:12px 24px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}.payout-btn:hover{background:var(--accent-mid)}.payout-btn:disabled{opacity:.6;cursor:wait}
+    .payout-msg{min-height:18px;margin-top:10px;font-size:.8rem;font-weight:600}.payout-msg.ok{color:var(--accent)}.payout-msg.bad{color:#B71C1C}
+    .worker-table{width:100%;border-collapse:collapse;font-size:.82rem}
+    .worker-table th{text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:9px 10px;border-bottom:1px solid var(--border)}
+    .worker-table td{padding:10px;border-bottom:1px solid var(--border);color:var(--text-2);overflow-wrap:anywhere}
+    .state-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+    .state-badge.pending{background:#FFF3E0;color:#E65100;border:1px solid #FFE0B2}
+    .state-badge.approved{background:#E3F2FD;color:#0D47A1;border:1px solid #BBDEFB}
+    .state-badge.paid{background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9}
+    .state-badge.rejected{background:#FDECEA;color:#B71C1C;border:1px solid #F5C6CB}
+    .month-chip{display:inline-block;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);border-radius:8px;padding:2px 8px;font-weight:700;font-size:.72rem}
+    @media(max-width:760px){.worker-stats{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:480px){.worker-login{padding:80px 0 44px}.worker-login-card{padding:30px 20px}.worker-stats{gap:10px}.worker-stat{padding:15px}.worker-stat-value{font-size:1.35rem}.worker-table,.worker-table thead,.worker-table tbody,.worker-table tr,.worker-table td{display:block;width:100%}.worker-table thead{display:none}.worker-table td{border:0;padding:3px 0}.worker-table tr{border-bottom:1px solid var(--border);padding:10px 0}}
+  </style>
+</head>
+<body class="worker-page">
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Worker</a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── LOGIN VIEW ── -->
+  <section id="loginView">
+    <section class="page-header">
+      <div class="container">
+        <div class="section-label reveal">Worker Portal</div>
+        <h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1>
+        <p class="section-sub reveal reveal-delay-2">Sign in to your worker dashboard to share your task link and track your progress.</p>
+      </div>
+    </section>
+    <section class="worker-login">
+      <div class="container">
+        <div class="worker-login-card reveal visible">
+          <div class="worker-mark">W</div>
+          <div class="worker-kicker">Worker Portal</div>
+          <h1>Sign In</h1>
+          <p class="worker-subtitle">Use your worker account to access your task-link dashboard.</p>
+          <div class="worker-error" id="loginError"></div>
+          <form id="loginForm">
+            <div class="worker-form-group">
+              <label for="email">Email Address</label>
+              <input id="email" type="email" placeholder="you@university.edu.ng" autocomplete="username" required>
+            </div>
+            <div class="worker-form-group">
+              <label for="password">Password</label>
+              <input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required>
+            </div>
+            <button class="worker-login-btn" type="submit" id="loginBtn">Sign In</button>
+          </form>
+          <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p>
+          <p style="text-align:center;font-size:.84rem;color:var(--text-3);margin-top:12px;line-height:1.6;">Workers are created by the Main Admin. Pay nothing — sell through your task link and earn <strong>₦25,000 salary for every 150 sales</strong> in a month.</p>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ── DASHBOARD ── -->
+  <main id="dashboard" class="worker-dashboard hidden">
+    <div class="worker-container">
+      <div class="worker-dashboard-head">
+        <div>
+          <div class="worker-overline">Unisocials Worker</div>
+          <h1>Task &amp; Salary Dashboard</h1>
+          <div class="worker-welcome">Welcome, <span class="worker-user" id="userName">—</span></div>
+        </div>
+        <button type="button" class="worker-logout" id="logoutBtn">Log Out</button>
+      </div>
+
+      <!-- Task link -->
+      <section class="worker-card">
+        <h2>🔗 Your task link</h2>
+        <p class="card-sub">Share this link. Every paid ticket bought through it counts as one sale toward your monthly quota of <strong>150 sales</strong> — sales above the quota roll over into the next month.</p>
+        <div class="ref-label">Task code</div>
+        <div class="ref-row">
+          <div class="ref-code" id="taskCode">—</div>
+          <button class="copy-icon" id="copyCodeBtn" type="button" title="Copy task code" aria-label="Copy task code">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>
+          </button>
+        </div>
+        <div class="ref-link-wrap">
+          <div class="ref-label">Task link</div>
+          <div class="ref-link-row">
+            <a class="ref-link" id="taskLink" href="#" target="_blank" rel="noopener" aria-label="Task link">Your task link will appear here…</a>
+            <button class="copy-icon" id="copyLinkBtn" type="button" title="Copy task link" aria-label="Copy task link">
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="copy-status" id="copyStatus" aria-live="polite"></div>
+      </section>
+
+      <!-- Quota progress -->
+      <div class="worker-stats">
+        <div class="worker-stat"><div class="worker-stat-label">This month's sales</div><div class="worker-stat-value accent-value" id="statMonthSales">0</div></div>
+        <div class="worker-stat"><div class="worker-stat-label">Counted this month</div><div class="worker-stat-value" id="statCredited">0 / 150</div></div>
+        <div class="worker-stat"><div class="worker-stat-label">Rolling into next month</div><div class="worker-stat-value" id="statCarryOut">0</div></div>
+        <div class="worker-stat"><div class="worker-stat-label">Salary available</div><div class="worker-stat-value accent-value" id="statAvailable">₦0</div></div>
+      </div>
+
+      <section class="worker-card">
+        <h2>📊 Monthly quota — <span id="quotaMonth">—</span></h2>
+        <p class="card-sub">Complete a quota of <strong>150 counted sales</strong> in a month to earn <strong>₦25,000 salary</strong>. Anything above 150 is not lost — it rolls into the next month's count.</p>
+        <div class="quota-wrap">
+          <div class="quota-track"><div class="quota-fill" id="quotaFill"></div></div>
+          <div class="quota-meta">
+            <span><strong id="quotaCredited">0</strong> counted of <strong>150</strong></span>
+            <span id="quotaRemaining">150 sales to the next ₦25,000</span>
+          </div>
+        </div>
+        <div class="quota-meta" style="margin-top:14px;">
+          <span>Total sales through your link: <strong id="totalSales">0</strong></span>
+          <span>Quota blocks completed: <strong id="blocksEarned">0</strong> — salary earned <strong id="totalSalary">₦0</strong></span>
+        </div>
+      </section>
+
+      <!-- Salary request -->
+      <section class="worker-card">
+        <h2>💰 Request your salary</h2>
+        <p class="card-sub">Each completed 150-sales block pays <strong>₦25,000</strong>, in full — nothing is deducted. You can request salary <strong>once every 3 weeks</strong>. Requests are paid within 24 hours of approval.</p>
+        <div class="worker-notice" id="salaryNotice">Loading salary status…</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+          <div>
+            <div class="payout-field"><label for="poBankName">Bank name</label><input type="text" id="poBankName" placeholder="e.g. GTBank" autocomplete="off"></div>
+            <div class="payout-field"><label for="poAccountNumber">Account number</label><input type="text" id="poAccountNumber" placeholder="10-digit number" inputmode="numeric" maxlength="10" autocomplete="off"></div>
+            <div class="payout-field"><label for="poAccountName">Account name</label><input type="text" id="poAccountName" placeholder="As on your bank record" autocomplete="off"></div>
+          </div>
+          <div>
+            <div class="payout-field"><label for="poAmount">Amount to request (₦)</label><input type="number" id="poAmount" placeholder="0" min="1" inputmode="numeric"></div>
+            <div class="quota-meta" style="margin:-4px 0 12px;"><span>Available: <strong id="poAvailableHint">₦0</strong></span><button type="button" class="worker-logout" id="poAllBtn" style="padding:5px 12px;font-size:.72rem;">Request all</button></div>
+            <div class="payout-field"><label for="poNote">Note <span style="opacity:.6;">— optional</span></label><input type="text" id="poNote" placeholder="Anything the admin should know" maxlength="500" autocomplete="off"></div>
+            <button class="payout-btn" type="button" id="poRequestBtn">Request salary</button>
+            <div class="payout-msg" id="poMsg"></div>
+          </div>
+        </div>
+        <div style="margin-top:20px">
+          <div class="worker-overline">Salary history</div>
+          <div id="poHistory"><p class="card-sub">Loading salary history…</p></div>
+        </div>
+      </section>
+
+      <!-- Month-by-month breakdown -->
+      <section class="worker-card">
+        <h2>🗓 Month-by-month</h2>
+        <p class="card-sub">How your sales were counted each month, including what rolled over.</p>
+        <div id="monthList"><p class="card-sub">Loading…</p></div>
+      </section>
+
+      <div class="worker-notice">Your account is limited to your task link and salary. You cannot access orders, events, check-in, universities or admin settings.</div>
+    </div>
+  </main>
+
+  <script src="templatemo-622-clearwave.js"></script>
+  <script>
+  (function() {
+    var KEY = 'unn_worker_token';
+    var state = { salary: null, ledger: null };
+
+    function token() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
+    function headers() { return { 'Authorization': 'Bearer ' + token() }; }
+    function fmt(n) { return '₦' + Number(n || 0).toLocaleString(); }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function fmtWhen(iso) {
+      if (!iso) return '—';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    function monthLabel(key) {
+      var parts = String(key || '').split('-');
+      var names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var m = parseInt(parts[1], 10);
+      return (names[m - 1] || key) + ' ' + (parts[0] || '');
+    }
+    function showError(msg) {
+      var el = document.getElementById('loginError');
+      el.textContent = msg; el.classList.add('show');
+    }
+    function poMsg(text, good) {
+      var el = document.getElementById('poMsg');
+      el.textContent = text || '';
+      el.className = 'payout-msg ' + (good ? 'ok' : 'bad');
+    }
+    function showView(name) {
+      var loggedIn = !!token();
+      document.getElementById('loginView').classList.toggle('hidden', loggedIn);
+      document.getElementById('dashboard').classList.toggle('hidden', !loggedIn);
+    }
+    function copyText(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+    function showCopied(label) {
+      var s = document.getElementById('copyStatus');
+      s.textContent = label + ' copied';
+      setTimeout(function() { s.textContent = ''; }, 1800);
+    }
+
+    function render(data) {
+      state.salary = data.salary; state.ledger = data.ledger;
+      var t = data.task || {};
+      document.getElementById('userName').textContent = (data.user && data.user.name) || '';
+      document.getElementById('taskCode').textContent = t.code || '—';
+      var linkEl = document.getElementById('taskLink');
+      linkEl.textContent = t.url || 'Your task link will appear here…';
+      linkEl.href = t.url || '#';
+      linkEl.classList.toggle('is-empty', !t.url);
+
+      var L = data.ledger || {};
+      var S = data.salary || {};
+      var quota = Number(L.quota) || 150;
+      document.getElementById('statMonthSales').textContent = Number(L.monthSales || 0);
+      document.getElementById('statCredited').textContent = Number(L.credited || 0) + ' / ' + quota;
+      document.getElementById('statCarryOut').textContent = Number(L.carryOut || 0);
+      document.getElementById('statAvailable').textContent = fmt(S.availableAmount);
+      document.getElementById('quotaMonth').textContent = monthLabel(L.currentMonth);
+      var pct = Math.max(0, Math.min(100, Math.round((Number(L.credited || 0) / quota) * 100)));
+      document.getElementById('quotaFill').style.width = pct + '%';
+      document.getElementById('quotaCredited').textContent = Number(L.credited || 0);
+      document.getElementById('quotaRemaining').textContent =
+        Number(L.remainingToBlock || 0) > 0
+          ? Number(L.remainingToBlock) + ' more sale' + (Number(L.remainingToBlock) === 1 ? '' : 's') + ' to the next ₦25,000'
+          : 'Block complete — request your salary ✅';
+      document.getElementById('totalSales').textContent = Number(L.totalSales || 0);
+      document.getElementById('blocksEarned').textContent = Number(L.blocksEarned || 0);
+      document.getElementById('totalSalary').textContent = fmt(L.totalSalary);
+
+      // Salary request area
+      var notice = document.getElementById('salaryNotice');
+      var available = Number(S.availableAmount || 0);
+      if (S.canRequest && available > 0) {
+        notice.className = 'worker-notice';
+        notice.innerHTML = '✅ You can request <strong>' + fmt(available) + '</strong> now' +
+          (S.openAmount > 0 ? ' (plus ' + fmt(S.openAmount) + ' already awaiting payment).' : '.');
+      } else if (S.nextRequestAt) {
+        notice.className = 'worker-notice warn';
+        notice.innerHTML = '⏳ Salary was requested recently. Your next request unlocks on <strong>' + esc(fmtWhen(S.nextRequestAt).split(' ')[0]) + '</strong>' +
+          (available > 0 ? ' — ' + fmt(available) + ' will be available then.' : '.');
+      } else {
+        notice.className = 'worker-notice warn';
+        notice.innerHTML = '🛒 Keep selling! Salary unlocks once you complete a quota block of <strong>' + Number(L.quota || 150) +
+          ' counted sales</strong> — you still need <strong>' + Number(L.remainingToBlock || 0) + '</strong> this month (rollover sales included).';
+      }
+      document.getElementById('poAvailableHint').textContent = fmt(available);
+      var amountInput = document.getElementById('poAmount');
+      amountInput.max = String(available);
+      if (!amountInput.value || Number(amountInput.value) > available) amountInput.value = available > 0 ? String(available) : '';
+      var bank = data.savedBankAccount || {};
+      if (!document.getElementById('poBankName').value) document.getElementById('poBankName').value = bank.bankName || '';
+      if (!document.getElementById('poAccountNumber').value) document.getElementById('poAccountNumber').value = bank.accountNumber || '';
+      if (!document.getElementById('poAccountName').value) document.getElementById('poAccountName').value = bank.accountName || '';
+      var reqBtn = document.getElementById('poRequestBtn');
+      reqBtn.disabled = !(S.canRequest && available > 0);
+      reqBtn.textContent = (S.canRequest && available > 0) ? 'Request ' + fmt(available > 0 ? Number(amountInput.value || available) : 0) + ' salary' : 'Salary not requestable yet';
+
+      // Salary history
+      var rows = data.requests || [];
+      var hist = document.getElementById('poHistory');
+      if (!rows.length) {
+        hist.innerHTML = '<p class="card-sub" style="margin:0;">No salary requests yet. Complete a 150-sales block and request your first ₦25,000.</p>';
+      } else {
+        var html = '<table class="worker-table"><thead><tr><th>Requested</th><th>Amount</th><th>Status</th><th>Admin note</th></tr></thead><tbody>';
+        rows.forEach(function(p) {
+          var st = String(p.status || 'pending').toLowerCase();
+          html += '<tr><td>' + esc(fmtWhen(p.createdAt)) + '</td><td><strong>' + fmt(p.amount) + '</strong></td>' +
+            '<td><span class="state-badge ' + esc(st) + '">' + esc(st.replace('_', ' ')) + '</span></td>' +
+            '<td>' + esc(p.adminNote || '—') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        hist.innerHTML = html;
+      }
+
+      // Month-by-month
+      var months = L.months || [];
+      var mList = document.getElementById('monthList');
+      if (!months.length) {
+        mList.innerHTML = '<p class="card-sub" style="margin:0;">No counted sales yet — your month-by-month breakdown appears once someone buys through your task link.</p>';
+      } else {
+        var mhtml = '<table class="worker-table"><thead><tr><th>Month</th><th>Sales</th><th>Counted</th><th>Rolled over</th><th>₦25k block</th></tr></thead><tbody>';
+        months.forEach(function(m) {
+          mhtml += '<tr><td><span class="month-chip">' + esc(monthLabel(m.month)) + '</span></td>' +
+            '<td>' + Number(m.sales || 0) + '</td><td>' + Number(m.credited || 0) + '</td><td>' + Number(m.carryOut || 0) + '</td>' +
+            '<td>' + (m.blockCompleted ? '✅ Completed' : '—') + '</td></tr>';
+        });
+        mhtml += '</tbody></table>';
+        mList.innerHTML = mhtml;
+      }
+    }
+
+    async function load() {
+      if (!token()) { showView(); return false; }
+      try {
+        var r = await fetch('/api/worker/dashboard', { headers: headers() });
+        if (r.status === 401 || r.status === 403) throw new Error('unauthorized');
+        var d = await r.json();
+        if (!d || !d.success) throw new Error('bad');
+        // The endpoint is worker-only; anything else means this token belongs to
+        // a different kind of account.
+        render(d);
+        showView();
+        return true;
+      } catch (e) {
+        try { localStorage.removeItem(KEY); } catch (e2) {}
+        showView();
+        return false;
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('loginBtn');
+      var errBox = document.getElementById('loginError');
+      var mail = document.getElementById('email').value.trim();
+      var pwd = document.getElementById('password').value;
+      if (!mail || !pwd) { showError('Please enter your email and password.'); return; }
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      errBox.classList.remove('show');
+      try {
+        var r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: mail, password: pwd })
+        });
+        if (r.status === 401) throw new Error('unauthorized');
+        if (!r.ok) throw new Error('network');
+        var d = await r.json();
+        if (!d || !d.success || !d.token) throw new Error('unauthorized');
+        if (!d.user || d.user.role !== 'worker') throw new Error('not-worker');
+        try { localStorage.setItem(KEY, d.token); } catch (e3) {}
+        if (!(await load())) throw new Error('bad');
+      } catch (err) {
+        try { localStorage.removeItem(KEY); } catch (e4) {}
+        if (err.message === 'not-worker') {
+          showError('This account is not a worker account. Regular buyers sign in on the main login page.');
+        } else if (err.message === 'unauthorized') {
+          showError('Incorrect worker credentials.');
+        } else {
+          showError('Cannot reach server. Check that the site is running.');
+        }
+        showView();
+        btn.disabled = false; btn.textContent = 'Sign In';
+        return;
+      }
+      btn.disabled = false; btn.textContent = 'Sign In';
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', function() {
+      var t = token();
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      if (t) fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + t }, keepalive: true }).catch(function() {});
+      window.location.reload();
+    });
+
+    document.getElementById('copyCodeBtn').addEventListener('click', function() {
+      var code = document.getElementById('taskCode').textContent;
+      if (code && code !== '—') copyText(code).then(function() { showCopied('Task code'); });
+    });
+    document.getElementById('copyLinkBtn').addEventListener('click', function() {
+      var el = document.getElementById('taskLink');
+      if (el && el.href && el.href !== '#') copyText(el.href).then(function() { showCopied('Task link'); });
+    });
+    document.getElementById('poAllBtn').addEventListener('click', function() {
+      var available = state.salary ? Number(state.salary.availableAmount || 0) : 0;
+      document.getElementById('poAmount').value = available > 0 ? String(available) : '';
+    });
+
+    document.getElementById('poRequestBtn').addEventListener('click', async function() {
+      var btn = this;
+      var bankName = document.getElementById('poBankName').value.trim();
+      var accountNumber = document.getElementById('poAccountNumber').value.replace(/[\s-]/g, '');
+      var accountName = document.getElementById('poAccountName').value.trim();
+      var amount = Number(document.getElementById('poAmount').value);
+      var note = document.getElementById('poNote').value.trim();
+      if (!bankName) return poMsg('Enter your bank name.', false);
+      if (!/^\d{10}$/.test(accountNumber)) return poMsg('Enter a valid 10-digit bank account number.', false);
+      if (!accountName) return poMsg('Enter the account name as on your bank record.', false);
+      if (!amount || amount <= 0) return poMsg('Enter the amount to request.', false);
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      poMsg('', true);
+      try {
+        var r = await fetch('/api/worker/salary-requests', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, headers()),
+          body: JSON.stringify({
+            amount: amount,
+            note: note,
+            bank: { bankName: bankName, accountNumber: accountNumber, accountName: accountName }
+          })
+        });
+        var d = await r.json();
+        if (!r.ok || !d || !d.success) throw new Error((d && d.error) || 'Could not submit your salary request.');
+        poMsg('✅ ' + (d.message || 'Salary request submitted.'), true);
+        await load();
+      } catch (e) {
+        poMsg('⚠️ ' + (e.message || 'Could not submit your salary request.'), false);
+      } finally {
+        btn.disabled = false;
+        await load();
+        var available = state.salary ? Number(state.salary.availableAmount || 0) : 0;
+        var reqBtn = document.getElementById('poRequestBtn');
+        reqBtn.disabled = !(state.salary && state.salary.canRequest && available > 0);
+        reqBtn.textContent = reqBtn.disabled ? 'Salary not requestable yet' : 'Request salary';
+      }
+    });
+
+    load();
+    setInterval(function() { if (token()) load(); }, 60000);
+  })();
+  </script>
+</body>
+</html>

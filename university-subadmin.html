@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/unisocials-favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/unisocials-favicon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/unisocials-favicon-180.png" />
+
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex,nofollow">
+  <title>University Sub-Admin Dashboard — Unisocials</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="templatemo-622-clearwave.css">
+  <style>
+    body.usub-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
+    .hidden{display:none!important}
+    .usub-login{padding:96px 0 80px;background:var(--bg)}
+    .usub-login .container{max-width:1200px;margin:0 auto;padding:0 20px}
+    .usub-login-card{width:min(100%,440px);margin:0 auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px}
+    .usub-mark{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:1.15rem;margin:0 auto 18px}
+    .usub-kicker{display:block;text-align:center;text-transform:uppercase;letter-spacing:.14em;font-size:.7rem;font-weight:800;color:var(--accent);margin-bottom:10px}
+    .usub-kicker:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:8px}
+    .usub-login-card h1{font-size:1.4rem;font-weight:700;color:var(--text-1);text-align:center;margin:0 0 6px}
+    .usub-subtitle{font-size:.86rem;color:var(--text-3);text-align:center;line-height:1.6;margin:0 0 24px}
+    .usub-form-group{margin-bottom:18px}.usub-form-group label{display:block;font-size:.76rem;font-weight:700;color:var(--text-2);margin-bottom:8px}.usub-form-group input{width:100%;box-sizing:border-box;padding:13px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text-1);font:inherit;outline:0}.usub-form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ghost)}
+    .usub-login-btn{width:100%;border:0;border-radius:100px;padding:13px 20px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:.2s}.usub-login-btn:hover{background:var(--accent-mid);transform:translateY(-1px)}.usub-login-btn:disabled{opacity:.65;cursor:wait;transform:none}
+    .usub-error{display:none;margin-top:14px;padding:11px 13px;border-radius:10px;background:#fff4f3;border:1px solid #f1d2ce;color:#b71c1c;font-size:.82rem}.usub-error.show{display:block}
+    .usub-dashboard{padding:96px 20px 80px}.usub-container{max-width:1080px;margin:0 auto}
+    .usub-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:20px;flex-wrap:wrap}
+    .usub-overline{font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:var(--accent);margin-bottom:7px}
+    .usub-head h1{font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3rem);margin:0;letter-spacing:-.04em}
+    .usub-welcome{color:var(--text-3);margin-top:8px}.usub-user{font-weight:700;color:var(--text-2)}
+    .usub-logout{border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:100px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer}.usub-logout:hover{background:var(--accent-ghost)}
+    .uni-chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 22px}
+    .uni-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-ghost);border:1px solid var(--accent-border);color:var(--accent);border-radius:100px;padding:6px 14px;font-size:.78rem;font-weight:700}
+    .usub-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:10px}
+    .usub-tab{border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);border-radius:100px;padding:9px 16px;font:inherit;font-size:.82rem;font-weight:700;cursor:pointer;transition:.15s}
+    .usub-tab:hover{color:var(--accent);border-color:var(--accent-border)}
+    .usub-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .usub-panel{display:none}.usub-panel.active{display:block}
+    .usub-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:24px;margin-bottom:16px}
+    .usub-card h2{font-size:1.1rem;font-weight:700;margin:0 0 6px}
+    .usub-card .card-sub{font-size:.82rem;color:var(--text-3);line-height:1.6;margin:0 0 16px}
+    .usub-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+    .usub-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);min-width:0}
+    .usub-stat-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800}
+    .usub-stat-value{font-size:1.7rem;font-weight:800;margin-top:8px;letter-spacing:-.03em;overflow-wrap:anywhere}
+    .accent-value{color:var(--accent)}
+    .ref-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:800;margin-bottom:7px}
+    .ref-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+    .ref-code{font-weight:800;letter-spacing:.12em;color:var(--accent);background:var(--accent-ghost);border:1px solid var(--accent-border);padding:11px 14px;border-radius:10px}
+    .copy-icon{width:42px;height:42px;border:1px solid var(--accent-border);background:var(--surface-2);color:var(--accent);border-radius:10px;display:grid;place-items:center;cursor:pointer}.copy-icon:hover{background:var(--accent-ghost)}.copy-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .ref-link-wrap{margin-top:18px}.ref-link-row{display:flex;gap:8px}.ref-link{flex:1;min-width:0;display:block;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:10px;padding:12px 13px;font:inherit;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+    .copy-status{min-height:18px;margin-top:6px;font-size:.75rem;color:var(--accent);font-weight:700}
+    .usub-table{width:100%;border-collapse:collapse;font-size:.82rem}
+    .usub-table th{text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);padding:9px 10px;border-bottom:1px solid var(--border)}
+    .usub-table td{padding:10px;border-bottom:1px solid var(--border);color:var(--text-2);overflow-wrap:anywhere}
+    .state-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+    .state-badge.verified{background:#E8F5E9;color:#1B5E20;border:1px solid #C8E6C9}
+    .state-badge.pending{background:#FFF3E0;color:#E65100;border:1px solid #FFE0B2}
+    .state-badge.rejected{background:#FDECEA;color:#B71C1C;border:1px solid #F5C6CB}
+    .usub-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .usub-filter-btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);border-radius:100px;padding:7px 14px;font:inherit;font-size:.76rem;font-weight:700;cursor:pointer}
+    .usub-filter-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .usub-event{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+    .usub-event-name{font-weight:700;color:var(--text-1)}
+    .usub-event-meta{font-size:.76rem;color:var(--text-3);margin-top:3px}
+    .usub-event-stats{display:flex;gap:16px;flex-wrap:wrap;font-size:.78rem;color:var(--text-2);align-items:center}
+    .usub-notice{padding:14px 16px;background:var(--accent-ghost);border:1px solid var(--accent-border);border-radius:12px;color:var(--text-2);font-size:.82rem;line-height:1.65;margin-top:16px}
+    @media(max-width:760px){.usub-stats{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:480px){.usub-login{padding:80px 0 44px}.usub-login-card{padding:30px 20px}.usub-stats{gap:10px}.usub-stat{padding:15px}.usub-stat-value{font-size:1.35rem}.usub-table,.usub-table thead,.usub-table tbody,.usub-table tr,.usub-table td{display:block;width:100%}.usub-table thead{display:none}.usub-table td{border:0;padding:3px 0}.usub-table tr{border-bottom:1px solid var(--border);padding:10px 0}}
+  </style>
+</head>
+<body class="usub-page">
+  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
+    <a href="index.html">Home</a>
+    <a href="events.html">Events</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
+  </div>
+
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span> · University Sub-Admin</a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="tickets.html">Tickets</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="events.html" class="btn-primary">Get Tickets</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── LOGIN VIEW ── -->
+  <section id="loginView">
+    <section class="page-header">
+      <div class="container">
+        <div class="section-label reveal">University Sub-Admin Portal</div>
+        <h1 class="section-title reveal reveal-delay-1">Welcome <em>back</em></h1>
+        <p class="section-sub reveal reveal-delay-2">Sign in to manage sales, customers and events for your authorized universities.</p>
+      </div>
+    </section>
+    <section class="usub-login">
+      <div class="container">
+        <div class="usub-login-card reveal visible">
+          <div class="usub-mark">U</div>
+          <div class="usub-kicker">University Sub-Admin</div>
+          <h1>Sign In</h1>
+          <p class="usub-subtitle">Use your university sub-admin account to access your campus dashboard.</p>
+          <div class="usub-error" id="loginError"></div>
+          <form id="loginForm">
+            <div class="usub-form-group">
+              <label for="email">Email Address</label>
+              <input id="email" type="email" placeholder="you@unisocials.com" autocomplete="username" required>
+            </div>
+            <div class="usub-form-group">
+              <label for="password">Password</label>
+              <input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required>
+            </div>
+            <button class="usub-login-btn" type="submit" id="loginBtn">Sign In</button>
+          </form>
+          <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:18px;">Master Sub-Admin? <a href="subadmin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Master Sub-Admin Dashboard</a></p>
+          <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:10px;">Are you the site admin? <a href="admin.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Admin Dashboard</a></p>
+          <p style="text-align:center;font-size:.82rem;color:var(--text-3);margin-top:10px;">Regular account? <a href="login.html" style="color:var(--accent);text-decoration:underline;font-weight:600;">Sign in here</a></p>
+          <p style="text-align:center;font-size:.8rem;color:var(--text-3);margin-top:14px;line-height:1.6;">University sub-admin accounts are created and authorized for specific universities by the Main Admin.</p>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ── DASHBOARD ── -->
+  <main id="dashboard" class="usub-dashboard hidden">
+    <div class="usub-container">
+      <div class="usub-head">
+        <div>
+          <div class="usub-overline">Unisocials University Sub-Admin</div>
+          <h1>Campus Dashboard</h1>
+          <div class="usub-welcome">Welcome, <span class="usub-user" id="userName">—</span></div>
+          <div class="uni-chips" id="uniChips"></div>
+        </div>
+        <button type="button" class="usub-logout" id="logoutBtn">Log Out</button>
+      </div>
+
+      <div class="usub-tabs" role="tablist">
+        <button class="usub-tab active" data-utab="overview" role="tab">📊 Overview</button>
+        <button class="usub-tab" data-utab="orders" role="tab">🧾 Sales &amp; Orders</button>
+        <button class="usub-tab" data-utab="customers" role="tab">👥 Customers</button>
+        <button class="usub-tab" data-utab="events" role="tab">🎤 Events</button>
+        <button class="usub-tab" data-utab="referral" role="tab">📈 Referral Link</button>
+        <button class="usub-tab" data-utab="commission" role="tab">💰 Commission Split</button>
+        <button class="usub-tab" data-utab="pool" role="tab">🏦 Campus Pool</button>
+        <button class="usub-tab" data-utab="workers" role="tab">💼 Workers</button>
+      </div>
+
+      <!-- Overview -->
+      <section class="usub-panel active" data-upanel="overview">
+        <div class="usub-stats">
+          <div class="usub-stat"><div class="usub-stat-label">Verified orders</div><div class="usub-stat-value accent-value" id="statVerified">0</div></div>
+          <div class="usub-stat"><div class="usub-stat-label">Ticket revenue</div><div class="usub-stat-value" id="statRevenue">₦0</div></div>
+          <div class="usub-stat"><div class="usub-stat-label">Tickets sold</div><div class="usub-stat-value" id="statTickets">0</div></div>
+          <div class="usub-stat"><div class="usub-stat-label">Unique buyers</div><div class="usub-stat-value" id="statPeople">0</div></div>
+        </div>
+        <div class="usub-card">
+          <h2>Per-event performance</h2>
+          <p class="card-sub">Verified sales at your authorized universities, event by event.</p>
+          <div id="eventPerf"><p class="card-sub">Loading…</p></div>
+        </div>
+        <div class="usub-notice">Your dashboard is scoped to the universities the Main Admin authorized on your account. You can authorise the sales % for your events (💰 Commission Split), draw your campuses' 55% pool (🏦 Campus Pool) and settle your workers' salaries (💼 Workers). Payment verification, event creation and account management stay with the Main Admin.</div>
+      </section>
+
+      <!-- Orders -->
+      <section class="usub-panel" data-upanel="orders">
+        <div class="usub-card">
+          <h2>Sales &amp; orders</h2>
+          <p class="card-sub">Every order placed at your authorized universities. Read-only — verifying payments stays with the Main Admin.</p>
+          <div class="usub-filters">
+            <button class="usub-filter-btn active" data-ofilter="all">All</button>
+            <button class="usub-filter-btn" data-ofilter="verified">✅ Verified</button>
+            <button class="usub-filter-btn" data-ofilter="pending">⏳ Pending</button>
+            <button class="usub-filter-btn" data-ofilter="rejected">❌ Rejected</button>
+          </div>
+          <div id="ordersList"><p class="card-sub">Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- Customers -->
+      <section class="usub-panel" data-upanel="customers">
+        <div class="usub-card">
+          <h2>Customers</h2>
+          <p class="card-sub">Everyone who has bought a ticket at your authorized universities.</p>
+          <div id="customersList"><p class="card-sub">Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- Events -->
+      <section class="usub-panel" data-upanel="events">
+        <div class="usub-card">
+          <h2>Events</h2>
+          <p class="card-sub">Upcoming and past events at your authorized universities.</p>
+          <div id="eventsList"><p class="card-sub">Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- Referral -->
+      <section class="usub-panel" data-upanel="referral">
+        <div class="usub-card">
+          <h2>📈 Your referral link</h2>
+          <p class="card-sub">Share your referral link. Referred sales at your universities are shown below. Buyers using your link pay the original ticket price — your referral gives them the fair price while the event keeps its share.</p>
+          <div class="ref-label">Referral code</div>
+          <div class="ref-row">
+            <div class="ref-code" id="refCode">—</div>
+            <button class="copy-icon" id="copyCodeBtn" type="button" title="Copy referral code" aria-label="Copy referral code">
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>
+            </button>
+          </div>
+          <div class="ref-link-wrap">
+            <div class="ref-label">Referral link</div>
+            <div class="ref-link-row">
+              <a class="ref-link" id="refLink" href="#" target="_blank" rel="noopener" aria-label="Referral link">Your referral link will appear here…</a>
+              <button class="copy-icon" id="copyLinkBtn" type="button" title="Copy referral link" aria-label="Copy referral link">
+                <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="copy-status" id="copyStatus" aria-live="polite"></div>
+          <div class="usub-stats" style="margin-top:18px;">
+            <div class="usub-stat"><div class="usub-stat-label">Referred orders</div><div class="usub-stat-value accent-value" id="refOrders">0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Referred revenue</div><div class="usub-stat-value" id="refRevenue">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Tickets</div><div class="usub-stat-value" id="refTickets">0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Unique buyers</div><div class="usub-stat-value" id="refPeople">0</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Commission plans (the authorised sales %) -->
+      <section class="usub-panel" data-upanel="commission">
+        <div class="usub-card">
+          <h2>💰 Authorise the sales %</h2>
+          <p class="card-sub">Set the platform commission split for events at <strong>your authorised universities</strong>: standard <strong>20% / 80%</strong>, <strong>25% / 75%</strong>, <strong>15% / 85%</strong>, <strong>13% / 87%</strong> or <strong>10% / 90%</strong>. Only <strong>direct</strong> sales change — a sale through an influencer&apos;s link always keeps 2.5% Unisocials / 20% influencer / 77.5% owner. Sales already verified keep the split they were verified with.</p>
+          <div class="copy-status" id="commissionStatus" aria-live="polite"></div>
+          <div id="commissionList"><p class="card-sub">Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- The 55% campus pool -->
+      <section class="usub-panel" data-upanel="pool">
+        <div class="usub-card">
+          <h2>🏦 Campus pool — 55% of the platform's share</h2>
+          <p class="card-sub">Every verified direct sale at your universities collects the platform&apos;s authorised commission — the event&apos;s split (20%, 25%, 15%, 13% or 10%). <strong>55% of that platform share comes back to your campuses as this pool.</strong> Referred sales contribute their 2.5% share the same way. Request a draw whenever you need it; the Main Admin reviews it.</p>
+          <div class="usub-stats">
+            <div class="usub-stat"><div class="usub-stat-label">Verified sales</div><div class="usub-stat-value" id="poolSales">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Platform share</div><div class="usub-stat-value" id="poolShare">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Your 55% pool</div><div class="usub-stat-value accent-value" id="poolEntitled">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Available now</div><div class="usub-stat-value accent-value" id="poolAvailable">₦0</div></div>
+          </div>
+          <div id="poolByUni" style="margin-bottom:14px;"></div>
+          <p class="card-sub" id="poolTotals">Loading…</p>
+          <div class="ref-label" style="margin-top:18px;">Request your available pool</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+            <div class="usub-form-group" style="margin:0;"><label for="poolBankName">Bank name</label><input id="poolBankName" type="text" placeholder="e.g. GTBank" /></div>
+            <div class="usub-form-group" style="margin:0;"><label for="poolAcctNumber">Account number</label><input id="poolAcctNumber" type="text" inputmode="numeric" placeholder="0123456789" /></div>
+            <div class="usub-form-group" style="margin:0;"><label for="poolAcctName">Account name</label><input id="poolAcctName" type="text" placeholder="ACCOUNT NAME" /></div>
+            <div class="usub-form-group" style="margin:0;"><label for="poolNote">Note <span style="opacity:.6">— optional</span></label><input id="poolNote" type="text" maxlength="200" placeholder="Why you need it" /></div>
+          </div>
+          <button type="button" class="usub-login-btn" style="width:auto;" id="poolRequestBtn">Request pool payout</button>
+          <div class="copy-status" id="poolStatus" aria-live="polite"></div>
+          <div style="margin-top:18px;">
+            <div class="ref-label">Your pool requests</div>
+            <div id="poolRequests"><p class="card-sub">Loading…</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Workers + salary requests -->
+      <section class="usub-panel" data-upanel="workers">
+        <div class="usub-card">
+          <h2>💼 Workers at your universities</h2>
+          <p class="card-sub">Workers authorized for your campuses, their quota progress, and their salary requests — <strong>you</strong> settle those salaries. Each completed 150-sales block earns ₦25,000.</p>
+          <div id="workersList"><p class="card-sub">Loading…</p></div>
+          <div class="ref-label" style="margin-top:20px;">Salary requests</div>
+          <div class="copy-status" id="workerStatus" aria-live="polite"></div>
+          <div id="workerPayoutsList"><p class="card-sub">Loading…</p></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="templatemo-622-clearwave.js"></script>
+  <script>
+  (function() {
+    var KEY = 'unn_usub_token';
+    var state = { orders: [], events: [], orderFilter: 'all' };
+
+    function token() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
+    function headers() { return { 'Authorization': 'Bearer ' + token() }; }
+    function fmt(n) { return '₦' + Number(n || 0).toLocaleString(); }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function fmtWhen(iso) {
+      if (!iso) return '—';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    function showError(msg) {
+      var el = document.getElementById('loginError');
+      el.textContent = msg; el.classList.add('show');
+    }
+    function showView() {
+      var loggedIn = !!token();
+      document.getElementById('loginView').classList.toggle('hidden', loggedIn);
+      document.getElementById('dashboard').classList.toggle('hidden', !loggedIn);
+    }
+    function copyText(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+    function showCopied(label) {
+      var s = document.getElementById('copyStatus');
+      s.textContent = label + ' copied';
+      setTimeout(function() { s.textContent = ''; }, 1800);
+    }
+    function statusBadge(status) {
+      var st = String(status || 'pending').toLowerCase();
+      return '<span class="state-badge ' + esc(st) + '">' + esc(st) + '</span>';
+    }
+
+    async function getJson(path) {
+      var r = await fetch(path, { headers: headers() });
+      if (r.status === 401 || r.status === 403) throw new Error('unauthorized');
+      var d = await r.json();
+      if (!d || !d.success) throw new Error('bad');
+      return d;
+    }
+
+    function renderOverview(d) {
+      var S = d.sales || {};
+      document.getElementById('statVerified').textContent = Number(S.verifiedOrders || 0);
+      document.getElementById('statRevenue').textContent = fmt(S.totalRevenue);
+      document.getElementById('statTickets').textContent = Number(S.totalTickets || 0);
+      document.getElementById('statPeople').textContent = Number(S.uniquePeople || 0);
+      var chips = document.getElementById('uniChips');
+      var unis = d.universities || [];
+      chips.innerHTML = unis.length
+        ? '<span style="font-size:.72rem;color:var(--text-3);font-weight:700;align-self:center;">Authorized for:</span>' +
+          unis.map(function(u) { return '<span class="uni-chip">🏛 ' + esc(u.name || u.id || '') + '</span>'; }).join('')
+        : '<span class="uni-chip" style="background:#FFF8E1;border-color:#FFE0B2;color:#E65100;">No universities authorized yet — contact the Main Admin.</span>';
+      var rows = S.events || [];
+      var el = document.getElementById('eventPerf');
+      if (!rows.length) {
+        el.innerHTML = '<p class="card-sub" style="margin:0;">No verified sales at your universities yet.</p>';
+        return;
+      }
+      var html = '<table class="usub-table"><thead><tr><th>Event</th><th>Orders</th><th>Tickets</th><th>Revenue</th></tr></thead><tbody>';
+      rows.forEach(function(ev) {
+        html += '<tr><td><strong>' + esc(ev.eventName) + '</strong>' + (ev.universityName ? '<div style="font-size:.72rem;color:var(--text-3);">' + esc(ev.universityName) + '</div>' : '') + '</td>' +
+          '<td>' + Number(ev.orders || 0) + '</td><td>' + Number(ev.tickets || 0) + '</td><td>' + fmt(ev.revenue) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      el.innerHTML = html;
+    }
+
+    function renderOrders(orders) {
+      state.orders = orders || [];
+      drawOrders();
+    }
+    function drawOrders() {
+      var rows = state.orders.filter(function(o) {
+        return state.orderFilter === 'all' || String(o.status || 'pending').toLowerCase() === state.orderFilter;
+      });
+      var el = document.getElementById('ordersList');
+      if (!rows.length) {
+        el.innerHTML = '<p class="card-sub" style="margin:0;">No ' + (state.orderFilter === 'all' ? '' : state.orderFilter + ' ') + 'orders at your universities yet.</p>';
+        return;
+      }
+      var html = '<table class="usub-table"><thead><tr><th>Order</th><th>Event</th><th>Buyer</th><th>Tickets</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+      rows.slice(0, 200).forEach(function(o) {
+        html += '<tr><td><strong>' + esc(o.orderId) + '</strong></td><td>' + esc(o.eventName || '—') + '</td>' +
+          '<td>' + esc(o.buyerName || '—') + '<div style="font-size:.72rem;color:var(--text-3);">' + esc(o.buyerEmail || '') + '</div></td>' +
+          '<td>' + (parseInt(o.qty, 10) || 0) + '</td><td>' + fmt(o.amount) + '</td><td>' + statusBadge(o.status) + '</td>' +
+          '<td>' + esc(fmtWhen(o.verifiedAt || o.createdAt)) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      if (rows.length > 200) html += '<p class="card-sub" style="margin:10px 0 0;">Showing the latest 200 of ' + rows.length + ' orders.</p>';
+      el.innerHTML = html;
+    }
+
+    function renderCustomers(d) {
+      var rows = d.customers || [];
+      var el = document.getElementById('customersList');
+      if (!rows.length) {
+        el.innerHTML = '<p class="card-sub" style="margin:0;">No customers at your universities yet.</p>';
+        return;
+      }
+      var html = '<table class="usub-table"><thead><tr><th>Customer</th><th>Phone</th><th>Orders</th><th>Tickets</th><th>Spent</th><th>Last order</th></tr></thead><tbody>';
+      rows.forEach(function(c) {
+        html += '<tr><td><strong>' + esc(c.name || c.email) + '</strong><div style="font-size:.72rem;color:var(--text-3);">' + esc(c.email) + '</div></td>' +
+          '<td>' + esc(c.phone || '—') + '</td><td>' + Number(c.totalOrders || 0) + '</td><td>' + Number(c.totalTickets || 0) + '</td>' +
+          '<td>' + fmt(c.totalSpent) + '</td><td>' + esc(fmtWhen(c.lastOrderAt)) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      el.innerHTML = html;
+    }
+
+    function renderEvents(d) {
+      var rows = d.events || [];
+      var el = document.getElementById('eventsList');
+      if (!rows.length) {
+        el.innerHTML = '<p class="card-sub" style="margin:0;">No events at your universities yet.</p>';
+        return;
+      }
+      var html = '';
+      rows.forEach(function(ev) {
+        html += '<div class="usub-event"><div><div class="usub-event-name">' + esc(ev.name || ev.eventName || 'Event') + '</div>' +
+          '<div class="usub-event-meta">' + (ev.date ? '📅 ' + esc(ev.date) : '') + (ev.venue ? ' · 📍 ' + esc(ev.venue) : '') +
+          (ev.universityName ? ' · 🏛 ' + esc(ev.universityName) : '') + '</div></div>' +
+          '<div class="usub-event-stats"><span>🎫 ' + esc(String(ev.seats || ev.capacity || '—')) + '</span>' +
+          '<span>' + (Number(ev.price || 0) > 0 ? fmt(ev.price) : 'FREE') + '</span></div></div>';
+      });
+      el.innerHTML = html;
+    }
+
+    function renderReferral(link, stats) {
+      document.getElementById('refCode').textContent = (link && link.code) || '—';
+      var el = document.getElementById('refLink');
+      el.textContent = (link && link.referralUrl) || 'Your referral link will appear here…';
+      el.href = (link && link.referralUrl) || '#';
+      el.classList.toggle('is-empty', !(link && link.referralUrl));
+      var S = stats || {};
+      document.getElementById('refOrders').textContent = Number(S.totalOrders || 0);
+      document.getElementById('refRevenue').textContent = fmt(S.totalRevenue);
+      document.getElementById('refTickets').textContent = Number(S.totalTickets || 0);
+      document.getElementById('refPeople').textContent = Number(S.uniquePeople || 0);
+    }
+
+    // ── Commission plans: the authorised sales % (mirrors the admin's list) ──
+    var COMMISSION_PLANS = [
+      { value: 'standard', fee: 20, owner: 80, label: 'Standard: 20% Unisocials / 80% owner' },
+      { value: 'plan_25', fee: 25, owner: 75, label: '25% Unisocials / 75% owner' },
+      { value: 'reduced_15', fee: 15, owner: 85, label: '15% Unisocials / 85% owner' },
+      { value: 'reduced_13', fee: 13, owner: 87, label: '13% Unisocials / 87% owner' },
+      { value: 'reduced_10', fee: 10, owner: 90, label: '10% Unisocials / 90% owner' }
+    ];
+    function planInfo(value) {
+      for (var i = 0; i < COMMISSION_PLANS.length; i++) if (COMMISSION_PLANS[i].value === String(value || 'standard')) return COMMISSION_PLANS[i];
+      return COMMISSION_PLANS[0];
+    }
+    function setStatus(id, msg, isError) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = msg;
+      el.style.color = isError ? '#B71C1C' : 'var(--accent)';
+      clearTimeout(el.__t);
+      el.__t = setTimeout(function() { el.textContent = ''; }, 6000);
+    }
+
+    function renderCommission(events) {
+      state.events = events || [];
+      drawCommission();
+    }
+    function drawCommission() {
+      var el = document.getElementById('commissionList');
+      if (!el) return;
+      if (!state.events.length) {
+        el.innerHTML = '<p class="card-sub" style="margin:0;">No events at your universities yet — the Main Admin adds events first.</p>';
+        return;
+      }
+      var html = '';
+      state.events.forEach(function(ev) {
+        var id = String(ev.id || ev._id || '');
+        var plan = planInfo(ev.commissionPlan);
+        html += '<div class="usub-event"><div>' +
+          '<div class="usub-event-name">' + esc(ev.name || id) + '</div>' +
+          '<div class="usub-event-meta">Current split: ' + esc(plan.label) + (ev.universityName ? ' · 🏛 ' + esc(ev.universityName) : '') + '</div></div>' +
+          '<div class="usub-event-stats">' +
+          '<select data-plan-select="' + esc(id) + '" style="font-size:.78rem;font-weight:700;padding:7px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-1);cursor:pointer;">' +
+          COMMISSION_PLANS.map(function(p) { return '<option value="' + p.value + '"' + (p.value === plan.value ? ' selected' : '') + '>' + p.fee + '% Unisocials / ' + p.owner + '% owner</option>'; }).join('') +
+          '</select></div></div>';
+      });
+      el.innerHTML = html;
+      el.querySelectorAll('[data-plan-select]').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          changeCommissionPlan(sel.getAttribute('data-plan-select') || '', sel.value);
+        });
+      });
+    }
+    async function changeCommissionPlan(eventId, next) {
+      if (!eventId) return;
+      var target = planInfo(next);
+      var msg = target.value === 'standard'
+        ? 'Restore the standard 20% split for this event?\n\nFuture direct sales go back to 20% Unisocials / 80% owner. Sales already verified keep their split.'
+        : 'Use the ' + target.fee + '% split for this event?\n\nFuture direct sales will split ' + target.fee + '% Unisocials / ' + target.owner + '% owner. Referred sales keep 2.5% / 20% / 77.5%. Sales already verified keep their split.';
+      if (!confirm(msg)) { drawCommission(); return; }
+      try {
+        var r = await fetch('/api/admin/events/commission-plan', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, headers()),
+          body: JSON.stringify({ eventId: eventId, plan: target.value })
+        });
+        var d = await r.json();
+        if (!r.ok || !d || !d.success) throw new Error((d && d.error) || 'Could not change the split');
+        setStatus('commissionStatus', d.message || ('Split updated to ' + target.fee + '% Unisocials / ' + target.owner + '% owner.'), false);
+        renderCommission((await getJson('/api/university-subadmin/events')).events || []);
+      } catch (e) {
+        setStatus('commissionStatus', e.message || 'Could not change the split', true);
+        drawCommission();
+      }
+    }
+
+    // ── The 55% campus pool ──
+    function renderPool(d) {
+      var btn = document.getElementById('poolRequestBtn');
+      if (!d) {
+        ['poolSales', 'poolShare', 'poolEntitled', 'poolAvailable'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.textContent = '—';
+        });
+        document.getElementById('poolTotals').textContent = 'The campus pool could not be loaded right now.';
+        return;
+      }
+      var P = d.pool || {};
+      document.getElementById('poolSales').textContent = fmt(P.sales);
+      document.getElementById('poolShare').textContent = fmt(P.platformShare);
+      document.getElementById('poolEntitled').textContent = fmt(P.entitled);
+      document.getElementById('poolAvailable').textContent = fmt(P.available);
+      var rows = P.byUniversity || [];
+      var byEl = document.getElementById('poolByUni');
+      if (rows.length) {
+        var html = '<table class="usub-table"><thead><tr><th>Campus</th><th>Verified sales</th><th>Platform share</th><th>55% pool</th><th>Used</th><th>Available</th></tr></thead><tbody>';
+        rows.forEach(function(r) {
+          html += '<tr><td><strong>' + esc(r.universityName || r.universityKey || '—') + '</strong></td>' +
+            '<td>' + fmt(r.sales) + '</td><td>' + fmt(r.platformShare) + '</td><td>' + fmt(r.pool) + '</td>' +
+            '<td>' + fmt(r.committed) + '</td><td><strong>' + fmt(r.available) + '</strong></td></tr>';
+        });
+        html += '</tbody></table>';
+        byEl.innerHTML = html;
+      } else {
+        byEl.innerHTML = '';
+      }
+      var T = d.totals || {};
+      document.getElementById('poolTotals').textContent =
+        'Requested ' + fmt(T.requested || 0) + ' · Open ' + fmt(T.openAmount || 0) + ' (' + Number(T.openCount || 0) + ') · Paid ' + fmt(T.paidAmount || 0);
+      var b = d.savedBankAccount || {};
+      if (b.bankName && !document.getElementById('poolBankName').value) {
+        document.getElementById('poolBankName').value = b.bankName || '';
+        document.getElementById('poolAcctNumber').value = b.accountNumber || '';
+        document.getElementById('poolAcctName').value = b.accountName || '';
+      }
+      var reqs = d.requests || [];
+      var rEl = document.getElementById('poolRequests');
+      if (!reqs.length) {
+        rEl.innerHTML = '<p class="card-sub" style="margin:0;">No pool requests yet.</p>';
+      } else {
+        var rhtml = '<table class="usub-table"><thead><tr><th>Amount</th><th>Status</th><th>Requested</th><th>Paid</th></tr></thead><tbody>';
+        reqs.forEach(function(p) {
+          rhtml += '<tr><td><strong>' + fmt(p.amount) + '</strong></td><td>' + statusBadge(p.status) +
+            (p.adminNote ? '<div style="font-size:.72rem;color:var(--text-3);">' + esc(p.adminNote) + '</div>' : '') + '</td>' +
+            '<td>' + esc(fmtWhen(p.createdAt)) + '</td><td>' + esc(fmtWhen(p.paidAt)) + '</td></tr>';
+        });
+        rhtml += '</tbody></table>';
+        rEl.innerHTML = rhtml;
+      }
+      if (btn) btn.disabled = !(Number(P.available) > 0);
+    }
+    async function requestPoolPayout() {
+      var bankName = document.getElementById('poolBankName').value.trim();
+      var accountNumber = document.getElementById('poolAcctNumber').value.replace(/[\s-]/g, '');
+      var accountName = document.getElementById('poolAcctName').value.trim();
+      if (!bankName || !accountNumber || !accountName) {
+        setStatus('poolStatus', 'Fill in bank name, account number and account name.', true); return;
+      }
+      var note = document.getElementById('poolNote').value;
+      var btn = document.getElementById('poolRequestBtn');
+      if (btn) btn.disabled = true;
+      try {
+        var r = await fetch('/api/university-subadmin/payouts', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, headers()),
+          body: JSON.stringify({ bank: { bankName: bankName, accountNumber: accountNumber, accountName: accountName }, note: note })
+        });
+        var d = await r.json();
+        if (!r.ok || !d || !d.success) throw new Error((d && d.error) || 'Could not request the pool');
+        setStatus('poolStatus', 'Pool request of ' + fmt(d.payout && d.payout.amount) + ' sent — the Main Admin reviews it.', false);
+      } catch (e) {
+        setStatus('poolStatus', e.message || 'Could not request the pool', true);
+        if (btn) btn.disabled = false;
+        return;
+      }
+      try { renderPool(await getJson('/api/university-subadmin/pool')); }
+      catch (e2) { if (btn) btn.disabled = false; }
+    }
+
+    // ── Workers at our campuses + the salary requests we settle ──
+    function renderWorkers(d) {
+      if (!d) {
+        var we = document.getElementById('workersList');
+        if (we) we.innerHTML = '<p class="card-sub" style="margin:0;">Worker data could not be loaded right now.</p>';
+        var pe2 = document.getElementById('workerPayoutsList');
+        if (pe2) pe2.innerHTML = '<p class="card-sub" style="margin:0;">Worker data could not be loaded right now.</p>';
+        return;
+      }
+      var workers = d.workers || [];
+      var el = document.getElementById('workersList');
+      if (!workers.length) {
+        el.innerHTML = '<p class="card-sub" style="margin:0;">No workers authorized at your universities yet.</p>';
+      } else {
+        var html = '<table class="usub-table"><thead><tr><th>Worker</th><th>Campuses</th><th>Task link</th><th>This month</th><th>Blocks earned</th></tr></thead><tbody>';
+        workers.forEach(function(w) {
+          var L = w.ledger || {};
+          var names = ((w.authorizedUniversities || []).map(function(x) { return (x && (x.name || x.id)) || ''; }).filter(Boolean).join(', ')) || '—';
+          html += '<tr><td><strong>' + esc(w.name || '—') + '</strong><div style="font-size:.72rem;color:var(--text-3);">' + esc(w.email || '') + '</div></td>' +
+            '<td>' + esc(names) + '</td>' +
+            '<td><code style="font-size:.74rem;">' + esc(w.taskCode || '—') + '</code></td>' +
+            '<td>' + Number(L.monthSales || 0) + ' sales (' + Number(L.credited || 0) + '/' + Number(L.quota || 150) + ' counted)</td>' +
+            '<td>' + Number(L.blocksEarned || 0) + ' (' + fmt(L.totalSalary || 0) + ')</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+      }
+      var payouts = d.payouts || [];
+      var pEl = document.getElementById('workerPayoutsList');
+      if (!payouts.length) {
+        pEl.innerHTML = '<p class="card-sub" style="margin:0;">No salary requests yet.</p>';
+        return;
+      }
+      var phtml = '<table class="usub-table"><thead><tr><th>Worker</th><th>Amount</th><th>Bank</th><th>Requested</th><th>Status</th><th></th></tr></thead><tbody>';
+      payouts.forEach(function(p) {
+        var st = String(p.status || '').toLowerCase();
+        var actions = '';
+        if (st === 'pending') {
+          actions = '<button type="button" class="usub-filter-btn" data-pay-action="approve" data-pay-id="' + esc(p.id) + '">✅ Approve</button> ' +
+            '<button type="button" class="usub-filter-btn" data-pay-action="reject" data-pay-id="' + esc(p.id) + '">✖ Reject</button>';
+        } else if (st === 'approved') {
+          actions = '<button type="button" class="usub-filter-btn" data-pay-action="mark_paid" data-pay-id="' + esc(p.id) + '">💸 Mark paid</button> ' +
+            '<button type="button" class="usub-filter-btn" data-pay-action="reject" data-pay-id="' + esc(p.id) + '">✖ Reject</button>';
+        } else if (st === 'paid') {
+          actions = '<span style="font-size:.74rem;font-weight:800;color:#1B5E20;">Paid ' + esc(fmtWhen(p.paidAt)) + '</span>';
+        } else {
+          actions = '<span style="font-size:.74rem;color:var(--text-3);">Rejected' + (p.adminNote ? ' — ' + esc(p.adminNote) : '') + '</span>';
+        }
+        phtml += '<tr><td><strong>' + esc(p.requesterName || '—') + '</strong></td>' +
+          '<td><strong>' + fmt(p.amount) + '</strong></td>' +
+          '<td>' + esc(p.bankName || '—') + '<div style="font-size:.72rem;color:var(--text-3);">' + esc(p.accountNumber || '') + (p.accountName ? ' · ' + esc(p.accountName) : '') + '</div></td>' +
+          '<td>' + esc(fmtWhen(p.createdAt)) + '</td>' +
+          '<td>' + statusBadge(p.status) + (p.paymentDueBy && st === 'approved' ? '<div style="font-size:.72rem;color:#0D47A1;">Pay by ' + esc(fmtWhen(p.paymentDueBy)) + '</div>' : '') + '</td>' +
+          '<td>' + actions + '</td></tr>';
+      });
+      phtml += '</tbody></table>';
+      pEl.innerHTML = phtml;
+      pEl.querySelectorAll('[data-pay-action]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          workerPayoutAction(btn.getAttribute('data-pay-id') || '', btn.getAttribute('data-pay-action') || '');
+        });
+      });
+    }
+    async function workerPayoutAction(payoutId, action) {
+      if (!payoutId || !action) return;
+      var adminNote = '';
+      if (action === 'reject') {
+        var reason = prompt('Reason for rejecting this salary request (the worker will see it):');
+        if (reason === null) return;
+        adminNote = String(reason || '').trim();
+        if (!adminNote) { setStatus('workerStatus', 'Add a short reason when rejecting a salary request.', true); return; }
+      } else if (action === 'mark_paid') {
+        if (!confirm('Mark this salary request as paid? Only do this after sending the money.')) return;
+      } else if (action === 'approve') {
+        if (!confirm('Approve this salary request? It becomes payable within 24 hours.')) return;
+      }
+      try {
+        var r = await fetch('/api/university-subadmin/worker-payouts', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, headers()),
+          body: JSON.stringify({ payoutId: payoutId, action: action, adminNote: adminNote })
+        });
+        var d = await r.json();
+        if (!r.ok || !d || !d.success) throw new Error((d && d.error) || 'Could not update the salary request');
+        setStatus('workerStatus', d.message || 'Salary request updated.', false);
+        renderWorkers(await getJson('/api/university-subadmin/worker-payouts'));
+      } catch (e) {
+        setStatus('workerStatus', e.message || 'Could not update the salary request', true);
+      }
+    }
+
+    async function load() {
+      if (!token()) { showView(); return false; }
+      try {
+        var me = await getJson('/api/university-subadmin/overview');
+        document.getElementById('userName').textContent = (me.user && me.user.name) || '';
+        renderOverview(me);
+        var ordersD = await getJson('/api/university-subadmin/orders');
+        renderOrders(ordersD.orders || []);
+        renderCustomers(await getJson('/api/university-subadmin/customers'));
+        var eventsD = await getJson('/api/university-subadmin/events');
+        renderEvents(eventsD);
+        renderCommission(eventsD.events || []);
+        var linkD = await getJson('/api/university-subadmin/referral-link');
+        var statsD = await getJson('/api/university-subadmin/referral-stats');
+        renderReferral(linkD.link, statsD.stats);
+        // Campus pool + worker salaries are non-fatal: if either fails the
+        // rest of the dashboard still loads.
+        var poolD = await getJson('/api/university-subadmin/pool').catch(function() { return null; });
+        renderPool(poolD);
+        var workerD = await getJson('/api/university-subadmin/worker-payouts').catch(function() { return null; });
+        renderWorkers(workerD);
+        showView();
+        return true;
+      } catch (e) {
+        if (e.message === 'unauthorized') {
+          try { localStorage.removeItem(KEY); } catch (e2) {}
+          showView();
+        }
+        return false;
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('loginBtn');
+      var errBox = document.getElementById('loginError');
+      var mail = document.getElementById('email').value.trim();
+      var pwd = document.getElementById('password').value;
+      if (!mail || !pwd) { showError('Please enter your email and password.'); return; }
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      errBox.classList.remove('show');
+      try {
+        var r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: mail, password: pwd })
+        });
+        if (r.status === 401) throw new Error('unauthorized');
+        if (!r.ok) throw new Error('network');
+        var d = await r.json();
+        if (!d || !d.success || !d.token) throw new Error('unauthorized');
+        if (!d.user || d.user.role !== 'university_subadmin') throw new Error('not-usub');
+        try { localStorage.setItem(KEY, d.token); } catch (e3) {}
+        if (!(await load())) throw new Error('bad');
+      } catch (err) {
+        try { localStorage.removeItem(KEY); } catch (e4) {}
+        if (err.message === 'not-usub') {
+          showError('This account is not a university sub-admin. Master Sub-Admins sign in on subadmin.html.');
+        } else if (err.message === 'unauthorized') {
+          showError('Incorrect university sub-admin credentials.');
+        } else {
+          showError('Could not load your dashboard. Please try again.');
+        }
+        showView();
+        btn.disabled = false; btn.textContent = 'Sign In';
+        return;
+      }
+      btn.disabled = false; btn.textContent = 'Sign In';
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', function() {
+      var t = token();
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      if (t) fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + t }, keepalive: true }).catch(function() {});
+      window.location.reload();
+    });
+
+    // Tab switching
+    var tabButtons = document.querySelectorAll('.usub-tab');
+    tabButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var name = btn.getAttribute('data-utab');
+        tabButtons.forEach(function(b) { b.classList.toggle('active', b === btn); });
+        document.querySelectorAll('.usub-panel').forEach(function(p) {
+          p.classList.toggle('active', p.getAttribute('data-upanel') === name);
+        });
+      });
+    });
+
+    // Order filters
+    document.querySelectorAll('.usub-filter-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.orderFilter = btn.getAttribute('data-ofilter') || 'all';
+        document.querySelectorAll('.usub-filter-btn').forEach(function(b) { b.classList.toggle('active', b === btn); });
+        drawOrders();
+      });
+    });
+
+    document.getElementById('copyCodeBtn').addEventListener('click', function() {
+      var code = document.getElementById('refCode').textContent;
+      if (code && code !== '—') copyText(code).then(function() { showCopied('Referral code'); });
+    });
+    document.getElementById('copyLinkBtn').addEventListener('click', function() {
+      var el = document.getElementById('refLink');
+      if (el && el.href && el.href !== '#') copyText(el.href).then(function() { showCopied('Referral link'); });
+    });
+
+    document.getElementById('poolRequestBtn').addEventListener('click', function() {
+      requestPoolPayout();
+    });
+
+    load();
+    setInterval(function() { if (token()) load(); }, 60000);
+  })();
+  </script>
+</body>
+</html>
