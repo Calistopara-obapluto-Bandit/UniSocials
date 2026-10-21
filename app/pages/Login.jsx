@@ -104,11 +104,7 @@ export default function Login() {
               </button>
             </form>
             <p style={{ textAlign: 'center', fontSize: '.82rem', color: 'var(--text-3)', marginTop: 18 }}>
-              Selling through a task link?{' '}
-              <a href="/worker.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
-                Worker Dashboard
-              </a>
-              {' '}· Authorized for a campus?{' '}
+              Authorized for a campus?{' '}
               <a href="/university-subadmin.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
                 University Sub-Admin
               </a>

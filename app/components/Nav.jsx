@@ -72,9 +72,6 @@ export default function Nav({ active }) {
             {l.label}
           </a>
         ))}
-        <a href="/worker.html" className="mobile-iaf">
-          💼 Open the Worker task &amp; salary dashboard
-        </a>
         <a href="/influencer-signup.html" className="mobile-iaf">
           📣 Create or sign in to an Influencer account
         </a>
@@ -111,10 +108,6 @@ export default function Nav({ active }) {
                 <a href="/login.html" className="nav-signin">Sign In</a>
               )}
             </span>
-            <a href="/worker.html" className="worker-link"
-               title="Sign in to the Worker task &amp; salary dashboard">
-              <span aria-hidden="true">💼</span> Worker
-            </a>
             <a href="/influencer-signup.html" className="inf-link"
                title="Create or sign in to an Influencer account">
               <span aria-hidden="true">📣</span> Influencer

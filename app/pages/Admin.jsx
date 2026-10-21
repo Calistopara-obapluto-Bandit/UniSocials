@@ -321,10 +321,7 @@ export default function Admin() {
                   <a href="/university-subadmin.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
                     University Sub-Admin Dashboard
                   </a>
-                  {' '}· Selling as a worker?{' '}
-                  <a href="/worker.html" style={{ color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}>
-                    Worker Dashboard
-                  </a>
+
                 </span>
               </p>
             </div>

@@ -2917,6 +2917,57 @@ async function sendCheckinStaffCredentialsEmail(user, password) {
   return !!sent;
 }
 
+// A worker's login is ISSUED by the server and delivered by email. Strong
+// enough to satisfy validatePassword() without any admin-chosen input.
+function generateWorkerPassword() {
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const symbols = '!@#$%^&*?-_=+';
+  const pick = (set, n) => Array.from(crypto.randomBytes(n)).map(b => set[b % set.length]).join('');
+  const parts = (pick(lower, 6) + pick(upper, 4) + pick(digits, 4) + pick(symbols, 2) +
+    '-' + crypto.randomBytes(3).toString('hex')).split('');
+  for (let i = parts.length - 1; i > 0; i--) {
+    const j = crypto.randomBytes(4).readUInt32BE(0) % (i + 1);
+    const t = parts[i]; parts[i] = parts[j]; parts[j] = t;
+  }
+  return parts.join('');
+}
+
+// Deliver the issued login to the worker's inbox — the admin never sees it,
+// and it is never included in an API response.
+async function sendWorkerCredentialsEmail(user, password) {
+  const to = String(user.contactEmail || '').trim() || String(user.email || '').trim();
+  if (!to) return false;
+  const subject = 'Your Unisocials worker account is ready';
+  const signinUrl = siteUrl() + '/worker.html';
+  const text =
+    'Hi ' + (user.name || 'there') + ',\n\n' +
+    'Your worker account has been created and your login is ready.\n\n' +
+    'Login email: ' + user.email + '\n' +
+    'Password: ' + password + '\n\n' +
+    'Sign in here: ' + signinUrl + '\n\n' +
+    'Your personal task link is generated the first time you sign in.\n\n' +
+    'This is your login. Keep it safe and don\'t share it with anyone.\n\n' +
+    '— Unisocials';
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">' +
+    '<h2 style="margin:0 0 6px">Your worker account is ready 💼</h2>' +
+    '<p style="margin:0 0 14px;color:#475569">Your Unisocials worker login has been issued. Sign in to get your personal task link.</p>' +
+    '<table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">' +
+    payoutEmailRow('Name', user.name) +
+    payoutEmailRow('Login email', user.email) +
+    payoutEmailRow('Password', password) +
+    '</table>' +
+    '<p style="margin:16px 0"><a href="' + escapeHtml(signinUrl) + '" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Sign in to your dashboard</a></p>' +
+    '<p style="margin:0 0 8px;color:#475569;font-size:14px">🔐 This is your login. Keep it safe and don&rsquo;t share it with anyone.</p>' +
+    '<p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because a worker account was created for you on Unisocials.</p>' +
+    '</div>';
+  const sent = await sendBrevoEmail(to, subject, text, html, user.name);
+  if (!sent) console.warn('Worker credentials email not sent to', to, '(no BREVO_API_KEY or delivery failed)');
+  return !!sent;
+}
+
 // "12 Mar 2026, 14:05" in the email's own timezone (UTC) — payout notices are
 // read days after they are sent, so keep the day and month, not just the time.
 function fmtEmailDate(iso) {
@@ -6214,11 +6265,12 @@ codes[idx] = entry;
       const name = String(data.name || '').trim();
       const email = String(data.email || '').trim().toLowerCase();
       const contactEmail = String(data.contactEmail || '').trim().toLowerCase();
-      const password = String(data.password || '');
-      const passwordError = validatePassword(password);
+      // The login is issued by the server and emailed to the worker — the
+      // admin never types, sees or transmits a password for this account.
+      const password = generateWorkerPassword();
       const emailError = validateEmail(email);
-      if (!name || !email || passwordError || emailError) {
-        return sendJson(res, 400, { success: false, error: passwordError || emailError || 'Name and email are required.' });
+      if (!name || !email || emailError) {
+        return sendJson(res, 400, { success: false, error: emailError || 'Name and email are required.' });
       }
       if (contactEmail && validateEmail(contactEmail)) {
         return sendJson(res, 400, { success: false, error: 'The real email address is not valid.' });
@@ -6245,7 +6297,13 @@ codes[idx] = entry;
         createdAt: new Date().toISOString()
       };
       await addUser(worker);
-      return sendJson(res, 200, { success: true, worker: publicUser(worker), message: 'Worker created for ' + resolvedWorkerUnis.length + ' universities. They sign in at worker.html — their task link is generated on first sign-in.' });
+      // Deliver the issued login by email; the password never leaves the server.
+      const emailed = await sendWorkerCredentialsEmail(worker, password);
+      const mailedTo = String(worker.contactEmail || worker.email || '').trim();
+      const delivery = emailed
+        ? 'Login emailed to ' + mailedTo + '.'
+        : 'The login email could not be sent (email provider not configured yet) — use Reset password on this account to reissue it.';
+      return sendJson(res, 200, { success: true, worker: publicUser(worker), credentialsEmailed: !!emailed, message: 'Worker created for ' + resolvedWorkerUnis.length + ' universities. ' + delivery + ' Their task link is generated on first sign-in.' });
     }
 
     // ── Admin (master only): change which universities a worker is authorized for ──

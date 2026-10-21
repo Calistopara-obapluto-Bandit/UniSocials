@@ -14,7 +14,6 @@ export default function WorkersPanel({ active }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [contactEmail, setContactEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [picked, setPicked] = useState({}); // { [uniId]: true }
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -51,20 +50,18 @@ export default function WorkersPanel({ active }) {
     const n = name.trim();
     const e = email.trim();
     const c = contactEmail.trim();
-    const p = password.trim();
-    if (!n || !e || !p) { showToast('Name, Email, and Password are required.', true); return; }
-    if (p.length < 6) { showToast('Password must be at least 6 characters.', true); return; }
+    if (!n || !e) { showToast('Name and login email are required.', true); return; }
     const campuses = Object.keys(picked);
     if (!campuses.length) { showToast('Authorize this worker for at least one university — that campus’s sub-admin settles their salary.', true); return; }
     setSaving(true);
     try {
       const data = await adminFetch('/api/admin/workers', {
         method: 'POST',
-        body: JSON.stringify({ name: n, email: e, contactEmail: c, password: p, universities: campuses })
+        body: JSON.stringify({ name: n, email: e, contactEmail: c, universities: campuses })
       });
       if (data && data.success) {
-        showToast('Worker "' + n + '" created — they sign in at worker.html');
-        setName(''); setEmail(''); setContactEmail(''); setPassword(''); setPicked({});
+        showToast((data && data.message) || ('Worker "' + n + '" created — login emailed to the worker'));
+        setName(''); setEmail(''); setContactEmail(''); setPicked({});
         loadWorkers();
       } else {
         showToast((data && data.error) || 'Failed to create worker', true);
@@ -128,9 +125,10 @@ export default function WorkersPanel({ active }) {
             </p>
           </div>
           <div className="form-group">
-            <label htmlFor="workerPassword">Password</label>
-            <input type="password" id="workerPassword" placeholder="8+ chars, letter, number & symbol"
-              value={password} onChange={(e) => setPassword(e.target.value)} />
+            <label>Login</label>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-3)', lineHeight: 1.6 }}>
+              Issued automatically — a unique password is generated and <strong>emailed to the worker</strong> when you create the account. You never see or set it.
+            </p>
           </div>
         </div>
         <div className="form-group" style={{ marginBottom: 14 }}>
