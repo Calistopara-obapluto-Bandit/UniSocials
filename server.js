@@ -7948,6 +7948,10 @@ const events = await readEvents();
 
     // ── Static files ──
     let urlPath = decodeURIComponent(pathname);
+    // Remember the address the browser actually asked for: '/' is rewritten to
+    // '/index.html' below so the landing page registers under its legacy name,
+    // but a literal '/' request must still serve the app, not redirect to itself.
+    const originalPath = urlPath;
     if (urlPath === '/') urlPath = '/index.html';
 
     // Canonical referral landing page. Older links may still contain
@@ -7955,7 +7959,9 @@ const events = await readEvents();
     // browser bookmarks, and cached dashboard links all converge on Events.
     if (urlPath.toLowerCase() === '/referral-events.html') {
       const ref = String(url.searchParams.get('ref') || '').trim().toUpperCase();
-      const target = '/events.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+      // Point straight at the canonical React route so old links take one hop,
+      // not two (the .html alias redirects again on arrival).
+      const target = '/events' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
       res.writeHead(301, {
         'Location': target,
         'Cache-Control': 'no-store, max-age=0',
@@ -8034,10 +8040,14 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
       }
     }
 
-    // Legacy short-links for the migrated pages must resolve to the React
-    // canonical route when the build is present, so Flutterwave return URLs,
-    // bookmarks, and old .html links all reach the React page instead of the
-    // legacy static file.
+    // Legacy short-links for the migrated pages resolve to the React canonical
+    // route when the build is present, so Flutterwave return URLs, bookmarks,
+    // and old .html links all reach the React page instead of the legacy static
+    // file. Since React owns these routes, the .html address no longer loads its
+    // own document — it redirects (302, query string preserved, because referral
+    // links live in it) so the .html filename never shows up as the page's
+    // identity again. Gated on the build: removing dist/ restores the legacy
+    // files, so the migration stays reversible.
     const legacyToCanonical = new Map([
       // '/' is rewritten to '/index.html' earlier in this handler, so the
       // landing page is registered under its legacy filename too.
@@ -8061,6 +8071,17 @@ if (REACT_BUILT && urlPath.toLowerCase().startsWith('/assets/')) {
       // when it exists and falls back to the legacy page when it does not.
       ['/admin.html', '/admin'],
     ]);
+    if (REACT_BUILT && originalPath !== '/' && legacyToCanonical.has(urlPath.toLowerCase())) {
+      const target = legacyToCanonical.get(urlPath.toLowerCase()) + (url.search || '');
+      res.writeHead(302, {
+        'Location': target,
+        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'text/plain; charset=utf-8'
+      });
+      res.end('Moved to ' + target);
+      return;
+    }
+
     const canonicalPath = legacyToCanonical.has(urlPath.toLowerCase())
       ? legacyToCanonical.get(urlPath.toLowerCase())
       : urlPath;
