@@ -2290,11 +2290,20 @@ const BLOCKED_STATIC_NAMES = new Set([
 const BLOCKED_STATIC_DIRS = new Set([
   'data',      // orders, users, sessions, payouts — the live datastore
   'node_modules',
-  '.git'
+  '.git',
+  // Vite source tree (raw .jsx) and build output — the built site is served
+  // from dist/ via the /assets/ + SPA branches above, so nothing public ever
+  // needs these directories directly. Without this, /app/App.jsx and friends
+  // were downloadable as source disclosure.
+  'app',
+  'dist'
 ]);
 
+// Never ship repo docs, scripts or unbundled source over HTTP. No page links
+// any of these; .jsx/.mjs/.md/.sh are dev-only files.
 const BLOCKED_STATIC_EXTS = new Set([
-  '.env', '.log', '.pid', '.sql', '.py', '.map', '.bak', '.tmp'
+  '.env', '.log', '.pid', '.sql', '.py', '.map', '.bak', '.tmp',
+  '.md', '.jsx', '.mjs', '.sh'
 ]);
 
 function isBlockedStaticPath(urlPath) {
@@ -7446,6 +7455,24 @@ codes[idx] = entry;
     }
 
     if (pathname === '/api/admin/payouts' && req.method === 'POST') {
+      // Authorise from headers BEFORE parsing or looking anything up: with the
+      // check further down, an unauthenticated probe could tell a real payout ID
+      // (404 → 401) from a fake one (404) — an existence oracle.
+      // Who may release this payout:
+      //   • the master admin, for everything;
+      //   • the Influencer Admin of the event, for a referrer's commission on
+      //     their own events — that is who owes the money and pays it out.
+      // A sub-admin can see payouts but never release one.
+      const isAdminRelease = isAdminAuthorized(req);
+      let ownerCtx = null;
+      let reviewerLabel = 'Admin';
+      if (!isAdminRelease) {
+        ownerCtx = await isAdminOrInfluencerAdmin(req);
+        if (!ownerCtx || ownerCtx.role !== 'influencer_admin') {
+          return sendJson(res, 401, { success:false, error:'Only the Main Admin, or the Influencer Admin of the event this commission belongs to, can pay it.' });
+        }
+        reviewerLabel = (ownerCtx.user.name || 'Event Owner');
+      }
       const body = await readBody(req);
       let data = {}; try { data = JSON.parse(body || '{}'); } catch (e) {}
       const payoutId = String(data.payoutId || '').trim();
@@ -7459,20 +7486,13 @@ codes[idx] = entry;
       const existing = payouts.find(p => p.id === payoutId);
       if (!existing) return sendJson(res, 404, { success:false, error:'Payout request not found.' });
 
-      // Who may release this payout:
-      //   • the master admin, for everything;
-      //   • the Influencer Admin of the event, for a referrer's commission on
-      //     their own events — that is who owes the money and pays it out.
-      // A sub-admin can see payouts but never release one.
-      let reviewerLabel = 'Admin';
-      if (!isAdminAuthorized(req)) {
-        const ownerCtx = await isAdminOrInfluencerAdmin(req);
+      // Even an Influencer Admin may only release a payout on an event they own.
+      if (!isAdminRelease) {
         const ownerId = ownerCtx && ownerCtx.role === 'influencer_admin' ? String(ownerCtx.user.id) : '';
         const allowedOwners = Array.isArray(existing.eventOwnerIds) ? existing.eventOwnerIds.map(String) : [];
         if (!ownerId || !allowedOwners.includes(ownerId)) {
           return sendJson(res, 401, { success:false, error:'Only the Main Admin, or the Influencer Admin of the event this commission belongs to, can pay it.' });
         }
-        reviewerLabel = (ownerCtx.user.name || 'Event Owner');
       }
 
       const currentStatus = String(existing.status || '').toLowerCase();
@@ -7666,6 +7686,17 @@ codes[idx] = entry;
     // this change get the new rate — the plan is stamped onto each order at
     // verification time, so past earnings are never retroactively re-split.
     if (pathname === '/api/admin/events/commission-plan' && req.method === 'POST') {
+      // Authorise BEFORE validation/lookup: otherwise an unauthenticated probe
+      // learns which event IDs exist (404) vs not (400/403). The campus scope
+      // check still needs the loaded event and runs right after the lookup.
+      const isAdmin = isAdminAuthorized(req);
+      let usub = null;
+      if (!isAdmin) {
+        usub = await getUniversitySubadminContext(req);
+        if (!usub) {
+          return sendJson(res, 403, { success: false, error: 'Only the Main Admin, or a University Sub-Admin for this university, can change an event\'s commission plan' });
+        }
+      }
       const body = await readBody(req);
       let data = {};
       try { data = JSON.parse(body || '{}'); } catch (e) {}
@@ -7678,16 +7709,8 @@ codes[idx] = entry;
       const events = await readEvents();
       const idx = events.findIndex(e => String(e.id) === eventId);
       if (idx < 0) return sendJson(res, 404, { success: false, error: 'Event not found' });
-      // Who may authorise the sales %: the Main Admin for any event, or a
-      // University Sub-Admin for an event at one of THEIR authorised
-      // universities — never for a campus outside their authorization.
-      const isAdmin = isAdminAuthorized(req);
       let changedBy = 'admin';
       if (!isAdmin) {
-        const usub = await getUniversitySubadminContext(req);
-        if (!usub) {
-          return sendJson(res, 403, { success: false, error: 'Only the Main Admin, or a University Sub-Admin for this university, can change an event\'s commission plan' });
-        }
         const keys = universitySubadminKeys(usub);
         if (!universityFieldsOf(events[idx]).some(k => keys.has(k))) {
           return sendJson(res, 403, { success: false, error: 'You can only authorise the sales % for events at your authorised universities.' });
