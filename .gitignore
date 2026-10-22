@@ -70,3 +70,10 @@ Thumbs.db
 
 # Runtime JSON data store (events/orders/users/…) — never commit live data
 data/*.json
+
+# Local verification harness scratch (isolated server copies, temp data dirs,
+# SSR build output) — the harness scripts themselves are committed.
+.tmp-verify/srv/
+.tmp-verify/srv-worker/
+.tmp-verify/verify-data-dir/
+.tmp-verify/ssr-out/
