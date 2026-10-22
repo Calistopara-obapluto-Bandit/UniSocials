@@ -217,6 +217,11 @@ async function main() {
     const req1 = await req('POST', '/api/worker/salary-requests', { token: wtok, body: { bank: { bankName: 'GTBank', accountNumber: '0123456789', accountName: 'wale worker' } } });
     check('salary request succeeds for a completed block', req1.status === 200 && req1.data.payout && req1.data.payout.amount === 25000 && req1.data.payout.status === 'pending', JSON.stringify(req1.data));
     check('salary payout carries the worker role + salary method', req1.data.payout.requesterRole === 'worker' && req1.data.payout.payoutMethod === 'salary', JSON.stringify({ r: req1.data.payout.requesterRole, m: req1.data.payout.payoutMethod }));
+    // Campus model: the university sub-admin handles requests for their
+    // campus; the response must say so and flag the sub-admin notification.
+    check('salary response routes handling to the campus sub-admin', /campus sub-admin has been notified/i.test(req1.data.message || ''), req1.data.message);
+    check('salary response exposes the sub-admin notification flag', 'subadminEmailSent' in req1.data, JSON.stringify(Object.keys(req1.data)));
+    check('no campus sub-admin email errors were logged', bootLog.indexOf('Campus sub-admin payout email error') === -1, bootLog.slice(-200));
 
     const req2 = await req('POST', '/api/worker/salary-requests', { token: wtok, body: { bank: { bankName: 'GTBank', accountNumber: '0123456789', accountName: 'WALE WORKER' } } });
     check('second request inside 3 weeks hits the cooldown', req2.status === 409 && !!(req2.data && req2.data.nextRequestAt), JSON.stringify(req2.data));

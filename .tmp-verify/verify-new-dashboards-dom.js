@@ -64,7 +64,7 @@ async function testWorkerPage() {
         const u = String(url);
         if (u.includes('/api/worker/dashboard')) return makeResponse(WORKER_DASH);
         if (u.includes('/api/worker/salary-requests') && (opts.method || 'GET') === 'POST') {
-          return makeResponse({ success: true, message: 'Salary request submitted: ₦25,000 (1 completed quota block of 150 sales each). The Main Admin has been notified and will pay within 24 hours of approval.' });
+          return makeResponse({ success: true, message: 'Salary request submitted: ₦25,000 (1 completed quota block of 150 sales each). Your campus sub-admin has been notified and will handle it — the Main Admin sees the request too.' });
         }
         if (u.includes('/api/auth/login') && (opts.method || 'GET') === 'POST') {
           const body = JSON.parse(opts.body || '{}');
@@ -168,7 +168,7 @@ const USUB_FIXTURES = {
   pool: {
     success: true,
     pool: {
-      rate: 0.55, sales: 70000, platformShare: 14000, entitled: 7700, committed: 7700, available: 0,
+      rate: 0.55, sales: 70000, platformShare: 14000, platformKeeps: 6300, entitled: 7700, committed: 7700, available: 0,
       byUniversity: [{ universityKey: 'unn', universityName: 'University of Nigeria Nsukka', sales: 70000, platformShare: 14000, pool: 7700, committed: 7700, available: 0 }]
     },
     requests: [{ id: 'PO-1', amount: 7700, status: 'pending', createdAt: '2026-10-12T10:00:00.000Z', paidAt: null, adminNote: '' }],
@@ -300,6 +300,9 @@ async function testUniversitySubadminPage() {
   check('usub: pool availability renders', doc.getElementById('poolAvailable').textContent === '₦0', doc.getElementById('poolAvailable').textContent);
   check('usub: pool sales + platform share render', doc.getElementById('poolSales').textContent === '₦70,000' && doc.getElementById('poolShare').textContent === '₦14,000',
     doc.getElementById('poolSales').textContent + ' / ' + doc.getElementById('poolShare').textContent);
+  // 45/55 of the fee: ₦14,000 fee → platform keeps ₦6,300, campuses get ₦7,700.
+  check('usub: pool shows the platform\'s 45% cut', doc.getElementById('poolKeeps').textContent === '₦6,300', doc.getElementById('poolKeeps').textContent);
+  check('usub: pool copy explains the 45 / 55 split', doc.querySelector('[data-upanel="pool"]').textContent.indexOf('45 / 55') !== -1);
   check('usub: per-campus pool row renders', doc.querySelectorAll('#poolByUni tbody tr').length === 1 &&
     doc.getElementById('poolByUni').textContent.indexOf('University of Nigeria Nsukka') !== -1);
   check('usub: pool totals line renders', doc.getElementById('poolTotals').textContent.indexOf('Open ₦7,700') !== -1,
