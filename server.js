@@ -1522,8 +1522,12 @@ async function universityPoolDetails(entries) {
   });
   return {
     rate: UNIVERSITY_POOL_RATE,
+    // The full chain, so a sub-admin never has to guess where the money went:
+    // sales → 20% platform fee → 55% of that fee is the campus pool, the
+    // other 45% stays with the platform (i.e. 11% of the sale vs 9%).
     sales: round2(sales),
     platformShare: round2(platformShare),
+    platformKeeps: round2(platformShare * (1 - UNIVERSITY_POOL_RATE)),
     entitled: round2(entitled),
     committed: round2(committed),
     available: round2(Math.max(0, round2(entitled) - round2(committed))),
@@ -3028,12 +3032,77 @@ async function sendPayoutRequestEmailToAdmin(payout) {
   }
 }
 
+// A worker's salary request is handled by the University Sub-Admin of the
+// worker's campuses (the Main Admin still sees it in Payout Requests), so the
+// campus sub-admin(s) are emailed alongside the Main Admin. `campusEntries` are
+// the worker's authorized universities — the same key shape auth snapshots use.
+async function sendPayoutRequestEmailToCampusSubadmins(payout, campusEntries) {
+  try {
+    const entries = Array.isArray(campusEntries) ? campusEntries : [];
+    if (!entries.length || !payout) return false;
+    const keys = universityKeySet(entries);
+    if (!keys.size) return false;
+    const users = await readUsers();
+    const targets = users.filter(u => {
+      if (!u || u.role !== 'university_subadmin' || u.archived === true) return false;
+      const theirKeys = universityKeySet(Array.isArray(u.authorizedUniversities) ? u.authorizedUniversities : []);
+      return Array.from(theirKeys).some(k => keys.has(k));
+    });
+    let anySent = false;
+    const amount = '₦' + Number(payout.amount || 0).toLocaleString();
+    const subject = '💰 Worker salary request to handle — ' + amount + ' for ' + (payout.requesterName || payout.requesterEmail);
+    for (const sub of targets) {
+      // Real inbox only: contactEmail first, then the login address when it is
+      // not an internal @unisocials.com one.
+      const candidates = [sub.contactEmail, sub.email];
+      let to = '';
+      for (const candidate of candidates) {
+        const value = String(candidate || '').trim().toLowerCase();
+        if (value && !isInternalLoginEmail(value)) { to = value; break; }
+      }
+      if (!to) continue;
+      const text =
+        'A worker at your campus requested a salary payout on Unisocials.\n\n' +
+        'Requested by: ' + (payout.requesterName || '') + ' <' + payout.requesterEmail + '>\n' +
+        'Amount requested: ' + amount + '\n' +
+        'Bank: ' + (payout.bank ? payout.bank.bankName : '') + '\n' +
+        'Account number: ' + (payout.bank ? payout.bank.accountNumber : '') + '\n' +
+        'Account name: ' + (payout.bank ? payout.bank.accountName : '') + '\n\n' +
+        'Handle it in your dashboard → 💼 Workers (approve, pay or reject). The Main Admin sees the same request.\n\nUnisocials Team';
+      const html =
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">' +
+        '<div style="background:#1B5E20;color:#ffffff;padding:20px 24px;font-size:18px;font-weight:bold">Unisocials — Salary Request 💰</div>' +
+        '<div style="padding:24px">' +
+        '<p style="margin:0 0 14px;color:#475569">A worker at your campus requested a salary payout. Handle it in <strong>💼 Workers</strong> — the Main Admin sees it too.</p>' +
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:16px">' +
+        payoutEmailRow('Requested by', (payout.requesterName || '') + ' <' + payout.requesterEmail + '>') +
+        payoutEmailRow('Amount requested', amount) +
+        payoutEmailRow('Bank', payout.bank ? payout.bank.bankName : '') +
+        payoutEmailRow('Account number', payout.bank ? payout.bank.accountNumber : '') +
+        payoutEmailRow('Account name', payout.bank ? payout.bank.accountName : '') +
+        '</table>' +
+        '<p style="font-size:13px;color:#475569">Your dashboard → 💼 Workers → approve, mark paid or reject.</p>' +
+        '</div></div>';
+      let sent = false;
+      if (brevoApiKey()) sent = !!(await sendBrevoEmail(to, subject, text, html, sub.name || ''));
+      if (!sent && resendKey()) {
+        const r = await postJson('api.resend.com', '/emails', { 'Authorization': 'Bearer ' + resendKey() }, { from: process.env.EMAIL_FROM || defaults.EMAIL_FROM, to: [to], subject: subject, text: text, html: html });
+        sent = r.status >= 200 && r.status < 300;
+      }
+      if (sent) anySent = true;
+    }
+    return anySent;
+  } catch (e) {
+    console.warn('Campus sub-admin payout email error:', e.message);
+    return false;
+  }
+}
+
 // The real inbox a payout notification should go to, or '' when the account has
 // no receivable address on file. Priority: the address captured when the payout
 // was requested, then the account's contactEmail, then the requester email only
 // when it is not an internal @unisocials.com login.
-async function payoutRecipientEmail(payout) {
-  if (!payout) return '';
+async function payoutRecipientEmail(payout) {  if (!payout) return '';
   const candidates = [payout.requesterContactEmail, payout.requesterEmail];
   if (payout.requestedBy) {
     let user = null;
@@ -5911,15 +5980,19 @@ codes[idx] = entry;
           await replaceUser(fresh);
         }
       } catch (e) { /* non-fatal */ }
-      // Notify the Main Admin so the salary can be verified and paid.
+      // Notify the Main Admin so the salary can be verified and paid, and the
+      // campus sub-admin — they are the one who handles payment requests for
+      // this university (the Main Admin keeps the oversight).
       const emailSent = await sendPayoutRequestEmailToAdmin(payout);
+      const subadminEmailSent = await sendPayoutRequestEmailToCampusSubadmins(payout, worker.authorizedUniversities);
       return sendJson(res, 200, {
         success: true,
         payout: payoutPublic(payout),
         adminEmailSent: !!emailSent,
+        subadminEmailSent: !!subadminEmailSent,
         message: 'Salary request submitted: ₦' + amount.toLocaleString() +
           ' (' + Math.round(amount / WORKER_SALARY_AMOUNT) + ' completed quota block' + (amount === WORKER_SALARY_AMOUNT ? '' : 's') +
-          ' of ' + WORKER_MONTHLY_QUOTA + ' sales each). The Main Admin has been notified and will pay within 24 hours of approval.'
+          ' of ' + WORKER_MONTHLY_QUOTA + ' sales each). Your campus sub-admin has been notified and will handle it — the Main Admin sees the request too.'
       });
     }
 

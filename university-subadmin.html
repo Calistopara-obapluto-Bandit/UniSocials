@@ -174,7 +174,7 @@
           <p class="card-sub">Verified sales at your authorized universities, event by event.</p>
           <div id="eventPerf"><p class="card-sub">Loading…</p></div>
         </div>
-        <div class="usub-notice">Your dashboard is scoped to the universities the Main Admin authorized on your account. You can authorise the sales % for your events (💰 Commission Split), draw your campuses' 55% pool (🏦 Campus Pool) and settle your workers' salaries (💼 Workers). Payment verification, event creation and account management stay with the Main Admin.</div>
+        <div class="usub-notice">Your dashboard is scoped to the universities the Main Admin authorized on your account. On every verified sale the platform takes its fee (20% by default) and that fee is split <strong>45% platform / 55% your campuses</strong> — your 55% is the 🏦 Campus Pool you can draw from, and it is what pays your campuses' 💼 Workers. You handle payment requests for your universities (approve, pay or reject worker salaries); your own pool draws are reviewed by the Main Admin, who sees everything. Payment verification, event creation and account management stay with the Main Admin.</div>
       </section>
 
       <!-- Orders -->
@@ -254,12 +254,13 @@
       <!-- The 55% campus pool -->
       <section class="usub-panel" data-upanel="pool">
         <div class="usub-card">
-          <h2>🏦 Campus pool — 55% of the platform's share</h2>
-          <p class="card-sub">Every verified direct sale at your universities collects the platform&apos;s authorised commission — the event&apos;s split (20%, 25%, 15%, 13% or 10%). <strong>55% of that platform share comes back to your campuses as this pool.</strong> Referred sales contribute their 2.5% share the same way. Request a draw whenever you need it; the Main Admin reviews it.</p>
+          <h2>🏦 Campus pool — 55% of the platform's fee (45/55 split)</h2>
+          <p class="card-sub">Here is the money chain, in full: <strong>every verified sale at your universities pays the platform&apos;s fee first</strong> — the event&apos;s authorised rate (20% by default; 25/15/13/10 when a different plan is set; referred sales contribute their 2.5%). <strong>That fee is then split 45 / 55 — the platform keeps 45%, and 55% comes back to your campuses as this pool.</strong> Example: a ₦5,000 sale takes a ₦1,000 fee → the platform keeps ₦450, your campuses get <strong>₦550 (11% of the sale)</strong>. You handle payment requests from your campuses (💼 Workers); your own pool draws go to the Main Admin, who reviews them and oversees everything.</p>
           <div class="usub-stats">
             <div class="usub-stat"><div class="usub-stat-label">Verified sales</div><div class="usub-stat-value" id="poolSales">₦0</div></div>
-            <div class="usub-stat"><div class="usub-stat-label">Platform share</div><div class="usub-stat-value" id="poolShare">₦0</div></div>
-            <div class="usub-stat"><div class="usub-stat-label">Your 55% pool</div><div class="usub-stat-value accent-value" id="poolEntitled">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Platform fee (share)</div><div class="usub-stat-value" id="poolShare">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Platform keeps 45%</div><div class="usub-stat-value" id="poolKeeps">₦0</div></div>
+            <div class="usub-stat"><div class="usub-stat-label">Your campuses' 55%</div><div class="usub-stat-value accent-value" id="poolEntitled">₦0</div></div>
             <div class="usub-stat"><div class="usub-stat-label">Available now</div><div class="usub-stat-value accent-value" id="poolAvailable">₦0</div></div>
           </div>
           <div id="poolByUni" style="margin-bottom:14px;"></div>
@@ -527,7 +528,7 @@
     function renderPool(d) {
       var btn = document.getElementById('poolRequestBtn');
       if (!d) {
-        ['poolSales', 'poolShare', 'poolEntitled', 'poolAvailable'].forEach(function(id) {
+        ['poolSales', 'poolShare', 'poolKeeps', 'poolEntitled', 'poolAvailable'].forEach(function(id) {
           var el = document.getElementById(id);
           if (el) el.textContent = '—';
         });
@@ -537,6 +538,9 @@
       var P = d.pool || {};
       document.getElementById('poolSales').textContent = fmt(P.sales);
       document.getElementById('poolShare').textContent = fmt(P.platformShare);
+      // 45/55 of the fee: the platform's cut and the campuses' cut, side by
+      // side, so the share never needs explaining twice.
+      document.getElementById('poolKeeps').textContent = fmt(P.platformKeeps != null ? P.platformKeeps : (P.platformShare - P.entitled));
       document.getElementById('poolEntitled').textContent = fmt(P.entitled);
       document.getElementById('poolAvailable').textContent = fmt(P.available);
       var rows = P.byUniversity || [];

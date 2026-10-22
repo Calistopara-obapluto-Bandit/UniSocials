@@ -180,9 +180,10 @@ export default function PayoutsPanel({ active }) {
             <strong>2.5% to Unisocials, 20% to the influencer, 77.5% to the event owner</strong>; a sale with no link is{' '}
             <strong>20% / 80%</strong> — or <strong>15% / 85%</strong> or <strong>10% / 90%</strong> on events
             authorized for a reduced split. Requests are paid in full — the platform fee was already taken from
-            the ticket. Referrer commission is
-            normally paid by the Influencer Admin of the event; you can still verify, release or reject any payout
-            here. Approved payouts are promised within 24 hours.
+            the ticket. Campus payment requests (worker salaries) are handled by the campus University Sub-Admin in
+            their 💼 Workers tab — you see <em>every</em> request here and can release or reject any of them.
+            Referrer commission is normally paid by the Influencer Admin of the event; you can still verify,
+            release or reject any payout here. Approved payouts are promised within 24 hours.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
