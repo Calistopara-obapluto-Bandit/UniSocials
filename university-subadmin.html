@@ -14,6 +14,15 @@
   <style>
     body.usub-page{min-height:100vh;background:var(--bg);color:var(--text-1)}
     .hidden{display:none!important}
+    /* Portal bar — a signed-in campus dashboard never carries the public site
+       menu (Home / Events / Tickets / Get Tickets), the mobile menu or the
+       public account cluster. Only the brand and a way back to the main site. */
+    .portal-actions{display:flex;align-items:center;gap:10px}
+    .portal-link{font-size:.82rem;font-weight:700;color:var(--text-2);border:1.5px solid var(--border);padding:8px 16px;border-radius:100px;text-decoration:none;white-space:nowrap;transition:color .3s,border-color .3s,background .3s}
+    .portal-link:hover{color:var(--accent);border-color:var(--accent-border);background:var(--accent-ghost)}
+    /* Small screens: the brand itself links home, so the pill steps aside
+       rather than squeezing the long portal name. */
+    @media(max-width:480px){.portal-actions{display:none}}
     .usub-login{padding:96px 0 80px;background:var(--bg)}
     .usub-login .container{max-width:1200px;margin:0 auto;padding:0 20px}
     .usub-login-card{width:min(100%,440px);margin:0 auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:40px 36px}
@@ -72,31 +81,18 @@
   </style>
 </head>
 <body class="usub-page">
-  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
-    <a href="index.html">Home</a>
-    <a href="events.html">Events</a>
-    <a href="tickets.html">Tickets</a>
-    <a href="about.html">About</a>
-    <a href="contact.html">Contact</a>
-    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
-  </div>
-
-  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
-    <div class="nav-inner">
+  <!-- ── PORTAL NAV ──
+       university-subadmin.html is a signed-in campus dashboard, not a public
+       page: the site-wide menu, the ticket CTA and the mobile menu have no
+       business here. data-account-controls="own" also stops the shared script
+       from injecting its Sign In / account cluster and Influencer entry into
+       this bar. -->
+  <nav class="nav" id="mainNav" role="navigation" aria-label="University sub-admin portal navigation">
+    <div class="nav-inner" data-account-controls="own">
       <a href="index.html" class="nav-logo">Uni<span>socials</span> · University Sub-Admin</a>
-      <ul class="nav-links" role="list">
-        <li><a href="index.html">Home</a></li>
-        <li><a href="events.html">Events</a></li>
-        <li><a href="tickets.html">Tickets</a></li>
-        <li><a href="about.html">About</a></li>
-        <li><a href="contact.html">Contact</a></li>
-      </ul>
-      <div class="nav-cta">
-        <a href="events.html" class="btn-primary">Get Tickets</a>
+      <div class="portal-actions">
+        <a href="index.html" class="portal-link">← Main site</a>
       </div>
-      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </nav>
 

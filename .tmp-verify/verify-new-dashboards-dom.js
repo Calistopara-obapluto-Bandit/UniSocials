@@ -86,6 +86,16 @@ async function testWorkerPage() {
   check('signed out shows the login view', !doc.getElementById('loginView').classList.contains('hidden') &&
     doc.getElementById('dashboard').classList.contains('hidden'));
 
+  // The portal must not carry the public site's chrome: no Home/Events/About
+  // menu, no Get Tickets CTA, no hamburger/mobile menu, and the shared script
+  // must be told to keep its Sign In / account cluster out of the bar.
+  check('worker: public site nav links absent', !doc.querySelector('.nav-links') && !doc.querySelector('.nav a[href="events.html"]'));
+  check('worker: public site CTA and mobile menu absent', !doc.querySelector('.nav-cta') && !doc.getElementById('mobileMenu') && !doc.getElementById('hamburger'));
+  check('worker: nav opts out of shared account injection',
+    !!doc.querySelector('.nav-inner[data-account-controls="own"]'));
+  check('worker: portal bar keeps brand + main-site link',
+    !!doc.querySelector('.nav .nav-logo') && !!doc.querySelector('.nav .portal-link'));
+
   // Wrong role is rejected.
   doc.getElementById('email').value = 'buyer@example.com';
   doc.getElementById('password').value = 'x';
@@ -228,6 +238,15 @@ async function testUniversitySubadminPage() {
 
   check('usub: signed out shows the login view', !doc.getElementById('loginView').classList.contains('hidden') &&
     doc.getElementById('dashboard').classList.contains('hidden'));
+
+  // The portal must not carry the public site's chrome (same contract as the
+  // worker page above).
+  check('usub: public site nav links absent', !doc.querySelector('.nav-links') && !doc.querySelector('.nav a[href="events.html"]'));
+  check('usub: public site CTA and mobile menu absent', !doc.querySelector('.nav-cta') && !doc.getElementById('mobileMenu') && !doc.getElementById('hamburger'));
+  check('usub: nav opts out of shared account injection',
+    !!doc.querySelector('.nav-inner[data-account-controls="own"]'));
+  check('usub: portal bar keeps brand + main-site link',
+    !!doc.querySelector('.nav .nav-logo') && !!doc.querySelector('.nav .portal-link'));
 
   // Wrong role copy check (server returns 401 for bad creds → same path).
   doc.getElementById('email').value = 'wrong@example.com';
