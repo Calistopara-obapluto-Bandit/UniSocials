@@ -12,6 +12,34 @@ import './auth.css';
  * the legacy page honoured — so a sign-in started from anywhere lands where the
  * visitor was headed instead of always dropping them on My Tickets.
  */
+
+/*
+ * The server's login endpoint is role-agnostic (every portal posts here), so a
+ * staff member can sign in on this page too. Each portal reads its OWN session
+ * key — posting to /api/auth/login returns the same session token regardless of
+ * role, so store it under the key that portal checks and go straight there.
+ * Without this, a worker / sub-admin / check-in staffer who signs in from the
+ * public site was stored as a buyer and dropped on /my-tickets — the general
+ * public dashboard.
+ */
+const STAFF_PORTALS = {
+  worker:              { path: '/worker.html', save: t => localStorage.setItem('unn_worker_token', t) },
+  university_subadmin: { path: '/university-subadmin.html', save: t => localStorage.setItem('unn_usub_token', t) },
+  subadmin:            { path: '/subadmin.html', save: (t, u) => {
+    localStorage.setItem('unn_subadmin_token', t);
+    localStorage.setItem('unn_subadmin_user', JSON.stringify(u));
+  } },
+  checkin_staff:       { path: '/checkin.html', save: (t, u) => {
+    localStorage.setItem('unn_checkin_token', t);
+    localStorage.setItem('unn_checkin_user', JSON.stringify(u));
+  } },
+  influencer:          { path: '/influencer.html', save: t => localStorage.setItem('unn_influencer_token', t) },
+  influencer_admin:    { path: '/influencer-admin.html', save: (t, u) => {
+    localStorage.setItem('unn_admin_token', t);
+    localStorage.setItem('unn_admin_user', JSON.stringify(u));
+  } },
+};
+
 export default function Login() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const [email, setEmail] = useState('');
@@ -37,6 +65,15 @@ export default function Login() {
       });
       const data = await res.json();
       if (data && data.success && data.token) {
+        const portal = STAFF_PORTALS[data.user && data.user.role];
+        if (portal) {
+          // Staff: sign in under the portal's own key and land on that portal
+          // — never the buyer session / My Tickets.
+          portal.save(data.token, data.user);
+          window.location.href = portal.path;
+          return;
+        }
+        // Regular buyers keep the classic session + `?next=` behaviour.
         setAuth(data.token, data.user);
         const next = params.get('next') || '/my-tickets';
         window.location.href = next;

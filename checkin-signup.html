@@ -78,6 +78,10 @@
     .auth-switch { text-align: center; font-size: 0.85rem; color: var(--text-3); margin-top: 20px; }
     .auth-switch a { color: var(--accent); text-decoration: underline; font-weight: 600; }
 
+    .portal-actions{display:flex;align-items:center;gap:10px}
+    .portal-link{font-size:.82rem;font-weight:700;color:var(--text-2);border:1.5px solid var(--border);padding:8px 16px;border-radius:100px;text-decoration:none;white-space:nowrap;transition:color .3s,border-color .3s,background .3s}
+    .portal-link:hover{color:var(--accent);border-color:var(--accent-border);background:var(--accent-ghost)}
+
     @media (max-width: 600px) {
       .auth-section { padding: 34px 0 56px; }
       .auth-card { padding: 28px 18px; }
@@ -88,36 +92,18 @@
 </head>
 <body>
 
-  <div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Navigation">
-    <a href="index.html">Home</a>
-    <a href="events.html">Events</a>
-    <a href="tickets.html">Tickets</a>
-    <a href="about.html">About</a>
-    <a href="contact.html">Contact</a>
-    <a href="influencer-admin-signup.html" class="mobile-iaf">✨ Create or sign in to an Influencer Admin account</a>
-    <a href="events.html" class="mobile-cta btn-primary">Get Tickets</a>
-  </div>
-
-  <nav class="nav" id="mainNav" role="navigation" aria-label="Main navigation">
-    <div class="nav-inner">
-      <a href="index.html" class="nav-logo">Uni<span>socials</span></a>
-      <ul class="nav-links" role="list">
-        <li><a href="index.html">Home</a></li>
-        <li><a href="events.html">Events</a></li>
-        <li><a href="tickets.html">Tickets</a></li>
-        <li><a href="about.html">About</a></li>
-        <li><a href="contact.html">Contact</a></li>
-      </ul>
-      <div class="nav-cta">
-        <span class="nav-account-slot"></span>
-        <a href="influencer-admin-signup.html" class="iaf-link" title="Create or sign in to an Influencer Admin account">
-          <span aria-hidden="true">👤</span> Create or sign up
-        </a>
-        <a href="events.html" class="btn-primary">Get Tickets</a>
+  <!-- ── PORTAL NAV ──
+       checkin-signup.html is only reachable from the check-in portal and
+       creates staff accounts: the site-wide menu, the ticket CTA and the
+       mobile menu have no business here. data-account-controls="own" also
+       stops the shared script from injecting its Sign In / account cluster
+       into this bar. -->
+  <nav class="nav" id="mainNav" role="navigation" aria-label="Check-in portal navigation">
+    <div class="nav-inner" data-account-controls="own">
+      <a href="index.html" class="nav-logo">Uni<span>socials</span> · Check-in</a>
+      <div class="portal-actions">
+        <a href="checkin.html" class="portal-link">← Check-in Portal</a>
       </div>
-      <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
     </div>
   </nav>
 

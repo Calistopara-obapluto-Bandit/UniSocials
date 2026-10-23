@@ -36,9 +36,11 @@ function get(path) {
     'config@' + cfgIdx + ' bundle@' + bundleIdx);
   check('/checkout is the React entry (bundle referenced)', bundleIdx !== -1);
 
-  // Same for the legacy short link customers actually land on.
+  // The legacy short link customers actually land on now 302s to the canonical
+  // React route (see routes.js ALIASES), so assert the hop itself — the
+  // destination carrying config.js is covered by the /checkout checks above.
   const legacy = await get('/checkout.html');
-  check('/checkout.html also serves config.js', legacy.body.indexOf('/config.js') !== -1);
+  check('/checkout.html redirects to /checkout', legacy.status === 302, 'status=' + legacy.status);
 
   // 2. /config.js must publish a usable Flutterwave public key.
   const cfg = await get('/config.js');
