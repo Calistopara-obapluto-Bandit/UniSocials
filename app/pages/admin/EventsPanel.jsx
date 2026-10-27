@@ -82,7 +82,7 @@ function safeImg(value) {
 // Events manager: add/edit/archive/notify/delete events. New events appear
 // instantly on the Events, Tickets and Home pages for buyers.
 export default function EventsPanel({ active }) {
-  const { showToast, loadOrders, loadEvents, events, universities, loadUniversities } = useAdmin();
+  const { showToast, loadOrders, loadEvents, events, eventsErr, universities, loadUniversities } = useAdmin();
   const [form, setForm] = useState(EMPTY_EVENT);
   const [editingId, setEditingId] = useState('');
   const [image, setImage] = useState('');
@@ -398,7 +398,16 @@ export default function EventsPanel({ active }) {
           </span>
         </div>
         <div className="admin-ticket-codes" style={{ marginTop: 14 }}>
-          {events.length === 0 ? (
+          {eventsErr ? (
+            /* A failed fetch must never look like an empty catalogue. */
+            <div style={{ textAlign: 'center', padding: 18, color: '#B71C1C', fontSize: '0.85rem', border: '1px solid #F5C6CB', borderRadius: 12, background: 'rgba(183,28,28,.06)' }}>
+              <strong>⚠️ Could not load your events.</strong>
+              <div style={{ marginTop: 6, color: 'var(--text-2)' }}>{eventsErr}</div>
+              <div style={{ marginTop: 10 }}>
+                <button className="admin-refresh-btn" onClick={() => loadEvents()}>↻ Try again</button>
+              </div>
+            </div>
+          ) : events.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 16, color: 'var(--text-3)', fontSize: '0.85rem' }}>
               No events added yet. Add your first event above.
             </div>

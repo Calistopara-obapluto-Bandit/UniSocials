@@ -341,9 +341,32 @@
     async function getJson(path) {
       var r = await fetch(path, { headers: headers() });
       if (r.status === 401 || r.status === 403) throw new Error('unauthorized');
-      var d = await r.json();
-      if (!d || !d.success) throw new Error('bad');
+      var d = await r.json().catch(function() { return null; });
+      if (!d || !d.success) {
+        // Keep the server's own reason (rate limit, 500, cold start…) so the
+        // sign-in screen can say what actually went wrong instead of a generic
+        // "could not load your dashboard".
+        var err = new Error((d && d.error) || ('The server returned HTTP ' + r.status + '. This can happen while the site is waking up — try again in a few seconds.'));
+        err.server = true;
+        throw err;
+      }
       return d;
+    }
+
+    // A banner at the top of the dashboard for partial/broken loads. Passing an
+    // empty string removes it.
+    function setBanner(msg) {
+      var dash = document.getElementById('dashboard');
+      if (!dash) return;
+      var b = document.getElementById('usubBanner');
+      if (!msg) { if (b && b.parentNode) b.parentNode.removeChild(b); return; }
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'usubBanner';
+        b.style.cssText = 'margin:0 0 16px;padding:12px 16px;border-radius:12px;background:#FFF8E1;border:1px solid #FFE0B2;color:#E65100;font-size:.85rem;font-weight:600;line-height:1.5;';
+        dash.insertBefore(b, dash.firstChild);
+      }
+      b.textContent = msg;
     }
 
     function renderOverview(d) {
@@ -699,34 +722,84 @@
 
     async function load() {
       if (!token()) { showView(); return false; }
-      try {
+
+      // ONLY the profile call decides whether this session is valid; every
+      // other section is best-effort. Previously one failing call (rate limit,
+      // 500, a cold-start timeout) made a successful sign-in look like a failed
+      // one, threw the token away and reported "could not load your dashboard".
+      async function profile() {
         var me = await getJson('/api/university-subadmin/overview');
         document.getElementById('userName').textContent = (me.user && me.user.name) || '';
         renderOverview(me);
-        var ordersD = await getJson('/api/university-subadmin/orders');
-        renderOrders(ordersD.orders || []);
-        renderCustomers(await getJson('/api/university-subadmin/customers'));
-        var eventsD = await getJson('/api/university-subadmin/events');
-        renderEvents(eventsD);
-        renderCommission(eventsD.events || []);
-        var linkD = await getJson('/api/university-subadmin/referral-link');
-        var statsD = await getJson('/api/university-subadmin/referral-stats');
-        renderReferral(linkD.link, statsD.stats);
-        // Campus pool + worker salaries are non-fatal: if either fails the
-        // rest of the dashboard still loads.
-        var poolD = await getJson('/api/university-subadmin/pool').catch(function() { return null; });
-        renderPool(poolD);
-        var workerD = await getJson('/api/university-subadmin/worker-payouts').catch(function() { return null; });
-        renderWorkers(workerD);
-        showView();
-        return true;
+      }
+      try {
+        await profile();
       } catch (e) {
         if (e.message === 'unauthorized') {
           try { localStorage.removeItem(KEY); } catch (e2) {}
           showView();
+          return false;
         }
-        return false;
+        // Transient failure: try once more, then open the dashboard with a
+        // warning instead of rejecting a sign-in that worked on the server.
+        await new Promise(function(res) { setTimeout(res, 1500); });
+        try {
+          await profile();
+        } catch (e3) {
+          if (e3.message === 'unauthorized') {
+            try { localStorage.removeItem(KEY); } catch (e4) {}
+            showView();
+            return false;
+          }
+          showView();
+          setBanner('⚠️ Signed in, but the server did not answer just now. This page keeps retrying — or reload in a few seconds. (' + (e3.message || 'no response') + ')');
+          return true;
+        }
       }
+
+      var failed = [];
+      async function section(label, fn, fallback) {
+        try { await fn(); } catch (e) {
+          if (e.message === 'unauthorized') throw e;
+          failed.push(label);
+          if (typeof fallback === 'function') { try { fallback(); } catch (e2) {} }
+        }
+      }
+      try {
+        await section('Orders', async function() {
+          renderOrders((await getJson('/api/university-subadmin/orders')).orders || []);
+        });
+        await section('Customers', async function() {
+          renderCustomers(await getJson('/api/university-subadmin/customers'));
+        });
+        await section('Events', async function() {
+          var eventsD = await getJson('/api/university-subadmin/events');
+          renderEvents(eventsD);
+          renderCommission(eventsD.events || []);
+        });
+        await section('Referral link', async function() {
+          var linkD = await getJson('/api/university-subadmin/referral-link');
+          var statsD = await getJson('/api/university-subadmin/referral-stats');
+          renderReferral(linkD.link, statsD.stats);
+        });
+        await section('Campus pool', async function() {
+          renderPool(await getJson('/api/university-subadmin/pool'));
+        }, function() { renderPool(null); });
+        await section('Workers', async function() {
+          renderWorkers(await getJson('/api/university-subadmin/worker-payouts'));
+        }, function() { renderWorkers(null); });
+      } catch (e) {
+        if (e.message === 'unauthorized') {
+          try { localStorage.removeItem(KEY); } catch (e2) {}
+          showView();
+          return false;
+        }
+      }
+      setBanner(failed.length
+        ? '⚠️ ' + failed.join(', ') + ' could not be loaded just now — everything else is up to date. This page retries automatically.'
+        : '');
+      showView();
+      return true;
     }
 
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
@@ -744,19 +817,38 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: mail, password: pwd })
         });
+        var body = null;
+        try { body = await r.json(); } catch (e2) {}
         if (r.status === 401) throw new Error('unauthorized');
-        if (!r.ok) throw new Error('network');
-        var d = await r.json();
-        if (!d || !d.success || !d.token) throw new Error('unauthorized');
-        if (!d.user || d.user.role !== 'university_subadmin') throw new Error('not-usub');
-        try { localStorage.setItem(KEY, d.token); } catch (e3) {}
-        if (!(await load())) throw new Error('bad');
+        if (r.status === 403) {
+          var blocked = new Error('blocked');
+          blocked.serverMsg = (body && body.error) || '';
+          throw blocked;
+        }
+        if (r.status === 429) throw new Error('limited');
+        if (!r.ok || !body || !body.success || !body.token) throw new Error('network');
+        if (!body.user || body.user.role !== 'university_subadmin') throw new Error('not-usub');
+        try { localStorage.setItem(KEY, body.token); } catch (e3) {}
+        // load() only reports failure when the session itself was rejected;
+        // a section that could not load keeps you signed in and shows a banner.
+        if (!(await load())) throw new Error('unauthorized');
       } catch (err) {
-        try { localStorage.removeItem(KEY); } catch (e4) {}
-        if (err.message === 'not-usub') {
+        var code = err && err.message;
+        // The token is only dropped when the credentials/role were rejected —
+        // never for a server hiccup, or a good sign-in would look like a failure.
+        if (code === 'unauthorized' || code === 'not-usub' || code === 'blocked') {
+          try { localStorage.removeItem(KEY); } catch (e4) {}
+        }
+        if (code === 'not-usub') {
           showError('This account is not a university sub-admin. Master Sub-Admins sign in on subadmin.html.');
-        } else if (err.message === 'unauthorized') {
+        } else if (code === 'blocked') {
+          showError((err && err.serverMsg) || 'This account cannot sign in. Please contact the Main Admin.');
+        } else if (code === 'unauthorized') {
           showError('Incorrect university sub-admin credentials.');
+        } else if (code === 'limited') {
+          showError('Too many attempts — wait about a minute, then try again.');
+        } else if (code === 'network') {
+          showError('Cannot reach the server. It may still be waking up — give it a few seconds and tap Sign In again.');
         } else {
           showError('Could not load your dashboard. Please try again.');
         }

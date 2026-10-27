@@ -78,6 +78,10 @@ export default function Admin() {
   const [unseen, setUnseen] = useState(0);
   const [universities, setUniversities] = useState([]);
   const [events, setEvents] = useState([]);
+  // Why the last events fetch failed ("" = fine). Without this the panel could
+  // not tell "there are genuinely no events" apart from "the request failed",
+  // and silently showed "No events added yet" after one bad response.
+  const [eventsErr, setEventsErr] = useState('');
   const [toast, setToast] = useState(null); // { msg, error }
   const [pwd, setPwd] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -96,6 +100,7 @@ export default function Admin() {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setAuthed(false);
+      setLoginError('Your admin session expired or was rejected — please enter the admin password again.');
       setOrders([]);
       setUnseen(0);
       lastUnseen.current = -1;
@@ -126,12 +131,28 @@ export default function Admin() {
     } catch (e) { /* keep the last catalogue on a transient failure */ }
   }, []);
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (attempt = 0) => {
     try {
       const data = await adminFetch('/api/admin/events', { credentials: 'same-origin' });
       if (data && data.__unauthorized) return;
-      setEvents((data && data.success && data.events) || []);
-    } catch (e) { /* keep the last list on a transient failure */ }
+      if (data && data.success && Array.isArray(data.events)) {
+        setEvents(data.events);
+        setEventsErr('');
+        return;
+      }
+      // A 5xx/504 (cold start) or malformed body: retry once, then surface it.
+      if (attempt < 1) {
+        setTimeout(() => { loadEvents(attempt + 1); }, 900);
+        return;
+      }
+      setEventsErr((data && data.error) || 'The server could not return the event list.');
+    } catch (e) {
+      if (attempt < 1) {
+        setTimeout(() => { loadEvents(attempt + 1); }, 900);
+        return;
+      }
+      setEventsErr((e && e.message) || 'Cannot reach the server.');
+    }
   }, []);
 
   const pollUnseen = useCallback(async () => {
@@ -206,7 +227,7 @@ export default function Admin() {
         headers: { Authorization: 'Bearer ' + value }
       });
       if (res.status === 401) {
-        setLoginError('Incorrect details. Please try again.');
+        setLoginError('That password was rejected by the server. If it keeps failing, the admin password configured for this site has changed.');
         return;
       }
       if (!res.ok) throw new Error('network');
@@ -245,6 +266,10 @@ export default function Admin() {
   function switchTab(name) {
     setActiveTab(name);
     setMenuOpen(false);
+    // The Events list is only fetched when the dashboard is entered, so a
+    // single failed request (cold start, timeout) left that tab empty until a
+    // full page reload. Re-fetch every time the tab is opened.
+    if (name === 'events') loadEvents();
   }
 
   const user = getAdminUser();
@@ -253,8 +278,8 @@ export default function Admin() {
 
   const ctx = useMemo(() => ({
     showToast, loadOrders, loadUniversities, loadEvents, switchTab,
-    universities, events, activeTab
-  }), [showToast, loadOrders, loadUniversities, loadEvents, universities, events, activeTab]);
+    universities, events, eventsErr, activeTab
+  }), [showToast, loadOrders, loadUniversities, loadEvents, universities, events, eventsErr, activeTab]);
 
   return (
     <AdminCtx.Provider value={ctx}>
