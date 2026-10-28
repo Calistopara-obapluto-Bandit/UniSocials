@@ -82,6 +82,10 @@ export default function Admin() {
   // not tell "there are genuinely no events" apart from "the request failed",
   // and silently showed "No events added yet" after one bad response.
   const [eventsErr, setEventsErr] = useState('');
+  // True while the events list request (and its retries) are still in flight.
+  // Without it the panel could not tell "loading" apart from "empty", and a
+  // slow network flashed "0 events — No events added yet".
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [toast, setToast] = useState(null); // { msg, error }
   const [pwd, setPwd] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -132,27 +136,31 @@ export default function Admin() {
   }, []);
 
   const loadEvents = useCallback(async (attempt = 0) => {
+    setEventsLoading(true);
     try {
       const data = await adminFetch('/api/admin/events', { credentials: 'same-origin' });
-      if (data && data.__unauthorized) return;
+      if (data && data.__unauthorized) { setEventsLoading(false); return; }
       if (data && data.success && Array.isArray(data.events)) {
         setEvents(data.events);
         setEventsErr('');
+        setEventsLoading(false);
         return;
       }
-      // A 5xx/504 (cold start) or malformed body: retry once, then surface it.
-      if (attempt < 1) {
-        setTimeout(() => { loadEvents(attempt + 1); }, 900);
+      // A 5xx/504 (cold start) or malformed body: retry with a growing
+      // backoff — a slow network needs more than one quick second chance.
+      if (attempt < 3) {
+        setTimeout(() => { loadEvents(attempt + 1); }, 900 + attempt * 1200);
         return;
       }
       setEventsErr((data && data.error) || 'The server could not return the event list.');
     } catch (e) {
-      if (attempt < 1) {
-        setTimeout(() => { loadEvents(attempt + 1); }, 900);
+      if (attempt < 3) {
+        setTimeout(() => { loadEvents(attempt + 1); }, 900 + attempt * 1200);
         return;
       }
       setEventsErr((e && e.message) || 'Cannot reach the server.');
     }
+    setEventsLoading(false);
   }, []);
 
   const pollUnseen = useCallback(async () => {
@@ -284,8 +292,8 @@ export default function Admin() {
 
   const ctx = useMemo(() => ({
     showToast, loadOrders, loadUniversities, loadEvents, switchTab,
-    universities, events, eventsErr, activeTab
-  }), [showToast, loadOrders, loadUniversities, loadEvents, universities, events, eventsErr, activeTab]);
+    universities, events, eventsErr, eventsLoading, activeTab
+  }), [showToast, loadOrders, loadUniversities, loadEvents, universities, events, eventsErr, eventsLoading, activeTab]);
 
   return (
     <AdminCtx.Provider value={ctx}>

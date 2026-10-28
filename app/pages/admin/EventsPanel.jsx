@@ -82,7 +82,7 @@ function safeImg(value) {
 // Events manager: add/edit/archive/notify/delete events. New events appear
 // instantly on the Events, Tickets and Home pages for buyers.
 export default function EventsPanel({ active }) {
-  const { showToast, loadOrders, loadEvents, events, eventsErr, universities, loadUniversities } = useAdmin();
+  const { showToast, loadOrders, loadEvents, events, eventsErr, eventsLoading, universities, loadUniversities } = useAdmin();
   const [form, setForm] = useState(EMPTY_EVENT);
   const [editingId, setEditingId] = useState('');
   const [image, setImage] = useState('');
@@ -394,7 +394,7 @@ export default function EventsPanel({ active }) {
             <button type="button" className="admin-refresh-btn" onClick={cancelEdit}>✕ Cancel Edit</button>
           ) : null}
           <span style={{ fontSize: '0.75rem', color: 'var(--text-3)', alignSelf: 'center' }}>
-            {events.length} event{events.length === 1 ? '' : 's'}
+            {eventsLoading && !events.length && !eventsErr ? 'Loading…' : events.length + ' event' + (events.length === 1 ? '' : 's')}
           </span>
         </div>
         <div className="admin-ticket-codes" style={{ marginTop: 14 }}>
@@ -406,6 +406,11 @@ export default function EventsPanel({ active }) {
               <div style={{ marginTop: 10 }}>
                 <button className="admin-refresh-btn" onClick={() => loadEvents()}>↻ Try again</button>
               </div>
+            </div>
+          ) : eventsLoading && !events.length ? (
+            /* Slow network: say so instead of claiming the catalogue is empty. */
+            <div style={{ textAlign: 'center', padding: 18, color: 'var(--text-3)', fontSize: '0.85rem' }}>
+              ⏳ Loading events…
             </div>
           ) : events.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 16, color: 'var(--text-3)', fontSize: '0.85rem' }}>

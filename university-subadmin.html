@@ -812,21 +812,36 @@
       btn.disabled = true; btn.textContent = 'Verifying…';
       errBox.classList.remove('show');
       try {
-        var r = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: mail, password: pwd })
-        });
+        // Slow networks and cold starts make the first attempt fail with a 5xx
+        // or a dead connection. Retry the sign-in itself a few times before
+        // reporting a failure — a rejected login (401/403/429) is final and is
+        // never retried.
         var body = null;
-        try { body = await r.json(); } catch (e2) {}
-        if (r.status === 401) throw new Error('unauthorized');
-        if (r.status === 403) {
-          var blocked = new Error('blocked');
-          blocked.serverMsg = (body && body.error) || '';
-          throw blocked;
+        var reachedServer = false;
+        for (var attempt = 0; attempt < 3 && !reachedServer; attempt++) {
+          if (attempt) await new Promise(function(res) { setTimeout(res, 1200); });
+          try {
+            var r = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: mail, password: pwd })
+            });
+            body = null;
+            try { body = await r.json(); } catch (e2) {}
+            if (r.status === 401) throw new Error('unauthorized');
+            if (r.status === 403) {
+              var blocked = new Error('blocked');
+              blocked.serverMsg = (body && body.error) || '';
+              throw blocked;
+            }
+            if (r.status === 429) throw new Error('limited');
+            if (r.ok && body && body.success && body.token) { reachedServer = true; break; }
+          } catch (e2) {
+            if (e2 && (e2.message === 'unauthorized' || e2.message === 'blocked' || e2.message === 'limited')) throw e2;
+            // otherwise: connection dropped mid-request — try again
+          }
         }
-        if (r.status === 429) throw new Error('limited');
-        if (!r.ok || !body || !body.success || !body.token) throw new Error('network');
+        if (!reachedServer) throw new Error('network');
         if (!body.user || body.user.role !== 'university_subadmin') throw new Error('not-usub');
         try { localStorage.setItem(KEY, body.token); } catch (e3) {}
         // load() only reports failure when the session itself was rejected;

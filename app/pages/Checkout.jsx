@@ -288,6 +288,10 @@ export default function Checkout() {
     } catch (e) {}
   }
 
+  // The summary prices are rendered from React state (see the JSX below), so
+  // this only updates the state — never the DOM nodes directly. The old
+  // imperative `innerHTML` writes never ran on first paint, which is why the
+  // Order Summary showed "—" for Unit Price and Total.
   function renderCheckoutPrice(original, bonus) {
     if (!checkoutData) return;
     const payable = referralApplied ? original : (bonus > 0 ? bonus : original);
@@ -301,29 +305,11 @@ export default function Checkout() {
           }
         : null
     );
-    const unitPriceNode = document.getElementById('summaryUnitPrice');
-    if (unitPriceNode) {
-      // Free events price out at ₦0 — say "FREE" instead of "₦0".
-      const payableLabel = payable > 0 ? '₦' + payable.toLocaleString() : 'FREE';
-      unitPriceNode.innerHTML = (!referralApplied && original > payable && payable > 0)
-        ? '<span style="text-decoration:line-through;opacity:.55;margin-right:7px;">₦' + original.toLocaleString() + '</span><strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong><small class="referral-price-note">✨ Bonus price</small>'
-        : (referralApplied && original > 0 ? '<strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong><small class="referral-price-note">🎁 Referral price</small>' : '<strong style="color:var(--accent);font-size:1.12em;">' + payableLabel + '</strong>');
-    }
     renderCouponTotal();
   }
 
   function renderCouponTotal() {
     const total = computedTotal();
-    const unitPriceNode = document.getElementById('summaryUnitPrice');
-    if (unitPriceNode && referralApplied && checkoutData) {
-      const original = Number(checkoutData.originalEventPrice || 0);
-      const refPrice = Number(checkoutData.eventPrice || 0);
-      unitPriceNode.innerHTML = '<strong style="color:var(--accent);font-size:1.12em;">' + (refPrice > 0 ? '₦' + refPrice.toLocaleString() : 'FREE') + '</strong><small class="referral-price-note">🎁 Referral price</small>';
-    }
-    const totalNodes = ['summaryTotal', 'placeOrderTotal', 'mobileBarTotal'].map(id => document.getElementById(id)).filter(Boolean);
-    const totalLabel = total > 0 ? '₦' + total.toLocaleString() : 'FREE';
-    totalNodes.forEach(node => { if (node) node.textContent = totalLabel; });
-
     const box = document.getElementById('couponSummary');
     if (box && appliedCoupon) {
       box.style.display = 'block';
@@ -650,7 +636,13 @@ export default function Checkout() {
   // ---- Normal checkout (we have checkoutData) ----
   // A ₦0 total means a free event: no payment methods, just one action that
   // generates the ticket server-side and emails it to the buyer.
-  const freeOrder = !(computedTotal() > 0);
+  const unitOriginal = Number(checkoutData.originalEventPrice || checkoutData.eventPrice || 0);
+  const unitBonus = Number(checkoutData.bonusEventPrice || 0);
+  const unitPayable = referralApplied ? unitOriginal : (unitBonus > 0 ? unitBonus : unitOriginal);
+  const totalPrice = computedTotal();
+  const totalLabel = totalPrice > 0 ? '₦' + totalPrice.toLocaleString() : 'FREE';
+  const unitLabel = unitPayable > 0 ? '₦' + unitPayable.toLocaleString() : 'FREE';
+  const freeOrder = !(totalPrice > 0);
 
   return (
     <>
@@ -706,11 +698,28 @@ export default function Checkout() {
               <div className="summary-divider" />
               <div className="summary-row">
                 <span>Unit Price</span>
-                <span id="summaryUnitPrice">—</span>
+                <span id="summaryUnitPrice">
+                  {!referralApplied && unitOriginal > unitPayable && unitPayable > 0 ? (
+                    <>
+                      <span style={{ textDecoration: 'line-through', opacity: 0.55, marginRight: 7 }}>
+                        ₦{unitOriginal.toLocaleString()}
+                      </span>
+                      <strong style={{ color: 'var(--accent)', fontSize: '1.12em' }}>{unitLabel}</strong>
+                      <small className="referral-price-note">✨ Bonus price</small>
+                    </>
+                  ) : referralApplied && unitOriginal > 0 ? (
+                    <>
+                      <strong style={{ color: 'var(--accent)', fontSize: '1.12em' }}>{unitLabel}</strong>
+                      <small className="referral-price-note">🎁 Referral price</small>
+                    </>
+                  ) : (
+                    <strong style={{ color: 'var(--accent)', fontSize: '1.12em' }}>{unitLabel}</strong>
+                  )}
+                </span>
               </div>
               <div className="summary-row summary-total">
                 <span>Total</span>
-                <span id="summaryTotal">—</span>
+                <span id="summaryTotal">{totalLabel}</span>
               </div>
               <div className="summary-divider" />
               <div className="summary-row">
@@ -757,6 +766,53 @@ export default function Checkout() {
               </div>
             </div>
             )}
+
+            {/* PAYMENT ACTIONS — one button for free events, methods only when paid */}
+            <div className="checkout-card reveal reveal-delay-3">
+              {freeOrder ? (
+                <>
+                  <h3 className="checkout-card-title">Get your free ticket</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="freeTicketBtn"
+                      onClick={() => placeOrder('free')}
+                    >
+                      🎟️ Generate my free ticket
+                    </button>
+                  </div>
+                  <p className="summary-note">
+                    No payment is required. Your ticket is generated instantly and sent to your email address.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="checkout-card-title">Choose how you want to pay</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="cardPaymentBtn"
+                      onClick={() => placeOrder('card')}
+                    >
+                      💳 Click to proceed to checkout
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-submit btn-submit-lg"
+                      id="bankTransferBtn"
+                      onClick={() => placeOrder('banktransfer')}
+                    >
+                      🏦 Click to proceed via bank transfer
+                    </button>
+                  </div>
+                  <p className="summary-note">
+                    After you choose a method, Flutterwave opens its secure payment screen with only that payment method. By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.
+                  </p>
+                </>
+              )}
+            </div>
 
             {/* TASK REFERRAL LINK */}
             {taskCode ? (
@@ -853,53 +909,6 @@ export default function Checkout() {
                 </div>
               </div>
             </div>
-
-            {/* PAYMENT ACTIONS — one button for free events, methods only when paid */}
-            <div className="checkout-card reveal reveal-delay-3">
-              {freeOrder ? (
-                <>
-                  <h3 className="checkout-card-title">Get your free ticket</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <button
-                      type="button"
-                      className="btn-submit btn-submit-lg"
-                      id="freeTicketBtn"
-                      onClick={() => placeOrder('free')}
-                    >
-                      🎟️ Generate my free ticket
-                    </button>
-                  </div>
-                  <p className="summary-note">
-                    No payment is required. Your ticket is generated instantly and sent to your email address.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h3 className="checkout-card-title">Choose how you want to pay</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <button
-                      type="button"
-                      className="btn-submit btn-submit-lg"
-                      id="cardPaymentBtn"
-                      onClick={() => placeOrder('card')}
-                    >
-                      💳 Click to proceed to checkout
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-submit btn-submit-lg"
-                      id="bankTransferBtn"
-                      onClick={() => placeOrder('banktransfer')}
-                    >
-                      🏦 Click to proceed via bank transfer
-                    </button>
-                  </div>
-                  <p className="summary-note">
-                    After you choose a method, Flutterwave opens its secure payment screen with only that payment method. By continuing, you agree to our <a href="#">Terms of Service</a> and <a href="#">Refund Policy</a>.
-                  </p>
-                </>
-              )}
-            </div>
           </div>
         </div>
       </section>
@@ -908,7 +917,7 @@ export default function Checkout() {
       <div className="mobile-checkout-bar" id="mobileCheckoutBar">
         <div className="mobile-checkout-total">
           <small>Total</small>
-          <strong id="mobileBarTotal">—</strong>
+          <strong id="mobileBarTotal">{totalLabel}</strong>
         </div>
         <button
           className="btn-submit mobile-checkout-btn"
