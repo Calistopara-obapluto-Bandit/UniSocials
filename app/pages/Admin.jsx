@@ -230,7 +230,13 @@ export default function Admin() {
         setLoginError('That password was rejected by the server. If it keeps failing, the admin password configured for this site has changed.');
         return;
       }
-      if (!res.ok) throw new Error('network');
+      if (!res.ok) {
+        // e.g. 503 when this deployment has no usable ADMIN_PASSWORD — show the
+        // server's own explanation instead of a generic connection error.
+        const body = await res.json().catch(() => null);
+        if (body && body.error) { setLoginError(body.error); return; }
+        throw new Error('network');
+      }
       const data = await res.json();
       setAdminToken(value);
       lastUnseen.current = (data && data.unseenCount != null) ? data.unseenCount : -1;

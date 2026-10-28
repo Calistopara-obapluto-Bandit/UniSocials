@@ -2085,6 +2085,15 @@ function validatePassword(password) {
   if (!/[^A-Za-z0-9\s]/.test(pw)) return 'Password must contain at least one symbol.';
   return null;
 }
+// Whether this deployment has a usable admin password at all. When it does
+// not (unset, blank, or still the documented placeholder), NO credential can
+// ever be accepted — so the login probe must say that plainly instead of
+// reporting "Incorrect details", which sends the operator looking for a
+// password problem that is really a missing configuration.
+function adminPasswordConfigured() {
+  const expected = String(process.env.ADMIN_PASSWORD || '').trim();
+  return !!expected && expected !== 'CHANGE_ME_STRONG_PASSWORD';
+}
 function isAdminAuthorized(req) {
   const auth = String(req.headers['authorization'] || '');
   if (!auth.startsWith('Bearer ')) return false;
@@ -6530,7 +6539,16 @@ codes[idx] = entry;
 
     // ── Admin: list orders ──
     if (pathname === '/api/admin/orders' && req.method === 'GET') {
-      if (!isAdminAuthorized(req)) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      if (!isAdminAuthorized(req)) {
+        // This endpoint doubles as the /admin login probe. Distinguish "no
+        // usable admin password exists here" from "wrong password" so the
+        // dashboard can tell the operator to configure ADMIN_PASSWORD instead
+        // of retrying credentials that can never work. Nothing is granted.
+        if (!adminPasswordConfigured()) {
+          return sendJson(res, 503, { success: false, error: 'Admin sign-in is not configured for this site: ADMIN_PASSWORD is unset or still the placeholder value. Set a real ADMIN_PASSWORD for this deployment, then reload.' });
+        }
+        return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+      }
       await removeDemoDataAndKeepSiteCreatedEvents();
       const orders = await readOrders();
       return sendJson(res, 200, { success: true, unseenCount: unseenOrderCount(orders), orders: orders });
