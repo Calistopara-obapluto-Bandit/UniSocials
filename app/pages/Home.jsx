@@ -17,7 +17,10 @@ import { esc, fmtN } from '../lib/utils.jsx';
 
 function safeImg(value) {
   const v = String(value == null ? '' : value).trim();
-  if (!v || /^(?:https?:\/\/|\/[^\/]|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*)$/.test(v)) return v;
+  // Allowed: http(s) URLs, root-relative paths (e.g. /api/events/<id>/image)
+  // and inline data images. Each branch must consume the WHOLE value — the
+  // regex is anchored, so `\/[^\/]` alone only ever matched "/x".
+  if (!v || /^(?:https?:\/\/[^\s"']+|\/(?!\/)[^\s"']*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*)$/.test(v)) return v;
   return '';
 }
 
@@ -51,7 +54,8 @@ function Counter({ value, suffix }) {
 }
 
 function EventCard({ ev, delay }) {
-  const img = String(ev.image || '').trim();
+  // Pictures come from the per-event imageUrl the list API now provides.
+  const img = String(ev.imageUrl || ev.image || '').trim();
   const badge = esc(ev.category || 'General');
   const price = Number(ev.price || 0);
   const bonus = Number(ev.bonusPrice || 0);
@@ -309,8 +313,8 @@ export default function Home() {
             <div className="hero-visual reveal reveal-delay-2">
               <div className="hero-card">
                 <div className="hero-card-media" id="heroEventMedia">
-                  {heroEvent && String(heroEvent.image || '').trim() ? (
-                    <img src={esc(safeImg(heroEvent.image))} alt={esc(heroEvent.name || 'Featured event')} />
+                  {heroEvent && String(heroEvent.imageUrl || heroEvent.image || '').trim() ? (
+                    <img src={esc(safeImg(heroEvent.imageUrl || heroEvent.image))} alt={esc(heroEvent.name || 'Featured event')} />
                   ) : (
                     <div className="hero-card-fallback" id="heroEventIcon">{esc((heroEvent && heroEvent.icon) || '🎉')}</div>
                   )}
@@ -363,7 +367,11 @@ export default function Home() {
           <p className="section-sub reveal reveal-delay-2">Don&apos;t miss out on the biggest campus events this month.</p>
 
           <div className="events-grid" id="featuredGrid">
-            {events === null ? null : eventsFailed ? (
+            {events === null ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 20px' }}>
+                <p style={{ color: 'var(--text-3)' }}>Loading events…</p>
+              </div>
+            ) : eventsFailed ? (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 20px' }}>
                 <span style={{ fontSize: '2.8rem', display: 'block', marginBottom: 12 }}>🚚</span>
                 <p style={{ color: 'var(--text-3)' }}>Could not load featured events. Please refresh the page.</p>

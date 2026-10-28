@@ -6892,6 +6892,29 @@ codes[idx] = entry;
     }
 
     // ── Public events list (used by events.html, tickets.html, index.html) ──
+    // ── Public: one event's picture, served on its own with caching ──
+    // The events LIST used to inline every picture as a base64 data URL,
+    // making /api/events ~1.5 MB — on a phone that left the home page's event
+    // area blank and the events page stuck on "Loading…" while the payload
+    // crawled (or never arrived). The list now carries only `imageUrl` and
+    // each picture streams from this route, cached by the browser.
+    const eventImageMatch = pathname.match(/^\/api\/events\/([^\/]+)\/image$/);
+    if (eventImageMatch && req.method === 'GET') {
+      const eventId = decodeURIComponent(eventImageMatch[1]);
+      const imageEvents = await readEvents();
+      const foundEvent = imageEvents.find(function(e) { return String(e.id || e._id || '') === eventId; });
+      const rawImage = foundEvent ? String(foundEvent.image || '') : '';
+      const imageParts = rawImage.match(/^data:(image\/[a-z0-9+.-]+);base64,(.+)$/i);
+      if (!imageParts) return sendJson(res, 404, { success: false, error: 'No image for this event.' });
+      const imageBuf = Buffer.from(imageParts[2], 'base64');
+      res.writeHead(200, {
+        'Content-Type': imageParts[1],
+        'Content-Length': imageBuf.length,
+        'Cache-Control': 'public, max-age=604800'
+      });
+      return res.end(imageBuf);
+    }
+
     if (pathname === '/api/events' && req.method === 'GET') {
       const allEvents = await readEvents();
       const includeArchived = url.searchParams.get('includeArchived') === '1';
@@ -6914,12 +6937,23 @@ codes[idx] = entry;
       const orders = await readOrders();
       const inventoryMap = buildEventInventoryMap(orders);
       function enrich(ev) {
-        return Object.assign({}, ev, { inventory: {
+        const out = Object.assign({}, ev, { inventory: {
           regular: getTierInventoryFromMap(ev,'regular',inventoryMap),
           vip: getTierInventoryFromMap(ev,'vip',inventoryMap),
           vvip: getTierInventoryFromMap(ev,'vvip',inventoryMap),
           table: getTierInventoryFromMap(ev,'table',inventoryMap)
         }});
+        // Replace inline base64 pictures with a link to the per-event image
+        // route above, so this list stays small enough to load instantly.
+        // The version param busts the browser cache when a picture changes.
+        const inlineImg = String(out.image || '');
+        if (/^data:image\//i.test(inlineImg)) {
+          out.image = '';
+          out.imageUrl = '/api/events/' + encodeURIComponent(String(out.id || out._id || '')) + '/image?v=' + inlineImg.length;
+        } else {
+          out.imageUrl = inlineImg;
+        }
+        return out;
       }
       if (uniSlug) {
         const universities = await readUniversities();

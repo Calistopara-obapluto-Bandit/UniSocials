@@ -7,12 +7,17 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 function safeImg(value) {
   const v = String(value == null ? '' : value).trim();
-  if (!v || /^(?:https?:\/\/|\/[^\/]|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*)$/.test(v)) return v;
+  // Allowed: http(s) URLs, root-relative paths (e.g. /api/events/<id>/image)
+  // and inline data images. Each branch must consume the WHOLE value — the
+  // regex is anchored, so `\/[^\/]` alone only ever matched "/x".
+  if (!v || /^(?:https?:\/\/[^\s"']+|\/(?!\/)[^\s"']*|data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*)$/.test(v)) return v;
   return '';
 }
 
 function eventImageHtml(ev) {
-  const img = String(ev.image || '').trim();
+  // The list API serves pictures via a per-event imageUrl (the list itself
+  // carries no inline base64), with `image` kept as a legacy fallback.
+  const img = String(ev.imageUrl || ev.image || '').trim();
   const badge = esc(ev.category || 'General');
   if (img) {
     return (
